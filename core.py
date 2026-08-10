@@ -15,6 +15,11 @@ import luu_tru
 
 PHIEN_BAN = "0.2"
 
+#: Phiên bản định dạng file. 4 = nhịp chạy chuyển từ `doc["timeframe"]` (một nhịp cho cả
+#: tài liệu) sang khoá `nhip` trên chính khối Bắt đầu của TỪNG sơ đồ. `normalize_process`
+#: đọc được cả file cũ, nên không cần script di cư riêng.
+SCHEMA = 4
+
 # ---------------------------------------------------------------------------
 # Thư mục dữ liệu
 # ---------------------------------------------------------------------------
@@ -228,6 +233,15 @@ CACH_TINH_NGAN = {
     "theo_gia": "giá",
 }
 
+# NHỊP mặc định của từng sơ đồ. Hai con số KHÁC NHAU là CỐ Ý (core.md §12.4):
+#   Entry  là QUYẾT ĐỊNH  — 5 phút xem một lần là đủ và là đúng.
+#   Manage là PHẢN ỨNG    — càng nhanh càng đúng, M1 là nhanh nhất dữ liệu cho phép.
+# Bản gốc chạy `ManageBreakEven()` MỖI TICK, ngoài mọi guard nến (`Compress.mq5:128`).
+# Để Manage ở M5 là một nến quét lên đủ 1R rồi quay về SL sẽ ghi −1R trong khi EA thật
+# đã kịp dời SL và thoát ~0R — lệch có hệ thống, và lệch về phía ta lỗ nhiều hơn.
+NHIP_MAC_DINH = {TAB_ENTRY: "M5", TAB_MANAGE: "M1"}
+
+
 HUONG = {"mua": "Mua", "ban": "Bán"}
 LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop", "limit": "Chờ Limit"}
 
@@ -285,7 +299,7 @@ def ensure_step_ids(steps):
 # ---------------------------------------------------------------------------
 
 
-def make_start_step(name="Mỗi nến — chạy lại từ đây"):
+def make_start_step(name="Chạy lại từ đây", nhip="M5"):
     """Khối BẮT ĐẦU — không làm gì cả, nhưng nói ra một điều quan trọng.
 
     CẢ SƠ ĐỒ là một vòng lặp: nó chạy lại từ khối này ở MỖI NẾN MỚI. Nên "chờ tới khi"
@@ -294,7 +308,8 @@ def make_start_step(name="Mỗi nến — chạy lại từ đây"):
     Đúng MỘT khối mỗi sơ đồ, tạo sẵn khi mở canvas trắng, không xoá được và không nhận
     đường nối đi vào. Nhờ nó `flow_entry` không bao giờ trả None, nên một đường nối
     ngược lên trên không thể "nuốt" mất điểm bắt đầu (xem core.md §3.3)."""
-    return {"kind": KIND_START, "id": new_step_id(), "name": name}
+    return {"kind": KIND_START, "id": new_step_id(), "name": name,
+            "nhip": nhip if nhip in TIMEFRAMES else NHIP_MAC_DINH[TAB_ENTRY]}
 
 
 def make_action_step(action):
@@ -473,13 +488,23 @@ def action_display(a, tham_so=None):
     return dau + ACTION_LABELS.get(t, str(t))
 
 
-def dong_khoi(a, tham_so=None):
+def dong_khoi(a, tham_so=None, tab=None):
     """Chữ trên HỘP — danh sách dòng NGẮN, mỗi trường một dòng.
 
     Khác `action_display` (một câu đầy đủ, dùng cho hộp thoại và tooltip): trên hộp,
     "Vào lệnh Mua Chờ Stop · lot = 0.01 lot · đệm dem_vao_lenh = 0.1 × ATR hiện tại
     ngoài mép vùng · SL …" là một câu chạy dài bốn dòng, đọc không ra. Tách mỗi trường
     một dòng thì mắt quét dọc, và với nhãn đơn vị ngắn thì dòng nào cũng vừa một hàng."""
+    if is_start_step(a):
+        # Nhịp do PYTHON sinh ra từ khoá `nhip`, không phải chữ gõ tay trong `name`.
+        # Bản cũ ghi thẳng "Mỗi nến M5" vào tên khối, nên đổi nhịp thì khối vẫn ghi M5.
+        ds = [f"Mỗi nến {a.get('nhip') or NHIP_MAC_DINH[TAB_ENTRY]}"]
+        if tab == TAB_MANAGE:
+            # Không phải chuyện đặt tên: Manage chạy MỘT LƯỢT CHO MỖI lệnh đang sống.
+            # Đó là cấu trúc, nên phải hiện ra dù người dùng đặt tên khối là gì.
+            ds.append("một lượt cho MỖI lệnh đang sống")
+        return ds
+
     t = (a or {}).get("type")
 
     if t == CHECK_COND:
@@ -1153,6 +1178,23 @@ def validate_process(doc):
         g = (doc or {}).get(tab) or {}
         ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab, ten_ts)
 
+    # Manage phải chạy NHANH BẰNG HOẶC HƠN Entry. Chậm hơn nghĩa là lệnh vừa sinh phải
+    # nằm chờ qua vài nhịp mới được quản lý — SL/hoà vốn phản ứng trễ hơn cả lúc vào
+    # lệnh, mà quản lý là PHẢN ỨNG chứ không phải quyết định (xem `NHIP_MAC_DINH`).
+    nhip = {}
+    for tab in TABS:
+        bd = [s for s in ((doc or {}).get(tab) or {}).get("steps") or []
+              if is_start_step(s)]
+        nhip[tab] = bd[0].get("nhip") if bd else None
+    v, m = TF_PHUT.get(nhip.get(TAB_ENTRY)), TF_PHUT.get(nhip.get(TAB_MANAGE))
+    if v and m and m > v:
+        ra.append({"severity": "warning", "step": None, "index": None,
+                   "tab": TAB_MANAGE,
+                   "message": f"Manage chạy nhịp {nhip[TAB_MANAGE]}, CHẬM hơn Entry "
+                              f"({nhip[TAB_ENTRY]}). Lệnh vừa sinh phải chờ qua vài "
+                              f"nhịp mới được quản lý — dời SL và huỷ lệnh chờ đều "
+                              f"phản ứng trễ. Quản lý nên nhanh bằng hoặc hơn vào lệnh."})
+
     # Tham số khai ra mà không khối nào dùng — không sai, nhưng là rác dễ gây hiểu nhầm
     # ("chỉnh số này chắc đổi hành vi"), nên nói ra.
     dung = _tham_so_dang_dung(doc)
@@ -1315,11 +1357,17 @@ def normalize_action(a):
     return ra
 
 
-def normalize_step(s):
+def normalize_step(s, nhip_mac_dinh="M5"):
     if not isinstance(s, dict):
         return None
     if s.get("kind") == KIND_START:
-        return _giu_chung(s, {"kind": KIND_START})
+        # NHỊP thuộc về khối Bắt đầu, không phải một ô dropdown ở góc ribbon. Trước đây
+        # chữ "M5" trên khối là một cái TÊN GÕ TAY không nối với `doc.timeframe` bằng
+        # gì cả — đổi dropdown thì khối vẫn ghi M5, tức sơ đồ nói dối. Đúng cái lỗi
+        # `7.0` viết cứng hai chỗ mà bảng tham số đã dọn.
+        n = s.get("nhip")
+        return _giu_chung(s, {"kind": KIND_START,
+                              "nhip": n if n in TIMEFRAMES else nhip_mac_dinh})
     a = normalize_action(s)
     if a is None:
         return None
@@ -1327,8 +1375,8 @@ def normalize_step(s):
     return _giu_chung(s, a)
 
 
-def _chuan_so_do(g):
-    steps = [x for x in (normalize_step(s) for s in (g or {}).get("steps") or []) if x]
+def _chuan_so_do(g, nhip="M5"):
+    steps = [x for x in (normalize_step(s, nhip) for s in (g or {}).get("steps") or []) if x]
     ensure_step_ids(steps)
     edges = (g or {}).get("edges")
     edges = default_edges(steps) if edges is None else clean_edges(edges, steps)
@@ -1341,17 +1389,23 @@ def normalize_process(doc):
     # mọi thứ đã lưu trước khi tách hai tab.
     if "steps" in doc and TAB_ENTRY not in doc:
         doc = dict(doc, entry={"steps": doc.get("steps"), "edges": doc.get("edges")})
-    tf = doc.get("timeframe")
     ra = {
-        "schema": 3,
+        "schema": SCHEMA,
         "type": "strategy",
         "name": (doc.get("name") or "").strip() or "Chiến lược 1",
         "symbol": (doc.get("symbol") or "").strip() or "XAUUSD",
-        "timeframe": tf if tf in TIMEFRAMES else "M5",
         "tham_so": normalize_tham_so(doc.get("tham_so")),
     }
+    # DI CƯ schema ≤3 → 4: `doc["timeframe"]` là MỘT nhịp cho cả tài liệu, giờ mỗi sơ đồ
+    # một nhịp trên chính khối Bắt đầu. File cũ lấy nhịp đó cho Entry; Manage nhận mặc
+    # định M1 vì đó mới là nhịp đúng của nó (xem `NHIP_MAC_DINH`), và không có bộ chạy
+    # nào từng chạy file cũ nên không phá kết quả của ai.
+    cu = doc.get("timeframe")
     for tab in TABS:
-        ra[tab] = _chuan_so_do(doc.get(tab))
+        mac_dinh = NHIP_MAC_DINH[tab]
+        if tab == TAB_ENTRY and cu in TIMEFRAMES:
+            mac_dinh = cu
+        ra[tab] = _chuan_so_do(doc.get(tab), mac_dinh)
     return ra
 
 
@@ -1362,12 +1416,11 @@ def new_process():
     đầu tiên người dùng thả ra sẽ tự nhận số 1 rồi đổi số ngay khi họ thả khối thứ hai
     lên phía trên nó."""
     s = load_settings()
-    ra = {"schema": 3, "type": "strategy", "name": "Chiến lược 1",
-          "symbol": s.get("symbol", "XAUUSD"), "timeframe": s.get("timeframe", "M5"),
-          "tham_so": []}
-    for tab, ten in ((TAB_ENTRY, "Mỗi nến — tìm tín hiệu vào lệnh"),
-                     (TAB_MANAGE, "Mỗi nến · với TỪNG lệnh đang sống")):
-        bd = make_start_step(ten)
+    ra = {"schema": SCHEMA, "type": "strategy", "name": "Chiến lược 1",
+          "symbol": s.get("symbol", "XAUUSD"), "tham_so": []}
+    for tab, ten in ((TAB_ENTRY, "Tìm tín hiệu vào lệnh"),
+                     (TAB_MANAGE, "Với TỪNG lệnh đang sống")):
+        bd = make_start_step(ten, NHIP_MAC_DINH[tab])
         bd["pos"] = [80.0, 300.0]
         ra[tab] = {"steps": [bd], "edges": []}
     return ra

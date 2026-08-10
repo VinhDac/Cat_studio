@@ -7,6 +7,7 @@
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
 Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 181/181
+Thiết kế **Strategy Tester chốt xong** → §12. Bộ chạy chưa viết một dòng nào.
 
 ---
 
@@ -595,6 +596,11 @@ lọc tin · sizing theo % vốn · martingale · sửa lệnh chờ sau khi đ�
   trong lúc đang có lệnh khác mở sẽ bị **đọc nhầm là đã khớp**.
 - Giá entry/SL/TP **không** `NormalizeDouble`, **không** kiểm `stops_level`/`freeze_level`, không trừ spread.
 - `ChartView.mqh` là **code chết** — tham chiếu struct `STradeState` không tồn tại, biên dịch sẽ hỏng.
+- **Bề rộng vùng chỉ được kiểm ĐÚNG MỘT LẦN** lúc chuyển `COUNTING`→`CONFIRMED`. Đã `CONFIRMED`
+  rồi thì vùng vẫn nới rộng mỗi nến mà không bị kiểm lại — nên khi `Max_Positions` hoặc `SIDEWAY`
+  chặn, entry của nến sau trôi ra xa và lệnh vẫn được đặt dù vùng đã rộng hơn `Range_Max_ATR`.
+  Phép kiểm nằm lọt trong nhánh `cur == COMP_COUNTING` nên trông giống sơ suất hơn là chủ ý.
+  **Ta không chép** — xem §12.6a.
 
 ---
 
@@ -748,9 +754,9 @@ và `Ctrl+Z` thành vô dụng.
 | **P3 · Hành động** | 3 hành động. 32 toán hạng / 6 nhóm, 9 phép so (ký hiệu), 7 chế độ Sửa lệnh. | ✅ |
 | **P4 · Canvas** | React Flow, ribbon, **pill Entry/Manage**, undo 60 bước (gom cả hai tab), template, chép/dán, phím tắt | ✅ |
 | **P4b · Kho + lưu trữ** | `kho/` chia theo engine · `so_lenh.py` id của ta · `du_lieu/` · bảng tham số · hộp thoại **Kho** (menu File) | ✅ |
-| **P5 · Tester** | Cửa sổ Strategy Tester — **mới có bộ khung**: `api.mo_tester` chặn lỗi rồi mở cửa sổ thứ hai, `api.tester_doc` để cửa sổ đó hỏi sơ đồ | 🔨 khung xong, nội dung **bàn sau** |
 | **P6 · Mẫu** | Sơ đồ mẫu Compress EA, khớp §7 | ✅ **Entry 7 khối · Manage 5 khối · KHÔNG một mũi tên ngược**, soát sạch |
-| **P7 · MT5** | Nối `MetaTrader5`, kéo nến, tính chỉ báo, backtest thật | ⬜ *(sau)* |
+| **P5 · Tester** | Cửa sổ Strategy Tester — thiết kế đầy đủ ở **§12** | 🔨 **thiết kế chốt xong**, khung có 3 lỗi phải sửa (§12.12) |
+| **P7 · Bộ chạy** | `nguon_nen` → `tinh_toan` → `khop_lenh` → `bo_chay`. Nối MT5, kéo nến M1, backtest thật | ⬜ *(đang tới)* |
 
 ### Sơ đồ mẫu ra đúng thế này
 
@@ -765,9 +771,10 @@ và `Ctrl+Z` thành vô dụng.
       └─[3B] Xu hướng XUỐNG? (close M15 nến[1] < MA M15 50) → [3B.1] Sell Stop dưới đáy vùng
 ```
 
-**Tab MANAGE** — 5 khối, chạy một lượt cho MỖI lệnh đang sống
+**Tab MANAGE** — 5 khối, chạy một lượt cho MỖI lệnh đang sống.
+Nhịp **M1** chứ không phải M5 — xem §12.4 (hoà vốn của bản gốc chạy mỗi tick).
 ```
-[1] Mỗi nến M5 — với TỪNG lệnh đang sống
+[1] Mỗi nến M1 — với TỪNG lệnh đang sống
       ├─[1A] Chưa khớp mà nén đã tan?          → [1A.1] Huỷ lệnh chờ
       │         KHÔNG lệnh này đã khớp · atr_bps ≥ 7
       └─[1B] Đã khớp, đủ 1R, SL chưa hoà vốn?  → [1B.1] Dời SL về giá vào
@@ -789,12 +796,430 @@ Bốn chỗ dễ làm sai, ghi lại để khỏi trượt về:
 
 ---
 
-## 12. Việc còn treo
+## 12. ⭐⭐ STRATEGY TESTER — thiết kế đã chốt
 
-- [ ] **Strategy Tester hiển thị gì** — bảng lệnh, đường equity, log từng bước, hay biểu đồ nến? *(bàn sau)*
-- [ ] **Bảng `lệnh` và `vùng nén` trong bộ chạy** — mỗi thứ một `id` do TA tự cấp, `ticket` của MT5 chỉ là cột phụ để bridge sang live. Backtest không có ticket.
-- [ ] Bộ chạy: mỗi nến → cập nhật vùng nén → Manage cho từng lệnh → Entry. Ghi log kèm nhãn `[3A.1]`.
+> Chốt ngày 2026-08-10 sau một đợt đọc lại toàn bộ `core.py` / `api.py` / `kho/` và cả 6 file
+> MQL5 của D_02. Mười một quyết định dưới đây **quyết định kết quả backtest**, không phải chi
+> tiết kỹ thuật. Sửa sau là vứt sạch mọi kết quả đã chạy — nên ghi lại kèm lý do ở đây.
+
+### 12.0 Một câu
+
+**Tính một lần, đọc mãi mãi.** Chạy hết backtest một lượt, sinh ra một dòng thời gian bất
+biến; giao diện chỉ là đầu đọc trượt trên đó. Tua lại = dời con trỏ, không có cơ chế thứ hai.
+
+### 12.1 ⭐ HAI ĐỒNG HỒ
+
+| Đồng hồ | Là gì | Nhịp |
+|---|---|---|
+| **M1** | đồng hồ của **thị trường** — giá đi tới đâu, lệnh khớp lúc nào | mỗi nến M1 |
+| **M5** | đồng hồ của **chiến lược** — bao lâu thức dậy nhìn một lần | mỗi nến M5 |
+
+Bộ mô phỏng bước từng nến M1: cập nhật giá → xét lệnh chờ có khớp không → xét SL/TP có bị
+chạm không. Chỉ khi nến M1 đóng đúng biên M5 thì process mới chạy một vòng.
+
+**Vì sao tách:** nhìn lén tương lai bị chặn bởi *cấu trúc* chứ không bởi sự cẩn thận. Process
+chỉ được gọi lúc M5 khép, và tại đó nến M5 vừa đóng là nến mới nhất nó thấy. MA M15 chỉ đổi
+giá trị khi biên M15 khép — ba lần một giờ, không phải mỗi lần process chạy. Đúng bản gốc:
+`FilterEngine.mqh:316-318` chỉ tính lại MA khi có nến Trend TF mới.
+
+**Chỉ tải MỘT bộ dữ liệu.** M5, M15, H1 gộp từ M1.
+
+### 12.2 ⭐ ĐƯỜNG ĐI 4 ĐIỂM trong một nến M1
+
+Đừng xử lý SL/TP như trường hợp đặc biệt. Biến mỗi nến M1 thành một đường đi rồi bước qua nó:
+
+| Nến | Đường đi |
+|---|---|
+| C ≥ O (tăng) | O → **L** → **H** → C |
+| C < O (giảm) | O → **H** → **L** → C |
+
+Giá nhúng xuống trước rồi mới đẩy lên, hoặc ngược lại — suy từ chính chiều của nến. Trùng
+cách MT5 sinh tick ở chế độ "1 minute OHLC", nên số của ta so được với Strategy Tester của MT5.
+
+Rồi mọi thứ còn lại thành **một luật duy nhất**: *"giá chạm mức X ở bước thứ k của đường đi"*.
+Lệnh chờ khớp, SL bị chạm, TP bị chạm — cùng một phép kiểm, chỉ khác mức giá.
+
+Cho không hai ca khó:
+
+- **Nến mở cửa đã nhảy qua mức** → điểm đầu đường đi là O, nên khớp **tại O**, không phải tại
+  mức đặt. Đúng bản chất gap cuối tuần của XAUUSD. Chiến lược này *chỉ* dùng lệnh stop nên gap
+  qua entry là ca thường gặp, không phải ngoại lệ.
+- **Khớp rồi chết ngay trong cùng nến M1** → hai sự kiện ở hai bước liền nhau, tự nhiên.
+
+Không còn "trường hợp SL và TP cùng nến" — đường đi đã trả lời cái nào tới trước. Nhưng khi cả
+hai mức nằm trong biên độ một nến M1 thì **nhật ký vẫn ghi một dòng riêng**: không phải để cảnh
+báo, mà để **đếm được**. Chạy một năm mà con số đó bằng 0 nghĩa là kết quả không phụ thuộc vào
+giả định đường đi — đó là bằng chứng, không phải niềm tin.
+
+### 12.3 Spread · phí · tiền
+
+OHLC là giá **Bid**. Quy mọi mức về Bid **một lần**, rồi vẫn chỉ một đường đi chạy trên Bid:
+
+| Mức | Sàn so với | Quy về Bid |
+|---|---|---|
+| Mua — giá vào (khớp ở Ask) | Ask | `P − spread` |
+| Mua — SL/TP (đóng ở Bid) | Bid | `P` |
+| Bán — giá vào (khớp ở Bid) | Bid | `P` |
+| Bán — SL/TP (đóng ở Ask) | Ask | `P − spread` |
+
+Chi phí spread vì thế hiện ra **đúng chỗ nó phát sinh** — lúc vào lệnh — chứ không phải một
+khoản trừ bịa ra ở cuối.
+
+- `spread`: ô nhập, **mặc định 20 points**. Hiện quy đổi ra USD ngay cạnh ô, vì "20 points" chỉ
+  có nghĩa khi biết `point` của symbol (XAUUSD 2 chữ số → 0.20 USD; EURUSD 5 chữ số → 2 pip).
+- `commission (USD/lot)`: tính **round-turn**, trừ một lần khi lệnh đóng, nhật ký ghi thành dòng riêng.
+- `deposit` / `margin (1:…)`: **chỉ để hiển thị** một cột trong bảng phải. Không chặn lệnh, không
+  stop-out — với lot 0.01 thì chặn thật là luật thừa.
+- D_02 **hoàn toàn không xử lý spread** (grep `spread` trong toàn EA = 0 kết quả) nhưng sàn thì
+  kích hoạt Buy Stop theo Ask trên một mức giá tính từ nến Bid. Spread = 0 cho kết quả lãi hơn
+  thực tế **một cách có hệ thống**.
+
+### 12.4 ✅ NHỊP THUỘC VỀ KHỐI BẮT ĐẦU
+
+**Entry nhịp M5 · Manage nhịp M1.**
+
+- Entry là **quyết định** — 5 phút xem một lần là đúng.
+- Manage là **phản ứng** — càng nhanh càng đúng, và M1 là nhanh nhất dữ liệu cho phép.
+
+**Vì sao Manage không thể là M5:** `ManageBreakEven()` của D_02 nằm **ngoài mọi guard nến**
+(`Compress.mq5:128`), chạy mỗi tick. Một nến M5 quét lên đủ 1R rồi quay đầu về SL: EA thật đã
+kịp dời SL nên thoát ~0R, còn ta chạy Manage mỗi M5 thì thoát −1R. Lệch **có hệ thống**, và lệch
+về phía bản mô phỏng lỗ nhiều hơn thực tế.
+
+**Nhịp ghi trên khối Bắt đầu, KHÔNG phải dropdown trên ribbon.** Hiện chữ "M5" trên khối là một
+cái tên gõ tay (`'Mỗi nến M5 — tìm tín hiệu'`) không nối với `doc.timeframe` bằng gì cả — đổi
+dropdown thì khối vẫn ghi M5, sơ đồ nói dối. Đúng lỗi `7.0` viết cứng hai chỗ mà §6.4 đã dọn.
+
+→ Chữ trên khối do Python sinh · bỏ dropdown trên ribbon · đổi tên trường `timeframe` → `nhip`
+(giờ có bốn thứ đều gọi là timeframe, để tên chung chung là mời gọi nhầm).
+
+**Đã làm** — `schema` lên **4**: `nhip` là khoá trên chính khối Bắt đầu của từng sơ đồ, không
+còn `doc["timeframe"]`. `normalize_process` di cư file cũ (nhịp cũ → Entry, Manage → M1) nên
+không cần script riêng. Sửa nhịp bằng chuột phải vào khối → **Nhịp chạy** → chọn khung; hộp đổi
+chữ ngay vì `core.dong_khoi` sinh nó từ khoá đó. Bỏ luôn `timeframe` khỏi `cai_dat.json` và
+`SettingsDialog` — mặc định giờ nằm ở `core.NHIP_MAC_DINH`, một nguồn sự thật.
+
+Thêm một phép soát: **Manage chạy chậm hơn Entry → cảnh báo.** Lệnh vừa sinh mà phải chờ qua
+vài nhịp mới được quản lý thì dời SL và huỷ lệnh chờ đều phản ứng trễ hơn cả lúc vào lệnh.
+
+Hai chỗ suýt sót, ghi lại: `luu_tru.doc_cai_dat` giờ **vứt khoá lạ** — bỏ một cài đặt mà không
+vứt thì khoá cũ nằm lại trong file vĩnh viễn và người đọc sau tưởng nó còn tác dụng. Và
+`StepNode` trước đây ẩn hẳn thân hộp với khối `start` (`{!laStart && …}`), nên dòng nhịp sinh ra
+rồi mà không hiện — điều kiện phải là "có dòng nào không", không phải "có phải khối Bắt đầu không".
+
+| Khung | Là gì | Ở đâu |
+|---|---|---|
+| M5 / M1 | nhịp sơ đồ thức dậy | **khối Bắt đầu** — sự thật của logic |
+| M15 (MA), M5 (ATR) | chỉ báo đọc khung nào | từng điều kiện — tuyệt đối, không dính nhịp |
+| M1 | nền mô phỏng | cài đặt Strategy Test |
+| M1…D1 trên toolbar | nhìn cho thoáng | chỉ là cách vẽ, không đụng kết quả |
+
+### 12.5 ⭐ LUẬT ĐI TRONG SƠ ĐỒ
+
+Ba luật, phải chốt trước dòng code đầu tiên của bộ chạy.
+
+**a) Cổng trượt thì lùi về đâu.** Không chỗ nào trong đồ thị đánh dấu nhánh "đúng/sai" — cạnh
+chỉ có `{from, to, port, from_side, to_side}`, ngữ nghĩa nằm ở *thứ tự* nhánh. Nên:
+
+> Cổng trượt → lùi về **ngã rẽ gần nhất còn nhánh chưa thử**.
+> **Trừ khi** lượt này đã chạy `vao_lenh` hoặc `sua_lenh` → **hết lượt ngay**.
+
+Vế sau là chỗ quan trọng: đã bắn lệnh ra thị trường thì không rút lại được, nên không được quay
+lui thử nhánh khác — nếu không một lượt Entry đẻ ra hai lệnh, trong khi cổng `số lệnh chờ = 0`
+chỉ được hỏi một lần ở đầu lượt. D_02 chốt cứng đúng một lệnh chờ (`TradeManager.mqh:330-334`).
+
+Luật này **không có biệt lệ**: cổng chỉ có một đường ra ([2], [3] của sơ đồ mẫu) mà trượt thì tự
+rơi vào "không còn nhánh nào chưa thử → hết lượt".
+
+**b) Cổng LUÔN tính đủ mọi điều kiện, không ngắt ở cái sai đầu tiên.** Ngắt sớm thì nhật ký
+*vĩnh viễn* không trả lời được "ba điều kiện kia lúc đó thế nào" — chúng chưa từng được tính.
+Mà đó đúng là câu cần khi debug: *"cổng trượt vì ATR, nhưng số nến nén đã tới đâu rồi?"*
+Chi phí: vài phép so số thực. Ngoại lệ duy nhất được ngắt là điều kiện **không có nguồn dữ
+liệu** — khi đó ghi lý do chứ không ghi số.
+
+**c) Thứ tự nhánh mà mơ hồ thì BÁO LỖI.** `_khoa_nhanh` xếp nhánh theo `(ghim, y, x, id)`; hai
+khối trùng `y` và `x` thì phân định bằng **uuid** — thứ người dùng không nhìn thấy và không đổi
+được. Kéo một khối lên vài pixel là đổi chiến lược trong khi sơ đồ trông y hệt.
+
+> Hai đầu nhánh của cùng một ngã rẽ lệch nhau **dưới 8 px** → `validate_process` báo **lỗi**.
+
+### 12.6 Vùng nén
+
+**a) Kiểm bề rộng MỖI NẾN, không chốt một lần.** D_02 kiểm `rong_vung_atr ≤ 4` đúng một lần lúc
+chuyển COUNTING→CONFIRMED (`FilterEngine.mqh:268-291`), sau đó vùng vẫn nới rộng mỗi nến mà
+**không bị kiểm lại** (`:249-266`). Nên khi bị Max_Positions / SIDEWAY / đang có lệnh chờ chặn,
+vùng cứ phình và nến sau vẫn vào lệnh dù đã rộng 6–7×ATR — entry lúc đó xa hẳn chỗ giá thật sự nén.
+
+Ta kiểm lại mỗi nến ở cổng [2]. **Ra ít lệnh hơn**, và những lệnh mất đi đúng là loại entry đã
+trôi xa. Đây là chỗ duy nhất trong danh sách khác biệt thật sự đổi *số lệnh*.
+
+> Lý do chọn bản sạch: bản gốc kiểm một lần rồi cấp cho vùng một **giấy phép vĩnh viễn**, trong
+> khi thứ nó cấp phép cho vẫn tiếp tục biến dạng. Cấp phép cho một trạng thái rồi để trạng thái
+> đó tự do đổi là mâu thuẫn. Bản của ta không có giấy phép nào: điều kiện đúng ở thời điểm nào
+> thì vào lệnh ở thời điểm đó, không có trạng thái ẩn nào phải nhớ.
+> Khớp 100% thì phải thêm một toán hạng `vung_da_xac_nhan` — tức mang trở lại đúng cái máy trạng
+> thái 5 giá trị mà §7.5 đã cố tình bỏ đi.
+
+**b) Khoảng trống dữ liệu > 2 bước nến → VÙNG NÉN CHẾT, đếm lại từ đầu.** Cổng [2] hỏi 10 nến
+nén *liên tiếp*, nhưng trên mảng nến thì nến cuối chiều thứ Sáu và nến đầu chiều Chủ nhật nằm
+sát nhau — máy sẽ đếm xuyên qua 48 giờ chợ đóng cửa.
+
+Hậu quả cụ thể: vùng bắc cầu cuối tuần → đặt lệnh chờ → lệnh nằm đó suốt weekend (lệnh chờ của
+ta **không có hạn**, đúng `ORDER_TIME_GTC` của bản gốc) → gap mở cửa Chủ nhật khớp nó cách xa
+entry. Đúng loại lệnh cho kết quả cực đoan nhất và làm lệch hẳn thống kê.
+
+> "Nén" nghĩa là giá đứng yên trong một quãng **liền mạch**. 48 giờ chợ đóng không phải giá đứng
+> yên — không có giá nào cả.
+
+### 12.7 ⭐ DÒNG THỜI GIAN BẤT BIẾN · con trỏ
+
+Không lưu "khung hình". Một lần chạy sinh ra ba hình dạng dữ liệu, đóng băng sau khi tính xong:
+
+1. **mảng nến M1** — trục thời gian;
+2. **các CỘT** — mỗi chỉ báo/metric là một mảng `float64` trên **trục M5**, đọc từ con trỏ M1
+   bằng một phép chia nguyên;
+3. **hai danh sách thưa** — sổ lệnh và nhật ký, mỗi bản ghi tự mang chỉ số nến của nó.
+
+**Trạng thái sổ lệnh tại nến i là một PHÉP LỌC, không phải một ảnh chụp** — `so_lenh.Lenh` vốn
+đã mang sẵn `nen_dat` / `nen_khop` / `nen_dong`. Chỗ này thiết kế cũ đã vô tình làm đúng.
+
+> **Luật chọn chỗ cất:** thứ gì biến đổi theo nến mà không tự mang dấu thời gian thì thành một
+> **cột**; thứ gì đã mang chỉ số nến thì để nguyên trong danh sách thưa.
+
+Áp vào ca khó nhất — `VungNen` mutate liên tục nên trạng thái vùng tại nến i không suy ra được
+từ đối tượng cuối cùng → 6 toán hạng vùng nén thành 6 cột. Đường vốn cũng chỉ là một cột nữa.
+
+**Bộ nhớ (1 năm XAUUSD):** nến M1 ~374k dòng ≈ **18 MB** · mỗi cột M5 (71.760 dòng) 0,55 MB ·
+~25 cột ≈ **14 MB** · nhật ký vài MB → **tổng ~40 MB**. Nếu chụp ảnh trạng thái mỗi nến thay vì
+cột thì 150–350 MB, và con số đó phình theo mọi thứ ta thêm vào trạng thái. Thêm một metric ở
+thiết kế cột = thêm 0,55 MB, cố định.
+
+**CON TRỎ = một ĐIỂM trên đường đi giá** (nến M1 × 4 điểm). Không phải "một cây nến", cũng không
+phải "một dòng nhật ký".
+
+- **Xem** → trượt liên tục qua từng điểm. Nến đang chạy **lớn dần** ở mép phải đúng như thật:
+  một cây nến M5 mọc qua 5 nến M1 × 4 điểm = **20 nhịp**. `delay(ms)` là khoảng cách giữa hai nhịp.
+- **Debug** → bấm một dòng nhật ký, con trỏ **nhảy** tới đúng điểm đó.
+
+Cùng một con trỏ, hai cách di chuyển. Và vì replay đúng nghĩa nên **nến bên phải chưa tồn tại** —
+không có gì để che, không thể tự lừa mình bằng "chỗ này lẽ ra nên vào lệnh". Thêm một nút "xem
+trọn lệnh" cho lúc muốn tua nhanh xem một lệnh đã đóng kết thúc ra sao.
+
+`delay(ms)` là thứ **duy nhất** đổi mà không phải tính lại. Mọi ô cài đặt khác đổi là dòng thời
+gian cũ hết hiệu lực.
+
+### 12.8 Nhật ký — phần quan trọng nhất
+
+Người dùng nói thẳng: *"đây là phần quan trọng nhất, vì người dùng debug, nâng cấp model là ở
+hết đây."*
+
+**Một bản ghi = một LƯỢT CHẠY.** Trong một nến có nhiều lượt (Manage cho L-0001, Manage cho
+L-0002, rồi Entry). Không ghi từng khối đi qua — 7 khối × 71.760 nến = 500k dòng rác.
+
+```
+nen      int      chỉ số nến — khoá để tua
+seq      int      thứ tự trong nến
+tab      "entry" | "manage"
+lenh_id  "L-0007" | None     ← lượt Manage này đang xét lệnh nào
+duong    [id khối…]          ← đường đã đi, THEO THỨ TỰ
+ket      "het_luot" | "xong"
+ve[]     mọi điều kiện của cổng cuối: hai vế + đạt/không từng cái
+viec     None | {lenh_dat | lenh_khop | lenh_dong | lenh_sua | vung_mo | vung_dong, …}
+```
+
+**Lưu `id` khối, KHÔNG lưu nhãn `[3A.1]`.** Nhãn là hàm thuần của (đồ thị + vị trí) và §9 đã cấm
+lưu nó vào file. Ghi nhãn vào nhật ký thì kéo một khối lên 1 px là toàn bộ nhật ký cũ trỏ vào
+khối khác. Nhãn được **dựng lại** lúc hiển thị bằng `core.flow_order` trên bản `doc` đã đóng
+băng trong `meta`.
+
+**Ghi cả `duong`** chứ không chỉ khối cuối: đồ thị được phép có vòng lặp (§4.1) nên đường từ khối
+Bắt đầu tới một khối **không duy nhất**, không suy ngược lại được.
+
+**Chữ do Python dựng, theo lô đang nhìn** (~200 dòng) — đúng luật bất di bất dịch #2. 150k bản
+ghi không tốn một byte chữ nào lúc chạy.
+
+```
+14:35  ENTRY   [1]→[2]                    hết lượt tại [2] · atr_bps 8.31 ≥ 7.0
+14:40  ENTRY   [1]→[2]→[3]→[3A]→[3A.1]    đặt Buy Stop L-0007 @ 2334.12  SL 2330.60  TP 2341.16
+14:41  MANAGE  L-0007  [1]→[1A]           hết lượt tại [1A] · lệnh này đã khớp = sai
+```
+
+**Danh sách phải ảo hoá.** 150k dòng đổ thẳng vào DOM sẽ treo WebView2 — không phải rủi ro, là
+chắc chắn ngay lần chạy một năm đầu tiên. Chỉ dựng ~200 dòng đang nhìn, chiều cao dòng cố định
+để tính thanh cuộn bằng phép nhân. Tự viết ~60 dòng, không thêm thư viện.
+
+**Mặc định lọc "chỉ lượt có VIỆC xảy ra"**, có nút bật "mọi lượt". 150k dòng đều đều thì mắt
+không bắt được chỗ bất thường.
+
+**Ghi ra đĩa** một file `.jsonl` mỗi lần chạy trong `luu_tru.thu_muc_nhat_ky()`, đầu file là
+nguyên bản `normalize_process(doc)` + hash — để mở lại và **so hai lần chạy**.
+
+### 12.9 Bảng số liệu bên phải
+
+**Nó phải dựng từ chính vết đánh giá của lượt đang xem, không được hỏi lại bộ tra.** Nếu không,
+bảng và nhật ký sẽ nói khác nhau *đúng lúc đang debug*: `số lệnh chờ` đầu nến là 1, cuối nến là
+0, mà cổng [3] đọc nó ở giữa. Bảng ghi 1 còn nhật ký ghi cổng đọc 0 và khớp → mất một buổi tưởng
+là bug chiến lược trong khi đó là bug của công cụ.
+
+Bốn khối, mỗi khối một nguồn rõ ràng:
+
+1. **Toán hạng đang dùng** — suy từ chính `doc`, khoá theo `(tên + tf + period)` nên ATR(M5,14)
+   và ATR(M5,42) là hai dòng riêng. Toán hạng chưa được đọc trong lượt đó hiện **dấu gạch**, không hiện 0.
+2. **Trạng thái engine** — `VungNen.tom_tat()` (đã có sẵn, chưa ai gọi).
+3. **Tài khoản** — equity, drawdown, margin đã dùng, số vị thế, số lệnh chờ.
+4. **Bảng theo TỪNG LỆNH đang sống** — mỗi lệnh một hàng, cột là 6 toán hạng nhóm "Lệnh này".
+   Thiếu bảng này thì tab Manage vô hình.
+
+Khi con trỏ đứng đúng lượt có lệnh được đặt, hiện thêm **phép tính vào lệnh đã dùng số nào**:
+`đệm = 0.10 × ATR_hiện_tại = 0.42 · R = 1.5 × ATR_TB_vùng = 4.80`. Đây là chỗ **duy nhất** bắt
+được lỗi lẫn hai loại ATR mà §6.3 cảnh báo — validator không bắt được lỗi đó.
+
+### 12.10 Chart — chỉ lệnh, không gì khác
+
+Tuyệt đối không indicator, không vẽ gì thêm. Ép bằng kiểu dữ liệu: component chart nhận đúng
+`{nen[], lenh[]}` và **không có đường nào chạm tới `cot`**.
+
+| Trạng thái lệnh | Vẽ |
+|---|---|
+| chờ | 3 đường ngang: entry · TP · SL |
+| đã khớp | mũi tên theo chiều mua/bán |
+| đã đóng | mũi tên đầu + mũi tên cuối + vạch nối; rê chuột hiện profit, giờ vào, giờ ra |
+
+Không có thư viện chart nào trong `package.json` → **tự vẽ Canvas 2D**, hợp với bộ icon nét tự
+vẽ sẵn có và không phụ thuộc mạng. Cuộn chuột = zoom. Crosshair là một cờ chế độ chuột.
+
+Nút đổi timeframe trên toolbar **chỉ đổi cách vẽ** (gộp M1 lên M5/M15/H1…), không đụng kết quả.
+
+### 12.11 Cài đặt Strategy Test · nguồn nến
+
+Khoá riêng `test` trong `du_lieu/cai_dat.json` + hàm `save_test_settings` với danh sách trắng
+riêng — **không nhét vào `save_settings`**, hàm đó đang giữ nghĩa "cài đặt của trình soạn thảo".
+
+Ô nhập: `từ` · `đến` · `delay (ms)` · `deposit (USD)` · `margin (1:…)` · `commission (USD/lot)`
+· `spread (points, mặc định 20)`.
+
+**Nguồn nến** — lấy từ MT5 đang cài trên máy (thư viện `MetaTrader5` đã có trong `.venv`). Ràng
+buộc duy nhất: terminal phải đang mở và đã đăng nhập **lúc tải**; tải xong đóng MT5 vẫn backtest
+bình thường.
+
+- Tải **M1 theo symbol**, một symbol giữ đúng **một dải liền**. `từ`/`đến` điều khiển cả tải lẫn
+  chạy: chồng lấn thì chỉ tải phần thiếu rồi nối vào; rời hẳn thì tải luôn phần ở giữa cho liền,
+  nhưng **báo trước số MB** — không bao giờ tải lén.
+- Kèm một file `.json` cạnh cache giữ `digits` / `point` / `contract_size` lấy lúc tải → tính ra
+  tiền vẫn đúng dù MT5 đang tắt, và ô "20 points" quy đổi được ra USD.
+- Danh sách trong Settings: mỗi symbol một dòng — có dữ liệu từ ngày nào đến ngày nào, bao nhiêu
+  nến, **bao nhiêu MB**, nút xoá.
+- Bấm ▶ mà thiếu dữ liệu thì **không tự tải**, chỉ báo và mời bấm Tải.
+
+Một năm XAUUSD M1 ≈ **18 MB**.
+
+### 12.12 ✅ BA LỖI CÓ SẴN của cửa sổ tester — ĐÃ SỬA
+
+Không phải rủi ro. Là lỗi chắc chắn, và chúng sẽ giả dạng thành "Python hỏng" đúng lúc đang
+debug bộ chạy. Đã sửa xong và **đo bằng thao tác chuột thật** — xem cuối mục.
+
+1. **`file:///` → trang trắng.** `api.py:366` ghi cứng `url=f"file:///{trang}?tester=1"`.
+   pywebview coi mọi url mở đầu `file://` là không-local nên **không dựng http server** cho cửa
+   sổ đó, mà `dist/index.html` là `<script type="module" crossorigin>` → origin `null` →
+   Chromium chặn. Chính `app_web.py:183-186` đã ghi lại đúng bài học này rồi.
+   → truyền đường dẫn cục bộ **trần**, không tiền tố `file://`.
+2. **`js_api=self` → bấm ✕ trong tester ĐÓNG CỬA SỔ CHÍNH.** Dùng chung một instance `Api` mà
+   `self._window` vẫn trỏ cửa sổ chính. → tách `ApiTester` riêng, có `_window`/`_khung` của nó.
+3. **`KhungTuVe` giữ đúng MỘT hwnd** → kéo thanh tiêu đề tester kéo nhầm cửa sổ chính.
+
+Thêm một chỗ nữa cùng loại: **`_mo_cua_so_tester` huỷ rồi tạo lại cửa sổ mỗi lần bấm ▶**
+→ mất con trỏ, mất zoom, mất vị trí cuộn nhật ký, mất bộ lọc. Mà vòng lặp debug thật là
+*sửa → chạy → so*. → cửa sổ còn sống thì **giữ**, chỉ nạp sơ đồ mới rồi bắn `so_do_moi`
+xuống; con trỏ neo theo **thời gian nến**, không theo chỉ số.
+
+**Cách sửa** (`api.py`): tách lớp nền `NenCuaSo` giữ `_window` + `_khung` + 7 hàm cửa sổ; `Api`
+và `ApiTester` đều kế thừa. Mỗi cửa sổ MỘT thể hiện là hết cả ba lỗi, không phải nhớ kỷ luật gì.
+`ApiTester` cố ý HẸP — không lưu chiến lược, không mở hộp thoại file, không đổi cài đặt.
+`TitleBar` bên JS dùng lại nguyên vẹn: cầu nối tra hàm theo TÊN trên api của đúng cửa sổ đang
+chạy, nên `cua_so_dong` ở tester rơi vào `ApiTester.cua_so_dong`.
+
+**Hai cái bẫy lòi ra lúc sửa, ghi lại kẻo lần sau vấp tiếp:**
+
+1. **`?tester=1` chưa ai đọc.** `api.py` gắn tham số đó vào url từ lâu nhưng không chỗ nào
+   trong `webui/src` đọc `location.search`, nên cửa sổ thứ hai dựng lại y hệt trình soạn thảo.
+   → một dòng `if` trong `main.tsx`, không cần entry thứ hai cho Vite.
+2. **`useKhungCuaSo` nằm ở TRANG, không nằm trong `TitleBar`.** Trang tester vẽ `TitleBar` là
+   ra đúng thanh tiêu đề, trông xong hẳn — nhưng **không kéo được, không giãn được**, vì hook
+   gắn handler chuột lại ở `App.tsx`. Triệu chứng giống hệt "vá khung hỏng" nên rất dễ đi sai
+   hướng. (Trước đó còn một tầng nữa: `_va_khung` hẹn giờ 0,45 s chạy TRƯỚC khi cửa sổ kịp
+   `IsWindowVisible` → không tìm ra hwnd → cũng không kéo được. Giờ nó thử lại tới 4 s.)
+
+**Đã đo bằng chuột thật, không phải suy luận:** bấm ▶ hai lần → vẫn đúng **hai** cửa sổ · kéo
+thanh tiêu đề tester 300,200 → 400,300 trong khi cửa sổ chính **đứng yên** ở 20,20 · giãn mép
+phải 1180 → 1302 px · bấm ✕ trên tester → tester đóng, **cửa sổ chính còn sống**.
+
+### 12.13 Những thứ backend CHƯA CÓ (kiểm kê 2026-08-10)
+
+Cat_Studio là một bộ soạn thảo hoàn chỉnh và một bộ chạy **bằng không**. Phải viết mới:
+
+| Module | Trách nhiệm |
+|---|---|
+| `nguon_nen.py` | chỗ **duy nhất** biết MT5 tồn tại. Tải · cache · liệt kê · xoá · MB |
+| `tinh_toan.py` | chỉ báo thuần: mảng nến → mảng `float64`. Warm-up trả **NaN**, không trả 0 |
+| `khop_lenh.py` | mô hình sàn: đường đi 4 điểm, spread, gap. **Tách riêng** vì đây là thứ duy nhất đổi mà đổi cả đường vốn |
+| `bo_chay.py` | biên dịch sơ đồ → chương trình phẳng, rồi vòng lặp nến |
+| `dong_thoi_gian.py` | vật chứa bất biến của một lần chạy |
+| `nhat_ky.py` | bản ghi rỗng chữ + hàm dựng câu theo lô |
+| `api_tester.py` | `Api` riêng cho cửa sổ thứ hai |
+
+**Biên dịch sơ đồ MỘT LẦN trước vòng lặp** không phải tối ưu sớm mà là điều kiện sống còn:
+`atr_bps(M5, chu_ky_atr)` → "cột số 3", mọi tên tham số → `float`, `flow_map` → danh sách kề
+bằng chỉ số nguyên. Vòng chạy sau đó không đụng một chuỗi nào. Không có bước này thì 1–3 triệu
+phép đánh giá bằng dict + chuỗi mất 10–30 giây mỗi lần bấm ▶. **Phải đo trên 1 năm thật trước
+khi viết giao diện.**
+
+Ngoài ra:
+
+- **Công thức ATR trong `kho/chi_bao.py` đang SAI** — ghi *"theo Wilder"*, nhưng `iATR` của MT5
+  (thứ D_02 thật sự gọi) là **SMA của True Range** (`Indicators/Examples/ATR.mq5:83,91`). Sai im
+  lặng và dây chuyền: ATR khác → `atr_bps` khác → nến nào là nến nén khác → số nến nén, thời
+  điểm xác nhận, đỉnh/đáy vùng, độ lớn 1R, TP lệch hết. **Cài theo MT5** và sửa luôn câu mô tả —
+  ngưỡng 7.0 bps được dò ra trên chính con số `iATR` trả về.
+- **Sáu toán hạng khai mà không có nguồn**: `drawdown_pt`, `so_lenh_hom_nay`, `bid`, `ask`,
+  `spread`, `gio`, `thu`. Chọn được trong hộp thoại → vẽ ra sơ đồ hợp lệ mà bộ chạy không chạy
+  nổi; sơ đồ mẫu tình cờ không dùng nên test vẫn xanh và lỗi này đang trốn. → **cài luôn cả
+  sáu**, không đánh dấu "chưa hỗ trợ" (nhãn đó để lâu sẽ mục).
+- **Toán hạng vùng nén khi chưa có vùng nào** → trả 0 là lời nói dối lọt qua mọi phép so.
+  Không có nguồn thì **điều kiện TRƯỢT** và nhật ký ghi lý do.
+- **Lệnh còn sống lúc hết dữ liệu** → đóng theo giá đóng nến cuối, ghi `het_du_lieu`, tách riêng
+  trong thống kê.
+- `so_lenh.Lenh` cần thêm **đúng hai trường**: `phi` và `lai_tien`. **Không** thêm trường thời
+  gian thật — `nen_khop` + mảng nến đã cho ra `datetime` bằng một phép tra bảng, thêm nữa là chép
+  cùng một sự thật ra hai chỗ.
+
+### 12.14 So hai lần chạy
+
+Mục đích của bạn là *nâng cấp model*, mà đó là một vòng lặp: sửa → chạy lại → chỗ nào tốt lên,
+chỗ nào xấu đi, **lệnh nào biến mất**. Giữ tóm tắt lần chạy trước (vài trăm KB) để bấm ▶ xong
+hiện được một dòng:
+
+```
+so với lần trước: −3 lệnh · +2 lượt trượt tại [2] · tổng R 18.5 → 21.0
+```
+
+---
+
+## 13. Việc còn treo
+
+Thiết kế Strategy Tester đã chốt hết ở §12. Còn lại là **việc làm**, theo đúng thứ tự:
+
+- [x] ~~Sửa 3 lỗi có sẵn của cửa sổ tester (§12.12)~~ — xong, đã đo bằng chuột thật
+- [x] ~~`nhip` thay `timeframe`~~ — xong, schema 4, di cư file cũ tự động
+- [ ] Sửa mô tả ATR trong `kho/chi_bao.py` (Wilder → SMA của True Range) (§12.13)
+- [ ] Lỗi soát khi hai đầu nhánh lệch dưới 8 px (§12.5c)
+- [ ] `nguon_nen.py` → `tinh_toan.py` → `khop_lenh.py` → `bo_chay.py`
+- [ ] **Đo tốc độ trên 1 năm thật** trước khi viết một dòng giao diện nào (§12.13)
+- [ ] Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá
+- [ ] Cập nhật `test_doi_chieu_d02.py` — danh sách "cố ý khác" giờ thêm: bước theo nến M1 thay
+      vì tick, và vùng nén chết khi gặp khoảng trống dữ liệu
+
+Chưa liên quan tới tester:
+
 - [ ] **Chồng lệnh** — D_02: nhiều VỊ THẾ (`Max_Positions`) nhưng đúng MỘT lệnh chờ. Giữa hai lần vào lệnh bắt buộc có một đợt ATR bung ra (`CONSUMED` chỉ thoát bằng `atr_bps ≥ N`).
-- [ ] Nối MT5: `copy_rates_from_pos`, `iATR`/`iMA` tính bằng Python hay gọi terminal?
 - [ ] Có cần `HOẶC` giữa các điều kiện không? *(đang thiết kế: **không** — dùng nhiều nhánh, vì "hoặc" giấu trong hộp thoại thì nhìn sơ đồ không thấy)*
 - [ ] Đóng gói `.exe` (PyInstaller) — chưa làm spec.

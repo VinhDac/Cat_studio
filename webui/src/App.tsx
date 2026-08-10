@@ -104,7 +104,6 @@ function Ung() {
   const kho = useRef<Record<Tab, DoThi>>({ entry: RONG, manage: RONG })
   const [ten, setTen] = useState('Chiến lược 1')
   const [symbol, setSymbol] = useState('XAUUSD')
-  const [tf, setTf] = useState('M5')
   const [vanDe, setVanDe] = useState<Problem[]>([])
   const [tabDuoi, setTabDuoi] = useState<'van-de' | 'nhat-ky'>('van-de')
   const [nhatKy, setNhatKy] = useState<{ gio: string; msg: string; tag?: string | null }[]>([])
@@ -267,7 +266,7 @@ function Ung() {
     kho.current = { entry: so_do_sang_rf(doc.entry), manage: so_do_sang_rf(doc.manage) }
     setTab('entry')
     setNodes(kho.current.entry.nodes); setEdges(kho.current.entry.edges)
-    setTen(doc.name); setSymbol(doc.symbol); setTf(doc.timeframe)
+    setTen(doc.name); setSymbol(doc.symbol)
     setThamSo(doc.tham_so ?? [])
     canFit.current = true
     ghi(loi)
@@ -289,9 +288,9 @@ function Ung() {
       ? { steps: rf_sang_steps(nodes), edges: rf_sang_edges(edges), cards: [] }
       : { steps: rf_sang_steps(kho.current[t].nodes),
           edges: rf_sang_edges(kho.current[t].edges), cards: [] })
-    return { name: ten, symbol, timeframe: tf, tham_so: thamSo,
+    return { name: ten, symbol, tham_so: thamSo,
              entry: g('entry'), manage: g('manage') }
-  }, [tab, nodes, edges, ten, symbol, tf, thamSo])
+  }, [tab, nodes, edges, ten, symbol, thamSo])
 
   /* --------------------------- soát liên tục -------------------------- */
   useEffect(() => {
@@ -451,6 +450,25 @@ function Ung() {
     ghi(bat ? `ghim số ${ids.size} khối — quay về đây vẫn giữ đúng số`
             : `bỏ ghim ${ids.size} khối`, 'ok')
   }, [dangChon, chup, setNodes, ghi])
+
+  /** NHỊP CHẠY của sơ đồ — sống trên khối Bắt đầu, không phải một ô ở góc ribbon.
+   *
+   *  Chữ trên khối do Python sinh từ khoá `nhip`, nên đổi ở đây là khối đổi theo ngay.
+   *  Bản cũ ghi thẳng "M5" vào TÊN khối, không nối với `doc.timeframe` bằng gì cả —
+   *  đổi dropdown thì khối vẫn ghi M5, tức sơ đồ nói dối. */
+  const doiNhip = useCallback(async (id: string, nhip: string) => {
+    const k = nodes.find(n => n.id === id)
+    if (!k) return
+    const st = { ...(k.data as { step: Step }).step, nhip }
+    // Nhờ Python dựng lại thẻ: chữ trên hộp là việc của lõi, JS không tự ghép.
+    const r = await py.describe([st], thamSo)
+    chup()
+    setNodes(ds => ds.map(n => n.id === id
+      ? { ...n, data: { step: st, card: r.value?.[0] ?? (n.data as { card: Card }).card } }
+      : n))
+    ghi(`Nhịp sơ đồ ${tab === 'entry' ? 'Entry' : 'Manage'}: mỗi nến ${nhip}`)
+  }, [nodes, thamSo, chup, setNodes, ghi, tab])
+
 
   /** Ctrl+D: nhân bản MỌI khối đang chọn, kèm cả dây nối GIỮA chúng. Chỉ nhân bản khối
    *  đầu tiên thì chọn 3 khối bấm Ctrl+D ra 1 khối — vừa sai vừa im lặng. */
@@ -771,6 +789,15 @@ function Ung() {
         onClick: () => setDangSua(idNguon) },
       { ten: 'Đổi tên…', icon: 'edit', tat: nhieu, viSao: 'chỉ đổi tên một khối một lúc',
         onClick: doiTen },
+      // Chỉ hiện ở khối Bắt đầu: nhịp là của SƠ ĐỒ, mà khối Bắt đầu là điểm neo của nó.
+      ...(laStart && !nhieu ? [{
+        ten: 'Nhịp chạy', icon: 'motSo',
+        con: (boot?.timeframes ?? []).map(t => ({
+          ten: (t === (nodes.find(n => n.id === idNguon)
+                       ?.data as { step: Step } | undefined)?.step.nhip ? '● ' : '○ ') + t,
+          onClick: () => void doiNhip(idNguon, t),
+        })),
+      } as MucPhai] : []),
       { ngan: true },
       { ten: daGhimHet ? 'Bỏ ghim số' : 'Ghim số ⟲', icon: daGhimHet ? 'bo-ghim' : 'ghim',
         tat: laStart, viSao: 'khối Bắt đầu luôn là số 1, không cần ghim',
@@ -792,7 +819,7 @@ function Ung() {
         viSao: 'khối Bắt đầu là điểm neo đánh số — không xoá được', onClick: xoa },
     ]
   }, [menuPhai, nodes, edges, dangChon, thuTu, tab, danKhoi, xoaDay, themKhoi, doiTen,
-      doiGhim, chepKhoi, nhanBan, noi, ngatKetNoi, xoa])
+      doiGhim, doiNhip, boot, chepKhoi, nhanBan, noi, ngatKetNoi, xoa])
 
   /* ------------------------------ phím tắt ------------------------------- */
   useEffect(() => {
@@ -934,7 +961,6 @@ function Ung() {
         mucLuu={mucLuu} mucMo={mucMo}
         ten={ten} datTen={setTen}
         symbol={symbol} datSymbol={setSymbol}
-        tf={tf} datTf={setTf} timeframes={boot?.timeframes ?? ['M5']}
         chay={chay}
         coChon={dangChon.length > 0}
         chonDaGhim={dangChon.length > 0

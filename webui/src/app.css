@@ -955,3 +955,21 @@ select.o { cursor: pointer; }
 /* Tham số không khối nào dùng — không sai, nhưng sửa nó chẳng đổi gì, nên nói ra. */
 .bang-tham-so tr.khong-dung .o.mono { opacity: .55; }
 .bang-tham-so .o.loi { border-color: var(--err); }
+
+/* ---------------------------------------------------------------- Tester ---
+   Cửa sổ Strategy Tester mới có KHUNG. Chỗ này giữ đúng phần "chưa có nội dung";
+   chart · bảng số liệu · nhật ký sẽ có style riêng khi viết tới (core.md §12). */
+.tester-trong {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  background: var(--canvas-bg);
+  text-align: center;
+}
+.tester-ten { font-size: 17px; font-weight: 600; color: var(--text); }
+.tester-phu { font-size: 12px; color: var(--muted); }
+.tester-ghi { font-size: 12px; color: var(--dim); margin-top: 10px; }
+.tester-mo  { font-size: 12px; color: var(--dim); }
+.tester-loi { font-size: 12px; color: var(--err); max-width: 520px; }

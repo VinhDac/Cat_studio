@@ -91,30 +91,11 @@ def duong_dan_giao_dien():
 
 
 def tim_cua_so(chua_chuoi=TIEU_DE_GOC):
-    """HWND của cửa sổ app. Khớp theo CHUỖI CON vì tiêu đề đổi theo tên chiến lược.
-
-    Cửa sổ không khung VẪN có tiêu đề Win32 (taskbar, Alt+Tab đều dựa vào nó) — chỉ là
-    Windows không vẽ nó ra nữa. Dùng EnumWindows chứ không FindWindowW vì tiêu đề có
-    dấu gạch dài "—" và chữ tiếng Việt."""
-    import ctypes
-    from ctypes import wintypes
-    ra = []
-
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def duyet(h, _):
-        n = ctypes.windll.user32.GetWindowTextLengthW(h)
-        if n and ctypes.windll.user32.IsWindowVisible(h):
-            b = ctypes.create_unicode_buffer(n + 1)
-            ctypes.windll.user32.GetWindowTextW(h, b, n + 1)
-            if chua_chuoi in b.value:
-                ra.append(h)
-        return True
-
-    try:
-        ctypes.windll.user32.EnumWindows(duyet, 0)
-    except Exception:
-        return None
-    return ra[0] if ra else None
+    """HWND của cửa sổ app. Bản cài đặt nằm ở `khung_cua_so.tim_hwnd` — giờ có HAI cửa
+    sổ cần tìm hwnd để vá khung (app chính và Strategy Tester), nên nó thuộc về file lo
+    chuyện khung chứ không phải file khởi động."""
+    import khung_cua_so
+    return khung_cua_so.tim_hwnd(chua_chuoi)
 
 
 def main():

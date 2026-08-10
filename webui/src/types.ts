@@ -16,6 +16,9 @@ export interface Step {
   /** Ghim số: khối này là điểm quay lại hợp lệ, nhãn của nó không đổi khi có
    *  đường nối ngược về. Bật/tắt bằng chuột phải. */
   ghim?: boolean
+  /** CHỈ khối Bắt đầu: nhịp chạy của sơ đồ ("M5" / "M1" …). Trước đây là
+   *  `doc.timeframe` + một dropdown trên ribbon; giờ thuộc về chính điểm neo. */
+  nhip?: string
   [k: string]: unknown
 }
 
@@ -44,6 +47,8 @@ export interface Card {
   lines: CardLine[]
   /** Câu đầy đủ, dùng làm tooltip. `lines` là bản ngắn để vẽ lên hộp. */
   mo_ta: string
+  /** CHỈ khối Bắt đầu — nhịp chạy, để menu chuột phải tick đúng mục. */
+  nhip?: string
   ghim: boolean
   la_cong: boolean
 }
@@ -80,7 +85,6 @@ export interface ThamSo {
 export interface ProcessDoc {
   name: string
   symbol: string
-  timeframe: string
   tham_so: ThamSo[]
   entry: SoDo
   manage: SoDo
@@ -147,6 +151,8 @@ export interface Bootstrap {
   toan_hang_dung_sai: string[]
 
   timeframes: string[]
+  /** Nhịp mặc định mỗi sơ đồ: Entry M5 (quyết định) · Manage M1 (phản ứng). */
+  nhip_mac_dinh: Record<Tab, string>
   ma_methods: Record<string, string>
   toan_hang: ToanHang[]
   phep_so: Record<string, string>

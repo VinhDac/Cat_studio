@@ -17,6 +17,7 @@ Bốn điều bài này canh, vì cả bốn đều dễ trượt về chỗ cũ
 Chạy:  python tests\\test_so_do_mau.py
 """
 import io
+import json
 import os
 import sys
 
@@ -213,6 +214,45 @@ kiem("dòng vào/sửa lệnh đều ngắn (≤ 40 ký tự) — vừa một h�
 kiem("câu ĐẦY ĐỦ vẫn còn, để làm tooltip",
      "ngoài mép vùng" in tv["mo_ta"] and "trung bình của vùng nén" in tv["mo_ta"],
      f"— \"{tv['mo_ta']}\"")
+
+# ================= 7b. NHỊP nằm trên khối Bắt đầu =================
+print("\n▸ Nhịp chạy")
+bd = {t: next(x for x in doc[t]["steps"] if core.is_start_step(x)) for t in core.TABS}
+kiem("nhịp là dữ liệu của khối Bắt đầu, không phải khoá của tài liệu",
+     all("nhip" in bd[t] for t in core.TABS) and "timeframe" not in doc)
+kiem("Entry M5 (quyết định) · Manage M1 (phản ứng) — hai nhịp KHÁC nhau là cố ý",
+     (bd["entry"]["nhip"], bd["manage"]["nhip"]) == ("M5", "M1"),
+     f'— {bd["entry"]["nhip"]} / {bd["manage"]["nhip"]}')
+# Chữ trên hộp phải SINH RA từ khoá `nhip`. Bản cũ gõ tay "M5" vào tên khối nên đổi
+# nhịp thì khối vẫn ghi M5 — sơ đồ nói dối, đúng lỗi `7.0` viết cứng hai chỗ ngày trước.
+kiem("chữ trên khối Bắt đầu sinh từ `nhip`, không phải tên gõ tay",
+     core.dong_khoi(bd["entry"])[0] == "Mỗi nến M5"
+     and core.dong_khoi(dict(bd["entry"], nhip="H1"))[0] == "Mỗi nến H1")
+kiem("không tên khối nào còn viết cứng khung thời gian",
+     not any(k in (st.get("name") or "")
+             for t in core.TABS for st in doc[t]["steps"] for k in core.TIMEFRAMES),
+     f'— {[st.get("name") for t in core.TABS for st in doc[t]["steps"]]}')
+kiem("hộp Manage nói rõ 'một lượt cho MỖI lệnh' — đó là cấu trúc, không phải tên",
+     any("MỖI lệnh" in x for x in core.dong_khoi(bd["manage"], None, core.TAB_MANAGE)))
+
+# File schema 3 chỉ có MỘT `timeframe` cho cả tài liệu. Mở lại phải ra nhịp trên khối.
+cu = {"schema": 3, "timeframe": "M15", "name": "cũ",
+      "entry": {"steps": [{"kind": "start"}], "edges": []},
+      "manage": {"steps": [{"kind": "start"}], "edges": []}}
+mo = core.normalize_process(cu)
+kiem("file cũ (schema 3) mở lại được: `timeframe` di cư sang khối Bắt đầu",
+     mo["schema"] == 4 and "timeframe" not in mo
+     and mo["entry"]["steps"][0]["nhip"] == "M15"
+     and mo["manage"]["steps"][0]["nhip"] == "M1")
+kiem("nhịp rác thì rơi về mặc định chứ không lọt vào file",
+     core.normalize_process({"entry": {"steps": [{"kind": "start", "nhip": "XX"}]}}
+                            )["entry"]["steps"][0]["nhip"] == "M5")
+
+xau_nhip = json.loads(json.dumps(doc))
+xau_nhip["manage"]["steps"][0]["nhip"] = "M15"
+kiem("Manage chậm hơn Entry → cảnh báo (quản lý là phản ứng, phải nhanh hơn)",
+     any(p["severity"] == "warning" and "CHẬM hơn Entry" in p["message"]
+         for p in core.validate_process(xau_nhip)))
 
 # ================= 8. lưu / mở lại =================
 print("\n▸ Lưu / mở lại")

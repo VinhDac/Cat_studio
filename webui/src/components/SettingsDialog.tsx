@@ -10,11 +10,10 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
 }) {
   const s = boot.settings as Record<string, any>
   const [symbol, setSymbol] = useState(String(s.symbol ?? 'XAUUSD'))
-  const [tf, setTf] = useState(String(s.timeframe ?? 'M5'))
   const [accent, setAccent] = useState(String(s.accent ?? '#ffa657'))
 
   async function luu() {
-    await py.save_settings({ symbol, timeframe: tf, accent })
+    await py.save_settings({ symbol, accent })
     onDong()
   }
 
@@ -30,10 +29,6 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
         <span className="nhan-o">Mã mặc định</span>
         <input className="o" value={symbol} spellCheck={false}
                onChange={e => setSymbol(e.target.value.toUpperCase())} />
-        <span className="nhan-o phu">Khung TG</span>
-        <select className="o nho" value={tf} onChange={e => setTf(e.target.value)}>
-          {boot.timeframes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
       </label>
 
       <label className="hang">

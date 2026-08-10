@@ -134,9 +134,6 @@ export interface RibbonProps {
   datTen: (v: string) => void
   symbol: string
   datSymbol: (v: string) => void
-  tf: string
-  datTf: (v: string) => void
-  timeframes: string[]
   chay: () => void
   coChon: boolean
   chonDaGhim: boolean
@@ -232,10 +229,6 @@ export default function Ribbon(p: RibbonProps) {
           <input className="o nho o-symbol" value={p.symbol} spellCheck={false}
                  title="Mã giao dịch" placeholder="XAUUSD"
                  onChange={e => p.datSymbol(e.target.value.toUpperCase())} />
-          <select className="o nho" value={p.tf} title="Khung thời gian chính"
-                  onChange={e => p.datTf(e.target.value)}>
-            {p.timeframes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
           <button className="nut chinh" onClick={p.chay}
                   title="Mở cửa sổ Strategy Tester để chạy sơ đồ này">▶ Chạy</button>
         </div>

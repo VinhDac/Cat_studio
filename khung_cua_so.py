@@ -101,6 +101,34 @@ class MARGINS(ctypes.Structure):
                 ("cyTopHeight", ctypes.c_int), ("cyBottomHeight", ctypes.c_int)]
 
 
+def tim_hwnd(chua_chuoi):
+    """HWND của cửa sổ có tiêu đề CHỨA `chua_chuoi`. Không thấy thì None.
+
+    Khớp theo CHUỖI CON vì tiêu đề đổi theo tên chiến lược. Cửa sổ không khung VẪN có
+    tiêu đề Win32 (taskbar và Alt+Tab đều dựa vào nó) — chỉ là Windows không vẽ nó ra.
+
+    Dùng `EnumWindows` chứ không `FindWindowW`: tiêu đề có gạch dài "—" và chữ tiếng
+    Việt. Ở đây chứ không ở `app_web.py` vì giờ có HAI cửa sổ cần tìm hwnd để vá khung,
+    và đây mới là file lo chuyện khung cửa sổ."""
+    ra = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def duyet(h, _):
+        n = u.GetWindowTextLengthW(h)
+        if n and u.IsWindowVisible(h):
+            b = ctypes.create_unicode_buffer(n + 1)
+            u.GetWindowTextW(h, b, n + 1)
+            if chua_chuoi in b.value:
+                ra.append(h)
+        return True
+
+    try:
+        u.EnumWindows(duyet, 0)
+    except Exception:
+        return None
+    return ra[0] if ra else None
+
+
 class KhungTuVe:
     """Giữ trạng thái của một cửa sổ đã vá.
 

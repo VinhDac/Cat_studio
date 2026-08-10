@@ -28,11 +28,13 @@ declare global {
  * phía Python trong khi Python hoàn toàn ổn.
  * Phải chờ một HÀM CÓ THẬT xuất hiện.
  */
-export function cho_cau_noi(timeout = 10000): Promise<void> {
+export function cho_cau_noi(ham = 'bootstrap', timeout = 10000): Promise<void> {
   const t0 = Date.now()
   return new Promise((ok, hong) => {
     const thu = () => {
-      if (typeof window.pywebview?.api?.bootstrap === 'function') return ok()
+      // Chờ ĐÚNG hàm mà trang này sắp gọi: cửa sổ tester có `ApiTester` riêng, KHÔNG
+      // có `bootstrap`. Chờ cứng `bootstrap` ở đó là treo 10 giây rồi báo mất kết nối.
+      if (typeof window.pywebview?.api?.[ham] === 'function') return ok()
       if (Date.now() - t0 > timeout) return hong(new Error('Không kết nối được tới Python'))
       setTimeout(thu, 40)
     }
@@ -99,7 +101,6 @@ export const py = {
 
   // --- ▶ Chạy → cửa sổ Strategy Tester ---
   mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),
-  tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
 
   // --- cửa sổ (thanh tiêu đề tự vẽ) ---
   vung_khong_keo: (vung: number[][], cao: number) => goi<null>('vung_khong_keo', vung, cao),
@@ -108,4 +109,19 @@ export const py = {
   cua_so_phong_to: () => goi<boolean>('cua_so_phong_to'),
   cua_so_dang_phong_to: () => goi<boolean>('cua_so_dang_phong_to'),
   cua_so_dong: () => goi<null>('cua_so_dong'),
+}
+
+/** Bề mặt của CỬA SỔ Strategy Tester.
+ *
+ * Tách hẳn khỏi `py`: cửa sổ đó chạy `ApiTester` bên Python, một lớp cố ý HẸP — không
+ * lưu chiến lược, không mở hộp thoại file, không đổi cài đặt. Gọi nhầm `py.*` ở đó sẽ
+ * trả "api.py không có hàm …" chứ không âm thầm đụng vào cửa sổ chính.
+ *
+ * Nhóm `cua_so_*` trùng TÊN với `py` nhưng là hàm KHÁC — mỗi cửa sổ một thể hiện, nên
+ * bấm ✕ ở tester chỉ đóng tester. Nhờ vậy `TitleBar` dùng lại được nguyên vẹn.
+ */
+export const pyTester = {
+  bootstrap_tester: () =>
+    goi<{ phien_ban: string; accent?: string; doc: ProcessDoc | null }>('bootstrap_tester'),
+  tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
 }

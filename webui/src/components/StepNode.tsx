@@ -77,9 +77,14 @@ export default function StepNode({ data, selected }: NodeProps) {
           <span className="ten" title={card.title}>{card.title}</span>
         </div>
 
-        {!laStart && (
+        {hien.length > 0 && (
           /* Tooltip là CÂU ĐẦY ĐỦ. Trên hộp chỉ để dòng ngắn — mỗi trường một dòng —
-             vì nhìn hộp là để liếc ra ngay khối làm gì; rê chuột mới cần đủ chi tiết. */
+             vì nhìn hộp là để liếc ra ngay khối làm gì; rê chuột mới cần đủ chi tiết.
+
+             Khối Bắt đầu CŨNG có thân: nhịp chạy ("Mỗi nến M5") là dòng do Python sinh
+             từ khoá `nhip`. Trước đây nó là chữ gõ tay trong TÊN khối, nên đổi nhịp thì
+             khối vẫn ghi số cũ. Điều kiện ở đây vì thế phải là "có dòng nào không",
+             không phải "có phải khối Bắt đầu không". */
           <div className="than" title={card.mo_ta}>
             {hien.map((d, i) => (
               <div key={i} className="dong">

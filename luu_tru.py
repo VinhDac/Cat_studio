@@ -26,7 +26,6 @@ THU_MUC_NHAT_KY = "nhat_ky"
 
 CAI_DAT_MAC_DINH = {
     "symbol": "XAUUSD",
-    "timeframe": "M5",
     "accent": "#ffa657",
     "ui": {"panel_cao": 176, "panel_gap": False},
 }
@@ -69,10 +68,16 @@ def thu_muc_nhat_ky():
 
 
 def doc_cai_dat():
+    """Đọc cài đặt. Hỏng thì trả mặc định, không ném lỗi.
+
+    CHỈ giữ những khoá còn trong bảng mặc định: khi một cài đặt bị bỏ đi (ví dụ
+    `timeframe` chuyển thành `nhip` trên khối Bắt đầu), khoá cũ trong file sẽ nằm lại
+    vĩnh viễn và người đọc sau này tưởng nó vẫn có tác dụng."""
     ra = json.loads(json.dumps(CAI_DAT_MAC_DINH))
     try:
         with open(os.path.join(goc(), FILE_CAI_DAT), encoding="utf-8") as f:
-            ra.update(json.load(f) or {})
+            d = json.load(f) or {}
+        ra.update({k: v for k, v in d.items() if k in CAI_DAT_MAC_DINH})
     except Exception:
         pass
     return ra
