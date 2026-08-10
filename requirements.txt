@@ -1,0 +1,12 @@
+# Giao diện (app_web.py + webui/). Mượn WebView2 có sẵn của Windows nên không kéo
+# theo trình duyệt nào.
+#
+# ⚠ PHẢI cài trong venv riêng của dự án (.venv), đừng cài vào Python global:
+#   gói `quantconnect-stubs` (nếu máy có) chiếm namespace `Microsoft` và làm pywebview
+#   chết ngay lúc khởi động với
+#   "System.IO.FileNotFoundException: Could not load file or assembly 'Microsoft'".
+pywebview
+
+# Nối MetaTrader 5 — kéo nến, đọc chỉ báo, đặt lệnh trong Strategy Tester.
+# Chỉ chạy trên Windows và cần MT5 terminal đang mở.
+MetaTrader5

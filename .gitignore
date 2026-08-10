@@ -1,0 +1,15 @@
+# Môi trường
+.venv/
+__pycache__/
+*.pyc
+
+# Sinh ra lúc chạy, cạnh app — không thuộc về repo
+settings.json
+templates/
+
+# Build
+webui/node_modules/
+webui/dist/
+build/
+dist/
+*.spec.bak
