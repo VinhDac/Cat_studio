@@ -8,13 +8,15 @@ import {
 
 import { py, cho_cau_noi } from './api'
 import type {
-  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, SoDo, Step, StepKind, Tab,
+  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, SoDo, Step, StepKind, Tab, ThamSo,
 } from './types'
 import Ribbon, { PillTab, type MucMenu } from './components/Ribbon'
 import StepNode from './components/StepNode'
 import ActionDialog from './components/ActionDialog'
 import SettingsDialog from './components/SettingsDialog'
 import TemplatePicker from './components/TemplatePicker'
+import KhoDialog from './components/KhoDialog'
+import ThamSoDialog from './components/ThamSoDialog'
 import ContextMenu, { type MucPhai } from './components/ContextMenu'
 import TitleBar, { type NhomMenu } from './components/TitleBar'
 import { useKhungCuaSo } from './useKhungCuaSo'
@@ -122,6 +124,12 @@ function Ung() {
    *  phải đoán xem thả vào đâu được. */
   const [dangNoi, setDangNoi] = useState(false)
   const [moCaiDat, setMoCaiDat] = useState(false)
+  const [moKho, setMoKho] = useState(false)
+  const [moThamSo, setMoThamSo] = useState(false)
+  /** Bảng tham số của chiến lược — hằng số CÓ TÊN, dùng chung cho cả hai sơ đồ. */
+  const [thamSo, setThamSo] = useState<ThamSo[]>([])
+  /** Tên tham số đang thật sự được khối nào đó dùng — Python tính, JS chỉ hiện. */
+  const [tsDangDung, setTsDangDung] = useState<Set<string>>(new Set())
   /** Menu chuột phải đang mở.
    *
    *  Cố ý CHỈ giữ "đang bấm phải vào cái gì", không giữ sẵn danh sách mục menu: mục
@@ -250,6 +258,7 @@ function Ung() {
     setTab('entry')
     setNodes(kho.current.entry.nodes); setEdges(kho.current.entry.edges)
     setTen(doc.name); setSymbol(doc.symbol); setTf(doc.timeframe)
+    setThamSo(doc.tham_so ?? [])
     canFit.current = true
     ghi(loi)
   }, [setNodes, setEdges, ghi])
@@ -270,8 +279,9 @@ function Ung() {
       ? { steps: rf_sang_steps(nodes), edges: rf_sang_edges(edges), cards: [] }
       : { steps: rf_sang_steps(kho.current[t].nodes),
           edges: rf_sang_edges(kho.current[t].edges), cards: [] })
-    return { name: ten, symbol, timeframe: tf, entry: g('entry'), manage: g('manage') }
-  }, [tab, nodes, edges, ten, symbol, tf])
+    return { name: ten, symbol, timeframe: tf, tham_so: thamSo,
+             entry: g('entry'), manage: g('manage') }
+  }, [tab, nodes, edges, ten, symbol, tf, thamSo])
 
   /* --------------------------- soát liên tục -------------------------- */
   useEffect(() => {
@@ -287,6 +297,7 @@ function Ung() {
       setThuTu(l?.order ?? {})
       setQuayLai(new Set((l?.quay_lai ?? []).map(([a, b]) => `${a}|${b}`)))
       setVongHo((l?.vong_ho ?? []).length)
+      setTsDangDung(new Set(((r as any).tham_so_dang_dung as string[]) ?? []))
     }, 250)   // gộp lại: kéo hộp bắn ra hàng chục thay đổi mỗi giây
     return () => clearTimeout(h)
   }, [nodes, edges, sanSang, tab, layDoc])
@@ -470,7 +481,7 @@ function Ung() {
   /** Ghi khối đã sửa trở lại node, và LẤY LẠI nội dung hộp từ Python — không tự dựng
    *  lại thẻ ở JS, nếu không hộp sẽ mô tả khác với những gì core thực sự hiểu. */
   const ghiBuoc = useCallback(async (s: Step) => {
-    const r = await py.describe([s])
+    const r = await py.describe([s], thamSo)
     const card = r.ok ? r.value![0] : null
     chup()
     setNodes(ds => ds.map(k => (k.id === s.id
@@ -478,7 +489,7 @@ function Ung() {
       : k)))
     setDangSua(null)
     ghi(`sửa "${card?.title ?? s.name ?? s.id}"`)
-  }, [chup, setNodes, ghi])
+  }, [chup, setNodes, ghi, thamSo])
 
   /* ------------------------------- chép / dán ----------------------------- */
   const chepKhoi = useCallback(() => {
@@ -641,6 +652,24 @@ function Ung() {
     ghi('▶ mở Strategy Tester', 'ok')
     setTrangThai('đã mở Strategy Tester')
   }, [layDoc, ghi])
+
+  /** Đổi bảng tham số — vẽ lại thẻ CẢ HAI sơ đồ, vì một tham số có thể được dùng ở
+   *  bất cứ đâu và chữ trên hộp phải đổi theo ngay. */
+  const luuThamSo = useCallback(async (ds: ThamSo[]) => {
+    chup()
+    setThamSo(ds)
+    setMoThamSo(false)
+    for (const t of ['entry', 'manage'] as Tab[]) {
+      const ns = t === tab ? nodes : kho.current[t].nodes
+      const r = await py.describe(ns.map(n => (n.data as { step: Step }).step), ds)
+      if (!r.ok) continue
+      const the = new Map((r.value ?? []).map(c => [c.id, c]))
+      const moi = ns.map(n => (the.has(n.id)
+        ? { ...n, data: { ...(n.data as object), card: the.get(n.id) as Card } } : n))
+      if (t === tab) setNodes(moi); else kho.current[t] = { ...kho.current[t], nodes: moi }
+    }
+    ghi(`cập nhật ${ds.length} tham số`, 'ok')
+  }, [chup, tab, nodes, setNodes, ghi])
 
   /* --------------------------- menu chuột phải --------------------------- */
 
@@ -831,6 +860,10 @@ function Ung() {
       { ten: 'Lưu thành template…', icon: 'save', onClick: luu },
       { ten: 'Lưu ra file khác…', onClick: luuRaFile },
       { ngan: true },
+      { ten: 'Tham số chiến lược…', icon: 'edit', onClick: () => setMoThamSo(true) },
+      { ten: 'Kho — app đang có những gì…', icon: 'folder',
+        onClick: () => setMoKho(true) },
+      { ngan: true },
       { ten: 'Cài đặt…', icon: 'gear', onClick: () => setMoCaiDat(true) },
       { ten: 'Thoát', onClick: () => py.cua_so_dong() },
     ] },
@@ -866,7 +899,7 @@ function Ung() {
     ] },
   ], [soDoMoi, moFile, moMau, luu, luuRaFile, moChienLuoc, hoanTac, lamLai, coLui, coToi,
       chepKhoi, danKhoi, nhanBan, doiGhim, xoa, dangChon, zoomIn, zoomOut, fitView,
-      panelGap, boot])
+      panelGap, boot, setMoKho, setMoThamSo])
 
   const soLoi = vanDe.filter(v => v.severity === 'error').length
   const soCanhBao = vanDe.length - soLoi
@@ -1058,6 +1091,13 @@ function Ung() {
         <span className="so">{Math.round(mucZoom * 100)}%</span>
       </div>
 
+      {moKho && <KhoDialog onDong={() => setMoKho(false)} />}
+
+      {moThamSo && boot && (
+        <ThamSoDialog dsGoc={thamSo} boot={boot} dangDung={tsDangDung}
+                      onLuu={luuThamSo} onDong={() => setMoThamSo(false)} />
+      )}
+
       {moCaiDat && boot && (
         <SettingsDialog boot={boot} doiMauNgay={doiMauNgay}
                         onDong={() => setMoCaiDat(false)} />
@@ -1078,6 +1118,7 @@ function Ung() {
         // người dùng đi qua một lớp "danh sách 1 phần tử" vô nghĩa.
         return (
           <ActionDialog action={st as Record<string, any>} boot={boot} tab={tab}
+                        thamSo={thamSo}
                         onDong={() => setDangSua(null)}
                         onLuu={a => ghiBuoc({ ...a, kind: 'action', id: st.id,
                                               pos: st.pos, ghim: st.ghim } as Step)} />

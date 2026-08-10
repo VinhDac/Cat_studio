@@ -121,13 +121,19 @@ kiem("hai nhánh MUA / BÁN đối xứng",
 
 # ================= 4. Hai chữ ATR =================
 print("\n▸ Hai chữ ATR — tách ra là có chủ ý")
+# Giá trị nằm ở BẢNG THAM SỐ, khối chỉ gọi bằng tên — nên phải kiểm CẢ HAI vế: khối
+# trỏ đúng tham số nào, và tham số đó mang đúng con số nào.
+TS = {t["ten"]: t["gia_tri"] for t in doc["tham_so"]}
 for ten in ("Buy Stop trên đỉnh vùng", "Sell Stop dưới đáy vùng"):
     st = next(s for s in doc["entry"]["steps"] if core.step_title(s) == ten)
     kiem(f"{ten}: đệm = ATR HIỆN TẠI",
-         st["dem"] == {"tinh": "theo_ATR", "value": 0.10}, f"— {st.get('dem')}")
+         st["dem"]["tinh"] == "theo_ATR" and TS[st["dem"]["value"]] == 0.10,
+         f"— {st.get('dem')}")
     kiem(f"{ten}: rủi ro = ATR TRUNG BÌNH VÙNG",
-         st["sl"] == {"tinh": "theo_ATR_vung", "value": 1.5}, f"— {st.get('sl')}")
-    kiem(f"{ten}: TP = 2R", st["tp"] == {"tinh": "theo_R", "value": 2.0})
+         st["sl"]["tinh"] == "theo_ATR_vung" and TS[st["sl"]["value"]] == 1.5,
+         f"— {st.get('sl')}")
+    kiem(f"{ten}: TP = 2R",
+         st["tp"]["tinh"] == "theo_R" and TS[st["tp"]["value"]] == 2.0)
 
 # ================= 5. Manage =================
 print("\n▸ Manage")
@@ -172,9 +178,15 @@ cards = {c["id"]: c for c in doc["entry"]["cards"]}
 kiem("mọi khối Entry đều có thẻ", len(cards) == len(doc["entry"]["steps"]))
 kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
      len(cards[g_nen["id"]]["lines"]) == 4, f"— {len(cards[g_nen['id']]['lines'])}")
-kiem("chữ trên hộp dùng ký hiệu, do Python sinh",
-     cards[g_nen["id"]]["lines"][0]["text"] == "ATR chuẩn hoá (bps)(M5, 14) < 7",
+# Chữ trên hộp hiện CẢ TÊN LẪN GIÁ TRỊ của tham số: tên nói ý nghĩa, số nói thực tế.
+# Thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ.
+kiem("chữ trên hộp dùng ký hiệu, và tham số hiện cả tên lẫn giá trị",
+     cards[g_nen["id"]]["lines"][0]["text"]
+     == "ATR chuẩn hoá (bps)(M5, 14) < nguong_nen_bps = 7",
      f"— \"{cards[g_nen['id']]['lines'][0]['text']}\"")
+kiem("tham số của toán hạng thì hiện GIÁ TRỊ (14), không hiện tên — nó là "
+     "\"đọc chuỗi nào\", không phải núm vặn",
+     "(M5, 14)" in cards[g_nen["id"]]["lines"][0]["text"])
 
 # ================= 8. lưu / mở lại =================
 print("\n▸ Lưu / mở lại")

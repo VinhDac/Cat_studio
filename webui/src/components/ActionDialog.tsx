@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { py } from '../api'
-import type { Bootstrap, Tab, ToanHang } from '../types'
+import type { Bootstrap, Tab, ThamSo, ToanHang } from '../types'
 import Modal from './Modal'
 
 /** Hộp thoại sửa MỘT hành động.
@@ -124,8 +124,9 @@ function OKhoang({ k, boot, dat, nhan, goiY }: {
 
 /* ---------- một dòng ĐIỀU KIỆN ---------- */
 
-function DongDieuKien({ c, boot, tab, dat, xoa, so }: {
-  c: HD; boot: Bootstrap; tab: Tab; dat: (v: HD) => void; xoa: () => void; so: number
+function DongDieuKien({ c, boot, tab, thamSo, dat, xoa, so }: {
+  c: HD; boot: Bootstrap; tab: Tab; thamSo: ThamSo[]
+  dat: (v: HD) => void; xoa: () => void; so: number
 }) {
   const dinh = boot.toan_hang.find(t => t.key === c?.trai?.ten)
   // Toán hạng vốn đã đúng/sai thì không có vế phải — "Lệnh này đã khớp = 1" là câu
@@ -152,16 +153,29 @@ function DongDieuKien({ c, boot, tab, dat, xoa, so }: {
           </select>
 
           <select className="o nho" value={c.phai_loai ?? 'so'}
-                  title="Vế phải là một con số, hay một toán hạng khác"
+                  title={'Vế phải: số gõ tay · THAM SỐ có tên · hay một toán hạng khác. '
+                         + 'Ngưỡng dùng ở hai chỗ thì nên là tham số — gõ tay hai nơi '
+                         + 'là sửa một chỗ sẽ lệch âm thầm.'}
                   onChange={e => dat({
                     ...c, phai_loai: e.target.value,
-                    phai: e.target.value === 'toan_hang' ? {} : 0,
+                    phai: e.target.value === 'toan_hang' ? {}
+                      : e.target.value === 'tham_so' ? (thamSo[0]?.ten ?? '') : 0,
                   })}>
             <option value="so">số</option>
+            <option value="tham_so" disabled={!thamSo.length}>tham số</option>
             <option value="toan_hang">toán hạng</option>
           </select>
 
-          {c.phai_loai === 'toan_hang' ? (
+          {c.phai_loai === 'tham_so' ? (
+            <select className="o" value={String(c.phai ?? '')}
+                    onChange={e => dat({ ...c, phai: e.target.value })}>
+              {thamSo.map(t => (
+                <option key={t.ten} value={t.ten}>
+                  {t.ten} = {t.gia_tri}{t.don_vi ? ` ${t.don_vi}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : c.phai_loai === 'toan_hang' ? (
             <OToanHang o={c.phai ?? {}} boot={boot} tab={tab} hep
                        dat={v => dat({ ...c, phai: v })} />
           ) : (
@@ -185,10 +199,11 @@ function DongDieuKien({ c, boot, tab, dat, xoa, so }: {
 
 /* ---------------------------------- hộp thoại --------------------------------- */
 
-export default function ActionDialog({ action, boot, tab, onLuu, onDong }: {
+export default function ActionDialog({ action, boot, tab, thamSo, onLuu, onDong }: {
   action: HD
   boot: Bootstrap
   tab: Tab
+  thamSo: ThamSo[]
   onLuu: (a: HD) => void
   onDong: () => void
 }) {
@@ -204,7 +219,7 @@ export default function ActionDialog({ action, boot, tab, onLuu, onDong }: {
      qua cầu nối. */
   useEffect(() => {
     const h = setTimeout(async () => {
-      const r = await py.save_action(a, tab)
+      const r = await py.save_action(a, tab, thamSo)
       if (r.ok) {
         setXem(r.value?.display ?? '')
         setLoi(((r as any).loi as string[]) ?? [])
@@ -213,7 +228,7 @@ export default function ActionDialog({ action, boot, tab, onLuu, onDong }: {
       }
     }, 200)
     return () => clearTimeout(h)
-  }, [a, tab])
+  }, [a, tab, thamSo])
 
   async function doiLoai(t: string) {
     // Lấy mặc định từ Python chứ không tự nặn ở JS: mấy con số mặc định
@@ -257,7 +272,7 @@ export default function ActionDialog({ action, boot, tab, onLuu, onDong }: {
             "hoặc" giấu trong hộp thoại thì không.
           </div>
           {conds.map((c, i) => (
-            <DongDieuKien key={i} c={c} boot={boot} tab={tab} so={i + 1}
+            <DongDieuKien key={i} c={c} boot={boot} tab={tab} thamSo={thamSo} so={i + 1}
                           dat={v => dat('conditions',
                             conds.map((x, k) => (k === i ? v : x)))}
                           xoa={() => dat('conditions', conds.filter((_, k) => k !== i))} />

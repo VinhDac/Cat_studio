@@ -14,6 +14,7 @@ TIEU_DE_GOC = "Cat Studio"
 
 import webview                                    # noqa: E402
 from api import Api                               # noqa: E402
+import luu_tru                                    # noqa: E402
 
 
 # .NET Framework tối thiểu. `Python.Runtime.dll` của pythonnet 3.x build cho
@@ -136,6 +137,12 @@ def main():
                 + "\n\n · ".join(thieu)
                 + "\n\nCài xong rồi mở lại app.")
         return 1
+
+    # Bản cũ để `settings.json` + `templates/` ngay cạnh app. Chép sang `du_lieu/`
+    # trước khi `Api()` đọc cài đặt — chỉ chép cái chưa có, không đè, không xoá bản cũ.
+    da = luu_tru.di_cu()
+    if da:
+        print(f"[khởi động] đã chuyển sang du_lieu/: {', '.join(da)}", file=sys.stderr)
 
     api = Api()
     win = webview.create_window(

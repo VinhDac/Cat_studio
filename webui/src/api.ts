@@ -4,7 +4,7 @@
  * sau này đổi cách vận chuyển (hoặc giả lập khi test) chỉ phải sửa một file.
  */
 import type {
-  Bootstrap, Card, KetQuaSoat, ProcessDoc, Reply, Step, Tab,
+  Bootstrap, Card, KetQuaSoat, KhoDanhMuc, ProcessDoc, Reply, Step, Tab, ThamSo,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -74,14 +74,19 @@ export const py = {
     goi<{ step: Step; card: Card }>('new_step', kind, actionType ?? null),
   clone_steps: (steps: Step[]) =>
     goi<{ steps: Step[]; map: Record<string, string>; cards: Card[] }>('clone_steps', steps),
-  describe: (steps: Step[]) => goi<Card[]>('describe', steps),
+  describe: (steps: Step[], thamSo: ThamSo[]) =>
+    goi<Card[]>('describe', steps, thamSo),
+
+  /** Danh mục kho — engine nào đang nạp, tính được những gì, lưu ở đâu. */
+  kho_danh_muc: () => goi<KhoDanhMuc>('kho_danh_muc'),
 
   /** Nguồn của HUY HIỆU SỐ và của bảng Vấn đề — CẢ HAI sơ đồ, một lời gọi. */
   validate: (doc: ProcessDoc) => goi<never>('validate', doc) as Promise<KetQuaSoat>,
 
   // --- hộp thoại hành động ---
-  save_action: (draft: Record<string, unknown>, tab: Tab) =>
-    goi<{ action: Record<string, unknown>; display: string }>('save_action', draft, tab),
+  save_action: (draft: Record<string, unknown>, tab: Tab, thamSo: ThamSo[]) =>
+    goi<{ action: Record<string, unknown>; display: string }>(
+      'save_action', draft, tab, thamSo),
   describe_actions: (actions: unknown[]) =>
     goi<{ text: string; type?: string | null }[]>('describe_actions', actions),
   action_defaults: (t: string) => goi<Record<string, unknown>>('action_defaults', t),

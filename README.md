@@ -130,13 +130,27 @@ Sửa giao diện xong phải `tools\build_ui.bat` mới thấy đổi — `app_
 
 ```
 core.md            sổ ghi cốt lõi — VÌ SAO mọi thứ như vậy. Đọc file này trước.
-core.py            lõi — không phụ thuộc giao diện, chạy headless được
+core.py            lõi — đồ thị, đánh số, soát lỗi
+kho/               danh mục mọi thứ app tính được, chia theo NGUỒN
+  nen_tang.py        giá · thời gian · tài khoản · lệnh này
+  chi_bao.py         ATR · MA · Donchian · Volume MA
+  engine_d02.py      atr_bps · bảng vùng nén      (ý tưởng riêng của D_02)
+so_lenh.py         bảng lệnh + vùng nén, id của CHÍNH TA
+luu_tru.py         MỘT chỗ duy nhất biết file nằm ở đâu
 api.py             bề mặt DUY NHẤT giao diện gọi tới  (JS → api.py → core.py)
 app_web.py         khởi động cửa sổ (pywebview + WebView2)
 khung_cua_so.py    vá cửa sổ Win32 cho thanh tiêu đề tự vẽ (kéo/giãn/phóng to)
 webui/             giao diện: React + TypeScript + React Flow
 tests/             bộ test — không mở cửa sổ, không cần MT5
+du_lieu/           dữ liệu của bạn (sinh ra lúc chạy, không nằm trong repo)
 ```
+
+Menu **File → Kho** liệt kê mọi thứ app tính được, chia theo nguồn: nền tảng · chỉ báo
+chuẩn · từng engine. Danh sách do Python **tự gom** từ `kho/`, nên thêm một chiến lược
+mới là hộp thoại có ngay — không có danh sách nào chép tay.
+
+Menu **File → Tham số chiến lược** sửa bảng hằng số CÓ TÊN. Ngưỡng nén được hỏi ở cả
+hai sơ đồ; gõ số thẳng vào hai nơi thì sửa một chỗ là hai vế lệch nhau âm thầm.
 
 Ba tầng, mỗi tầng biết đúng việc của mình:
 
@@ -153,5 +167,5 @@ Ba tầng, mỗi tầng biết đúng việc của mình:
   lúc mở và báo bằng tiếng Việt nếu thiếu.
 - Cài `pywebview` trong **`.venv` riêng**: nếu Python global có gói `quantconnect-stubs`
   thì nó chiếm namespace `Microsoft` và pywebview chết ngay lúc khởi động.
-- Dữ liệu của bạn (`settings.json`, thư mục `templates/`) sinh ra cạnh app, không nằm
-  trong repo.
+- Dữ liệu của bạn nằm trong `du_lieu/` cạnh app, không nằm trong repo. Bản cũ
+  (`settings.json` + `templates/`) được chép sang tự động lúc mở app lần đầu.

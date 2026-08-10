@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 
 # Sinh ra lúc chạy, cạnh app — không thuộc về repo
+du_lieu/
 settings.json
 templates/
 

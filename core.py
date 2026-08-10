@@ -8,62 +8,29 @@ Ba tầng:  webui/ (vẽ)  →  api.py (cầu nối duy nhất)  →  core.py (l
 Xem `core.md` để hiểu VÌ SAO. File này giữ HÀNH VI.
 """
 import json
-import os
-import re
-import sys
 import uuid
 
-PHIEN_BAN = "0.1"
+import kho
+import luu_tru
+
+PHIEN_BAN = "0.2"
 
 # ---------------------------------------------------------------------------
 # Thư mục dữ liệu
 # ---------------------------------------------------------------------------
 
 
-def app_dir():
-    """Thư mục cạnh file exe (bản đóng gói) hoặc cạnh mã nguồn (bản chạy thẳng).
+# Đường dẫn và đọc/ghi file nằm HẾT ở `luu_tru.py` — đây chỉ là lối tắt cho code cũ.
+app_dir = luu_tru.thu_muc_app
+load_settings = luu_tru.doc_cai_dat
+save_settings = luu_tru.ghi_cai_dat
 
-    Dữ liệu người dùng (settings.json, templates/) sinh ra ở đây chứ không nằm trong
-    repo — cài lại app không mất chiến lược đã lưu."""
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-def _duong(*phan):
-    return os.path.join(app_dir(), *phan)
-
-
-SETTINGS_DEFAULT = {
-    "symbol": "XAUUSD",
-    "timeframe": "M5",
-    "accent": "#ffa657",
-    "ui": {"panel_cao": 176, "panel_gap": False},
-}
+SETTINGS_DEFAULT = luu_tru.CAI_DAT_MAC_DINH
 
 ACCENT_PRESETS = {
     "Cam": "#ffa657", "Xanh dương": "#4a9eff", "Lục": "#3fb950", "Tím": "#a371f7",
     "Đỏ": "#f85149", "Vàng": "#d29922", "Hồng": "#db61a2", "Xanh ngọc": "#39c5cf",
 }
-
-
-def load_settings():
-    ra = json.loads(json.dumps(SETTINGS_DEFAULT))
-    try:
-        with open(_duong("settings.json"), encoding="utf-8") as f:
-            ra.update(json.load(f) or {})
-    except Exception:
-        pass
-    return ra
-
-
-def save_settings(s):
-    try:
-        with open(_duong("settings.json"), "w", encoding="utf-8") as f:
-            json.dump(s, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-    return s
 
 
 # ---------------------------------------------------------------------------
@@ -171,59 +138,15 @@ def hanh_dong_cua_tab(tab):
 BRANCH_TYPES = (CHECK_COND,)
 
 # ---- Toán hạng của "Kiểm tra điều kiện" -----------------------------------
-# (key, nhãn, nhóm, tham số cần nhập)
-# `tham_so` là những ô phụ hộp thoại phải hiện thêm khi chọn toán hạng đó.
-TOAN_HANG = [
-    ("close",          "Giá đóng cửa",            "Giá",        ["tf", "shift"]),
-    ("open",           "Giá mở cửa",              "Giá",        ["tf", "shift"]),
-    ("high",           "Giá cao nhất",            "Giá",        ["tf", "shift"]),
-    ("low",            "Giá thấp nhất",           "Giá",        ["tf", "shift"]),
-    ("bid",            "Giá Bid",                 "Giá",        []),
-    ("ask",            "Giá Ask",                 "Giá",        []),
-    ("spread",         "Spread (điểm)",           "Giá",        []),
-
-    ("atr",            "ATR",                     "Chỉ báo",    ["tf", "period"]),
-    ("atr_bps",        "ATR chuẩn hoá (bps)",     "Chỉ báo",    ["tf", "period"]),
-    ("ma",             "Đường trung bình MA",     "Chỉ báo",    ["tf", "period", "method"]),
-    ("donchian_tren",  "Donchian — biên trên",    "Chỉ báo",    ["tf", "period"]),
-    ("donchian_duoi",  "Donchian — biên dưới",    "Chỉ báo",    ["tf", "period"]),
-    ("volume_ma",      "Volume trung bình",       "Chỉ báo",    ["tf", "period"]),
-
-    ("so_nen_nen",     "Số nến nén liên tiếp",    "Vùng nén",   []),
-    ("dinh_vung",      "Đỉnh vùng",               "Vùng nén",   []),
-    ("day_vung",       "Đáy vùng",                "Vùng nén",   []),
-    ("rong_vung",      "Bề rộng vùng",            "Vùng nén",   []),
-    ("rong_vung_atr",  "Bề rộng vùng ÷ ATR",      "Vùng nén",   []),
-    ("atr_tb_vung",    "ATR trung bình của vùng", "Vùng nén",   []),
-
-    ("vung_da_sinh_lenh", "Vùng này đã sinh lệnh", "Vùng nén",  []),
-
-    ("so_vi_the",      "Số vị thế đang mở",       "Tài khoản",  []),
-    ("so_lenh_cho",    "Số lệnh chờ",             "Tài khoản",  []),
-    ("so_lenh_hom_nay", "Số lệnh hôm nay",        "Tài khoản",  []),
-    ("drawdown_pt",    "Drawdown (%)",            "Tài khoản",  []),
-
-    # ---- CHỈ dùng được ở sơ đồ MANAGE ----
-    # Manage chạy một lượt cho MỖI lệnh, nên "lệnh này" luôn có nghĩa. Ở Entry thì
-    # chưa có lệnh nào để nói tới — dùng ở đó là lỗi, và soát tĩnh bắt được.
-    ("lenh_da_khop",   "Lệnh này đã khớp",        "Lệnh này",   []),
-    ("lenh_la_mua",    "Lệnh này là lệnh Mua",    "Lệnh này",   []),
-    ("lenh_sl_hoa_von", "SL của lệnh này đã ở hoà vốn", "Lệnh này", []),
-    ("lenh_lai_R",     "Lãi của lệnh này (× R)",  "Lệnh này",   []),
-    ("lenh_so_nen_song", "Số nến lệnh này đã sống", "Lệnh này", []),
-    ("lenh_gia_vao",   "Giá vào của lệnh này",    "Lệnh này",   []),
-
-    ("gio",            "Giờ (0–23)",              "Thời gian",  []),
-    ("thu",            "Thứ (2–8)",               "Thời gian",  []),
-]
-
-# Nhóm toán hạng chỉ có nghĩa khi đang nói về MỘT lệnh cụ thể.
-NHOM_LENH_NAY = "Lệnh này"
-
-TOAN_HANG_KEYS = [k for k, _, _, _ in TOAN_HANG]
-TOAN_HANG_LABELS = {k: n for k, n, _, _ in TOAN_HANG}
-TOAN_HANG_NHOM = {k: g for k, _, g, _ in TOAN_HANG}
-TOAN_HANG_THAMSO = {k: p for k, _, _, p in TOAN_HANG}
+# KHÔNG khai ở đây nữa: danh sách do `kho/` gom từ các module con, mỗi module khai
+# phần của mình. Nhờ vậy thêm một chiến lược mới là thêm MỘT file vào `kho/`, không
+# phải sờ vào `core.py` — và hộp thoại "Kho" có sẵn dữ liệu để bày ra.
+TOAN_HANG = kho.TOAN_HANG
+TOAN_HANG_KEYS = kho.TOAN_HANG_KEYS
+NHOM_LENH_NAY = kho.NHOM_LENH_NAY
+TOAN_HANG_LABELS = {t["key"]: t["nhan"] for t in TOAN_HANG}
+TOAN_HANG_NHOM = {t["key"]: t["nhom"] for t in TOAN_HANG}
+TOAN_HANG_THAMSO = {t["key"]: t["tham_so"] for t in TOAN_HANG}
 
 # KÝ HIỆU, không phải chữ. Một cổng của Compress mang 4–5 điều kiện; viết "lớn hơn
 # hoặc bằng" thì mỗi dòng dài gấp đôi và mắt phải đọc chữ thay vì liếc thấy quan hệ.
@@ -252,6 +175,46 @@ CACH_TINH = {
     "theo_pt": "% giá vào",
     "theo_gia": "giá tuyệt đối",
 }
+
+# ---- BẢNG THAM SỐ của một chiến lược ---------------------------------------
+# Hợp đồng chuẩn hoá của D_02: mỗi con số liên quan tới giá phải mang MỘT trong mấy
+# đơn vị bất biến — bps của giá, bội ATR, bội R, số nến. Không pip, không đô.
+#
+# Vì sao phải có bảng thay vì gõ số thẳng vào điều kiện: ngưỡng nén `7` xuất hiện ở
+# CẢ HAI sơ đồ (Entry "còn nén không", Manage "nén đã tan chưa"). Gõ tay hai chỗ thì
+# sửa một chỗ là cặp đó lệch nhau ÂM THẦM — chiến lược vào lệnh theo một ngưỡng và
+# huỷ lệnh theo ngưỡng khác. Đặt tên cho nó thì chuyện đó không xảy ra được.
+DON_VI = {
+    "bps": "bps của giá", "nen": "nến", "× ATR": "× ATR hiện tại",
+    "× ATR vùng": "× ATR trung bình vùng", "× R": "× R (rủi ro)",
+    "lot": "lot", "lệnh": "lệnh", "%": "%",
+}
+
+
+def make_tham_so(ten, nhan, gia_tri, don_vi="", ghi_chu=""):
+    return {"ten": ten, "nhan": nhan or ten, "gia_tri": gia_tri,
+            "don_vi": don_vi, "ghi_chu": ghi_chu}
+
+
+def normalize_tham_so(ds):
+    """Chuẩn hoá bảng tham số; bỏ dòng không tên và dòng trùng tên."""
+    ra, thay = [], set()
+    for t in ds or []:
+        if not isinstance(t, dict):
+            continue
+        ten = str(t.get("ten") or "").strip()
+        if not ten or ten in thay:
+            continue
+        thay.add(ten)
+        try:
+            v = float(t.get("gia_tri"))
+        except (TypeError, ValueError):
+            v = 0.0
+        ra.append(make_tham_so(ten, str(t.get("nhan") or "").strip(), v,
+                               str(t.get("don_vi") or ""),
+                               str(t.get("ghi_chu") or "")))
+    return ra
+
 
 HUONG = {"mua": "Mua", "ban": "Bán"}
 LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop", "limit": "Chờ Limit"}
@@ -358,15 +321,49 @@ def _so(x):
     return str(int(f)) if f == int(f) else str(f)
 
 
-def khoang_display(k):
-    """Một khoảng cách giá: {"tinh": "theo_ATR", "value": 1.5} -> '1.5 × ATR'."""
+def _thay_so(v, tham_so):
+    """LUẬT DUY NHẤT: ở đâu chờ một con số, một CHUỖI nghĩa là tên tham số.
+
+    Áp đều cho chu kỳ chỉ báo, khối lượng, ngưỡng so sánh, khoảng cách SL/TP. Một luật
+    dễ nhớ hơn "chỗ này được, chỗ kia không"."""
+    if isinstance(v, str):
+        return (tham_so or {}).get(v)
+    return v
+
+
+def _so_hoac_ten(v, tham_so, hien_ten=True):
+    """Chuỗi hiển thị cho một ô số. `hien_ten` bật thì ra `tên = giá trị`."""
+    if not isinstance(v, str):
+        return _so(v)
+    gt = (tham_so or {}).get(v)
+    if not hien_ten:
+        return _so(gt) if gt is not None else f"{v}=?"
+    return f"{v} = {_so(gt)}" if gt is not None else f"{v} = ?"
+
+
+def _thuong_hoa(s):
+    """Thường hoá chữ cái đầu, TRỪ viết tắt: "SL của…" phải giữ nguyên, còn
+    "Đang có lệnh chờ" thì hạ xuống để đọc trôi sau chữ KHÔNG."""
+    if len(s) >= 2 and s[1].isupper():
+        return s
+    return s[:1].lower() + s[1:]
+
+
+def khoang_display(k, tham_so=None):
+    """Một khoảng cách giá: {"tinh": "theo_ATR", "value": 1.5} -> '1.5 × ATR hiện tại'.
+
+    `value` có thể là một CHUỖI = tên tham số, khi đó hiện `tên (giá trị)`."""
     if not isinstance(k, dict):
         return "?"
-    return f"{_so(k.get('value'))} {CACH_TINH.get(k.get('tinh'), '?')}"
+    return f"{_so_hoac_ten(k.get('value'), tham_so)} {CACH_TINH.get(k.get('tinh'), '?')}"
 
 
-def toan_hang_display(o):
-    """{"ten": "atr", "tf": "M5", "period": 14} -> 'ATR(M5, 14)'."""
+def toan_hang_display(o, tham_so=None):
+    """{"ten": "atr", "tf": "M5", "period": 14} -> 'ATR(M5, 14)'.
+
+    Tham số của toán hạng (chu kỳ, khung TG) hiện GIÁ TRỊ chứ không hiện tên: chúng là
+    "đọc chuỗi số nào", không phải cái mà người ta chỉnh khi tinh chỉnh chiến lược.
+    Ngược lại NGƯỠNG ở vế phải thì hiện cả tên — đó mới là núm vặn."""
     if not isinstance(o, dict):
         return str(o)
     ten = o.get("ten") or ""
@@ -376,46 +373,51 @@ def toan_hang_display(o):
         v = o.get(k)
         if v in (None, ""):
             continue
-        phan.append(f"nến[{v}]" if k == "shift" else str(v))
+        v = _so_hoac_ten(v, tham_so, hien_ten=False) if k in ("period", "shift") else str(v)
+        phan.append(f"nến[{v}]" if k == "shift" else v)
     return f"{nhan}({', '.join(phan)})" if phan else nhan
 
 
-TOAN_HANG_DUNG_SAI = ("vung_da_sinh_lenh", "lenh_da_khop", "lenh_la_mua",
-                      "lenh_sl_hoa_von")
+TOAN_HANG_DUNG_SAI = tuple(t["key"] for t in TOAN_HANG if t.get("dung_sai"))
 
 
 def _la_toan_hang_dung_sai(ten):
     """Toán hạng vốn đã là đúng/sai — hộp thoại ẩn luôn ô vế phải cho chúng."""
-    return ten in TOAN_HANG_DUNG_SAI
+    return kho.la_dung_sai(ten)
 
 
-def ve_phai_display(c):
-    """Vế phải: hoặc một con số, hoặc một toán hạng khác."""
-    if (c or {}).get("phai_loai") == "toan_hang":
-        return toan_hang_display(c.get("phai") or {})
-    v = (c or {}).get("phai")
+def ve_phai_display(c, tham_so=None):
+    """Vế phải: một con số, một THAM SỐ có tên, hoặc một toán hạng khác.
+
+    Tham số hiện cả tên lẫn giá trị (`ngưỡng nén = 7`): tên nói ý nghĩa, số nói thực
+    tế — thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ."""
+    loai = (c or {}).get("phai_loai")
+    if loai == "toan_hang":
+        return toan_hang_display(c.get("phai") or {}, tham_so)
+    if loai == "tham_so":
+        return _so_hoac_ten(str((c or {}).get("phai") or ""), tham_so)
     if (c or {}).get("phep") == "trong_khoang":
         return f"{_so((c or {}).get('phai'))} … {_so((c or {}).get('phai2'))}"
-    return _so(v)
+    return _so((c or {}).get("phai"))
 
 
-def cond_display(c):
+def cond_display(c, tham_so=None):
     """Một dòng điều kiện: 'ATR chuẩn hoá (bps)(M5, 14) nhỏ hơn 7'.
 
     Toán hạng vốn đã đúng/sai thì viết thẳng, không ghép phép so — "Đang có vị thế
     bằng 1" là câu không ai đọc được."""
     trai = (c or {}).get("trai") or {}
     if _la_toan_hang_dung_sai(trai.get("ten")):
-        s = toan_hang_display(trai)
+        s = toan_hang_display(trai, tham_so)
         # Thường hoá chữ đầu sau "KHÔNG": nhãn toán hạng viết hoa ("Đang có lệnh chờ")
         # nên ghép thẳng ra "KHÔNG Đang có lệnh chờ" — đọc vấp.
-        return ("KHÔNG " + s[:1].lower() + s[1:]) if (c or {}).get("dao") else s
-    return (f"{toan_hang_display(trai)} "
+        return ("KHÔNG " + _thuong_hoa(s)) if (c or {}).get("dao") else s
+    return (f"{toan_hang_display(trai, tham_so)} "
             f"{PHEP_SO.get((c or {}).get('phep'), '?')} "
-            f"{ve_phai_display(c)}")
+            f"{ve_phai_display(c, tham_so)}")
 
 
-def action_display(a):
+def action_display(a, tham_so=None):
     t = (a or {}).get("type")
     ten = ((a or {}).get("name") or "").strip()
     dau = f"{ten}: " if ten else ""
@@ -425,28 +427,29 @@ def action_display(a):
         if not ds:
             return dau + "Kiểm tra điều kiện — CHƯA có điều kiện nào"
         if len(ds) == 1:
-            return dau + cond_display(ds[0])
-        return dau + " VÀ ".join(cond_display(c) for c in ds)
+            return dau + cond_display(ds[0], tham_so)
+        return dau + " VÀ ".join(cond_display(c, tham_so) for c in ds)
 
     if t == VAO_LENH:
         p = [f"Vào lệnh {HUONG.get(a.get('huong'), '?')} "
-             f"{LOAI_LENH.get(a.get('loai'), '?')}", f"{_so(a.get('lot'))} lot"]
+             f"{LOAI_LENH.get(a.get('loai'), '?')}",
+             f"{_so_hoac_ten(a.get('lot'), tham_so)} lot"]
         # Lệnh chờ LUÔN neo vào mép vùng nén thuận chiều (đỉnh cho Mua, đáy cho Bán) —
         # đó là chỗ duy nhất Compress EA đặt lệnh, nên không có tham số "neo vào đâu".
         # `dem` chỉ là khoảng đẩy ra NGOÀI mép đó.
         if a.get("loai") in ("stop", "limit") and a.get("dem"):
-            p.append(f"đệm {khoang_display(a['dem'])} ngoài mép vùng")
+            p.append(f"đệm {khoang_display(a['dem'], tham_so)} ngoài mép vùng")
         if a.get("sl"):
-            p.append(f"SL {khoang_display(a['sl'])}")
+            p.append(f"SL {khoang_display(a['sl'], tham_so)}")
         if a.get("tp"):
-            p.append(f"TP {khoang_display(a['tp'])}")
+            p.append(f"TP {khoang_display(a['tp'], tham_so)}")
         return dau + "  ·  ".join(p)
 
     if t == SUA_LENH:
         cd = a.get("che_do")
         s = SUA_CHE_DO.get(cd, "?")
         if cd in SUA_CAN_GIA and a.get("khoang"):
-            s += f" {khoang_display(a['khoang'])}"
+            s += f" {khoang_display(a['khoang'], tham_so)}"
         if cd in SUA_CAN_PHAN_TRAM:
             s += f" {_so(a.get('phan_tram'))}%"
         return dau + s
@@ -901,7 +904,28 @@ def validate_flow_graph(steps, edges):
 # ---- soát HÀNH ĐỘNG -------------------------------------------------------
 
 
-def _soat_toan_hang(o, cho, err, tab=None):
+def _soat_so(v, cho, err, ten_tham_so, duong=True, nguyen=False):
+    """Một ô số: hoặc con số, hoặc tên tham số có trong bảng. Trả True nếu hợp lệ."""
+    if isinstance(v, str):
+        if v not in (ten_tham_so or ()):
+            err(f"{cho} dùng tham số \"{v}\" không có trong bảng tham số của chiến lược.")
+            return False
+        return True
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        err(f"{cho} cần một con số, hoặc tên một tham số.")
+        return False
+    if nguyen and f != int(f):
+        err(f"{cho} cần số nguyên.")
+        return False
+    if duong and f <= 0:
+        err(f"{cho} cần giá trị lớn hơn 0.")
+        return False
+    return True
+
+
+def _soat_toan_hang(o, cho, err, tab=None, ten_tham_so=None):
     if not isinstance(o, dict) or not o.get("ten"):
         err(f"{cho} chưa chọn toán hạng.")
         return
@@ -919,25 +943,25 @@ def _soat_toan_hang(o, cho, err, tab=None):
         if k == "tf" and o.get("tf") not in TIMEFRAMES:
             err(f"{cho} ({TOAN_HANG_LABELS[ten]}) chưa chọn khung thời gian.")
         if k == "period":
-            try:
-                if int(o.get("period")) <= 0:
-                    raise ValueError
-            except (TypeError, ValueError):
-                err(f"{cho} ({TOAN_HANG_LABELS[ten]}) cần chu kỳ là số nguyên dương.")
+            _soat_so(o.get("period"), f"{cho} ({TOAN_HANG_LABELS[ten]}) — chu kỳ",
+                     err, ten_tham_so, duong=True, nguyen=True)
         if k == "method" and o.get("method") not in MA_METHODS:
             err(f"{cho} ({TOAN_HANG_LABELS[ten]}) chưa chọn kiểu trung bình.")
         if k == "shift":
-            try:
-                if int(o.get("shift", 1)) < 0:
-                    raise ValueError
-            except (TypeError, ValueError):
-                err(f"{cho} ({TOAN_HANG_LABELS[ten]}) cần chỉ số nến ≥ 0. "
-                    f"Dùng 1 để đọc nến đã đóng — nến 0 còn đang chạy nên tín hiệu sẽ "
-                    f"vẽ lại.")
+            v = o.get("shift", 1)
+            if isinstance(v, str):
+                _soat_so(v, f"{cho} — chỉ số nến", err, ten_tham_so)
+            else:
+                try:
+                    if int(v) < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    err(f"{cho} ({TOAN_HANG_LABELS[ten]}) cần chỉ số nến ≥ 0. Dùng 1 "
+                        f"để đọc nến đã đóng — nến 0 còn đang chạy nên tín hiệu sẽ vẽ lại.")
 
 
-def _soat_khoang(k, cho, err, bat_buoc=True):
-    """Soát một khoảng cách giá {"tinh", "value"}."""
+def _soat_khoang(k, cho, err, bat_buoc=True, ten_tham_so=None):
+    """Soát một khoảng cách giá {"tinh", "value"}. `value` có thể là tên tham số."""
     if not k:
         if bat_buoc:
             err(f"{cho} chưa được đặt.")
@@ -945,16 +969,21 @@ def _soat_khoang(k, cho, err, bat_buoc=True):
     if not isinstance(k, dict) or k.get("tinh") not in CACH_TINH:
         err(f"{cho} chưa chọn cách tính.")
         return
+    v = k.get("value")
+    if isinstance(v, str):
+        if v not in (ten_tham_so or ()):
+            err(f"{cho} dùng tham số \"{v}\" không có trong bảng tham số.")
+        return
     try:
-        v = float(k.get("value"))
+        v = float(v)
     except (TypeError, ValueError):
-        err(f"{cho} cần giá trị là một con số.")
+        err(f"{cho} cần giá trị là một con số hoặc một tham số.")
         return
     if k["tinh"] != "theo_gia" and v <= 0:
         err(f"{cho} cần giá trị lớn hơn 0.")
 
 
-def validate_actions(actions, err, tab=None):
+def validate_actions(actions, err, tab=None, ten_tham_so=None):
     """`err(msg, i)` được gọi cho từng lỗi. Tách khỏi phần đồ thị vì đây là lỗi ở mức
     một hành động, không phải ở mức nối dây.
 
@@ -981,21 +1010,19 @@ def validate_actions(actions, err, tab=None):
                 e("\"Kiểm tra điều kiện\" chưa có điều kiện nào — nó sẽ luôn khớp.")
             for k, c in enumerate(ds):
                 cho = f"Điều kiện {k + 1}"
-                _soat_toan_hang((c or {}).get("trai"), f"{cho} — vế trái", e, tab)
-                _soat_toan_hang((c or {}).get("phai"), f"{cho} — vế phải", e, tab) \
-                    if (c or {}).get("phai_loai") == "toan_hang" else None
+                _soat_toan_hang((c or {}).get("trai"), f"{cho} — vế trái", e, tab,
+                                ten_tham_so)
                 # Toán hạng đúng/sai không có vế phải — nó tự nó đã là một mệnh đề.
                 if _la_toan_hang_dung_sai(((c or {}).get("trai") or {}).get("ten")):
                     continue
                 if (c or {}).get("phep") not in PHEP_SO:
                     e(f"{cho} chưa chọn phép so sánh.")
                 if (c or {}).get("phai_loai") == "toan_hang":
-                    _soat_toan_hang(c.get("phai"), f"{cho} — vế phải", e)
+                    _soat_toan_hang(c.get("phai"), f"{cho} — vế phải", e, tab,
+                                    ten_tham_so)
                 else:
-                    try:
-                        float((c or {}).get("phai"))
-                    except (TypeError, ValueError):
-                        e(f"{cho} — vế phải phải là một con số.")
+                    _soat_so((c or {}).get("phai"), f"{cho} — vế phải", e,
+                             ten_tham_so, duong=False)
                     if (c or {}).get("phep") == "trong_khoang":
                         try:
                             if float(c.get("phai2")) <= float(c.get("phai")):
@@ -1008,17 +1035,13 @@ def validate_actions(actions, err, tab=None):
                 e("\"Vào lệnh\" chưa chọn hướng Mua/Bán.")
             if a.get("loai") not in LOAI_LENH:
                 e("\"Vào lệnh\" chưa chọn loại lệnh.")
-            try:
-                if float(a.get("lot")) <= 0:
-                    e("\"Vào lệnh\" cần khối lượng lớn hơn 0.")
-            except (TypeError, ValueError):
-                e("\"Vào lệnh\" cần khối lượng là một con số.")
+            _soat_so(a.get("lot"), "\"Vào lệnh\" — khối lượng", e, ten_tham_so)
             if a.get("loai") in ("stop", "limit") and not a.get("dem"):
                 e("Lệnh chờ cần khoảng đệm — đặt ngay tại giá hiện tại thì nó khớp "
                   "luôn, không còn là lệnh chờ nữa.")
-            _soat_khoang(a.get("dem"), "Khoảng đệm", e, bat_buoc=False)
-            _soat_khoang(a.get("sl"), "Stop Loss ban đầu", e, bat_buoc=False)
-            _soat_khoang(a.get("tp"), "Take Profit ban đầu", e, bat_buoc=False)
+            _soat_khoang(a.get("dem"), "Khoảng đệm", e, False, ten_tham_so)
+            _soat_khoang(a.get("sl"), "Stop Loss ban đầu", e, False, ten_tham_so)
+            _soat_khoang(a.get("tp"), "Take Profit ban đầu", e, False, ten_tham_so)
             if not a.get("sl"):
                 e("\"Vào lệnh\" chưa đặt Stop Loss ban đầu — vào lệnh không có SL là "
                   "để ngỏ toàn bộ tài khoản. Đặt SL ở đây, còn khối \"Sửa lệnh\" phía "
@@ -1030,7 +1053,7 @@ def validate_actions(actions, err, tab=None):
                 e("\"Sửa lệnh\" chưa chọn chế độ.")
             else:
                 if cd in SUA_CAN_GIA:
-                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e)
+                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e, True, ten_tham_so)
                 if cd in SUA_CAN_PHAN_TRAM:
                     try:
                         pt = float(a.get("phan_tram"))
@@ -1042,7 +1065,7 @@ def validate_actions(actions, err, tab=None):
 
 
 
-def validate_so_do(steps, edges, tab):
+def validate_so_do(steps, edges, tab, ten_tham_so=None):
     """Soát MỘT sơ đồ. Thông báo dùng NHÃN trên huy hiệu, không dùng index."""
     if edges is None:
         edges = default_edges(steps)
@@ -1060,7 +1083,7 @@ def validate_so_do(steps, edges, tab):
             ra.append({"severity": "error", "step": _sid, "index": i,
                        "tab": tab, "message": f"{_dau}{m}"})
 
-        validate_actions([st], lambda m, i=None: err(m), tab)
+        validate_actions([st], lambda m, i=None: err(m), tab, ten_tham_so)
     return ra
 
 
@@ -1070,10 +1093,59 @@ def validate_process(doc):
     Cố ý soát cả hai chứ không chỉ tab đang mở: giấu lỗi của tab kia đi thì người dùng
     bấm ▶ Chạy mới biết, và không hiểu vì sao."""
     ra = []
+    ten_ts = {t["ten"] for t in (doc or {}).get("tham_so") or []}
     for tab in TABS:
         g = (doc or {}).get(tab) or {}
-        ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab)
+        ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab, ten_ts)
+
+    # Tham số khai ra mà không khối nào dùng — không sai, nhưng là rác dễ gây hiểu nhầm
+    # ("chỉnh số này chắc đổi hành vi"), nên nói ra.
+    dung = _tham_so_dang_dung(doc)
+    for t in (doc or {}).get("tham_so") or []:
+        if t["ten"] not in dung:
+            ra.append({"severity": "warning", "step": None, "index": None,
+                       "tab": TAB_ENTRY,
+                       "message": f'Tham số "{t["ten"]}" không khối nào dùng tới — '
+                                  f"sửa nó sẽ không đổi gì cả."})
     return ra
+
+
+def _tham_so_dang_dung(doc):
+    """Tên tham số đang thật sự được khối nào đó tham chiếu."""
+    ra = set()
+
+    def them(v):
+        if isinstance(v, str) and v:
+            ra.add(v)
+
+    def quet_khoang(k):
+        if isinstance(k, dict):
+            them(k.get("value"))
+
+    def quet_toan_hang(o):
+        if isinstance(o, dict):
+            them(o.get("period"))
+            them(o.get("shift"))
+
+    for tab in TABS:
+        for st in ((doc or {}).get(tab) or {}).get("steps") or []:
+            if not isinstance(st, dict):
+                continue
+            for c in st.get("conditions") or []:
+                quet_toan_hang((c or {}).get("trai"))
+                if (c or {}).get("phai_loai") == "tham_so":
+                    them(str(c.get("phai") or ""))
+                elif (c or {}).get("phai_loai") == "toan_hang":
+                    quet_toan_hang(c.get("phai"))
+            for k in ("dem", "sl", "tp", "khoang"):
+                quet_khoang(st.get(k))
+            them(st.get("lot"))
+    return ra
+
+
+def bang_tham_so(doc):
+    """{tên: giá trị} — dạng mọi hàm hiển thị cần."""
+    return {t["ten"]: t["gia_tri"] for t in (doc or {}).get("tham_so") or []}
 
 
 # ---------------------------------------------------------------------------
@@ -1173,7 +1245,7 @@ def normalize_action(a):
         ra["conditions"] = ds
     elif t == VAO_LENH:
         ra.update({"huong": a.get("huong") or "mua", "loai": a.get("loai") or "stop",
-                   "lot": a.get("lot", 0.01)})
+                   "lot": a.get("lot", 0.01)})   # có thể là tên tham số
         for k in ("dem", "sl", "tp"):
             if isinstance(a.get(k), dict) and a[k].get("tinh"):
                 ra[k] = {"tinh": a[k]["tinh"], "value": a[k].get("value", 0)}
@@ -1216,11 +1288,12 @@ def normalize_process(doc):
         doc = dict(doc, entry={"steps": doc.get("steps"), "edges": doc.get("edges")})
     tf = doc.get("timeframe")
     ra = {
-        "schema": 2,
+        "schema": 3,
         "type": "strategy",
         "name": (doc.get("name") or "").strip() or "Chiến lược 1",
         "symbol": (doc.get("symbol") or "").strip() or "XAUUSD",
         "timeframe": tf if tf in TIMEFRAMES else "M5",
+        "tham_so": normalize_tham_so(doc.get("tham_so")),
     }
     for tab in TABS:
         ra[tab] = _chuan_so_do(doc.get(tab))
@@ -1234,8 +1307,9 @@ def new_process():
     đầu tiên người dùng thả ra sẽ tự nhận số 1 rồi đổi số ngay khi họ thả khối thứ hai
     lên phía trên nó."""
     s = load_settings()
-    ra = {"schema": 2, "type": "strategy", "name": "Chiến lược 1",
-          "symbol": s.get("symbol", "XAUUSD"), "timeframe": s.get("timeframe", "M5")}
+    ra = {"schema": 3, "type": "strategy", "name": "Chiến lược 1",
+          "symbol": s.get("symbol", "XAUUSD"), "timeframe": s.get("timeframe", "M5"),
+          "tham_so": []}
     for tab, ten in ((TAB_ENTRY, "Mỗi nến — tìm tín hiệu vào lệnh"),
                      (TAB_MANAGE, "Mỗi nến · với TỪNG lệnh đang sống")):
         bd = make_start_step(ten)
@@ -1276,40 +1350,19 @@ def clone_steps(steps):
 TEMPLATE_KINDS = {"strategy": "Chiến lược"}
 
 
-def _thu_muc_tpl(kind):
-    d = _duong("templates", kind)
-    os.makedirs(d, exist_ok=True)
-    return d
-
-
-def _ten_an_toan(name):
-    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (name or "").strip()) or "khong_ten"
-
-
+# Đọc/ghi uỷ quyền hết cho `luu_tru.py`. `kind` giữ lại cho code cũ nhưng chỉ còn
+# một loại — mọi lời gọi đều là "strategy".
 def list_templates(kind="strategy"):
-    try:
-        return sorted(f[:-5] for f in os.listdir(_thu_muc_tpl(kind))
-                      if f.endswith(".json"))
-    except Exception:
-        return []
+    return luu_tru.liet_ke_chien_luoc()
 
 
 def save_template(kind, name, data):
-    p = os.path.join(_thu_muc_tpl(kind), _ten_an_toan(name) + ".json")
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return p
+    return luu_tru.ghi_chien_luoc(name, data)
 
 
 def load_template(kind, name):
-    p = os.path.join(_thu_muc_tpl(kind), _ten_an_toan(name) + ".json")
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+    return luu_tru.doc_chien_luoc(name)
 
 
 def delete_template(kind, name):
-    p = os.path.join(_thu_muc_tpl(kind), _ten_an_toan(name) + ".json")
-    if os.path.exists(p):
-        os.remove(p)
-        return True
-    return False
+    return luu_tru.xoa_chien_luoc(name)

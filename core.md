@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 xong, app chạy được** · test 101/101
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 177/177
 
 ---
 
@@ -31,12 +31,56 @@ Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 xong, app chạy được**
 Ba tầng, mỗi tầng biết đúng việc của mình. Đây là thứ làm app không tự mâu thuẫn — **không được phá.**
 
 ```
-core.py          lõi — không phụ thuộc giao diện, chạy headless được, test không cần mở cửa sổ
+core.py          lõi — đồ thị, đánh số, soát lỗi. Không phụ thuộc giao diện.
+kho/             DANH MỤC mọi thứ app tính được, chia theo NGUỒN
+  nen_tang.py      giá · thời gian · tài khoản · lệnh này   (không thuộc engine nào)
+  chi_bao.py       ATR · MA · Donchian · Volume MA          (chỉ báo phổ thông)
+  engine_d02.py    atr_bps · bảng vùng nén                  (ý tưởng riêng của D_02)
+so_lenh.py       bảng `lệnh` + `vùng nén`, id của CHÍNH TA
+luu_tru.py       MỘT chỗ duy nhất biết file nằm ở đâu
 api.py           bề mặt DUY NHẤT giao diện gọi tới   (JS → api.py → core.py)
 app_web.py       khởi động cửa sổ (pywebview + WebView2)
 khung_cua_so.py  vá cửa sổ Win32 cho thanh tiêu đề tự vẽ (kéo / giãn / phóng to)
 webui/           React + TypeScript + React Flow (@xyflow/react)
 ```
+
+### Vì sao `kho/` tách khỏi `core.py`
+
+`so_nen_nen` **chỉ có nghĩa khi engine D_02 đang nạp**. Để nó chung một danh sách phẳng
+với `close` là nói dối về việc thứ gì luôn có, thứ gì đến từ một chiến lược cụ thể.
+
+- Thêm một chiến lược = thêm **một file** vào `kho/`, không sờ `core.py`.
+- Hộp thoại **Kho** (menu File) đọc thẳng `kho.danh_muc()` — không có danh sách nào
+  chép tay, nên nó không thể nói khác thực tế.
+- **Trùng khoá giữa hai module là lỗi CHẾT NGƯỜI** (hai engine cùng khai `atr` với hai
+  nghĩa) → `kho/__init__.py` nổ ngay lúc import, không để nó âm thầm.
+
+### Vì sao `so_lenh.py` dùng id của ta
+
+D_02 **không có** id nối lệnh chờ với vị thế sinh ra từ nó, nên `CheckPendingActivation`
+phải ĐOÁN bằng `HasOpenPosition()` — *"có vị thế nào bất kỳ không"*. Lệnh chờ bị huỷ từ
+ngoài trong lúc còn vị thế cũ là nó **đọc nhầm thành đã khớp**.
+
+- `L-0001`, `V-0003` — **đếm tăng, không uuid**: đọc log biết ngay thứ tự, và chạy lại
+  cùng dữ liệu ra cùng id nên so được hai lần backtest.
+- `ticket` của MT5 chỉ là **một cột phụ**, để trống khi backtest.
+- Lệnh mang `vung_id` → *"vùng này đã sinh lệnh"* (thay `COMP_CONSUMED`) chỉ là một
+  **phép tra bảng**, không phải cờ ẩn. Và tính cả lệnh đã đóng: một cú nén, một lệnh.
+- `sl_o_hoa_von` suy ra từ **vị trí SL so với giá vào**, không phải cờ riêng — y như
+  `if(sl >= entry) continue` của bản gốc, và không thể lệch với thực tế.
+
+### Bố cục lưu trữ
+
+```
+<cạnh app>/du_lieu/
+    cai_dat.json          cài đặt app
+    chien_luoc/*.json     chiến lược đã lưu
+    nen/                  cache nến tải về      (Strategy Tester dùng sau)
+    nhat_ky/              nhật ký lệnh từng lần chạy  (sau)
+```
+
+`luu_tru.di_cu()` chuyển `settings.json` + `templates/strategy/` của bản cũ sang, chỉ
+CHÉP những gì chưa có — không đè, không xoá bản cũ.
 
 **Luật bất di bất dịch:**
 
@@ -428,6 +472,39 @@ Compress EA (§7.1):
 đáy cho Bán) — đó là chỗ duy nhất Compress EA đặt lệnh. Nên **không có tham số "neo
 vào đâu"**; `dem` chỉ là khoảng đẩy ra ngoài mép đó.
 
+### 6.4 ⭐ BẢNG THAM SỐ — hằng số CÓ TÊN
+
+> **LUẬT DUY NHẤT: ở đâu chờ một con số, một CHUỖI nghĩa là tên tham số.**
+> Áp đều cho chu kỳ chỉ báo, khối lượng, ngưỡng so sánh, khoảng cách SL/TP.
+
+Vì sao phải có, đo được bằng con số: sơ đồ mẫu trước khi có bảng tham số có **4 hằng
+số bị viết cứng hai lần**, trong đó `7.0` nằm ở **cả hai sơ đồ** — Entry hỏi *"còn nén
+không"*, Manage hỏi *"nén tan chưa"*. Sửa một chỗ là chiến lược **vào lệnh theo một
+ngưỡng và huỷ lệnh theo ngưỡng khác**, âm thầm.
+
+```jsonc
+"tham_so": [
+  {"ten": "nguong_nen_bps", "nhan": "Ngưỡng nén", "gia_tri": 7.0, "don_vi": "bps"},
+  …
+]
+// rồi khối chỉ gọi bằng TÊN:
+{"trai": {"ten": "atr_bps", "tf": "M5", "period": "chu_ky_atr"},
+ "phep": "<", "phai_loai": "tham_so", "phai": "nguong_nen_bps"}
+```
+
+**Hiển thị có phân biệt, và đó là chủ ý:**
+
+| Chỗ | Hiện gì | Vì sao |
+|---|---|---|
+| Vế phải điều kiện · khoảng cách · lot | `nguong_nen_bps = 7` | đây là **núm vặn** — tên nói ý nghĩa, số nói thực tế |
+| Tham số của toán hạng (chu kỳ, nến) | `ATR(M5, 14)` | đây là **"đọc chuỗi số nào"**, không phải thứ người ta tinh chỉnh |
+
+Soát tự động bắt hai chuyện: tham chiếu tới tham số **không tồn tại** → lỗi; tham số
+khai ra mà **không khối nào dùng** → cảnh báo (sửa nó sẽ không đổi gì cả).
+
+Bộ mặc định lấy thẳng từ `kho/engine_d02.py::THAM_SO_MAC_DINH` — cùng một nguồn với
+mặc định của EA, nên không có chuyện tài liệu nói một đằng mẫu chạy một nẻo.
+
 ---
 
 ## 7. Chiến lược mẫu — Compress EA, dịch sang sơ đồ
@@ -614,38 +691,29 @@ và `Ctrl+Z` thành vô dụng.
 
 ```jsonc
 {
-  "schema": 2,
+  "schema": 3,
   "type": "strategy",
   "name": "Compress",
   "symbol": "XAUUSD",
   "timeframe": "M5",
 
-  // HAI sơ đồ. File schema 1 (một `steps` ở gốc) mở ra vẫn được — nhận làm `entry`.
+  // Hằng số CÓ TÊN — khối gọi bằng tên, không gõ số hai nơi.
+  "tham_so": [
+    {"ten": "nguong_nen_bps", "nhan": "Ngưỡng nén", "gia_tri": 7.0,
+     "don_vi": "bps", "ghi_chu": "Nhỏ hơn ⇒ nén chặt hơn ⇒ ít nhưng chất."}
+  ],
+
+  // HAI sơ đồ. File schema 1/2 mở ra vẫn được — `steps` ở gốc nhận làm `entry`.
   "entry":  { "steps": [ … ], "edges": [ … ] },
   "manage": { "steps": [ … ], "edges": [ … ] }
 }
 
 // một khối trông thế này:
-{
-    { "kind": "start",  "id": "s…", "pos": [80, 300] },                       // 🆕
-    { "kind": "action", "id": "s…", "type": "check_cond", "pos": [400, 120],
-      "ghim": true,                                                           // 🆕
-      "conditions": [
-        { "trai": { "ten": "atr_bps", "tf": "M5", "period": 14 },
-          "phep": "<", "phai_loai": "so", "phai": 7.0 }
-      ] },
-    { "kind": "action", "id": "s…", "type": "vao_lenh", "huong": "mua",
-      "loai": "stop", "lot": 0.01,
-      "dem": { "tinh": "theo_ATR", "value": 0.1 },
-      "sl":  { "tinh": "theo_ATR_vung", "value": 1.5 },
-      "tp":  { "tinh": "theo_R",   "value": 2 } },
-    { "kind": "action", "id": "s…", "type": "sua_lenh", "che_do": "hoa_von",
-      "muc_tieu": "vi_the", "khoang": { "tinh": "theo_R", "value": 1 } },
-  ],
-  "edges": [
-    { "from": "s…", "to": "s…", "port": "out", "from_side": "right", "to_side": "left" }
-  ]
-}
+{ "kind": "action", "id": "s…", "type": "check_cond", "pos": [400, 120],
+  "conditions": [
+    { "trai": {"ten": "atr_bps", "tf": "M5", "period": "chu_ky_atr"},
+      "phep": "<", "phai_loai": "tham_so", "phai": "nguong_nen_bps" }
+  ] }
 ```
 
 - **`id` bền, nhãn KHÔNG lưu.** Nhãn là hàm thuần của `(steps, edges)` → tính lại mỗi lần mở.
@@ -677,6 +745,7 @@ và `Ctrl+Z` thành vô dụng.
 | **P2 · Số 🆕** | Khối `start` + cờ `ghim` + cạnh quay lại + huy hiệu ⟲ + menu chuột phải + `Ctrl+G` | ✅ vẽ vòng lặp không còn cảnh báo sai |
 | **P3 · Hành động** | 3 hành động. 32 toán hạng / 6 nhóm, 9 phép so (ký hiệu), 7 chế độ Sửa lệnh. | ✅ |
 | **P4 · Canvas** | React Flow, ribbon, **pill Entry/Manage**, undo 60 bước (gom cả hai tab), template, chép/dán, phím tắt | ✅ |
+| **P4b · Kho + lưu trữ** | `kho/` chia theo engine · `so_lenh.py` id của ta · `du_lieu/` · bảng tham số · hộp thoại **Kho** (menu File) | ✅ |
 | **P5 · Tester** | Cửa sổ Strategy Tester — **mới có bộ khung**: `api.mo_tester` chặn lỗi rồi mở cửa sổ thứ hai, `api.tester_doc` để cửa sổ đó hỏi sơ đồ | 🔨 khung xong, nội dung **bàn sau** |
 | **P6 · Mẫu** | Sơ đồ mẫu Compress EA, khớp §7 | ✅ **Entry 7 khối · Manage 5 khối · KHÔNG một mũi tên ngược**, soát sạch |
 | **P7 · MT5** | Nối `MetaTrader5`, kéo nến, tính chỉ báo, backtest thật | ⬜ *(sau)* |

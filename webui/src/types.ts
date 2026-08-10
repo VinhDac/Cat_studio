@@ -64,12 +64,49 @@ export interface SoDo {
   cards: Card[]
 }
 
+/** Một núm vặn của chiến lược. Hằng số CÓ TÊN, đơn vị bất biến (bps · nến · ×ATR ·
+ *  ×R) — không pip, không đô. Đây là hợp đồng chuẩn hoá của D_02. */
+export interface ThamSo {
+  ten: string
+  nhan: string
+  gia_tri: number
+  don_vi: string
+  ghi_chu: string
+}
+
 export interface ProcessDoc {
   name: string
   symbol: string
   timeframe: string
+  tham_so: ThamSo[]
   entry: SoDo
   manage: SoDo
+}
+
+/** Danh mục kho — mọi thứ app tính được, do `kho/` tự gom từ các module con. */
+export interface KhoDanhMuc {
+  module: {
+    ma_so: string; ten: string; mo_ta: string; la_engine: boolean; nguon: string
+    so_chi_bao: number; so_toan_hang: number; so_bang: number
+  }[]
+  chi_bao: { key: string; nhan: string; tham_so: string[]; cong_thuc?: string
+             mo_ta?: string; nguon: string }[]
+  toan_hang: ToanHang[]
+  bang_trang_thai: {
+    key: string; nhan: string; mo_ta: string; nguon: string
+    truong: { ten: string; kieu: string; vd: string }[]
+    luat: string[]
+  }[]
+  hanh_dong: { key: string; nhan: string; tabs: Tab[] }[]
+  cach_tinh: Record<string, string>
+  sua_che_do: Record<string, string>
+  phep_so: Record<string, string>
+  trang_thai_lenh: Record<string, string>
+  ly_do_dong: Record<string, string>
+  luu_tru: {
+    goc: string
+    muc: { ten: string; duong_dan: string; so_luong: number; danh_sach: string[] }[]
+  }
 }
 
 export interface ToanHang {
@@ -77,6 +114,12 @@ export interface ToanHang {
   nhan: string
   nhom: string
   tham_so: string[]
+  /** Module nào cung cấp: `nen_tang` · `chi_bao` · `d02` … */
+  nguon?: string
+  mo_ta?: string
+  dung_sai?: boolean
+  /** null/thiếu = dùng được ở cả hai sơ đồ. */
+  tabs?: Tab[] | null
 }
 
 export interface Bootstrap {
@@ -111,6 +154,7 @@ export interface Bootstrap {
   sua_can_gia: string[]
   sua_can_phan_tram: string[]
 
+  don_vi_tham_so: Record<string, string>
   template_kinds: Record<string, string>
   accent_presets: Record<string, string>
   max_process_steps: number

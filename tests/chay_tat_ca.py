@@ -14,7 +14,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 BAI = [
     ("test_danh_so.py", "Đánh số phân cấp · ghim số · ba trường hợp gặp lại khối cũ"),
+    ("test_kho_va_lenh.py", "Kho backend · sổ lệnh (id của ta) · lưu trữ · tham số"),
     ("test_so_do_mau.py", "Sơ đồ mẫu Compress phải mở ra SẠCH"),
+    ("test_doi_chieu_d02.py", "ĐỐI CHIẾU từng luật của D_02 — có luật nào rơi không"),
 ]
 
 hong = []

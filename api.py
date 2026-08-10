@@ -21,7 +21,10 @@ import threading
 import traceback
 
 import core
+import kho
 import khung_cua_so
+import luu_tru
+import so_lenh
 
 
 def _bat_loi(fn):
@@ -79,7 +82,7 @@ def _hanh_dong_mac_dinh(loai):
 # ---------------------------------------------------------------------------
 
 
-def _the_buoc(st):
+def _the_buoc(st, ts=None):
     """Một khối -> thẻ để giao diện vẽ.
 
     Giao diện KHÔNG tự ghép chữ: nếu nó ghép thì sớm muộn nó mô tả khác với thứ lõi
@@ -98,7 +101,7 @@ def _the_buoc(st):
 
     if st.get("type") == core.CHECK_COND:
         ds = st.get("conditions") or []
-        the["lines"] = [{"text": core.cond_display(c), "type": core.CHECK_COND}
+        the["lines"] = [{"text": core.cond_display(c, ts), "type": core.CHECK_COND}
                         for c in ds] or [{"text": "chưa có điều kiện nào — luôn khớp",
                                           "type": core.CHECK_COND}]
         the["badges"].append("cổng rẽ nhánh" if core.is_branch_gate(st) else "kiểm tra")
@@ -109,15 +112,20 @@ def _the_buoc(st):
     # Bỏ `name` trước khi sinh chữ: tiêu đề hộp ĐÃ hiện tên rồi, để nguyên thì thân hộp
     # lặp lại y hệt ("Dời SL về hoà vốn: Dời SL về hoà vốn …").
     khong_ten = {k: v for k, v in st.items() if k != "name"}
-    the["lines"] = [{"text": core.action_display(khong_ten), "type": st.get("type")}]
+    the["lines"] = [{"text": core.action_display(khong_ten, ts),
+                     "type": st.get("type")}]
     return the
 
 
 def _kem_the(doc):
-    """Gắn `cards` vào từng sơ đồ. Chữ trên hộp do Python sinh, JS không ghép lại."""
+    """Gắn `cards` vào từng sơ đồ. Chữ trên hộp do Python sinh, JS không ghép lại.
+
+    Truyền cả bảng tham số xuống để dòng chữ hiện `ngưỡng nén = 7` thay vì trơ ra một
+    cái tên không ai biết bằng bao nhiêu."""
+    ts = core.bang_tham_so(doc)
     for tab in core.TABS:
         g = doc.get(tab) or {"steps": [], "edges": []}
-        g["cards"] = [_the_buoc(s) for s in g.get("steps") or []]
+        g["cards"] = [_the_buoc(s, ts) for s in g.get("steps") or []]
         doc[tab] = g
     return doc
 
@@ -180,8 +188,9 @@ class Api:
 
             "timeframes": core.TIMEFRAMES,
             "ma_methods": core.MA_METHODS,
-            "toan_hang": [{"key": k, "nhan": n, "nhom": g, "tham_so": p}
-                          for k, n, g, p in core.TOAN_HANG],
+            # Gửi nguyên dict từ `kho/` — thêm một trường ở đó là giao diện có ngay,
+            # không phải nhớ sửa chỗ này.
+            "toan_hang": core.TOAN_HANG,
             "phep_so": core.PHEP_SO,
             "cach_tinh": core.CACH_TINH,
             "huong": core.HUONG,
@@ -190,6 +199,7 @@ class Api:
             "sua_can_gia": list(core.SUA_CAN_GIA),
             "sua_can_phan_tram": list(core.SUA_CAN_PHAN_TRAM),
 
+            "don_vi_tham_so": core.DON_VI,
             "template_kinds": core.TEMPLATE_KINDS,
             "accent_presets": core.ACCENT_PRESETS,
             "max_process_steps": core.MAX_PROCESS_STEPS,
@@ -197,8 +207,9 @@ class Api:
 
     # ------------------------------------------------------------------ mô tả
     @_bat_loi
-    def describe(self, steps):
-        return _ok([_the_buoc(s) for s in (steps or []) if isinstance(s, dict)])
+    def describe(self, steps, tham_so=None):
+        ts = {t["ten"]: t["gia_tri"] for t in (tham_so or [])}
+        return _ok([_the_buoc(s, ts) for s in (steps or []) if isinstance(s, dict)])
 
     @_bat_loi
     def describe_actions(self, actions):
@@ -210,15 +221,16 @@ class Api:
         return _ok(_hanh_dong_mac_dinh(action_type))
 
     @_bat_loi
-    def save_action(self, draft, tab=None):
+    def save_action(self, draft, tab=None, tham_so=None):
         """Chuẩn hoá + soát một hành động. Hộp thoại KHÔNG tự soát — nó gửi bản nháp
         thô sang đây, để luật hợp lệ chỉ nằm ở đúng một chỗ."""
         a = core.normalize_action(draft)
         if a is None:
             return {"ok": False, "error": "Loại hành động không hợp lệ."}
+        ts = {t["ten"]: t["gia_tri"] for t in (tham_so or [])}
         loi = []
-        core.validate_actions([a], lambda m, i=None: loi.append(m), tab)
-        return _ok({"action": a, "display": core.action_display(a)}, loi=loi)
+        core.validate_actions([a], lambda m, i=None: loi.append(m), tab, set(ts))
+        return _ok({"action": a, "display": core.action_display(a, ts)}, loi=loi)
 
     # ------------------------------------------------------------------ khối
     @_bat_loi
@@ -260,7 +272,8 @@ class Api:
         return _ok(probs,
                    so_loi=sum(1 for p in probs if p["severity"] == "error"),
                    so_canh_bao=sum(1 for p in probs if p["severity"] == "warning"),
-                   luong=luong)
+                   luong=luong,
+                   tham_so_dang_dung=sorted(core._tham_so_dang_dung(doc)))
 
     # ------------------------------------------------------------------ tài liệu
     @_bat_loi
@@ -364,6 +377,29 @@ class Api:
     def tester_doc(self):
         """Cửa sổ tester hỏi: tôi đang phải chạy sơ đồ nào?"""
         return _ok(self._doc_tester)
+
+    # ------------------------------------------------------------------ kho
+    @_bat_loi
+    def kho_danh_muc(self):
+        """Mọi thứ app tính được, đã chia mục — cho hộp thoại "Kho".
+
+        Dữ liệu do `kho/` tự gom từ các module con, nên thêm một engine mới là hộp
+        thoại có ngay, không phải sửa gì ở đây."""
+        d = kho.danh_muc()
+        d["luu_tru"] = luu_tru.tom_tat()
+        d["hanh_dong"] = [{"key": k, "nhan": core.ACTION_LABELS[k],
+                           "tabs": list(core.ACTION_TABS[k])}
+                          for k in core.ACTION_TYPES]
+        d["cach_tinh"] = core.CACH_TINH
+        d["sua_che_do"] = core.SUA_CHE_DO
+        d["phep_so"] = core.PHEP_SO
+        d["trang_thai_lenh"] = {
+            so_lenh.CHO: "Lệnh chờ đang treo",
+            so_lenh.MO: "Đã khớp — đang là vị thế",
+            so_lenh.DONG: "Đã đóng / đã huỷ",
+        }
+        d["ly_do_dong"] = so_lenh.LY_DO_DONG
+        return _ok(d)
 
     # ------------------------------------------------------------------ cài đặt
     @_bat_loi
@@ -502,6 +538,15 @@ def _so_do_mau():
         return {"trai": dict({"ten": ten}, **kw), "phep": phep,
                 "phai_loai": "so", "phai": gia_tri}
 
+    def ts(ten, phep, ten_tham_so, **kw):
+        """Vế phải là một THAM SỐ CÓ TÊN, không phải số gõ tay.
+
+        Nhờ vậy `nguong_nen_bps` chỉ tồn tại ở MỘT chỗ, dù nó được hỏi ở cả hai sơ đồ —
+        Entry hỏi "còn nén không", Manage hỏi "nén tan chưa". Gõ tay hai nơi thì sửa
+        một chỗ là hai vế lệch nhau âm thầm."""
+        return {"trai": dict({"ten": ten}, **kw), "phep": phep,
+                "phai_loai": "tham_so", "phai": ten_tham_so}
+
     def dung_sai(ten, dao=False):
         c = {"trai": {"ten": ten}}
         if dao:
@@ -517,40 +562,42 @@ def _so_do_mau():
     e_bd["pos"] = [40, 300]
 
     e_nen = dk("Vùng nén đã xác nhận?", [
-        so("atr_bps", "<", 7.0, tf="M5", period=14),   # nến này vẫn đang nén
-        so("so_nen_nen", ">=", 10),                    # đủ K nến liên tiếp
-        so("rong_vung_atr", "<=", 4.0),                # vùng không quá rộng
-        dung_sai("vung_da_sinh_lenh", dao=True),       # = COMP_CONSUMED
+        ts("atr_bps", "<", "nguong_nen_bps", tf="M5", period="chu_ky_atr"),
+        ts("so_nen_nen", ">=", "so_nen_nen"),          # đủ K nến liên tiếp
+        ts("rong_vung_atr", "<=", "rong_vung_toi_da"),  # vùng không quá rộng
+        dung_sai("vung_da_sinh_lenh", dao=True),        # = COMP_CONSUMED
     ], 340, 300)
 
     e_cho = dk("Còn chỗ cho lệnh mới?", [
         so("so_lenh_cho", "==", 0),      # D_02: đúng MỘT lệnh chờ tại một thời điểm
-        so("so_vi_the", "<", 3),         # = Max_Positions. Bằng nhau là đã đầy.
+        ts("so_vi_the", "<", "so_vi_the_toi_da"),   # bằng nhau là đã đầy
     ], 700, 300)
 
     def vao(huong):
         return {
-            "type": core.VAO_LENH, "huong": huong, "loai": "stop", "lot": 0.01,
+            "type": core.VAO_LENH, "huong": huong, "loai": "stop", "lot": "lot",
             # Đệm đo bằng ATR HIỆN TẠI — tấm khiên mỏng ngoài mép vùng, đủ lọc một
             # nhịp phá giả. Lệnh chờ luôn neo vào mép vùng thuận chiều.
-            "dem": {"tinh": "theo_ATR", "value": 0.10},
+            "dem": {"tinh": "theo_ATR", "value": "dem_vao_lenh"},
             # Rủi ro đo bằng ATR TRUNG BÌNH CẢ VÙNG NÉN — lấy mức nhiễu thật suốt cú
             # nén, nên mỗi lệnh rủi ro một R tương đương dù vùng rộng hẹp khác nhau.
             # HAI CHỮ ATR NÀY LÀ HAI THỨ KHÁC NHAU, tách ra là có chủ ý.
-            "sl": {"tinh": "theo_ATR_vung", "value": 1.5},
-            "tp": {"tinh": "theo_R", "value": 2.0},
+            "sl": {"tinh": "theo_ATR_vung", "value": "sl_theo_atr_vung"},
+            "tp": {"tinh": "theo_R", "value": "ty_le_RR"},
         }
 
     e_len = dk("Xu hướng LÊN?", [{
         "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": ">",
         "phai_loai": "toan_hang",
-        "phai": {"ten": "ma", "tf": "M15", "period": 50, "method": "SMA"}}], 1060, 160)
+        "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
+                 "method": "SMA"}}], 1060, 160)
     e_mua = hd("Buy Stop trên đỉnh vùng", vao("mua"), 1420, 160)
 
     e_xuong = dk("Xu hướng XUỐNG?", [{
         "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": "<",
         "phai_loai": "toan_hang",
-        "phai": {"ten": "ma", "tf": "M15", "period": 50, "method": "SMA"}}], 1060, 440)
+        "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
+                 "method": "SMA"}}], 1060, 440)
     e_ban = hd("Sell Stop dưới đáy vùng", vao("ban"), 1420, 440)
 
     entry = {
@@ -568,7 +615,9 @@ def _so_do_mau():
 
     m_huy = dk("Chưa khớp mà nén đã tan?", [
         dung_sai("lenh_da_khop", dao=True),
-        so("atr_bps", ">=", 7.0, tf="M5", period=14),
+        # CÙNG một `nguong_nen_bps` với cổng nén bên Entry — đây chính là chỗ hai
+        # hằng số gõ tay sẽ lệch nhau nếu không có bảng tham số.
+        ts("atr_bps", ">=", "nguong_nen_bps", tf="M5", period="chu_ky_atr"),
     ], 400, 160)
     m_huy_hd = hd("Huỷ lệnh chờ",
                   {"type": core.SUA_LENH, "che_do": "huy_cho"}, 760, 160)
@@ -578,7 +627,7 @@ def _so_do_mau():
     m_be = dk("Đã khớp, đủ 1R, SL chưa hoà vốn?", [
         dung_sai("lenh_da_khop"),
         dung_sai("lenh_sl_hoa_von", dao=True),
-        so("lenh_lai_R", ">=", 1.0),
+        ts("lenh_lai_R", ">=", "hoa_von_tai"),
     ], 400, 440)
     m_be_hd = hd("Dời SL về giá vào",
                  {"type": core.SUA_LENH, "che_do": "hoa_von"}, 760, 440)
@@ -589,6 +638,9 @@ def _so_do_mau():
                   canh(m_bd, m_be), canh(m_be, m_be_hd)],
     }
 
-    return {"schema": 2, "type": "strategy", "name": "Compress (mẫu)",
+    return {"schema": 3, "type": "strategy", "name": "Compress (mẫu)",
             "symbol": "XAUUSD", "timeframe": "M5",
+            # Bộ tham số lấy thẳng từ `kho/engine_d02.py` — cùng một nguồn với mặc
+            # định của EA, nên không có chuyện tài liệu nói một đằng mẫu chạy một nẻo.
+            "tham_so": [dict(t) for t in kho.engine_d02.THAM_SO_MAC_DINH],
             "entry": entry, "manage": manage}
