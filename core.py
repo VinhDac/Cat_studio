@@ -216,6 +216,18 @@ def normalize_tham_so(ds):
     return ra
 
 
+# Nhãn NGẮN cho chữ trên hộp. Bản dài ("× ATR trung bình của vùng nén") đúng cho hộp
+# thoại và cho tooltip, nhưng nhét lên hộp thì một dòng nuốt cả khối — mà nhìn hộp là
+# phải hiểu ngay, không phải đọc một đoạn văn.
+CACH_TINH_NGAN = {
+    "theo_ATR": "× ATR",
+    "theo_ATR_vung": "× ATR vùng",
+    "theo_R": "× R",
+    "theo_bien_vung": "mép vùng đối diện",
+    "theo_pt": "%",
+    "theo_gia": "giá",
+}
+
 HUONG = {"mua": "Mua", "ban": "Bán"}
 LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop", "limit": "Chờ Limit"}
 
@@ -332,13 +344,17 @@ def _thay_so(v, tham_so):
 
 
 def _so_hoac_ten(v, tham_so, hien_ten=True):
-    """Chuỗi hiển thị cho một ô số. `hien_ten` bật thì ra `tên = giá trị`."""
+    """Chuỗi hiển thị cho một ô số. `hien_ten` bật thì ra `tên = giá trị`.
+
+    Dùng KHOẢNG TRẮNG KHÔNG NGẮT quanh dấu `=`: chữ trên hộp giờ được xuống dòng, mà
+    `so_vi_the_toi_da =` nằm cuối dòng còn `3` rơi xuống dòng sau thì đọc mất nghĩa.
+    Cả cụm phải đi liền một khối."""
     if not isinstance(v, str):
         return _so(v)
     gt = (tham_so or {}).get(v)
     if not hien_ten:
         return _so(gt) if gt is not None else f"{v}=?"
-    return f"{v} = {_so(gt)}" if gt is not None else f"{v} = ?"
+    return f"{v} = {_so(gt) if gt is not None else '?'}"
 
 
 def _thuong_hoa(s):
@@ -455,6 +471,45 @@ def action_display(a, tham_so=None):
         return dau + s
 
     return dau + ACTION_LABELS.get(t, str(t))
+
+
+def dong_khoi(a, tham_so=None):
+    """Chữ trên HỘP — danh sách dòng NGẮN, mỗi trường một dòng.
+
+    Khác `action_display` (một câu đầy đủ, dùng cho hộp thoại và tooltip): trên hộp,
+    "Vào lệnh Mua Chờ Stop · lot = 0.01 lot · đệm dem_vao_lenh = 0.1 × ATR hiện tại
+    ngoài mép vùng · SL …" là một câu chạy dài bốn dòng, đọc không ra. Tách mỗi trường
+    một dòng thì mắt quét dọc, và với nhãn đơn vị ngắn thì dòng nào cũng vừa một hàng."""
+    t = (a or {}).get("type")
+
+    if t == CHECK_COND:
+        ds = a.get("conditions") or []
+        return [cond_display(c, tham_so) for c in ds] or ["chưa có điều kiện nào — luôn khớp"]
+
+    def khoang(k):
+        return (f"{_so_hoac_ten(k.get('value'), tham_so)} "
+                f"{CACH_TINH_NGAN.get(k.get('tinh'), '?')}")
+
+    if t == VAO_LENH:
+        ds = [f"{HUONG.get(a.get('huong'), '?')} · {LOAI_LENH.get(a.get('loai'), '?')}"
+              f" · {_so_hoac_ten(a.get('lot'), tham_so, hien_ten=False)} lot"]
+        if a.get("loai") in ("stop", "limit") and a.get("dem"):
+            ds.append(f"đệm {khoang(a['dem'])}")
+        for k, nhan in (("sl", "SL"), ("tp", "TP")):
+            if a.get(k):
+                ds.append(f"{nhan} {khoang(a[k])}")
+        return ds
+
+    if t == SUA_LENH:
+        cd = a.get("che_do")
+        s_ = SUA_CHE_DO.get(cd, "?")
+        if cd in SUA_CAN_GIA and a.get("khoang"):
+            s_ += f" {khoang(a['khoang'])}"
+        if cd in SUA_CAN_PHAN_TRAM:
+            s_ += f" {_so_hoac_ten(a.get('phan_tram'), tham_so, hien_ten=False)}%"
+        return [s_]
+
+    return [action_display(a, tham_so)]
 
 
 def step_display(step):

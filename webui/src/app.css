@@ -183,14 +183,19 @@ input, textarea { user-select: text; }
   border-bottom: 1px solid var(--border);
 }
 .hop .dau .dai-mau { width: 3px; height: 15px; border-radius: 2px; flex: 0 0 auto; }
+/* Tên khối cũng KHÔNG cắt: "Mỗi nến M5 — với TỪNG lệnh đang sống" bị cụt thành
+   "…đang số…" thì mất đúng chỗ quan trọng nhất của câu. */
 .hop .dau .ten {
   font-weight: 600;
   font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
+/* Tiêu đề xuống dòng thì icon phải bám mép trên cho thẳng hàng với dòng đầu. */
+.hop .dau { align-items: flex-start; }
+.hop .dau .dai-mau, .hop .dau .icon { margin-top: 2px; }
 .hop .dau .loai { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
 
 .hop .than { padding: 5px 0; }
@@ -208,15 +213,23 @@ input, textarea { user-select: text; }
   color: var(--dim);
   text-align: right;
 }
-/* Cắt chữ phải đặt trên chính phần tử chứa CHỮ. Đặt trên .dong (flex container)
-   thì con flex mặc định min-width:auto nên nó cứ nở ra và tràn khỏi hộp. */
+/* CHỮ PHẢI XUỐNG DÒNG, KHÔNG ĐƯỢC CẮT.
+   Trước đây cắt bằng `text-overflow: ellipsis` cho hộp gọn — sai với việc này: mỗi
+   dòng ở đây là MỘT ĐIỀU KIỆN, cắt cụt là người đọc không biết cổng đang so cái gì
+   với cái gì, mà đó chính là toàn bộ nội dung của khối. Thà hộp cao hơn.
+   `min-width: 0` vẫn phải giữ: con flex mặc định `min-width: auto` nên không có nó
+   thì phần tử cứ nở ra thay vì xuống dòng.
+   `break-word` chứ không `anywhere`: chỉ bẻ khi MỘT từ dài quá khổ, để tên tham số
+   như `nguong_nen_bps` không bị chặt làm đôi giữa chừng. */
 .hop .dong > span:last-child {
   flex: 1 1 auto;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
+/* Nhiều dòng rồi thì "và" phải bám MÉP TRÊN, không thì nó trôi xuống giữa khối chữ. */
+.hop .dong { align-items: flex-start; }
+.hop .dong .danh { padding-top: 1px; }
 /* Hành động chạy 1 lần lúc đầu: làm mờ, vì nhìn hộp phải biết ngay Loop thật sự
    LẶP LẠI những gì. Đây chính là cái bản Listbox cũ phải diễn tả bằng chữ "(1 lần)". */
 .hop .dong.mo-dau { color: var(--dim); }

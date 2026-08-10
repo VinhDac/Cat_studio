@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, Background, BackgroundVariant, ConnectionMode,
   useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, MarkerType,
-  useStore, useNodesInitialized,
+  useStore,
   type Node, type Edge, type Connection, type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 
@@ -246,12 +246,22 @@ function Ung() {
    *  số vô nghĩa — sơ đồ mẫu 8 khối bị cắt mất nguyên một nhánh ở mép trên.
    *  Nên: nạp xong thì DỰNG CỜ, `useNodesInitialized` báo đo xong mới fit. */
   const canFit = useRef(false)
-  const daDoXong = useNodesInitialized()
+  /* ĐẾM THẲNG TRONG STORE của React Flow, không dùng `useNodesInitialized`:
+     - `useNodesInitialized` trả `true` khi canvas RỖNG, nên ngay sau `nap()` nó đã
+       `true` trong khi khối mới còn chưa được vẽ lần nào;
+     - mảng `nodes` của `useNodesState` KHÔNG mang `measured` — chiều cao thật nằm
+       trong `nodeLookup` của store.
+     Đếm số khối ĐÃ CÓ CHIỀU CAO rồi so với số khối đang có: bằng nhau mới là đo xong. */
+  const daDo = useStore(s => {
+    let n = 0
+    for (const nd of s.nodeLookup.values()) if (nd.measured?.height) n++
+    return n
+  })
   useEffect(() => {
-    if (!canFit.current || !daDoXong) return
+    if (!canFit.current || !nodes.length || daDo !== nodes.length) return
     canFit.current = false
     fitView({ padding: 0.2, duration: 300, maxZoom: 1 })
-  }, [daDoXong, nodes, fitView])
+  }, [daDo, nodes, fitView])
 
   const nap = useCallback((doc: ProcessDoc, loi: string) => {
     kho.current = { entry: so_do_sang_rf(doc.entry), manage: so_do_sang_rf(doc.manage) }

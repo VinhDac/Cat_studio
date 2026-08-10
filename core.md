@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 177/177
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 181/181
 
 ---
 
@@ -289,9 +289,11 @@ Ví dụ đúng ý người dùng — 5 nhánh điều kiện entry từ khối 
 ### 4.3 Bấm ▶ Chạy → cửa sổ **Strategy Tester**
 
 - Không chạy thẳng trên canvas như Auto_Clicker.
-- Mở **cửa sổ pywebview thứ hai** (chi tiết bàn sau).
-- Bộ khung dựng trước: cửa sổ + `api.mo_tester(doc)` + kênh sự kiện `window.__su_kien("test", …)`
-  dùng lại đúng cơ chế gom lô 150 ms.
+- Mở **cửa sổ pywebview thứ hai**.
+- Bộ khung đã dựng: cửa sổ + `api.mo_tester(doc)` (soát lỗi trước, còn `error` thì không mở)
+  + `api.tester_doc()` để cửa sổ đó hỏi ngược lại sơ đồ.
+
+→ **Toàn bộ thiết kế nằm ở §12.** Bộ khung đó hiện còn **ba lỗi chắc chắn** — xem §12.12.
 
 ---
 

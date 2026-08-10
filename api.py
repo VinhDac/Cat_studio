@@ -88,32 +88,28 @@ def _the_buoc(st, ts=None):
     Giao diện KHÔNG tự ghép chữ: nếu nó ghép thì sớm muộn nó mô tả khác với thứ lõi
     thực sự hiểu. Nó chỉ chọn ICON theo `type`.
 
-    Với "Kiểm tra điều kiện", MỖI DÒNG là MỘT điều kiện chứ không phải cả câu gộp:
-    một cổng của Compress mang tới 5 điều kiện, gộp thành một dòng thì hộp không đọc
-    được nữa."""
+    Chữ trên hộp lấy từ `core.dong_khoi` — dòng NGẮN, mỗi trường một dòng. Câu đầy đủ
+    (`core.action_display`) để dành cho tooltip: nhìn hộp thì cần liếc ra ngay, rê chuột
+    mới cần biết đủ chi tiết."""
     the = {"id": st.get("id"), "kind": st.get("kind"), "title": core.step_title(st),
-           "badges": [], "lines": [], "ghim": bool(st.get("ghim")),
+           "badges": [], "lines": [], "mo_ta": "", "ghim": bool(st.get("ghim")),
            "la_cong": core.is_branch_gate(st)}
 
     if core.is_start_step(st):
         the["badges"] = ["mỗi nến chạy lại từ đây"]
         return the
 
-    if st.get("type") == core.CHECK_COND:
-        ds = st.get("conditions") or []
-        the["lines"] = [{"text": core.cond_display(c, ts), "type": core.CHECK_COND}
-                        for c in ds] or [{"text": "chưa có điều kiện nào — luôn khớp",
-                                          "type": core.CHECK_COND}]
-        the["badges"].append("cổng rẽ nhánh" if core.is_branch_gate(st) else "kiểm tra")
-        if len(ds) > 1:
-            the["badges"].append(f"{len(ds)} điều kiện · VÀ")
-        return the
+    the["lines"] = [{"text": x, "type": st.get("type")}
+                    for x in core.dong_khoi(st, ts)]
+    # Bỏ `name` trước khi sinh câu đầy đủ: tiêu đề hộp ĐÃ hiện tên rồi.
+    the["mo_ta"] = core.action_display(
+        {k: v for k, v in st.items() if k != "name"}, ts)
 
-    # Bỏ `name` trước khi sinh chữ: tiêu đề hộp ĐÃ hiện tên rồi, để nguyên thì thân hộp
-    # lặp lại y hệt ("Dời SL về hoà vốn: Dời SL về hoà vốn …").
-    khong_ten = {k: v for k, v in st.items() if k != "name"}
-    the["lines"] = [{"text": core.action_display(khong_ten, ts),
-                     "type": st.get("type")}]
+    if st.get("type") == core.CHECK_COND:
+        n = len(st.get("conditions") or [])
+        the["badges"].append("cổng rẽ nhánh" if core.is_branch_gate(st) else "kiểm tra")
+        if n > 1:
+            the["badges"].append(f"{n} điều kiện · VÀ")
     return the
 
 

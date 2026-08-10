@@ -28,7 +28,8 @@ export interface ProcEdge {
 }
 
 /** Một dòng chữ trên hộp — do `api.describe()` sinh, không phải JS tự ghép.
- *  Với khối "Kiểm tra điều kiện", mỗi dòng là MỘT điều kiện (nối nhau bằng VÀ). */
+ *  Khối "Kiểm tra điều kiện": mỗi dòng là MỘT điều kiện (nối nhau bằng VÀ).
+ *  Khối "Vào lệnh" / "Sửa lệnh": mỗi dòng là MỘT TRƯỜNG (lot · đệm · SL · TP). */
 export interface CardLine {
   text: string
   /** Loại hành động — giao diện dùng để CHỌN ICON. Python không gắn emoji vào text. */
@@ -41,6 +42,8 @@ export interface Card {
   title: string
   badges: string[]
   lines: CardLine[]
+  /** Câu đầy đủ, dùng làm tooltip. `lines` là bản ngắn để vẽ lên hộp. */
+  mo_ta: string
   ghim: boolean
   la_cong: boolean
 }

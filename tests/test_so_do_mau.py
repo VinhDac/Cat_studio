@@ -180,13 +180,39 @@ kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
      len(cards[g_nen["id"]]["lines"]) == 4, f"— {len(cards[g_nen['id']]['lines'])}")
 # Chữ trên hộp hiện CẢ TÊN LẪN GIÁ TRỊ của tham số: tên nói ý nghĩa, số nói thực tế.
 # Thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ.
+# Dấu `=` kẹp giữa hai KHOẢNG TRẮNG KHÔNG NGẮT ( ): chữ trên hộp xuống dòng được,
+# mà `nguong_nen_bps =` nằm cuối dòng còn `7` rơi xuống dòng sau thì đọc mất nghĩa.
 kiem("chữ trên hộp dùng ký hiệu, và tham số hiện cả tên lẫn giá trị",
      cards[g_nen["id"]]["lines"][0]["text"]
-     == "ATR chuẩn hoá (bps)(M5, 14) < nguong_nen_bps = 7",
+     == "ATR chuẩn hoá (bps)(M5, 14) < nguong_nen_bps = 7",
      f"— \"{cards[g_nen['id']]['lines'][0]['text']}\"")
+kiem("tên tham số KHÔNG bị tách khỏi giá trị khi hộp xuống dòng",
+     " = " not in cards[g_nen["id"]]["lines"][0]["text"])
 kiem("tham số của toán hạng thì hiện GIÁ TRỊ (14), không hiện tên — nó là "
      "\"đọc chuỗi nào\", không phải núm vặn",
      "(M5, 14)" in cards[g_nen["id"]]["lines"][0]["text"])
+
+# Chữ trên hộp phải NGẮN, mỗi trường một dòng. Một câu chạy dài "Vào lệnh Mua Chờ Stop ·
+# lot = 0.01 lot · đệm dem_vao_lenh = 0.1 × ATR hiện tại ngoài mép vùng · SL …" nhét lên
+# hộp thì nuốt cả khối, mà nhìn hộp là phải hiểu ngay chứ không phải đọc một đoạn văn.
+v_mua = next(x for x in doc["entry"]["steps"]
+             if x.get("type") == core.VAO_LENH and x.get("huong") == "mua")
+tv = cards[v_mua["id"]]
+kiem("khối Vào lệnh tách mỗi trường một dòng",
+     [d["text"] for d in tv["lines"]] == [
+         "Mua · Chờ Stop · 0.01 lot",
+         "đệm dem_vao_lenh = 0.1 × ATR",
+         "SL sl_theo_atr_vung = 1.5 × ATR vùng",
+         "TP ty_le_RR = 2 × R"],
+     f"— {[d['text'] for d in tv['lines']]}")
+dong_lenh = [d["text"] for t in core.TABS for c in doc[t]["cards"] for d in c["lines"]
+             if d["type"] in (core.VAO_LENH, core.SUA_LENH)]
+kiem("dòng vào/sửa lệnh đều ngắn (≤ 40 ký tự) — vừa một hàng, không phải đoạn văn",
+     all(len(x) <= 40 for x in dong_lenh),
+     f"— dài nhất: \"{max(dong_lenh, key=len)}\"")
+kiem("câu ĐẦY ĐỦ vẫn còn, để làm tooltip",
+     "ngoài mép vùng" in tv["mo_ta"] and "trung bình của vùng nén" in tv["mo_ta"],
+     f"— \"{tv['mo_ta']}\"")
 
 # ================= 8. lưu / mở lại =================
 print("\n▸ Lưu / mở lại")

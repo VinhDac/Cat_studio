@@ -31,6 +31,7 @@ export default function StepNode({ data, selected }: NodeProps) {
   /* Icon lấy theo loại hành động của dòng ĐẦU — một khối chỉ mang một hành động, nên
      dòng nào cũng cùng loại. Khối Bắt đầu thì không có dòng nào. */
   const icon = laStart ? 'start' : (ICON_HANH_DONG[card.lines[0]?.type ?? ''] ?? 'action')
+  const laVa = card.lines[0]?.type === 'check_cond'
 
   return (
     <>
@@ -77,17 +78,22 @@ export default function StepNode({ data, selected }: NodeProps) {
         </div>
 
         {!laStart && (
-          <div className="than">
+          /* Tooltip là CÂU ĐẦY ĐỦ. Trên hộp chỉ để dòng ngắn — mỗi trường một dòng —
+             vì nhìn hộp là để liếc ra ngay khối làm gì; rê chuột mới cần đủ chi tiết. */
+          <div className="than" title={card.mo_ta}>
             {hien.map((d, i) => (
-              <div key={i} className="dong" title={d.text}>
-                {/* Nhiều điều kiện nối nhau bằng VÀ — ghi ra để không ai đoán là HOẶC. */}
-                <span className="danh">{i > 0 ? 'và' : ''}</span>
+              <div key={i} className="dong">
+                {/* "và" CHỈ đúng với khối kiểm tra: ở đó mỗi dòng là một điều kiện nối
+                    nhau bằng VÀ, phải ghi ra để không ai đoán là HOẶC. Ở khối vào/sửa
+                    lệnh, mỗi dòng là một TRƯỜNG (lot, đệm, SL, TP) — dán "và" vào là
+                    nói sai. */}
+                <span className="danh">{laVa && i > 0 ? 'và' : ''}</span>
                 <span>{d.text}</span>
               </div>
             ))}
             {con > 0 && (
               <div className="dong con-nua">
-                <span className="danh" /><span>… còn {con} điều kiện</span>
+                <span className="danh" /><span>… còn {con} dòng nữa</span>
               </div>
             )}
           </div>
