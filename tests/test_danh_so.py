@@ -25,10 +25,14 @@ Bài này canh đúng ba chỗ Auto_Clicker làm sai (core.md §3.3):
 
 Không mở cửa sổ, không nối MT5 -> chạy được ở bất cứ đâu.
 """
+import io
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Console Windows mặc định cp1252, và khi stdout là PIPE thì Python cũng lấy bảng mã
+# đó — in một dấu ✔ là chết ngay, bài test "hỏng" mà không có lấy một dòng lý do.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 import core  # noqa: E402
 
@@ -59,9 +63,10 @@ def cong(nguong, x, y, ten=None):
 
 
 def viec(ten, x, y):
-    s = core.make_group_step(ten)
-    s["actions"] = [{"type": core.SUA_LENH, "che_do": "hoa_von",
-                     "khoang": {"tinh": "theo_R", "value": 1}}]
+    """Một khối KHÔNG phải cổng — dùng làm mắt xích thường trên chuỗi."""
+    s = core.make_action_step({
+        "type": core.SUA_LENH, "che_do": "hoa_von", "muc_tieu": "vi_the",
+        "khoang": {"tinh": "theo_R", "value": 1}, "name": ten})
     s["pos"] = [x, y]
     return s
 
@@ -80,6 +85,12 @@ def nhan_cua(b, cap):
 def loi(steps, edges, sev=None):
     ds = core.validate_flow_graph(steps, edges)
     return [p for p in ds if sev is None or p["severity"] == sev]
+
+
+def loi_hd_tab(a, tab):
+    ra = []
+    core.validate_actions([a], lambda m, i=None: ra.append(m), tab)
+    return ra
 
 
 # ================= 1. Đánh số phân cấp =================
@@ -275,32 +286,97 @@ kiem("nhân bản KHÔNG chép cờ ghim (hai điểm quay lại là gần như 
 kiem("nhân bản trả bảng tra cũ→mới", tra.get(st["id"]) == moi[0]["id"])
 
 d = core.new_process()
-kiem("sơ đồ mới có sẵn ĐÚNG MỘT khối Bắt đầu",
-     len(d["steps"]) == 1 and core.is_start_step(d["steps"][0]))
+kiem("chiến lược mới có HAI sơ đồ, mỗi cái một khối Bắt đầu",
+     set(core.TABS) <= set(d)
+     and all(len(d[t]["steps"]) == 1 and core.is_start_step(d[t]["steps"][0])
+             for t in core.TABS))
+
+# ================= 8b. Chỉ còn HAI loại khối =================
+print("\n▸ Bộ từ vựng khối")
+kiem("chỉ còn 2 loại khối: Bắt đầu + Khối",
+     set(core.KIND_LABELS) == {core.KIND_START, core.KIND_ACTION},
+     f"— {sorted(core.KIND_LABELS)}")
+kiem("lõi không còn biết Vòng theo dõi / Nhóm",
+     not any(hasattr(core, t) for t in
+             ("KIND_LOOP", "KIND_GROUP", "make_loop_step", "make_group_step",
+              "has_actions", "is_loop_step", "is_group_step")))
+kiem("khối kiểu cũ trong file cũ bị bỏ qua, không làm hỏng cả sơ đồ",
+     core.normalize_step({"kind": "loop", "id": "sxxx", "actions": []}) is None)
+kiem("template chỉ còn loại 'chiến lược', không lưu cụm khối rời",
+     list(core.TEMPLATE_KINDS) == ["strategy"], f"— {list(core.TEMPLATE_KINDS)}")
+kiem("đúng BA hành động, không còn Đặt cờ",
+     core.ACTION_TYPES == [core.CHECK_COND, core.VAO_LENH, core.SUA_LENH],
+     f"— {core.ACTION_TYPES}")
+
+# ================= 8d. Entry chỉ TẠO, Manage chỉ SỬA =================
+print("\n▸ Ranh giới Entry / Manage")
+kiem("Vào lệnh chỉ ở Entry", core.ACTION_TABS[core.VAO_LENH] == (core.TAB_ENTRY,))
+kiem("Sửa lệnh chỉ ở Manage", core.ACTION_TABS[core.SUA_LENH] == (core.TAB_MANAGE,))
+kiem("Kiểm tra ĐK dùng ở cả hai",
+     set(core.ACTION_TABS[core.CHECK_COND]) == set(core.TABS))
+kiem("đặt lệnh trong Manage → báo lỗi",
+     any("chỉ thuộc về" in m for m in loi_hd_tab(
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "market", "lot": 0.01,
+          "sl": {"tinh": "theo_ATR_vung", "value": 1.5}}, core.TAB_MANAGE)))
+kiem("sửa lệnh trong Entry → báo lỗi",
+     any("chỉ thuộc về" in m for m in loi_hd_tab(
+         {"type": core.SUA_LENH, "che_do": "hoa_von"}, core.TAB_ENTRY)))
+
+_dk_lenh = {"type": core.CHECK_COND,
+            "conditions": [{"trai": {"ten": "lenh_da_khop"}}]}
+kiem('hỏi "lệnh này" trong Entry → báo lỗi',
+     any("Lệnh này" in m for m in loi_hd_tab(_dk_lenh, core.TAB_ENTRY)),
+     f"— {loi_hd_tab(_dk_lenh, core.TAB_ENTRY)}")
+kiem('hỏi "lệnh này" trong Manage → hợp lệ',
+     not loi_hd_tab(_dk_lenh, core.TAB_MANAGE),
+     f"— {loi_hd_tab(_dk_lenh, core.TAB_MANAGE)}")
+
+# ================= 8c. Hai chữ ATR là hai thứ khác nhau =================
+print("\n▸ Hợp đồng chuẩn hoá")
+kiem("có RIÊNG cách tính theo ATR trung bình của vùng nén",
+     "theo_ATR_vung" in core.CACH_TINH and "theo_ATR" in core.CACH_TINH)
+kiem("hai cách tính ATR mô tả khác nhau, không lẫn được",
+     core.CACH_TINH["theo_ATR"] != core.CACH_TINH["theo_ATR_vung"],
+     f"— \"{core.CACH_TINH['theo_ATR']}\" vs \"{core.CACH_TINH['theo_ATR_vung']}\"")
+kiem("không có cách tính nào theo pip / điểm / tiền",
+     not any(t in " ".join(core.CACH_TINH.values()).lower()
+             for t in ("pip", "point", "điểm", "đô")))
+
+# ================= 8e. Phép so là KÝ HIỆU =================
+print("\n▸ Phép so")
+kiem("dùng ký hiệu, không dùng chữ",
+     [core.PHEP_SO[k] for k in ("<", "<=", ">", ">=", "==", "!=")]
+     == ["<", "≤", ">", "≥", "=", "≠"],
+     f"— {[core.PHEP_SO[k] for k in ('<', '<=', '>', '>=', '==', '!=')]}")
+kiem("không còn chữ 'lớn hơn' / 'nhỏ hơn' / 'bằng' nào",
+     not any(t in " ".join(core.PHEP_SO.values()).lower()
+             for t in ("lớn hơn", "nhỏ hơn", "bằng")))
 
 # ================= 9. Mô tả hành động =================
 print("\n▸ Mô tả hành động")
-kiem("Kiểm tra điều kiện đọc được thành câu",
-     core.action_display({"type": core.CHECK_COND, "conditions": [
-         {"trai": {"ten": "atr_bps", "tf": "M5", "period": 14},
-          "phep": "<", "phai_loai": "so", "phai": 7}]})
-     == "ATR chuẩn hoá (bps)(M5, 14) nhỏ hơn 7",
-     f"— {core.action_display({'type': core.CHECK_COND, 'conditions': [{'trai': {'ten': 'atr_bps', 'tf': 'M5', 'period': 14}, 'phep': '<', 'phai_loai': 'so', 'phai': 7}]})}")
+_cau = core.action_display({"type": core.CHECK_COND, "conditions": [
+    {"trai": {"ten": "atr_bps", "tf": "M5", "period": 14},
+     "phep": "<", "phai_loai": "so", "phai": 7}]})
+kiem("Kiểm tra điều kiện đọc được thành câu, dùng ký hiệu",
+     _cau == "ATR chuẩn hoá (bps)(M5, 14) < 7", f"— {_cau}")
 kiem("toán hạng đúng/sai không ghép phép so",
      core.action_display({"type": core.CHECK_COND,
-                          "conditions": [{"trai": {"ten": "co_vi_the"}}]})
-     == "Đang có vị thế")
-kiem("Sửa lệnh · hoà vốn đọc được",
-     "hoà vốn" in core.action_display(
+                          "conditions": [{"trai": {"ten": "lenh_da_khop"}}]})
+     == "Lệnh này đã khớp")
+kiem("Sửa lệnh · hoà vốn KHÔNG còn tham số — mốc kích hoạt đã dời lên cổng",
+     core.action_display({"type": core.SUA_LENH, "che_do": "hoa_von"})
+     == "Dời SL về hoà vốn"
+     and "khoang" not in core.normalize_action(
          {"type": core.SUA_LENH, "che_do": "hoa_von",
-          "khoang": {"tinh": "theo_R", "value": 1}}).lower())
-kiem("Vào lệnh hiện đủ hướng, lot, SL, TP",
-     core.action_display({"type": core.VAO_LENH, "huong": "mua", "loai": "stop",
-                          "lot": 0.01, "dem": {"tinh": "theo_ATR", "value": 0.1},
-                          "sl": {"tinh": "theo_ATR", "value": 1.5},
-                          "tp": {"tinh": "theo_R", "value": 2}})
-     == "Vào lệnh Mua Chờ Stop  ·  0.01 lot  ·  đệm 0.1 × ATR  ·  SL 1.5 × ATR  ·  TP 2 × R (rủi ro)",
-     f"— {core.action_display({'type': core.VAO_LENH, 'huong': 'mua', 'loai': 'stop', 'lot': 0.01, 'dem': {'tinh': 'theo_ATR', 'value': 0.1}, 'sl': {'tinh': 'theo_ATR', 'value': 1.5}, 'tp': {'tinh': 'theo_R', 'value': 2}})}")
+          "khoang": {"tinh": "theo_R", "value": 1}}))
+_vao = core.action_display({"type": core.VAO_LENH, "huong": "mua", "loai": "stop",
+                            "lot": 0.01, "dem": {"tinh": "theo_ATR", "value": 0.1},
+                            "sl": {"tinh": "theo_ATR_vung", "value": 1.5},
+                            "tp": {"tinh": "theo_R", "value": 2}})
+kiem("Vào lệnh nói rõ đệm neo NGOÀI MÉP VÙNG", "ngoài mép vùng" in _vao, f"— {_vao}")
+kiem("Vào lệnh phân biệt ATR hiện tại (đệm) với ATR vùng (rủi ro)",
+     "đệm 0.1 × ATR hiện tại" in _vao and "SL 1.5 × ATR trung bình của vùng nén" in _vao,
+     f"— {_vao}")
 
 # ================= 10. Soát hành động =================
 print("\n▸ Soát hành động")
@@ -318,7 +394,7 @@ kiem("Vào lệnh thiếu SL → báo lỗi",
 kiem("lệnh chờ thiếu đệm → báo lỗi",
      any("đệm" in m for m in loi_hd(
          {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
-          "sl": {"tinh": "theo_ATR", "value": 1.5}})))
+          "sl": {"tinh": "theo_ATR_vung", "value": 1.5}})))
 kiem("Đóng một phần 100% → báo lỗi, chỉ sang chế độ Đóng hẳn",
      any("Đóng hẳn" in m for m in loi_hd(
          {"type": core.SUA_LENH, "che_do": "dong_mot_phan", "phan_tram": 100})))

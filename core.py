@@ -84,35 +84,27 @@ MA_METHODS = {"SMA": "Trung bình đơn", "EMA": "Trung bình mũ",
 # LOẠI KHỐI
 # ---------------------------------------------------------------------------
 
-KIND_START = "start"     # điểm neo đánh số — không làm gì cả
-KIND_LOOP = "loop"       # Vòng theo dõi — lặp theo mỗi nến mới
-KIND_GROUP = "group"     # Nhóm hành động chạy 1 lượt
-KIND_ACTION = "action"   # HĐ lẻ — chỉ loại này được làm CỔNG rẽ nhánh
+# HAI loại khối, không hơn.
+#
+# Từng có thêm "Vòng theo dõi" (lặp mỗi nến) và "Nhóm 1 lần" (gộp nhiều hành động).
+# Bỏ cả hai, vì cả hai đều thừa:
+#
+#   · Vòng theo dõi — CẢ SƠ ĐỒ vốn đã là một vòng lặp: nó chạy lại từ khối Bắt đầu ở
+#     mỗi nến mới, đúng như `OnTick` của MQL5 chạy lại từ đầu mỗi tick. "Chờ tới khi"
+#     không cần vẽ: không cổng nào khớp thì hết lượt, nến sau tự chạy lại.
+#   · Nhóm — cấu trúc của một chiến lược đến từ TÁCH TRÁCH NHIỆM, không từ lồng hộp.
+#     Gộp nhóm chỉ đẻ thêm câu hỏi "nhóm có phải một đơn vị chạy không".
+KIND_START = "start"     # điểm neo đánh số — mỗi nến chạy lại từ đây
+KIND_ACTION = "action"   # đúng một hành động
 
 KIND_LABELS = {
     KIND_START: "Bắt đầu",
-    KIND_LOOP: "Vòng theo dõi",
-    KIND_GROUP: "Nhóm 1 lần",
-    KIND_ACTION: "HĐ lẻ",
+    KIND_ACTION: "Khối",
 }
-
-DEFAULT_MAX_NEN = 1000
 
 
 def is_start_step(s):
     return isinstance(s, dict) and s.get("kind") == KIND_START
-
-
-def is_loop_step(s):
-    return isinstance(s, dict) and s.get("kind") == KIND_LOOP
-
-
-def is_group_step(s):
-    return isinstance(s, dict) and s.get("kind") == KIND_GROUP
-
-
-def has_actions(s):
-    return is_loop_step(s) or is_group_step(s)
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +125,8 @@ def has_actions(s):
 CHECK_COND = "check_cond"
 VAO_LENH = "vao_lenh"
 SUA_LENH = "sua_lenh"
-DAT_CO = "dat_co"
 
-# `HANH_DONG_AN` chỉ lọc khỏi BẢNG CHỌN của giao diện — lõi vẫn hiểu và chạy đủ.
-# Mở lại một hành động = bỏ đúng một chuỗi khỏi tập dưới đây, không viết lại gì.
-ACTION_TYPES = [CHECK_COND, VAO_LENH, SUA_LENH, DAT_CO]
-HANH_DONG_AN = {DAT_CO}
+ACTION_TYPES = [CHECK_COND, VAO_LENH, SUA_LENH]
 
 # Nhãn THUẦN CHỮ, không emoji: chúng hiện ở dropdown "Loại:" của hộp thoại, và giao
 # diện tự vẽ icon nét theo `type` cho khớp phần còn lại.
@@ -146,21 +134,41 @@ ACTION_LABELS = {
     CHECK_COND: "Kiểm tra điều kiện",
     VAO_LENH: "Vào lệnh",
     SUA_LENH: "Sửa lệnh",
-    DAT_CO: "Đặt cờ",
 }
+
+# ---------------------------------------------------------------------------
+# HAI SƠ ĐỒ trong một chiến lược
+# ---------------------------------------------------------------------------
+#
+#   ENTRY   — con trỏ đi SĂN. Chạy lại từ khối Bắt đầu ở mỗi nến. Có thể SINH một lệnh.
+#   MANAGE  — chạy MỘT LƯỢT CHO MỖI LỆNH đang sống, cũng từ đầu, cũng mỗi nến.
+#
+# Thứ tự trong một nến:  cập nhật dữ liệu → MANAGE (từng lệnh) → ENTRY.
+# Manage TRƯỚC Entry, đúng `OnTick` của D_02: CheckPendingActivation → ManageBreakEven
+# → rồi mới tới phần quyết định. Chạy ngược lại thì lệnh vừa sinh bị quản lý ngay
+# trong chính nến đẻ ra nó.
+#
+# Manage KHÔNG giữ con trỏ giữa các nến: nó tính lại từ trạng thái quan sát được, y
+# như D_02 làm mỗi tick. Nhờ vậy mấy câu guard kiểu `if(sl >= entry) continue` không
+# còn nằm trong code mà HIỆN RA THÀNH CỔNG trên sơ đồ.
+TAB_ENTRY = "entry"
+TAB_MANAGE = "manage"
+TABS = [TAB_ENTRY, TAB_MANAGE]
+TAB_LABELS = {TAB_ENTRY: "Entry", TAB_MANAGE: "Manage"}
+
+# Entry chỉ TẠO, Manage chỉ SỬA. Một câu, và soát tĩnh được.
+ACTION_TABS = {
+    CHECK_COND: (TAB_ENTRY, TAB_MANAGE),
+    VAO_LENH: (TAB_ENTRY,),
+    SUA_LENH: (TAB_MANAGE,),
+}
+
+
+def hanh_dong_cua_tab(tab):
+    return [t for t in ACTION_TYPES if tab in ACTION_TABS[t]]
 
 # Hành động QUYẾT ĐỊNH ĐƯỜNG ĐI: không khớp thì nhánh đang chạy chết tại đó.
 BRANCH_TYPES = (CHECK_COND,)
-
-# Hành động ĐẠT MỤC TIÊU: khớp là kết thúc SỚM cả Vòng theo dõi.
-# Tách khỏi BRANCH_TYPES vì ngữ nghĩa ngược nhau — goal: khớp là XONG;
-# branch: khớp mới được ĐI TIẾP.
-GOAL_TYPES = ()
-
-
-def hanh_dong_hien():
-    return [t for t in ACTION_TYPES if t not in HANH_DONG_AN]
-
 
 # ---- Toán hạng của "Kiểm tra điều kiện" -----------------------------------
 # (key, nhãn, nhóm, tham số cần nhập)
@@ -188,31 +196,40 @@ TOAN_HANG = [
     ("rong_vung_atr",  "Bề rộng vùng ÷ ATR",      "Vùng nén",   []),
     ("atr_tb_vung",    "ATR trung bình của vùng", "Vùng nén",   []),
 
-    ("co_vi_the",      "Đang có vị thế",          "Trạng thái", []),
-    ("co_lenh_cho",    "Đang có lệnh chờ",        "Trạng thái", []),
-    ("lenh_da_khop",   "Lệnh chờ vừa khớp",       "Trạng thái", []),
-    ("co",             "Cờ",                      "Trạng thái", ["ten_co"]),
+    ("vung_da_sinh_lenh", "Vùng này đã sinh lệnh", "Vùng nén",  []),
 
-    ("so_lenh_mo",     "Số lệnh đang mở",         "Tài khoản",  []),
-    ("lai_lo_R",       "Lãi/lỗ hiện tại (× R)",   "Tài khoản",  []),
-    ("drawdown_pt",    "Drawdown (%)",            "Tài khoản",  []),
+    ("so_vi_the",      "Số vị thế đang mở",       "Tài khoản",  []),
+    ("so_lenh_cho",    "Số lệnh chờ",             "Tài khoản",  []),
     ("so_lenh_hom_nay", "Số lệnh hôm nay",        "Tài khoản",  []),
+    ("drawdown_pt",    "Drawdown (%)",            "Tài khoản",  []),
+
+    # ---- CHỈ dùng được ở sơ đồ MANAGE ----
+    # Manage chạy một lượt cho MỖI lệnh, nên "lệnh này" luôn có nghĩa. Ở Entry thì
+    # chưa có lệnh nào để nói tới — dùng ở đó là lỗi, và soát tĩnh bắt được.
+    ("lenh_da_khop",   "Lệnh này đã khớp",        "Lệnh này",   []),
+    ("lenh_la_mua",    "Lệnh này là lệnh Mua",    "Lệnh này",   []),
+    ("lenh_sl_hoa_von", "SL của lệnh này đã ở hoà vốn", "Lệnh này", []),
+    ("lenh_lai_R",     "Lãi của lệnh này (× R)",  "Lệnh này",   []),
+    ("lenh_so_nen_song", "Số nến lệnh này đã sống", "Lệnh này", []),
+    ("lenh_gia_vao",   "Giá vào của lệnh này",    "Lệnh này",   []),
 
     ("gio",            "Giờ (0–23)",              "Thời gian",  []),
     ("thu",            "Thứ (2–8)",               "Thời gian",  []),
-    ("nen_moi",        "Có nến mới",              "Thời gian",  ["tf"]),
 ]
+
+# Nhóm toán hạng chỉ có nghĩa khi đang nói về MỘT lệnh cụ thể.
+NHOM_LENH_NAY = "Lệnh này"
 
 TOAN_HANG_KEYS = [k for k, _, _, _ in TOAN_HANG]
 TOAN_HANG_LABELS = {k: n for k, n, _, _ in TOAN_HANG}
 TOAN_HANG_NHOM = {k: g for k, _, g, _ in TOAN_HANG}
 TOAN_HANG_THAMSO = {k: p for k, _, _, p in TOAN_HANG}
 
+# KÝ HIỆU, không phải chữ. Một cổng của Compress mang 4–5 điều kiện; viết "lớn hơn
+# hoặc bằng" thì mỗi dòng dài gấp đôi và mắt phải đọc chữ thay vì liếc thấy quan hệ.
 PHEP_SO = {
-    "<": "nhỏ hơn", "<=": "nhỏ hơn hoặc bằng",
-    ">": "lớn hơn", ">=": "lớn hơn hoặc bằng",
-    "==": "bằng", "!=": "khác",
-    "cat_len": "cắt lên", "cat_xuong": "cắt xuống",
+    "<": "<", "<=": "≤", ">": ">", ">=": "≥", "==": "=", "!=": "≠",
+    "cat_len": "cắt lên ↗", "cat_xuong": "cắt xuống ↘",
     "trong_khoang": "trong khoảng",
 }
 
@@ -220,8 +237,16 @@ PHEP_SO = {
 # Dùng chung cho SL/TP/đệm vào lệnh. Không có đơn vị "pip" hay "đô" nào — mọi khoảng
 # cách là bội của ATR hoặc của R, đúng hợp đồng chuẩn hoá của Compress EA: cùng một
 # con số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
+#
+# HAI CHỮ "ATR" LÀ HAI THỨ KHÁC NHAU, và tách chúng ra là CÓ CHỦ Ý:
+#   · ATR hiện tại        -> đo ĐỆM vào lệnh. Một tấm khiên mỏng ngoài mép vùng, chỉ
+#                            cần đủ để lọc một nhịp phá giả.
+#   · ATR trung bình vùng -> đo RỦI RO (1R). Lấy mức nhiễu thật suốt cả cú nén, nên
+#                            mỗi lệnh rủi ro một R tương đương, bất kể vùng rộng hẹp.
+# Gộp làm một là mất đúng cái làm cho 1R nhất quán giữa các tín hiệu.
 CACH_TINH = {
-    "theo_ATR": "× ATR",
+    "theo_ATR": "× ATR hiện tại",
+    "theo_ATR_vung": "× ATR trung bình của vùng nén",
     "theo_R": "× R (rủi ro)",
     "theo_bien_vung": "mép vùng đối diện",
     "theo_pt": "% giá vào",
@@ -244,6 +269,10 @@ SUA_CHE_DO = {
     "huy_cho": "Huỷ lệnh chờ",
 }
 # Chế độ nào cần ô "cách tính + giá trị", chế độ nào không.
+#
+# `hoa_von` KHÔNG có tham số: nó chỉ là "SL = giá vào". Mốc kích hoạt (lãi đủ mấy R)
+# và câu hỏi "đã dời chưa" đều nằm ở CỔNG phía trước, chỗ nhìn thấy được — chứ không
+# giấu trong hành động như `ManageBreakEven` của D_02 giấu ba dòng guard.
 SUA_CAN_GIA = ("doi_sl", "doi_tp", "trailing")
 SUA_CAN_PHAN_TRAM = ("dong_mot_phan",)
 
@@ -281,27 +310,20 @@ def ensure_step_ids(steps):
 # ---------------------------------------------------------------------------
 
 
-def make_start_step(name="Bắt đầu"):
-    """Khối BẮT ĐẦU — thuần điểm neo đánh số, không làm gì cả.
+def make_start_step(name="Mỗi nến — chạy lại từ đây"):
+    """Khối BẮT ĐẦU — không làm gì cả, nhưng nói ra một điều quan trọng.
 
-    Đúng MỘT khối mỗi sơ đồ, tạo sẵn khi mở canvas trắng, không xoá được và không
-    nhận đường nối đi vào. Nhờ nó `flow_entry` không bao giờ trả None, nên một vòng
-    lặp nối ngược lên trên không thể "nuốt" mất điểm bắt đầu (xem core.md §3.3)."""
+    CẢ SƠ ĐỒ là một vòng lặp: nó chạy lại từ khối này ở MỖI NẾN MỚI. Nên "chờ tới khi"
+    không phải vẽ — không cổng nào khớp thì hết lượt, nến sau tự chạy lại từ đây.
+
+    Đúng MỘT khối mỗi sơ đồ, tạo sẵn khi mở canvas trắng, không xoá được và không nhận
+    đường nối đi vào. Nhờ nó `flow_entry` không bao giờ trả None, nên một đường nối
+    ngược lên trên không thể "nuốt" mất điểm bắt đầu (xem core.md §3.3)."""
     return {"kind": KIND_START, "id": new_step_id(), "name": name}
 
 
-def make_loop_step(name="Vòng theo dõi"):
-    return {"kind": KIND_LOOP, "id": new_step_id(), "name": name, "actions": [],
-            "loop_start_index": 0, "max_nen": DEFAULT_MAX_NEN, "tf": ""}
-
-
-def make_group_step(name="Nhóm mới"):
-    # Cố ý KHÔNG có max_nen/loop_start_index — Nhóm chạy đúng một lượt.
-    return {"kind": KIND_GROUP, "id": new_step_id(), "name": name, "actions": []}
-
-
 def make_action_step(action):
-    """Bọc một hành động thành khối HĐ lẻ.
+    """Bọc một hành động thành một khối.
 
     GIỮ LẠI `action["id"]` nếu có: nếu không thì mỗi lần sửa hành động là khối đổi id
     và mọi đường nối trỏ vào nó gãy hết."""
@@ -317,10 +339,6 @@ def step_title(step):
         return ten
     if is_start_step(step):
         return "Bắt đầu"
-    if is_loop_step(step):
-        return "Vòng theo dõi"
-    if is_group_step(step):
-        return "Nhóm"
     return ACTION_LABELS.get(step.get("type"), "Hành động")
 
 
@@ -362,9 +380,13 @@ def toan_hang_display(o):
     return f"{nhan}({', '.join(phan)})" if phan else nhan
 
 
+TOAN_HANG_DUNG_SAI = ("vung_da_sinh_lenh", "lenh_da_khop", "lenh_la_mua",
+                      "lenh_sl_hoa_von")
+
+
 def _la_toan_hang_dung_sai(ten):
     """Toán hạng vốn đã là đúng/sai — hộp thoại ẩn luôn ô vế phải cho chúng."""
-    return ten in ("co_vi_the", "co_lenh_cho", "lenh_da_khop", "co", "nen_moi")
+    return ten in TOAN_HANG_DUNG_SAI
 
 
 def ve_phai_display(c):
@@ -384,7 +406,10 @@ def cond_display(c):
     bằng 1" là câu không ai đọc được."""
     trai = (c or {}).get("trai") or {}
     if _la_toan_hang_dung_sai(trai.get("ten")):
-        return ("KHÔNG " if (c or {}).get("dao") else "") + toan_hang_display(trai)
+        s = toan_hang_display(trai)
+        # Thường hoá chữ đầu sau "KHÔNG": nhãn toán hạng viết hoa ("Đang có lệnh chờ")
+        # nên ghép thẳng ra "KHÔNG Đang có lệnh chờ" — đọc vấp.
+        return ("KHÔNG " + s[:1].lower() + s[1:]) if (c or {}).get("dao") else s
     return (f"{toan_hang_display(trai)} "
             f"{PHEP_SO.get((c or {}).get('phep'), '?')} "
             f"{ve_phai_display(c)}")
@@ -406,8 +431,11 @@ def action_display(a):
     if t == VAO_LENH:
         p = [f"Vào lệnh {HUONG.get(a.get('huong'), '?')} "
              f"{LOAI_LENH.get(a.get('loai'), '?')}", f"{_so(a.get('lot'))} lot"]
+        # Lệnh chờ LUÔN neo vào mép vùng nén thuận chiều (đỉnh cho Mua, đáy cho Bán) —
+        # đó là chỗ duy nhất Compress EA đặt lệnh, nên không có tham số "neo vào đâu".
+        # `dem` chỉ là khoảng đẩy ra NGOÀI mép đó.
         if a.get("loai") in ("stop", "limit") and a.get("dem"):
-            p.append(f"đệm {khoang_display(a['dem'])}")
+            p.append(f"đệm {khoang_display(a['dem'])} ngoài mép vùng")
         if a.get("sl"):
             p.append(f"SL {khoang_display(a['sl'])}")
         if a.get("tp"):
@@ -421,28 +449,15 @@ def action_display(a):
             s += f" {khoang_display(a['khoang'])}"
         if cd in SUA_CAN_PHAN_TRAM:
             s += f" {_so(a.get('phan_tram'))}%"
-        if cd == "hoa_von" and a.get("khoang"):
-            s += f" (kích hoạt khi lãi {khoang_display(a['khoang'])})"
         return dau + s
-
-    if t == DAT_CO:
-        return (dau + f"Đặt cờ \"{a.get('ten_co') or '?'}\" = "
-                      f"{'bật' if a.get('gia_tri') else 'tắt'}")
 
     return dau + ACTION_LABELS.get(t, str(t))
 
 
 def step_display(step):
     if is_start_step(step):
-        return "◆ Bắt đầu   ·  điểm neo đánh số"
-    if is_loop_step(step):
-        n = len(step.get("actions") or [])
-        return (f"↻ {step_title(step)}   ·  {n} hành động  ·  "
-                f"tối đa {step.get('max_nen', DEFAULT_MAX_NEN)} nến")
-    if is_group_step(step):
-        n = len(step.get("actions") or [])
-        return f"▤ {step_title(step)}   ·  {n} hành động  ·  chạy 1 lần"
-    return f"⚡ {action_display(step)}   (chạy 1 lần)"
+        return "◆ Bắt đầu   ·  mỗi nến chạy lại từ đây"
+    return f"⚡ {action_display(step)}"
 
 
 # ---------------------------------------------------------------------------
@@ -832,14 +847,10 @@ def validate_flow_graph(steps, edges):
                  f"nhưng không nằm dưới cùng của {ten(sid)} — nhánh mặc định luôn khớp "
                  f"nên các nhánh xếp dưới nó không bao giờ chạy tới. Hãy kéo nó xuống "
                  f"thấp nhất.")
-        elif not khong_cong and not quay and not is_loop_step(theo_id[sid]):
-            # Vòng theo dõi được miễn: không nhánh nào khớp thì nó chờ nến sau, chứ
-            # không phải chiến lược kết thúc. Đó chính là việc của một vòng theo dõi.
-            _loi(ra, "warning", sid,
-                 f"{ten(sid)} rẽ {len(nhanh)} nhánh và nhánh nào cũng có điều kiện — "
-                 f"không khớp nhánh nào thì chiến lược kết thúc tại đây. Muốn luôn có "
-                 f"lối đi thì thêm một nhánh không cổng xếp dưới cùng, hoặc nối ngược "
-                 f"về một khối đã ghim số.")
+        # CỐ Ý KHÔNG cảnh báo "nhánh nào cũng có điều kiện". Trước đây có, vì tưởng
+        # không khớp nhánh nào là chiến lược chết đứng. Sai: cả sơ đồ là một vòng lặp
+        # chạy lại ở mỗi nến, nên không khớp gì = HẾT LƯỢT, nến sau chạy lại từ đầu.
+        # Đó là cách "chờ" được diễn tả, và nó là trường hợp thường gặp nhất.
 
         # Hai cổng cùng điều kiện y hệt: cái dưới không bao giờ tới lượt.
         da_thay = {}
@@ -890,13 +901,19 @@ def validate_flow_graph(steps, edges):
 # ---- soát HÀNH ĐỘNG -------------------------------------------------------
 
 
-def _soat_toan_hang(o, cho, err):
+def _soat_toan_hang(o, cho, err, tab=None):
     if not isinstance(o, dict) or not o.get("ten"):
         err(f"{cho} chưa chọn toán hạng.")
         return
     ten = o.get("ten")
     if ten not in TOAN_HANG_KEYS:
         err(f'{cho} dùng toán hạng "{ten}" không còn được hỗ trợ.')
+        return
+    # Lỗi này MQL5 không bao giờ bắt được: hỏi về "lệnh này" ở chỗ chưa có lệnh nào.
+    if tab == TAB_ENTRY and TOAN_HANG_NHOM[ten] == NHOM_LENH_NAY:
+        err(f'{cho} dùng "{TOAN_HANG_LABELS[ten]}" — toán hạng nhóm "{NHOM_LENH_NAY}" '
+            f"chỉ có nghĩa ở sơ đồ Manage, nơi mỗi lượt chạy gắn với một lệnh cụ thể. "
+            f"Ở Entry thì chưa có lệnh nào để nói tới.")
         return
     for k in TOAN_HANG_THAMSO[ten]:
         if k == "tf" and o.get("tf") not in TIMEFRAMES:
@@ -909,8 +926,6 @@ def _soat_toan_hang(o, cho, err):
                 err(f"{cho} ({TOAN_HANG_LABELS[ten]}) cần chu kỳ là số nguyên dương.")
         if k == "method" and o.get("method") not in MA_METHODS:
             err(f"{cho} ({TOAN_HANG_LABELS[ten]}) chưa chọn kiểu trung bình.")
-        if k == "ten_co" and not (o.get("ten_co") or "").strip():
-            err(f"{cho} (Cờ) chưa nhập tên cờ.")
         if k == "shift":
             try:
                 if int(o.get("shift", 1)) < 0:
@@ -939,9 +954,12 @@ def _soat_khoang(k, cho, err, bat_buoc=True):
         err(f"{cho} cần giá trị lớn hơn 0.")
 
 
-def validate_actions(actions, err):
+def validate_actions(actions, err, tab=None):
     """`err(msg, i)` được gọi cho từng lỗi. Tách khỏi phần đồ thị vì đây là lỗi ở mức
-    một hành động, không phải ở mức nối dây."""
+    một hành động, không phải ở mức nối dây.
+
+    `tab` = sơ đồ đang soát. Có nó thì bắt được hai loại lỗi mà MQL5 không bao giờ
+    bắt: đặt lệnh trong sơ đồ Manage, và hỏi "lệnh này" trong sơ đồ Entry."""
     for i, a in enumerate(actions or []):
         def e(m, _i=i):
             err(m, _i)
@@ -951,13 +969,21 @@ def validate_actions(actions, err):
               f"bằng loại khác.")
             continue
 
+        if tab and tab not in ACTION_TABS[t]:
+            cho = ", ".join(TAB_LABELS[x] for x in ACTION_TABS[t])
+            e(f'"{ACTION_LABELS[t]}" không dùng được ở sơ đồ {TAB_LABELS[tab]} — '
+              f"nó chỉ thuộc về {cho}. Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh.")
+            continue
+
         if t == CHECK_COND:
             ds = a.get("conditions") or []
             if not ds:
                 e("\"Kiểm tra điều kiện\" chưa có điều kiện nào — nó sẽ luôn khớp.")
             for k, c in enumerate(ds):
                 cho = f"Điều kiện {k + 1}"
-                _soat_toan_hang((c or {}).get("trai"), f"{cho} — vế trái", e)
+                _soat_toan_hang((c or {}).get("trai"), f"{cho} — vế trái", e, tab)
+                _soat_toan_hang((c or {}).get("phai"), f"{cho} — vế phải", e, tab) \
+                    if (c or {}).get("phai_loai") == "toan_hang" else None
                 # Toán hạng đúng/sai không có vế phải — nó tự nó đã là một mệnh đề.
                 if _la_toan_hang_dung_sai(((c or {}).get("trai") or {}).get("ten")):
                     continue
@@ -1003,9 +1029,8 @@ def validate_actions(actions, err):
             if cd not in SUA_CHE_DO:
                 e("\"Sửa lệnh\" chưa chọn chế độ.")
             else:
-                if cd in SUA_CAN_GIA or cd == "hoa_von":
-                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e,
-                                 bat_buoc=(cd in SUA_CAN_GIA))
+                if cd in SUA_CAN_GIA:
+                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e)
                 if cd in SUA_CAN_PHAN_TRAM:
                     try:
                         pt = float(a.get("phan_tram"))
@@ -1015,23 +1040,17 @@ def validate_actions(actions, err):
                     except (TypeError, ValueError):
                         e("Đóng một phần cần tỉ lệ là một con số.")
 
-        elif t == DAT_CO:
-            if not (a.get("ten_co") or "").strip():
-                e("\"Đặt cờ\" chưa có tên cờ.")
 
 
-def validate_process(doc):
-    """Soát cả tài liệu. Thông báo dùng NHÃN trên huy hiệu, không dùng index."""
-    steps = doc.get("steps") or []
-    edges = doc.get("edges")
+def validate_so_do(steps, edges, tab):
+    """Soát MỘT sơ đồ. Thông báo dùng NHÃN trên huy hiệu, không dùng index."""
     if edges is None:
         edges = default_edges(steps)
-    ra = list(validate_flow_graph(steps, edges))
+    ra = [dict(p, tab=tab) for p in validate_flow_graph(steps, edges)]
     nhan = flow_order(steps, edges)["order"]
-    _, ke = flow_map(steps, edges)
 
-    for st in steps:
-        if not isinstance(st, dict):
+    for st in steps or []:
+        if not isinstance(st, dict) or is_start_step(st):
             continue
         sid = st.get("id")
         n = nhan.get(sid)
@@ -1039,27 +1058,21 @@ def validate_process(doc):
 
         def err(m, i=None, _sid=sid, _dau=dau):
             ra.append({"severity": "error", "step": _sid, "index": i,
-                       "message": f"{_dau}{m}"})
+                       "tab": tab, "message": f"{_dau}{m}"})
 
-        if has_actions(st):
-            # Vòng theo dõi RỖNG mà có từ 2 nhánh trở ra là mẫu "chờ tới khi": mỗi nến
-            # mới thử lại các cổng phía sau, chưa cổng nào khớp thì chờ tiếp. Nó cố ý
-            # không làm gì cả — báo "sẽ không làm gì" ở đây là báo nhầm.
-            cho_doi = is_loop_step(st) and len(ke.get(sid) or []) >= 2
-            if not (st.get("actions") or []) and not cho_doi:
-                ra.append({"severity": "warning", "step": sid, "index": None,
-                           "message": f'{dau}"{step_title(st)}" chưa có hành động nào — '
-                                      f"chạy tới đây sẽ không làm gì cả."})
-            validate_actions(st.get("actions"), err)
-        elif st.get("kind") == KIND_ACTION:
-            validate_actions([st], lambda m, i=None: err(m))
+        validate_actions([st], lambda m, i=None: err(m), tab)
+    return ra
 
-        if is_loop_step(st):
-            try:
-                if int(st.get("max_nen", DEFAULT_MAX_NEN)) <= 0:
-                    err("Số nến tối đa phải lớn hơn 0.")
-            except (TypeError, ValueError):
-                err("Số nến tối đa phải là số nguyên.")
+
+def validate_process(doc):
+    """Soát CẢ HAI sơ đồ. Mỗi vấn đề mang thêm khoá `tab` để giao diện biết chỗ.
+
+    Cố ý soát cả hai chứ không chỉ tab đang mở: giấu lỗi của tab kia đi thì người dùng
+    bấm ▶ Chạy mới biết, và không hiểu vì sao."""
+    ra = []
+    for tab in TABS:
+        g = (doc or {}).get(tab) or {}
+        ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab)
     return ra
 
 
@@ -1166,46 +1179,20 @@ def normalize_action(a):
                 ra[k] = {"tinh": a[k]["tinh"], "value": a[k].get("value", 0)}
     elif t == SUA_LENH:
         ra["che_do"] = a.get("che_do") or "doi_sl"
-        if isinstance(a.get("khoang"), dict) and a["khoang"].get("tinh"):
+        if ra["che_do"] in SUA_CAN_GIA and isinstance(a.get("khoang"), dict) \
+                and a["khoang"].get("tinh"):
             ra["khoang"] = {"tinh": a["khoang"]["tinh"],
                             "value": a["khoang"].get("value", 0)}
         if ra["che_do"] in SUA_CAN_PHAN_TRAM:
             ra["phan_tram"] = a.get("phan_tram", 50)
-        if a.get("muc_tieu") in ("vi_the", "lenh_cho"):
-            ra["muc_tieu"] = a["muc_tieu"]
-    elif t == DAT_CO:
-        ra.update({"ten_co": (a.get("ten_co") or "").strip(),
-                   "gia_tri": bool(a.get("gia_tri", True))})
     return ra
 
 
 def normalize_step(s):
     if not isinstance(s, dict):
         return None
-    kind = s.get("kind")
-
-    if kind == KIND_START:
+    if s.get("kind") == KIND_START:
         return _giu_chung(s, {"kind": KIND_START})
-
-    if kind == KIND_LOOP:
-        acts = [x for x in (normalize_action(a) for a in s.get("actions") or []) if x]
-        try:
-            mn = max(1, int(s.get("max_nen", DEFAULT_MAX_NEN)))
-        except (TypeError, ValueError):
-            mn = DEFAULT_MAX_NEN
-        try:
-            ls = max(0, min(len(acts), int(s.get("loop_start_index", 0))))
-        except (TypeError, ValueError):
-            ls = 0
-        ra = {"kind": KIND_LOOP, "actions": acts, "loop_start_index": ls, "max_nen": mn}
-        if s.get("tf") in TIMEFRAMES:
-            ra["tf"] = s["tf"]
-        return _giu_chung(s, ra)
-
-    if kind == KIND_GROUP:
-        acts = [x for x in (normalize_action(a) for a in s.get("actions") or []) if x]
-        return _giu_chung(s, {"kind": KIND_GROUP, "actions": acts})
-
     a = normalize_action(s)
     if a is None:
         return None
@@ -1213,35 +1200,48 @@ def normalize_step(s):
     return _giu_chung(s, a)
 
 
-def normalize_process(doc):
-    steps = [x for x in (normalize_step(s) for s in (doc or {}).get("steps") or []) if x]
+def _chuan_so_do(g):
+    steps = [x for x in (normalize_step(s) for s in (g or {}).get("steps") or []) if x]
     ensure_step_ids(steps)
-    edges = (doc or {}).get("edges")
+    edges = (g or {}).get("edges")
     edges = default_edges(steps) if edges is None else clean_edges(edges, steps)
-    tf = (doc or {}).get("timeframe")
-    return {
-        "schema": 1,
+    return {"steps": steps, "edges": edges}
+
+
+def normalize_process(doc):
+    doc = doc or {}
+    # File schema 1 chỉ có MỘT sơ đồ ở gốc — nhận nó làm Entry. Rẻ, và mở lại được
+    # mọi thứ đã lưu trước khi tách hai tab.
+    if "steps" in doc and TAB_ENTRY not in doc:
+        doc = dict(doc, entry={"steps": doc.get("steps"), "edges": doc.get("edges")})
+    tf = doc.get("timeframe")
+    ra = {
+        "schema": 2,
         "type": "strategy",
-        "name": ((doc or {}).get("name") or "").strip() or "Chiến lược 1",
-        "symbol": ((doc or {}).get("symbol") or "").strip() or "XAUUSD",
+        "name": (doc.get("name") or "").strip() or "Chiến lược 1",
+        "symbol": (doc.get("symbol") or "").strip() or "XAUUSD",
         "timeframe": tf if tf in TIMEFRAMES else "M5",
-        "steps": steps,
-        "edges": edges,
     }
+    for tab in TABS:
+        ra[tab] = _chuan_so_do(doc.get(tab))
+    return ra
 
 
 def new_process():
-    """Sơ đồ mới — CÓ SẴN khối Bắt đầu.
+    """Chiến lược mới — HAI sơ đồ, mỗi cái có sẵn khối Bắt đầu.
 
     Không mở ra canvas trắng trơn: khối Bắt đầu là điểm neo đánh số, thiếu nó thì khối
     đầu tiên người dùng thả ra sẽ tự nhận số 1 rồi đổi số ngay khi họ thả khối thứ hai
     lên phía trên nó."""
-    bd = make_start_step()
-    bd["pos"] = [80.0, 300.0]
     s = load_settings()
-    return {"schema": 1, "type": "strategy", "name": "Chiến lược 1",
-            "symbol": s.get("symbol", "XAUUSD"), "timeframe": s.get("timeframe", "M5"),
-            "steps": [bd], "edges": []}
+    ra = {"schema": 2, "type": "strategy", "name": "Chiến lược 1",
+          "symbol": s.get("symbol", "XAUUSD"), "timeframe": s.get("timeframe", "M5")}
+    for tab, ten in ((TAB_ENTRY, "Mỗi nến — tìm tín hiệu vào lệnh"),
+                     (TAB_MANAGE, "Mỗi nến · với TỪNG lệnh đang sống")):
+        bd = make_start_step(ten)
+        bd["pos"] = [80.0, 300.0]
+        ra[tab] = {"steps": [bd], "edges": []}
+    return ra
 
 
 def clone_steps(steps):
@@ -1268,7 +1268,12 @@ def clone_steps(steps):
 # Template
 # ---------------------------------------------------------------------------
 
-TEMPLATE_KINDS = {"strategy": "Chiến lược", "loop": "Vòng theo dõi", "group": "Nhóm"}
+# CHỈ lưu được cả chiến lược, không lưu cụm khối rời.
+#
+# Từng có template riêng cho Vòng theo dõi và Nhóm. Bỏ: một template phải là thứ CHẠY
+# ĐƯỢC. Cụm khối rời thì chưa biết nó nối vào đâu, mở ra là một mớ khối lạc không có
+# đường vào — dán xong vẫn phải tự nối lại từ đầu.
+TEMPLATE_KINDS = {"strategy": "Chiến lược"}
 
 
 def _thu_muc_tpl(kind):

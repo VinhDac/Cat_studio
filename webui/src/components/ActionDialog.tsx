@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { py } from '../api'
-import type { Bootstrap, ToanHang } from '../types'
+import type { Bootstrap, Tab, ToanHang } from '../types'
 import Modal from './Modal'
 
 /** Hộp thoại sửa MỘT hành động.
@@ -15,19 +15,22 @@ type HD = Record<string, any>
 
 /* ---------- ô chọn TOÁN HẠNG (dùng cho cả vế trái lẫn vế phải) ---------- */
 
-function OToanHang({ o, boot, dat, hep }: {
-  o: HD; boot: Bootstrap; dat: (v: HD) => void; hep?: boolean
+function OToanHang({ o, boot, tab, dat, hep }: {
+  o: HD; boot: Bootstrap; tab: Tab; dat: (v: HD) => void; hep?: boolean
 }) {
-  /* Gom theo nhóm để dropdown 26 mục còn đọc được. `<optgroup>` giữ đúng thứ tự Python
-     gửi sang — nhóm nào trước là do `core.TOAN_HANG` quyết, không phải JS sắp lại. */
+  /* Gom theo nhóm để dropdown 30 mục còn đọc được. `<optgroup>` giữ đúng thứ tự Python
+     gửi sang — nhóm nào trước là do `core.TOAN_HANG` quyết, không phải JS sắp lại.
+     Nhóm "Lệnh này" chỉ hiện ở Manage: ở Entry chưa có lệnh nào để nói tới, nên bày ra
+     chỉ tổ mời người dùng chọn một thứ sẽ báo lỗi ngay sau đó. */
   const nhom = useMemo(() => {
     const m = new Map<string, ToanHang[]>()
     for (const t of boot.toan_hang) {
+      if (tab === 'entry' && t.nhom === boot.nhom_lenh_nay) continue
       if (!m.has(t.nhom)) m.set(t.nhom, [])
       m.get(t.nhom)!.push(t)
     }
     return [...m.entries()]
-  }, [boot.toan_hang])
+  }, [boot.toan_hang, boot.nhom_lenh_nay, tab])
 
   const dinh = boot.toan_hang.find(t => t.key === o?.ten)
   const ts = dinh?.tham_so ?? []
@@ -121,19 +124,18 @@ function OKhoang({ k, boot, dat, nhan, goiY }: {
 
 /* ---------- một dòng ĐIỀU KIỆN ---------- */
 
-function DongDieuKien({ c, boot, dat, xoa, so }: {
-  c: HD; boot: Bootstrap; dat: (v: HD) => void; xoa: () => void; so: number
+function DongDieuKien({ c, boot, tab, dat, xoa, so }: {
+  c: HD; boot: Bootstrap; tab: Tab; dat: (v: HD) => void; xoa: () => void; so: number
 }) {
   const dinh = boot.toan_hang.find(t => t.key === c?.trai?.ten)
-  // Toán hạng vốn đã đúng/sai thì không có vế phải — "Đang có vị thế bằng 1" là câu
-  // không ai đọc được. Python cũng hiểu đúng như vậy (`_la_toan_hang_dung_sai`).
-  const dungSai = ['co_vi_the', 'co_lenh_cho', 'lenh_da_khop', 'co', 'nen_moi']
-    .includes(c?.trai?.ten)
+  // Toán hạng vốn đã đúng/sai thì không có vế phải — "Lệnh này đã khớp = 1" là câu
+  // không ai đọc được. Danh sách do PYTHON gửi sang, JS không tự chép lại.
+  const dungSai = boot.toan_hang_dung_sai.includes(c?.trai?.ten)
 
   return (
     <div className="dong-dk">
       <span className="so-dk">{so}</span>
-      <OToanHang o={c.trai ?? {}} boot={boot} dat={v => dat({ ...c, trai: v })} />
+      <OToanHang o={c.trai ?? {}} boot={boot} tab={tab} dat={v => dat({ ...c, trai: v })} />
 
       {dungSai ? (
         <label className="tick" title="Đảo lại: điều kiện đúng khi việc này KHÔNG xảy ra">
@@ -160,7 +162,7 @@ function DongDieuKien({ c, boot, dat, xoa, so }: {
           </select>
 
           {c.phai_loai === 'toan_hang' ? (
-            <OToanHang o={c.phai ?? {}} boot={boot} hep
+            <OToanHang o={c.phai ?? {}} boot={boot} tab={tab} hep
                        dat={v => dat({ ...c, phai: v })} />
           ) : (
             <>
@@ -183,12 +185,15 @@ function DongDieuKien({ c, boot, dat, xoa, so }: {
 
 /* ---------------------------------- hộp thoại --------------------------------- */
 
-export default function ActionDialog({ action, boot, onLuu, onDong }: {
+export default function ActionDialog({ action, boot, tab, onLuu, onDong }: {
   action: HD
   boot: Bootstrap
+  tab: Tab
   onLuu: (a: HD) => void
   onDong: () => void
 }) {
+  /** Loại hành động dùng được ở tab này. Entry chỉ TẠO, Manage chỉ SỬA. */
+  const loaiChoPhep = boot.action_types.filter(t => boot.action_tabs[t]?.includes(tab))
   const [a, setA] = useState<HD>(() => JSON.parse(JSON.stringify(action)))
   const [xem, setXem] = useState('')
   const [loi, setLoi] = useState<string[]>([])
@@ -199,7 +204,7 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
      qua cầu nối. */
   useEffect(() => {
     const h = setTimeout(async () => {
-      const r = await py.save_action(a)
+      const r = await py.save_action(a, tab)
       if (r.ok) {
         setXem(r.value?.display ?? '')
         setLoi(((r as any).loi as string[]) ?? [])
@@ -208,7 +213,7 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
       }
     }, 200)
     return () => clearTimeout(h)
-  }, [a])
+  }, [a, tab])
 
   async function doiLoai(t: string) {
     // Lấy mặc định từ Python chứ không tự nặn ở JS: mấy con số mặc định
@@ -235,7 +240,7 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
       <label className="hang">
         <span className="nhan-o">Loại</span>
         <select className="o" value={a.type} onChange={e => doiLoai(e.target.value)}>
-          {boot.action_types.map(t =>
+          {loaiChoPhep.map(t =>
             <option key={t} value={t}>{boot.action_labels[t]}</option>)}
         </select>
         <span className="nhan-o phu">Tên</span>
@@ -252,7 +257,7 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
             "hoặc" giấu trong hộp thoại thì không.
           </div>
           {conds.map((c, i) => (
-            <DongDieuKien key={i} c={c} boot={boot} so={i + 1}
+            <DongDieuKien key={i} c={c} boot={boot} tab={tab} so={i + 1}
                           dat={v => dat('conditions',
                             conds.map((x, k) => (k === i ? v : x)))}
                           xoa={() => dat('conditions', conds.filter((_, k) => k !== i))} />
@@ -315,20 +320,19 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
               {Object.entries(boot.sua_che_do).map(([k, v]) =>
                 <option key={k} value={k}>{v}</option>)}
             </select>
-            <span className="nhan-o phu">Tác động lên</span>
-            <select className="o" value={a.muc_tieu ?? 'vi_the'}
-                    onChange={e => dat('muc_tieu', e.target.value)}>
-              <option value="vi_the">Vị thế đang mở</option>
-              <option value="lenh_cho">Lệnh chờ</option>
-            </select>
           </label>
 
-          {(boot.sua_can_gia.includes(a.che_do) || a.che_do === 'hoa_von') && (
-            <OKhoang nhan={a.che_do === 'hoa_von' ? 'Kích hoạt khi lãi' : 'Khoảng cách mới'}
-                     k={a.khoang} boot={boot} dat={v => dat('khoang', v)}
-                     goiY={a.che_do === 'hoa_von'
-                       ? 'lãi đủ chừng này thì dời SL về đúng giá vào'
-                       : undefined} />
+          {boot.sua_can_gia.includes(a.che_do) && (
+            <OKhoang nhan="Khoảng cách mới" k={a.khoang} boot={boot}
+                     dat={v => dat('khoang', v)} />
+          )}
+
+          {a.che_do === 'hoa_von' && (
+            <div className="chu-dan">
+              Không có tham số: chế độ này chỉ đặt <b>SL = giá vào</b>. Mốc kích hoạt
+              (lãi đủ mấy R) và câu hỏi <b>"đã dời chưa"</b> thuộc về <b>cổng phía
+              trước</b> — chỗ nhìn thấy được. D_02 giấu cả ba trong <code>ManageBreakEven</code>.
+            </div>
           )}
 
           {boot.sua_can_phan_tram.includes(a.che_do) && (
@@ -339,26 +343,6 @@ export default function ActionDialog({ action, boot, onLuu, onDong }: {
               <span className="goi-y">% khối lượng — muốn đóng hết thì chọn "Đóng hẳn"</span>
             </label>
           )}
-        </div>
-      )}
-
-      {/* ------------------------------ Đặt cờ ---------------------------------- */}
-      {a.type === 'dat_co' && (
-        <div className="khoi-form">
-          <label className="hang">
-            <span className="nhan-o">Tên cờ</span>
-            <input className="o" value={a.ten_co ?? ''}
-                   onChange={e => dat('ten_co', e.target.value)} />
-            <label className="tick">
-              <input type="checkbox" checked={!!a.gia_tri}
-                     onChange={e => dat('gia_tri', e.target.checked)} />
-              bật
-            </label>
-          </label>
-          <div className="chu-dan">
-            Đọc lại cờ này bằng toán hạng <b>Cờ</b> trong "Kiểm tra điều kiện" — đó là
-            cách chốt "tín hiệu này dùng rồi, khỏi dùng lại".
-          </div>
         </div>
       )}
 

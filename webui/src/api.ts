@@ -4,7 +4,7 @@
  * sau này đổi cách vận chuyển (hoặc giả lập khi test) chỉ phải sửa một file.
  */
 import type {
-  Bootstrap, Card, KetQuaSoat, ProcEdge, ProcessDoc, Reply, Step,
+  Bootstrap, Card, KetQuaSoat, ProcessDoc, Reply, Step, Tab,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -60,21 +60,14 @@ export const py = {
   new_process: () => goi<ProcessDoc>('new_process'),
   demo_process: () => goi<ProcessDoc>('demo_process'),
   load_process: (ten: string) => goi<ProcessDoc>('load_process', ten),
-  save_process: (ten: string, steps: Step[], edges: ProcEdge[],
-                 symbol: string, tf: string) =>
-    goi<{ path: string; name: string }>('save_process', ten, steps, edges, symbol, tf),
+  save_process: (doc: ProcessDoc) =>
+    goi<{ path: string; name: string }>('save_process', doc),
   open_process_file: () => goi<ProcessDoc>('open_process_file'),
-  save_process_file: (ten: string, steps: Step[], edges: ProcEdge[],
-                      symbol: string, tf: string) =>
-    goi<{ path: string }>('save_process_file', ten, steps, edges, symbol, tf),
+  save_process_file: (doc: ProcessDoc) => goi<{ path: string }>('save_process_file', doc),
 
   // --- template ---
-  list_templates: (kind = 'strategy') => goi<string[]>('list_templates', kind),
-  delete_template: (kind: string, ten: string) => goi<boolean>('delete_template', kind, ten),
-  save_step_template: (kind: string, ten: string, step: Step) =>
-    goi<{ name: string }>('save_step_template', kind, ten, step),
-  insert_step_template: (kind: string, ten: string) =>
-    goi<{ step: Step; card: Card }>('insert_step_template', kind, ten),
+  list_templates: () => goi<string[]>('list_templates', 'strategy'),
+  delete_template: (ten: string) => goi<boolean>('delete_template', 'strategy', ten),
 
   // --- khối ---
   new_step: (kind: string, actionType?: string) =>
@@ -83,13 +76,12 @@ export const py = {
     goi<{ steps: Step[]; map: Record<string, string>; cards: Card[] }>('clone_steps', steps),
   describe: (steps: Step[]) => goi<Card[]>('describe', steps),
 
-  /** Nguồn của HUY HIỆU SỐ và của bảng Vấn đề — cả hai từ đúng một lời gọi. */
-  validate: (steps: Step[], edges: ProcEdge[]) =>
-    goi<never>('validate', steps, edges) as Promise<KetQuaSoat>,
+  /** Nguồn của HUY HIỆU SỐ và của bảng Vấn đề — CẢ HAI sơ đồ, một lời gọi. */
+  validate: (doc: ProcessDoc) => goi<never>('validate', doc) as Promise<KetQuaSoat>,
 
   // --- hộp thoại hành động ---
-  save_action: (draft: Record<string, unknown>) =>
-    goi<{ action: Record<string, unknown>; display: string }>('save_action', draft),
+  save_action: (draft: Record<string, unknown>, tab: Tab) =>
+    goi<{ action: Record<string, unknown>; display: string }>('save_action', draft, tab),
   describe_actions: (actions: unknown[]) =>
     goi<{ text: string; type?: string | null }[]>('describe_actions', actions),
   action_defaults: (t: string) => goi<Record<string, unknown>>('action_defaults', t),
@@ -101,8 +93,7 @@ export const py = {
     goi<Record<string, unknown>>('save_ui', state),
 
   // --- ▶ Chạy → cửa sổ Strategy Tester ---
-  mo_tester: (ten: string, steps: Step[], edges: ProcEdge[], symbol: string, tf: string) =>
-    goi<{ da_mo: boolean }>('mo_tester', ten, steps, edges, symbol, tf),
+  mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),
   tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
 
   // --- cửa sổ (thanh tiêu đề tự vẽ) ---

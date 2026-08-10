@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 xong, app chạy được** · test 61/61
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 xong, app chạy được** · test 101/101
 
 ---
 
@@ -213,10 +213,13 @@ mà số cũ vẫn hợp lệ."*
 2. Cạnh quay lại **không cần cổng** và được miễn luật "nhánh mặc định phải xếp cuối" —
    nghĩa của nó vốn đã là *"không nhánh nào khớp thì quay về trên"*. Bắt nó viết điều
    kiện phủ định của tất cả các nhánh trên là thừa và dễ sai.
-3. **Vòng theo dõi** được miễn cảnh báo *"nhánh nào cũng có điều kiện"*: không cổng nào
-   khớp thì nó chờ nến sau — đó chính là việc của một vòng theo dõi, không phải lỗi.
-   Cùng lý do, một Vòng theo dõi **rỗng** mà có ≥2 nhánh là mẫu *"chờ tới khi"* hợp lệ,
-   không báo "chưa có hành động nào".
+3. **Không còn cảnh báo "nhánh nào cũng có điều kiện".** Đã bỏ hẳn: cả sơ đồ là một
+   vòng lặp chạy lại mỗi nến (§6.1), nên không khớp nhánh nào = **hết lượt**, nến sau
+   chạy lại từ đầu. Đó là cách "chờ" được diễn tả, và là trường hợp thường gặp nhất.
+
+> **Ghi chú:** sơ đồ mẫu Compress **không dùng ghim số một lần nào** — đúng như nó
+> phải vậy sau khi biết cả sơ đồ đã là vòng lặp. Ghim số để dành cho những chiến lược
+> thật sự cần quay ngược *trong cùng một lượt*.
 
 ### 4.2 Khối BẮT ĐẦU (`kind: "start"`)
 
@@ -253,36 +256,108 @@ Ví dụ đúng ý người dùng — 5 nhánh điều kiện entry từ khối 
 Một khối có **nhiều đường ra** thì phải quyết định được đi đường nào:
 
 1. Các nhánh được **thử lần lượt từ TRÊN xuống DƯỚI** (theo vị trí canvas).
-2. Mỗi nhánh phải mở đầu bằng một **CỔNG** = khối *HĐ lẻ* mang đúng **một** hành động `check_cond`.
+2. Mỗi nhánh phải mở đầu bằng một **CỔNG** = khối mang hành động `check_cond`.
 3. Nhiều nhất **MỘT** nhánh được để trống làm **nhánh mặc định** — và nó **bắt buộc xếp cuối cùng**
    (nhánh mặc định luôn khớp, xếp trên thì các nhánh dưới không bao giờ chạy tới).
 4. Hai cổng cùng điều kiện y hệt → cảnh báo (cái dưới không bao giờ tới lượt).
 
-**Vì sao chỉ HĐ lẻ được làm cổng:** ở điểm rẽ các nhánh thử lần lượt, nên nhánh trượt phải **lùi lại được**.
+**Vì sao cổng phải là `check_cond`:** ở điểm rẽ các nhánh thử lần lượt, nên nhánh trượt phải **lùi lại được**.
 Một khối `check_cond` chỉ **đọc** dữ liệu thị trường nên lùi bao nhiêu lần cũng vô hại.
-Một *Nhóm* thì không hứa được điều đó — nó có thể **đã đặt lệnh** rồi mới kiểm tra, và lệnh đó không rút lại được.
+`Vào lệnh` hay `Sửa lệnh` thì không: chúng đã tác động ra thị trường, không rút lại được.
 
 **Ngữ nghĩa ngược nhau — nhớ kỹ:**
 
 | | Khớp | Không khớp |
 |---|---|---|
 | `check_cond` làm **cổng** | đi tiếp nhánh này | **chết nhánh** này, thử nhánh dưới |
-| Khối **mục tiêu** (goal) | **kết thúc sớm** cả vòng | chạy tiếp |
+
+Không nhánh nào khớp thì **hết lượt** — nến sau chạy lại từ khối Bắt đầu. Đó là cách
+"chờ" được diễn tả, và là trường hợp thường gặp nhất, KHÔNG phải lỗi.
 
 ---
 
 ## 6. Bộ khối & hành động của Cat_Studio
 
-### 6.1 Ba LOẠI KHỐI (`kind`) — ánh xạ 1-1 từ Auto_Clicker
+### 6.0 ⭐⭐ MỘT CHIẾN LƯỢC = HAI SƠ ĐỒ
 
-| Auto_Clicker | Cat_Studio | Nghĩa |
+```
+   ┌── Tab ENTRY ────────────────────┐     ┌── Tab MANAGE ───────────────────┐
+   │  con trỏ ĐI SĂN                 │     │  chạy MỘT LƯỢT CHO MỖI LỆNH     │
+   │  một lượt mỗi nến               │     │  đang sống, cũng mỗi nến        │
+   │  chỉ nó được TẠO lệnh           │     │  chỉ nó được SỬA lệnh           │
+   └─────────────────────────────────┘     └─────────────────────────────────┘
+```
+
+**Thứ tự trong một nến:**
+
+```
+0.  runtime cập nhật vùng nén · xu hướng · chỉ báo      ← không phải khối
+1.  với MỖI lệnh đang sống → chạy MANAGE từ khối 1
+2.  chạy ENTRY từ khối 1                                ← có thể sinh một lệnh mới
+```
+
+**Manage TRƯỚC Entry** — đúng `OnTick`: `CheckPendingActivation` → `ManageBreakEven` →
+rồi mới tới phần quyết định. Chạy ngược lại thì lệnh vừa sinh bị quản lý ngay trong
+chính nến đẻ ra nó.
+
+**Manage KHÔNG giữ con trỏ giữa các nến.** Nó tính lại từ trạng thái quan sát được, y
+như D_02 làm mỗi tick. Nhờ vậy mấy câu guard kiểu `if(sl >= entry) continue` **hiện ra
+thành cổng** trên sơ đồ thay vì chôn trong C++.
+
+**Ranh giới khoá được — đây là món quà của việc tách tab:**
+
+| | Entry | Manage |
 |---|---|---|
-| `loop` — Action_Loop | `loop` — **Vòng theo dõi** | Lặp lại theo **mỗi nến mới**, tối đa N nến, kết thúc sớm khi khối mục tiêu khớp. Đây là chỗ mô hình hoá "chờ nén đủ K nến". |
-| `group` — Nhóm HĐ 1 lần | `group` — **Nhóm 1 lần** | Vài hành động chạy đúng một lượt |
-| `action` — HĐ lẻ | `action` — **HĐ lẻ** | Đúng một hành động. **Chỉ loại này được làm cổng.** |
-| — | `start` — **Bắt đầu** 🆕 | Điểm neo đánh số (§4.2) |
+| Kiểm tra ĐK | ✔ | ✔ |
+| **Vào lệnh** | ✔ | ✘ |
+| **Sửa lệnh** | ✘ | ✔ |
+| Toán hạng nhóm **"Lệnh này"** | ✘ **báo lỗi** | ✔ |
 
-### 6.2 BA HÀNH ĐỘNG — đọc · tạo · sửa
+> **Entry chỉ TẠO. Manage chỉ SỬA.** Một câu, và `validate_actions(…, tab)` soát tĩnh
+> được — chỉ thẳng vào khối sai. Đây là loại lỗi MQL5 không bao giờ bắt.
+
+Ribbon **ẩn hẳn** nút không thuộc tab (không làm mờ): làm mờ thì người dùng vẫn phải
+đoán vì sao.
+
+Pill `Entry | Manage` là một **chip nổi ở góc trên-trái CANVAS**, không chiếm dải
+ngang riêng. Nó trả lời câu "đang vẽ sơ đồ NÀO", nên nằm ngay trên chính cái đang vẽ
+là đúng chỗ — và lấy lại được ~34px chiều cao. Có **chấm đỏ khi tab kia đang lỗi**, để
+lỗi không trốn được sau lưng.
+
+### 6.1 ⭐ MỖI SƠ ĐỒ LÀ MỘT VÒNG LẶP
+
+> Sơ đồ chạy lại **từ khối Bắt đầu ở MỖI NẾN MỚI** — đúng như `OnTick` của MQL5 chạy
+> lại từ đầu mỗi tick. D_02 không có gì chạy nền cả.
+
+Hệ quả, và nó gỡ được rất nhiều thứ:
+
+- **"Chờ tới khi" KHÔNG phải vẽ.** Không cổng nào khớp → hết lượt → nến sau tự chạy
+  lại. Bản vẽ tay đầu tiên của sơ đồ mẫu có **5 vòng tự-lặp + 3 mũi tên "quay lại 1"**;
+  cả 8 cạnh đó biến mất.
+- **Không cần loại khối "Vòng theo dõi".** Nó chỉ là cái vòng lặp lớn vẽ lại lần nữa
+  ở bên trong.
+- **Trạng thái không cần khối.** `IDLE / COUNTING / CONFIRMED / PENDING / CONSUMED` của
+  `FilterEngine` tồn tại vì MQL5 **không có đồ thị** — mỗi tick nó chạy lại từ đầu nên
+  phải tự nhớ đang ở đâu. Ta có đồ thị, và trạng thái vùng nén là **dữ liệu đọc được**
+  qua toán hạng (`số_nến_nén`, `đỉnh_vùng`, …), không phải khối.
+
+### 6.2 HAI LOẠI KHỐI — hết
+
+| kind | Nghĩa |
+|---|---|
+| `start` — **Bắt đầu** | Điểm neo: mỗi nến chạy lại từ đây. Đúng một cái, không xoá được, không nhận đường vào (§4.2). |
+| `action` — **Khối** | Đúng một hành động. Mang `check_cond` thì nó là **cổng rẽ nhánh**. |
+
+**Đã bỏ `Vòng theo dõi` và `Nhóm 1 lần`:**
+
+- *Vòng theo dõi* — thừa, xem §6.1.
+- *Nhóm* — cấu trúc của một chiến lược đến từ **tách trách nhiệm**, không từ lồng hộp.
+  Gộp nhóm chỉ đẻ thêm câu hỏi "nhóm có phải một đơn vị chạy không".
+- Kéo theo: **bỏ template cụm khối rời**. Một template phải là thứ **chạy được** —
+  cụm khối rời mở ra là một mớ khối lạc không có đường vào, dán xong vẫn phải nối lại
+  từ đầu. `TEMPLATE_KINDS` chỉ còn `strategy`.
+
+### 6.3 BA HÀNH ĐỘNG — đọc · tạo · sửa
 
 > **Chốt sau khi bàn lại.** Ban đầu định 8 hành động (3 hiện, 5 ẩn). Khi làm rõ rằng
 > SL/TP là thao tác **sửa lệnh đã có** chứ không phải hành động riêng, cả 5 cái định
@@ -300,34 +375,58 @@ Một *Nhóm* thì không hứa được điều đó — nó có thể **đã �
 |---|---|
 | `cầu dao` (chặn rủi ro) | toán hạng `số_lệnh_mở`, `drawdown_%`, `giờ` trong **Kiểm tra điều kiện** |
 | `cổng` | chính là **Kiểm tra điều kiện** đứng đầu một nhánh |
-| `kích hoạt` (chờ khớp) | **loại khối** `Vòng theo dõi` — lặp mỗi nến tới khi thoả hoặc hết N nến |
+| `kích hoạt` (chờ khớp) | không cần gì cả — cả sơ đồ chạy lại mỗi nến (§6.1), nên "chờ" là hết lượt |
 | `vào` | **Vào lệnh** |
 | `thoát` | chế độ `đóng hẳn` / `huỷ lệnh chờ` của **Sửa lệnh** |
 
-**Để dành (ẩn):** `dat_co` — **Đặt cờ**. Bật/tắt một cờ có tên, đọc lại bằng toán hạng
-`Cờ`. Đây là cơ chế tổng quát để chốt "tín hiệu này dùng rồi, khỏi dùng lại"
-(= `COMP_CONSUMED` của EA). Lõi hiểu đủ, chỉ bị lọc khỏi bảng chọn bằng
-`core.HANH_DONG_AN` — mở lại là bỏ **một chuỗi** khỏi tập đó.
+*(Từng có `dat_co` — Đặt cờ — để dành làm bộ nhớ. Bỏ: D_02 không cần, và giữ một cơ
+chế không ai dùng chỉ tổ rác. Cần thì thêm lại lúc có ca dùng thật.)*
 
-**Toán hạng của `check_cond`** — 30 cái, 6 nhóm, đủ tái lập Compress EA 100%:
+**Toán hạng của `check_cond`** — 32 cái, 6 nhóm, đủ tái lập Compress EA 100%:
 
 | Nhóm | Toán hạng |
 |---|---|
 | Giá | `Close[n]`, `Open[n]`, `High[n]`, `Low[n]`, `Bid`, `Ask`, `Spread` |
 | Chỉ báo | `ATR(tf, period)`, `MA(tf, period, method)`, `Donchian(tf, period).upper/lower`, `Volume_MA(tf, period)` |
 | Chuẩn hoá | `ATR_bps = ATR/Close × 10000`, `X theo bội ATR`, `X theo R` |
-| Trạng thái vùng | `số_nến_nén`, `đỉnh_vùng`, `đáy_vùng`, `bề_rộng_vùng`, `bề_rộng_vùng/ATR`, `ATR_trung_bình_vùng` |
-| Trạng thái | `đang_có_vị_thế`, `đang_có_lệnh_chờ`, `lệnh_chờ_vừa_khớp`, `cờ(tên)` |
-| Tài khoản | `số_lệnh_đang_mở`, `lãi_lỗ_hiện_tại_theo_R`, `drawdown_%`, `số_lệnh_hôm_nay` |
-| Thời gian | `giờ`, `thứ`, `nến_mới(tf)` |
-| Phép so | `<` `<=` `>` `>=` `==` `!=` · `cắt lên` · `cắt xuống` · `trong khoảng` |
+| Vùng nén | `số_nến_nén`, `đỉnh_vùng`, `đáy_vùng`, `bề_rộng_vùng÷ATR`, `ATR_TB_vùng`, **`vùng_này_đã_sinh_lệnh`** |
+| Tài khoản | `số_vị_thế`, `số_lệnh_chờ`, `số_lệnh_hôm_nay`, `drawdown_%` |
+| **Lệnh này** *(chỉ Manage)* | `đã_khớp`, `là_lệnh_Mua`, `SL_đã_ở_hoà_vốn`, `lãi (×R)`, `số_nến_đã_sống`, `giá_vào` |
+| Thời gian | `giờ`, `thứ` |
+
+**Phép so dùng KÝ HIỆU, không dùng chữ:**
+`<` `≤` `>` `≥` `=` `≠` · `cắt lên ↗` · `cắt xuống ↘` · `trong khoảng`.
+Một cổng của Compress mang 4–5 điều kiện; viết *"lớn hơn hoặc bằng"* thì mỗi dòng dài
+gấp đôi và mắt phải **đọc chữ** thay vì **liếc thấy quan hệ**.
+
+**`vùng_này_đã_sinh_lệnh` thay cho `COMP_CONSUMED`** — và nó KHÔNG phải cờ ẩn: lệnh
+mang `vùng_id`, nên câu hỏi chỉ là một phép tra bảng *"có lệnh nào trỏ về vùng hiện
+hành không"*.
 
 Toán hạng vốn đã **đúng/sai** (`đang_có_vị_thế`, `cờ`…) không có vế phải — hộp thoại
 đổi sang một ô tick **KHÔNG**. *"Đang có vị thế bằng 1"* là câu không ai đọc được.
 
 **Mọi khoảng cách giá** (SL, TP, đệm vào lệnh, mốc hoà vốn) dùng chung một kiểu
-`{tinh, value}` với `tinh` ∈ `theo_ATR · theo_R · theo_biên_vùng · theo_% · theo_giá`.
-**Không có đơn vị pip hay đô** — đúng hợp đồng chuẩn hoá của Compress EA (§7.1).
+`{tinh, value}`. **Không có đơn vị pip hay đô** — đúng hợp đồng chuẩn hoá của
+Compress EA (§7.1):
+
+| `tinh` | Nghĩa |
+|---|---|
+| `theo_ATR` | × **ATR hiện tại** |
+| `theo_ATR_vung` | × **ATR trung bình của vùng nén** |
+| `theo_R` | × R (rủi ro) |
+| `theo_bien_vung` | mép vùng đối diện |
+| `theo_pt` / `theo_gia` | % giá vào / giá tuyệt đối |
+
+> ⚠ **`theo_ATR` và `theo_ATR_vung` là HAI THỨ KHÁC NHAU, tách ra là có chủ ý.**
+> Đệm vào lệnh đo bằng ATR *hiện tại* — tấm khiên mỏng ngoài mép vùng, đủ lọc một nhịp
+> phá giả. Rủi ro đo bằng ATR *trung bình cả cú nén* — lấy mức nhiễu thật suốt đợt nén,
+> nên mỗi lệnh rủi ro một R tương đương bất kể vùng rộng hẹp. Gộp làm một là mất đúng
+> cái làm cho 1R nhất quán giữa các tín hiệu.
+
+**Neo lệnh chờ:** lệnh Stop **luôn** neo vào mép vùng nén thuận chiều (đỉnh cho Mua,
+đáy cho Bán) — đó là chỗ duy nhất Compress EA đặt lệnh. Nên **không có tham số "neo
+vào đâu"**; `dem` chỉ là khoảng đẩy ra ngoài mép đó.
 
 ---
 
@@ -463,7 +562,8 @@ Cat_Studio thêm: `--start: #4ec96a` (khối Bắt đầu) · `--ghim: #d9a441` 
 
 | Nhóm | Auto_Clicker | → Cat_Studio |
 |---|---|---|
-| **Thêm khối** | Loop · Nhóm · HĐ lẻ · Rẽ nhánh · Delay | **Kiểm tra ĐK** · **Vào lệnh** · **Sửa lệnh** · Vòng theo dõi · Nhóm |
+| **Thêm khối** | Loop · Nhóm · HĐ lẻ · Rẽ nhánh · Delay | **Kiểm tra ĐK** + (**Vào lệnh** ở Entry / **Sửa lệnh** ở Manage) |
+| **Template** | Lưu ▾ (Process/Loop/Nhóm) · Mở ▾ | Lưu ▾ · Mở ▾ — **chỉ cả chiến lược**, không lưu cụm khối rời |
 | **Sửa** | Sửa · Nhân bản · Xoá | *(y hệt)* |
 | **Luồng** | Đặt số ① · Xem điểm | Đặt số ① · **Ghim số ⟲** · Vừa khung |
 | **Hoàn tác** | Hoàn tác · Làm lại | *(y hệt)* |
@@ -478,7 +578,7 @@ Hỗ trợ sẵn: menu con (`con`), vạch ngăn (`ngan`), mục mờ **kèm lý
 
 | Bấm phải vào | Mục |
 |---|---|
-| **Nền** | Dán · ─ · Thêm Kiểm tra ĐK / Vào lệnh / Sửa lệnh · ─ · Thêm Vòng theo dõi / Nhóm |
+| **Nền** | Dán · ─ · Thêm Kiểm tra ĐK + (Vào lệnh **hoặc** Sửa lệnh, theo tab) |
 | **Khối** | Sửa · Đổi tên… · ─ · **Ghim số ⟲** 🆕 · Nối tới ▸ · Ngắt hết kết nối · ─ · Chép · Dán · Nhân bản · ─ · Xoá |
 | **Dây** | Xoá kết nối |
 
@@ -514,12 +614,19 @@ và `Ctrl+Z` thành vô dụng.
 
 ```jsonc
 {
-  "schema": 1,
+  "schema": 2,
   "type": "strategy",
   "name": "Compress",
-  "symbol": "XAUUSD",          // 🆕
-  "timeframe": "M5",           // 🆕
-  "steps": [
+  "symbol": "XAUUSD",
+  "timeframe": "M5",
+
+  // HAI sơ đồ. File schema 1 (một `steps` ở gốc) mở ra vẫn được — nhận làm `entry`.
+  "entry":  { "steps": [ … ], "edges": [ … ] },
+  "manage": { "steps": [ … ], "edges": [ … ] }
+}
+
+// một khối trông thế này:
+{
     { "kind": "start",  "id": "s…", "pos": [80, 300] },                       // 🆕
     { "kind": "action", "id": "s…", "type": "check_cond", "pos": [400, 120],
       "ghim": true,                                                           // 🆕
@@ -530,12 +637,10 @@ và `Ctrl+Z` thành vô dụng.
     { "kind": "action", "id": "s…", "type": "vao_lenh", "huong": "mua",
       "loai": "stop", "lot": 0.01,
       "dem": { "tinh": "theo_ATR", "value": 0.1 },
-      "sl":  { "tinh": "theo_ATR", "value": 1.5 },
+      "sl":  { "tinh": "theo_ATR_vung", "value": 1.5 },
       "tp":  { "tinh": "theo_R",   "value": 2 } },
     { "kind": "action", "id": "s…", "type": "sua_lenh", "che_do": "hoa_von",
       "muc_tieu": "vi_the", "khoang": { "tinh": "theo_R", "value": 1 } },
-    { "kind": "loop",   "id": "s…", "name": "Chờ khớp", "actions": [],
-      "loop_start_index": 0, "max_nen": 200, "tf": "M5" }
   ],
   "edges": [
     { "from": "s…", "to": "s…", "port": "out", "from_side": "right", "to_side": "left" }
@@ -570,31 +675,55 @@ và `Ctrl+Z` thành vô dụng.
 | **P0 · Khung** | Fork Auto_Clicker → Cat_studio, gỡ sạch phần game/OCR/overlay. Đổi logo + tiêu đề. | ✅ `python app_web.py` mở cửa sổ Cat Studio |
 | **P1 · Đồ thị** | `core.py`: khối/cạnh, `flow_map`, `flow_order`, `diem_gop`, soát lỗi — kèm sửa Bẫy 1, 3, 4 | ✅ 41/41 test |
 | **P2 · Số 🆕** | Khối `start` + cờ `ghim` + cạnh quay lại + huy hiệu ⟲ + menu chuột phải + `Ctrl+G` | ✅ vẽ vòng lặp không còn cảnh báo sai |
-| **P3 · Hành động** | 3 hành động + `dat_co` ẩn. 30 toán hạng, 9 phép so, 7 chế độ Sửa lệnh. `ActionDialog`. | ✅ |
-| **P4 · Canvas** | React Flow, ribbon, undo 60 bước, template, chép/dán, phím tắt | ✅ |
+| **P3 · Hành động** | 3 hành động. 32 toán hạng / 6 nhóm, 9 phép so (ký hiệu), 7 chế độ Sửa lệnh. | ✅ |
+| **P4 · Canvas** | React Flow, ribbon, **pill Entry/Manage**, undo 60 bước (gom cả hai tab), template, chép/dán, phím tắt | ✅ |
 | **P5 · Tester** | Cửa sổ Strategy Tester — **mới có bộ khung**: `api.mo_tester` chặn lỗi rồi mở cửa sổ thứ hai, `api.tester_doc` để cửa sổ đó hỏi sơ đồ | 🔨 khung xong, nội dung **bàn sau** |
-| **P6 · Mẫu** | Sơ đồ mẫu Compress EA, khớp §7 | ✅ 12 khối, 15 cạnh, 3 vòng đã ghim, **soát sạch** |
+| **P6 · Mẫu** | Sơ đồ mẫu Compress EA, khớp §7 | ✅ **Entry 7 khối · Manage 5 khối · KHÔNG một mũi tên ngược**, soát sạch |
 | **P7 · MT5** | Nối `MetaTrader5`, kéo nến, tính chỉ báo, backtest thật | ⬜ *(sau)* |
 
 ### Sơ đồ mẫu ra đúng thế này
 
+**Tab ENTRY** — 7 khối
 ```
-[1] Bắt đầu
-[2] Nến này có nén không?          ⟲ đã ghim          ←────────┐
-[3] Đủ K nến & vùng vừa khổ?  ─┬─ [3A]  Xu hướng LÊN  → [3A.1] Buy Stop
-                               ├─ [3B]  Xu hướng XUỐNG → [3B.1] Sell Stop
-                               └─ ⟲ không hướng nào hợp ───────┤
-[4] Chờ khớp / chờ vùng tan   ─┬─ [4A]  Lệnh đã khớp?  → [4A.1] Hoà vốn ─┤
-                               └─ [4B]  Vùng đã tan?   → [4B.1] Huỷ chờ ─┘
+[1] Mỗi nến M5 — tìm tín hiệu
+[2] Vùng nén đã xác nhận?
+        atr_bps < 7 · số nến nén ≥ 10 · rộng vùng ÷ ATR ≤ 4 · KHÔNG vùng này đã sinh lệnh
+[3] Còn chỗ cho lệnh mới?
+        số lệnh chờ = 0 · số vị thế < 3
+      ├─[3A] Xu hướng LÊN?   (close M15 nến[1] > MA M15 50) → [3A.1] Buy Stop trên đỉnh vùng
+      └─[3B] Xu hướng XUỐNG? (close M15 nến[1] < MA M15 50) → [3B.1] Sell Stop dưới đáy vùng
 ```
+
+**Tab MANAGE** — 5 khối, chạy một lượt cho MỖI lệnh đang sống
+```
+[1] Mỗi nến M5 — với TỪNG lệnh đang sống
+      ├─[1A] Chưa khớp mà nén đã tan?          → [1A.1] Huỷ lệnh chờ
+      │         KHÔNG lệnh này đã khớp · atr_bps ≥ 7
+      └─[1B] Đã khớp, đủ 1R, SL chưa hoà vốn?  → [1B.1] Dời SL về giá vào
+                lệnh này đã khớp · KHÔNG SL đã ở hoà vốn · lãi (×R) ≥ 1
+```
+
+Bốn chỗ dễ làm sai, ghi lại để khỏi trượt về:
+
+1. **`ManageBreakEven` = MỘT cổng + MỘT hành động, không tách "ĐK đạt 1R" thành khối
+   riêng trên đường chính.** Tách ra là sai hành vi: chưa đủ 1R sẽ chặn luôn phần sau.
+   Ba dòng guard của bản gốc (`entry>0 && tp>0`, `sl >= entry`, `bid < trigger`) gói
+   đúng vào cổng `[1B]`.
+2. **Vế "SL chưa ở hoà vốn" KHÔNG được thiếu.** Manage chạy lại mỗi nến, thiếu nó thì
+   lệnh sửa SL bắn lại hoài.
+3. **`COMP_CONSUMED` không cần khối** — `KHÔNG vùng này đã sinh lệnh` là một phép tra
+   bảng trên `vùng_id` của các lệnh.
+4. **`< Max_Positions` chứ không phải `≤`** — bản gốc `if(pos_count >= max) skip`.
+   Bằng nhau là đã đầy.
 
 ---
 
 ## 12. Việc còn treo
 
 - [ ] **Strategy Tester hiển thị gì** — bảng lệnh, đường equity, log từng bước, hay biểu đồ nến? *(bàn sau)*
-- [ ] Bộ chạy: duyệt đồ thị theo nến, đánh giá `check_cond`, ghi log kèm nhãn `[3A.1]` — chưa viết.
+- [ ] **Bảng `lệnh` và `vùng nén` trong bộ chạy** — mỗi thứ một `id` do TA tự cấp, `ticket` của MT5 chỉ là cột phụ để bridge sang live. Backtest không có ticket.
+- [ ] Bộ chạy: mỗi nến → cập nhật vùng nén → Manage cho từng lệnh → Entry. Ghi log kèm nhãn `[3A.1]`.
+- [ ] **Chồng lệnh** — D_02: nhiều VỊ THẾ (`Max_Positions`) nhưng đúng MỘT lệnh chờ. Giữa hai lần vào lệnh bắt buộc có một đợt ATR bung ra (`CONSUMED` chỉ thoát bằng `atr_bps ≥ N`).
 - [ ] Nối MT5: `copy_rates_from_pos`, `iATR`/`iMA` tính bằng Python hay gọi terminal?
 - [ ] Có cần `HOẶC` giữa các điều kiện không? *(đang thiết kế: **không** — dùng nhiều nhánh, vì "hoặc" giấu trong hộp thoại thì nhìn sơ đồ không thấy)*
-- [ ] Mở `dat_co` (Đặt cờ) ra khi nào — nó là cách chốt `COMP_CONSUMED`.
 - [ ] Đóng gói `.exe` (PyInstaller) — chưa làm spec.

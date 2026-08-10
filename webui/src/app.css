@@ -832,3 +832,60 @@ select.o { cursor: pointer; }
   text-align: center;
   pointer-events: none;
 }
+
+/* ---- Pill chuyển sơ đồ Entry / Manage — chip NỔI ở góc trái canvas ----
+   Trước đây nó chiếm hẳn một dải ngang dưới ribbon; nổi lên canvas thì lấy lại được
+   ~34px chiều cao mà vẫn ở đúng chỗ mắt tìm. */
+.pill-tab {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 12px var(--font);
+  cursor: default;
+  transition: background .12s, color .12s;
+}
+.pill:hover { background: var(--raised); color: var(--text); }
+.pill.dang {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* Chấm đỏ: lỗi ở tab KHÔNG mở cũng phải nhìn thấy, không thì bấm ▶ Chạy mới lòi ra. */
+.pill .cham-loi {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--err);
+  flex: none;
+}
+
+/* ---- Nhãn tab trong bảng Vấn đề ---- */
+.dong-van-de .nhan-tab {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: .02em;
+  background: var(--raised);
+  color: var(--muted);
+}
+.dong-van-de .nhan-tab.t-entry { color: var(--start); }
+.dong-van-de .nhan-tab.t-manage { color: var(--group); }

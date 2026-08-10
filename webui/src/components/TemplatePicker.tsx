@@ -3,17 +3,12 @@ import { py } from '../api'
 import Modal from './Modal'
 import Icon from './Icon'
 
-const TEN_LOAI: Record<string, string> = {
-  strategy: 'Chiến lược', loop: 'Vòng theo dõi', group: 'Nhóm 1 lần',
-}
-
 /** Chọn / xoá template đã lưu — thay cho `window.prompt` gõ tay tên.
  *
  *  Bản tkinter có hộp thoại riêng làm đúng việc này (liệt kê theo TÊN, có nút xoá,
  *  có trạng thái rỗng kèm gợi ý). Gõ tay tên file là cách chắc chắn gõ sai.
  */
-export default function TemplatePicker({ kind, tieuDe, choPhepXoa = true, onChon, onDong, onDuyetFile }: {
-  kind: 'strategy' | 'loop' | 'group'
+export default function TemplatePicker({ tieuDe, choPhepXoa = true, onChon, onDong, onDuyetFile }: {
   tieuDe: string
   choPhepXoa?: boolean
   onChon: (ten: string) => void
@@ -27,17 +22,17 @@ export default function TemplatePicker({ kind, tieuDe, choPhepXoa = true, onChon
 
   const nap = () => {
     setDangTai(true)
-    py.list_templates(kind).then(r => {
+    py.list_templates().then(r => {
       setDs(r.ok ? (r.value ?? []) : [])
       setDangTai(false)
     })
   }
-  useEffect(nap, [kind])
+  useEffect(nap, [])
 
   async function xoa() {
     if (!chon) return
     if (!window.confirm(`Xoá template "${chon}"?`)) return
-    await py.delete_template(kind, chon)
+    await py.delete_template(chon)
     setChon(null)
     nap()
   }
@@ -56,7 +51,7 @@ export default function TemplatePicker({ kind, tieuDe, choPhepXoa = true, onChon
         {dangTai && <div className="muc mo">đang đọc…</div>}
         {!dangTai && ds.length === 0 && (
           <div className="muc mo">
-            Chưa có template {TEN_LOAI[kind]} nào — lưu một cái ở menu 💾 Lưu trước đã.
+            Chưa có chiến lược nào được lưu — lưu một cái ở menu Lưu ▾ trước đã.
           </div>
         )}
         {ds.map(t => (

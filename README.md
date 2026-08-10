@@ -10,26 +10,55 @@
 
 ---
 
+## Một chiến lược = hai sơ đồ
+
+```
+   ┌── Tab ENTRY ────────────────┐     ┌── Tab MANAGE ───────────────────┐
+   │  con trỏ ĐI SĂN             │     │  chạy MỘT LƯỢT CHO MỖI LỆNH     │
+   │  một lượt mỗi nến           │     │  đang sống, cũng mỗi nến        │
+   │  chỉ nó được TẠO lệnh       │     │  chỉ nó được SỬA lệnh           │
+   └─────────────────────────────┘     └─────────────────────────────────┘
+```
+
+Mỗi nến: cập nhật dữ liệu → **Manage** cho từng lệnh → **Entry**. Manage trước, đúng
+`OnTick` của D_02 — chạy ngược lại thì lệnh vừa sinh bị quản lý ngay trong nến đẻ ra nó.
+
+**Mỗi sơ đồ tự nó đã là một vòng lặp**: nó chạy lại từ khối Bắt đầu ở mỗi nến. Nên
+*"chờ tới khi"* không phải vẽ — không cổng nào khớp thì hết lượt, nến sau chạy lại.
+Không cần khối "vòng lặp", không cần mũi tên quay ngược.
+
+**Ranh giới khoá được:**
+
+| | Entry | Manage |
+|---|---|---|
+| Kiểm tra ĐK | ✔ | ✔ |
+| Vào lệnh | ✔ | ✘ |
+| Sửa lệnh | ✘ | ✔ |
+| Toán hạng nhóm *"Lệnh này"* | ✘ báo lỗi | ✔ |
+
+> **Entry chỉ TẠO. Manage chỉ SỬA.** App soát tĩnh được, chỉ thẳng vào khối sai —
+> loại lỗi MQL5 không bao giờ bắt.
+
+Pill `Entry | Manage` là chip nổi ở góc trên-trái canvas, có **chấm đỏ khi tab kia
+đang lỗi**.
+
 ## Luật đánh số
 
 > **SỐ = đi được bao xa · CHỮ = đi nhánh nào**
 
-```
-[1] Bắt đầu
-[2] Nến này có nén không?          ⟲ đã ghim          ←────────┐
-[3] Đủ K nến & vùng vừa khổ?  ─┬─ [3A]  Xu hướng LÊN  → [3A.1] Buy Stop
-                               ├─ [3B]  Xu hướng XUỐNG → [3B.1] Sell Stop
-                               └─ ⟲ không hướng nào hợp ───────┤
-[4] Chờ khớp / chờ vùng tan   ─┬─ [4A]  Lệnh đã khớp?  → [4A.1] Hoà vốn ─┤
-                               └─ [4B]  Vùng đã tan?   → [4B.1] Huỷ chờ ─┘
-```
+Sơ đồ mẫu — chiến lược Compress (D_02):
 
-- Các nhóm ngăn bởi dấu `.`, mỗi nhóm = **SỐ** rồi tới các **CHỮ**. Chữ không bao giờ
-  mở đầu một nhóm → `4A.2B` tách được thành `4A` | `2B`, không nhập nhằng.
-- Mọi nhánh chụm lại một chỗ thì số **quay về mức trên** (`4`, không phải `3A.3`).
-- Thứ tự ưu tiên nhánh lấy từ **vị trí trên canvas** — kéo khối lên trên là nhãn `A`/`B`
-  đổi ngay lúc thả chuột, nên ưu tiên không bao giờ là thứ ngầm.
-- Nhãn do **Python tính**, giao diện chỉ hiển thị. Số ở góc khối không thể nói dối.
+```
+ENTRY                                        MANAGE
+[1] Mỗi nến M5 — tìm tín hiệu                [1] Mỗi nến M5 — với TỪNG lệnh
+[2] Vùng nén đã xác nhận?                          ├─[1A] Chưa khớp mà nén đã tan?
+      atr_bps < 7 · nến nén ≥ 10                   │        → [1A.1] Huỷ lệnh chờ
+      rộng÷ATR ≤ 4 · KHÔNG vùng đã sinh lệnh       └─[1B] Đã khớp, đủ 1R,
+[3] Còn chỗ cho lệnh mới?                          │        SL chưa hoà vốn?
+      số lệnh chờ = 0 · số vị thế < 3              │        → [1B.1] Dời SL về giá vào
+      ├─[3A] Xu hướng LÊN?  → [3A.1] Buy Stop
+      └─[3B] Xu hướng XUỐNG? → [3B.1] Sell Stop
+```
 
 ## Ghim số ⟲
 
@@ -44,9 +73,7 @@ cổng điều kiện — nghĩa của nó vốn đã là *"không nhánh nào k
 
 ## Bộ khối
 
-**Bốn loại khối:** `Bắt đầu` (điểm neo đánh số, đúng một cái, không xoá được) ·
-`Kiểm tra ĐK`/`Vào lệnh`/`Sửa lệnh` (HĐ lẻ) · `Vòng theo dõi` (lặp mỗi nến) ·
-`Nhóm` (chạy một lượt).
+**Hai loại khối:** `Bắt đầu` (điểm neo, đúng một cái mỗi sơ đồ, không xoá được) và `Khối`.
 
 **Ba hành động — đọc · tạo · sửa:**
 
@@ -56,31 +83,45 @@ cổng điều kiện — nghĩa của nó vốn đã là *"không nhánh nào k
 | **Vào lệnh** | Mở vị thế mới: Mua/Bán · Market/Stop/Limit · lot · SL & TP ban đầu |
 | **Sửa lệnh** | Tác động lên lệnh đã có: dời SL · dời TP · hoà vốn · trailing · đóng một phần · đóng hẳn · huỷ lệnh chờ |
 
-30 toán hạng (giá, ATR, MA, Donchian, vùng nén, trạng thái lệnh, tài khoản, thời gian)
-× 9 phép so. **Mọi khoảng cách là bội của ATR hoặc của R — không có pip hay đô nào**,
+32 toán hạng (giá · chỉ báo · vùng nén · tài khoản · **lệnh này** · thời gian) × 9 phép
+so, viết bằng **ký hiệu** `< ≤ > ≥ = ≠` chứ không phải chữ — một cổng mang 4–5 điều
+kiện thì mắt phải liếc thấy quan hệ, không phải đọc chữ. **Mọi khoảng cách là bội của ATR hoặc của R — không có pip hay đô nào**,
 nên cùng một bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
+
+> **Hai chữ ATR là hai thứ khác nhau, tách ra là có chủ ý.** Đệm vào lệnh đo bằng
+> **ATR hiện tại** — tấm khiên mỏng ngoài mép vùng, đủ lọc một nhịp phá giả. Rủi ro đo
+> bằng **ATR trung bình cả cú nén** — nên mỗi lệnh rủi ro một R tương đương bất kể
+> vùng rộng hẹp. Gộp làm một là mất đúng cái làm 1R nhất quán.
 
 ## Luật rẽ nhánh
 
 Một khối nhiều đường ra thì các nhánh được **thử lần lượt từ trên xuống**:
 
-1. Mỗi nhánh phải mở đầu bằng một **cổng** = khối HĐ lẻ *Kiểm tra điều kiện*.
+1. Mỗi nhánh phải mở đầu bằng một **cổng** = khối *Kiểm tra điều kiện*.
 2. Nhiều nhất **một** nhánh được để trống làm **nhánh mặc định**, và nó phải xếp **cuối**.
 3. Cạnh quay lại (trỏ vào khối đã ghim) được miễn cả hai luật trên.
 
-Chỉ HĐ lẻ được làm cổng: nhánh trượt phải **lùi lại được**, mà một khối chỉ *đọc* dữ
-liệu thì lùi bao nhiêu lần cũng vô hại — còn một Nhóm có thể đã đặt lệnh rồi mới kiểm
-tra, và lệnh đó không rút lại được.
+Không nhánh nào khớp thì **hết lượt** — nến sau chạy lại từ đầu. Đó là cách "chờ" được
+diễn tả, không phải lỗi.
+
+Cổng phải là *Kiểm tra điều kiện*: nhánh trượt phải **lùi lại được**, mà một khối chỉ
+*đọc* dữ liệu thì lùi bao nhiêu lần cũng vô hại — còn *Vào lệnh* / *Sửa lệnh* đã tác
+động ra thị trường rồi, không rút lại được.
 
 ## Chạy từ mã nguồn
 
 Cần **Python 3.10+** và **Node.js 18+** trên Windows.
 
 ```bash
-tools\setup.bat      # dựng .venv + npm install + build giao diện
-tools\chay.bat       # mở app
-tools\chay_test.bat  # chạy test
+tools\setup.bat          # dựng .venv + npm install + build giao diện
+tools\tao_shortcut.bat   # tạo shortcut "Cat Studio" ra Desktop (icon con mèo)
+tools\chay.bat           # mở app từ dòng lệnh
+tools\chay_test.bat      # chạy test
 ```
+
+Shortcut chạy bằng `pythonw.exe` nên **không kèm cửa sổ console đen**. Đổi lại nó
+không có stderr để nhìn, nên `app_web.py` báo mọi lỗi khởi động (thiếu .NET, thiếu
+WebView2, chưa build giao diện) bằng **hộp thoại Windows** chứ không in ra màn hình.
 
 Sửa giao diện xong phải `tools\build_ui.bat` mới thấy đổi — `app_web.py` chỉ nạp
 `webui\dist`, không nạp mã nguồn.

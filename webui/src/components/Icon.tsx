@@ -30,8 +30,6 @@ const HINH: Record<string, React.ReactNode> = {
 
   /* --- loại khối --- */
   start: <><circle {...S} cx="8" cy="8" r="5.9" /><path {...S} d="M8 3.6l2.6 4.4L8 12.4 5.4 8z" /></>,
-  loop: <><path {...S} d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5" /><path {...S} d="M11.5 2.2v2.6H8.9M4.5 13.8v-2.6h2.6" /></>,
-  group: <><rect {...S} x="2.2" y="3.4" width="11.6" height="9.2" rx="1.4" /><path {...S} d="M4.8 6.4h6.4M4.8 8.6h6.4M4.8 10.8h3.6" /></>,
   action: <><path {...S} d="M9.4 1.8 4 9h3.3l-.8 5.2L11.9 7H8.6z" /></>,
 
   /* --- ghim số: đinh ghim + mũi tên quay lại --- */

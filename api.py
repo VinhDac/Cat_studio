@@ -68,10 +68,7 @@ def _hanh_dong_mac_dinh(loai):
                 "sl": {"tinh": "theo_ATR", "value": 1.5},
                 "tp": {"tinh": "theo_R", "value": 2}}
     if loai == core.SUA_LENH:
-        return {"type": loai, "che_do": "hoa_von", "muc_tieu": "vi_the",
-                "khoang": {"tinh": "theo_R", "value": 1}}
-    if loai == core.DAT_CO:
-        return {"type": loai, "ten_co": "da_dung_tin_hieu", "gia_tri": True}
+        return {"type": loai, "che_do": "hoa_von"}
     return {"type": core.CHECK_COND, "conditions": [{
         "trai": {"ten": "atr_bps", "tf": "M5", "period": 14},
         "phep": "<", "phai_loai": "so", "phai": 7.0}]}
@@ -82,44 +79,47 @@ def _hanh_dong_mac_dinh(loai):
 # ---------------------------------------------------------------------------
 
 
-def _dong_the(a, prologue=False):
-    return {"text": core.action_display(a), "type": (a or {}).get("type"),
-            "prologue": prologue, "goal": False}
-
-
 def _the_buoc(st):
     """Một khối -> thẻ để giao diện vẽ.
 
     Giao diện KHÔNG tự ghép chữ: nếu nó ghép thì sớm muộn nó mô tả khác với thứ lõi
-    thực sự hiểu. Nó chỉ chọn ICON theo `type`."""
-    kind = st.get("kind")
-    the = {"id": st.get("id"), "kind": kind, "title": core.step_title(st),
-           "badges": [], "lines": [], "so_hanh_dong": 0,
-           "co_muc_tieu": False, "ghim": bool(st.get("ghim")),
+    thực sự hiểu. Nó chỉ chọn ICON theo `type`.
+
+    Với "Kiểm tra điều kiện", MỖI DÒNG là MỘT điều kiện chứ không phải cả câu gộp:
+    một cổng của Compress mang tới 5 điều kiện, gộp thành một dòng thì hộp không đọc
+    được nữa."""
+    the = {"id": st.get("id"), "kind": st.get("kind"), "title": core.step_title(st),
+           "badges": [], "lines": [], "ghim": bool(st.get("ghim")),
            "la_cong": core.is_branch_gate(st)}
 
-    if kind == core.KIND_START:
-        the["badges"] = ["điểm neo đánh số"]
+    if core.is_start_step(st):
+        the["badges"] = ["mỗi nến chạy lại từ đây"]
         return the
 
-    if core.has_actions(st):
-        acts = st.get("actions") or []
-        the["so_hanh_dong"] = len(acts)
-        mo_dau = st.get("loop_start_index", 0) if core.is_loop_step(st) else 0
-        the["lines"] = [_dong_the(a, i < mo_dau) for i, a in enumerate(acts)]
-        if core.is_loop_step(st):
-            the["badges"].append(f"tối đa {st.get('max_nen', core.DEFAULT_MAX_NEN)} nến")
-            if st.get("tf"):
-                the["badges"].append(st["tf"])
-        else:
-            the["badges"].append("chạy 1 lần")
+    if st.get("type") == core.CHECK_COND:
+        ds = st.get("conditions") or []
+        the["lines"] = [{"text": core.cond_display(c), "type": core.CHECK_COND}
+                        for c in ds] or [{"text": "chưa có điều kiện nào — luôn khớp",
+                                          "type": core.CHECK_COND}]
+        the["badges"].append("cổng rẽ nhánh" if core.is_branch_gate(st) else "kiểm tra")
+        if len(ds) > 1:
+            the["badges"].append(f"{len(ds)} điều kiện · VÀ")
         return the
 
-    the["so_hanh_dong"] = 1
-    the["lines"] = [_dong_the(st)]
-    if core.is_branch_gate(st):
-        the["badges"].append("cổng rẽ nhánh")
+    # Bỏ `name` trước khi sinh chữ: tiêu đề hộp ĐÃ hiện tên rồi, để nguyên thì thân hộp
+    # lặp lại y hệt ("Dời SL về hoà vốn: Dời SL về hoà vốn …").
+    khong_ten = {k: v for k, v in st.items() if k != "name"}
+    the["lines"] = [{"text": core.action_display(khong_ten), "type": st.get("type")}]
     return the
+
+
+def _kem_the(doc):
+    """Gắn `cards` vào từng sơ đồ. Chữ trên hộp do Python sinh, JS không ghép lại."""
+    for tab in core.TABS:
+        g = doc.get(tab) or {"steps": [], "edges": []}
+        g["cards"] = [_the_buoc(s) for s in g.get("steps") or []]
+        doc[tab] = g
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -166,13 +166,17 @@ class Api:
             "settings": self._cai_dat,
             "app_dir": core.app_dir(),
 
-            "kinds": [core.KIND_START, core.KIND_LOOP, core.KIND_GROUP, core.KIND_ACTION],
+            "kinds": [core.KIND_START, core.KIND_ACTION],
             "kind_labels": core.KIND_LABELS,
 
-            "action_types": core.hanh_dong_hien(),
-            "action_types_tat_ca": core.ACTION_TYPES,
+            "tabs": core.TABS,
+            "tab_labels": core.TAB_LABELS,
+            "action_types": core.ACTION_TYPES,
             "action_labels": core.ACTION_LABELS,
+            "action_tabs": {k: list(v) for k, v in core.ACTION_TABS.items()},
             "branch_type": core.CHECK_COND,
+            "nhom_lenh_nay": core.NHOM_LENH_NAY,
+            "toan_hang_dung_sai": list(core.TOAN_HANG_DUNG_SAI),
 
             "timeframes": core.TIMEFRAMES,
             "ma_methods": core.MA_METHODS,
@@ -188,7 +192,6 @@ class Api:
 
             "template_kinds": core.TEMPLATE_KINDS,
             "accent_presets": core.ACCENT_PRESETS,
-            "default_max_nen": core.DEFAULT_MAX_NEN,
             "max_process_steps": core.MAX_PROCESS_STEPS,
         })
 
@@ -207,28 +210,22 @@ class Api:
         return _ok(_hanh_dong_mac_dinh(action_type))
 
     @_bat_loi
-    def save_action(self, draft):
+    def save_action(self, draft, tab=None):
         """Chuẩn hoá + soát một hành động. Hộp thoại KHÔNG tự soát — nó gửi bản nháp
         thô sang đây, để luật hợp lệ chỉ nằm ở đúng một chỗ."""
         a = core.normalize_action(draft)
         if a is None:
             return {"ok": False, "error": "Loại hành động không hợp lệ."}
         loi = []
-        core.validate_actions([a], lambda m, i=None: loi.append(m))
+        core.validate_actions([a], lambda m, i=None: loi.append(m), tab)
         return _ok({"action": a, "display": core.action_display(a)}, loi=loi)
 
     # ------------------------------------------------------------------ khối
     @_bat_loi
     def new_step(self, kind="action", action_type=None):
-        if kind == core.KIND_START:
-            st = core.make_start_step()
-        elif kind == core.KIND_LOOP:
-            st = core.make_loop_step()
-        elif kind == core.KIND_GROUP:
-            st = core.make_group_step()
-        else:
-            st = core.make_action_step(
-                _hanh_dong_mac_dinh(action_type or core.CHECK_COND))
+        st = (core.make_start_step() if kind == core.KIND_START
+              else core.make_action_step(
+                  _hanh_dong_mac_dinh(action_type or core.CHECK_COND)))
         return _ok({"step": st, "card": _the_buoc(st)})
 
     @_bat_loi
@@ -238,34 +235,37 @@ class Api:
 
     # ------------------------------------------------------------------ soát
     @_bat_loi
-    def validate(self, steps, edges=None):
-        """Nguồn của HUY HIỆU SỐ và của bảng Vấn đề.
+    def validate(self, doc):
+        """Nguồn của HUY HIỆU SỐ và của bảng Vấn đề — cho CẢ HAI sơ đồ, một lời gọi.
 
-        `order` trả ra ngang hàng với `value` (không lồng vào trong) để giao diện đọc
-        thẳng — nó cần số thứ tự ở mọi lần vẽ lại, không chỉ khi có lỗi."""
-        steps = steps or []
-        if edges is None:
-            edges = core.default_edges(steps)
-        doc = {"steps": steps, "edges": edges}
+        Trả về `{value: [vấn đề…], luong: {entry: {...}, manage: {...}}}`. Mỗi vấn đề
+        mang khoá `tab` để giao diện gắn nhãn và nhảy đúng chỗ.
+
+        Soát cả hai tab chứ không chỉ tab đang mở: giấu lỗi của tab kia thì bấm ▶ Chạy
+        mới lòi ra, mà lúc đó không ai hiểu vì sao."""
         probs = core.validate_process(doc)
-        luong = core.flow_order(steps, edges)
+        luong = {}
+        for tab in core.TABS:
+            g = (doc or {}).get(tab) or {}
+            st = g.get("steps") or []
+            ed = g.get("edges")
+            kq = core.flow_order(st, core.default_edges(st) if ed is None else ed)
+            luong[tab] = {
+                "order": kq["order"],
+                "unreachable": kq["unreachable"],
+                "quay_lai": [list(c) for c in kq["quay_lai"]],
+                "vong_ho": [list(c) for c in kq["vong_ho"]],
+                "lech_nhanh": kq["lech_nhanh"],
+            }
         return _ok(probs,
                    so_loi=sum(1 for p in probs if p["severity"] == "error"),
                    so_canh_bao=sum(1 for p in probs if p["severity"] == "warning"),
-                   order=luong["order"],
-                   unreachable=luong["unreachable"],
-                   entry=luong["entry"],
-                   quay_lai=[list(c) for c in luong["quay_lai"]],
-                   vong_ho=[list(c) for c in luong["vong_ho"]],
-                   lech_nhanh=luong["lech_nhanh"],
-                   loop=luong["loop"])
+                   luong=luong)
 
     # ------------------------------------------------------------------ tài liệu
     @_bat_loi
     def new_process(self):
-        d = core.new_process()
-        d["cards"] = [_the_buoc(s) for s in d["steps"]]
-        return _ok(d)
+        return _ok(_kem_the(core.new_process()))
 
     @_bat_loi
     def demo_process(self):
@@ -273,22 +273,18 @@ class Api:
 
         Dựng bằng chính các khối người dùng có, không phải thứ đặc biệt gì — mở ra là
         thấy ngay bộ khối này diễn tả được một chiến lược thật tới đâu."""
-        d = _so_do_mau()
-        d["cards"] = [_the_buoc(s) for s in d["steps"]]
-        return _ok(d)
+        return _ok(_kem_the(_so_do_mau()))
 
     @_bat_loi
     def load_process(self, name):
-        d = core.normalize_process(core.load_template("strategy", name))
-        d["cards"] = [_the_buoc(s) for s in d["steps"]]
-        return _ok(d)
+        return _ok(_kem_the(core.normalize_process(
+            core.load_template("strategy", name))))
 
     @_bat_loi
-    def save_process(self, name, steps, edges=None, symbol=None, timeframe=None):
-        d = core.normalize_process({"name": name, "steps": steps, "edges": edges,
-                                    "symbol": symbol, "timeframe": timeframe})
-        p = core.save_template("strategy", name, d)
-        return _ok({"path": p, "name": name})
+    def save_process(self, doc):
+        d = core.normalize_process(doc)
+        p = core.save_template("strategy", d["name"], d)
+        return _ok({"path": p, "name": d["name"]})
 
     @_bat_loi
     def list_templates(self, kind="strategy"):
@@ -297,23 +293,6 @@ class Api:
     @_bat_loi
     def delete_template(self, kind, name):
         return _ok(core.delete_template(kind, name))
-
-    @_bat_loi
-    def save_step_template(self, kind, name, step):
-        st = core.normalize_step(step)
-        if not st:
-            return {"ok": False, "error": "Khối không hợp lệ."}
-        core.save_template(kind, name, st)
-        return _ok({"name": name})
-
-    @_bat_loi
-    def insert_step_template(self, kind, name):
-        st = core.normalize_step(core.load_template(kind, name))
-        if not st:
-            return {"ok": False, "error": "Template hỏng."}
-        st["id"] = core.new_step_id()
-        st.pop("ghim", None)
-        return _ok({"step": st, "card": _the_buoc(st)})
 
     # -- file ngoài --
     _LOC = ("Chiến lược Cat_Studio (*.json)", "*.json")
@@ -326,43 +305,35 @@ class Api:
         if not r:
             return {"ok": False}          # người dùng bấm Huỷ — KHÔNG phải lỗi
         with open(r[0], encoding="utf-8") as f:
-            d = core.normalize_process(json.load(f))
-        d["cards"] = [_the_buoc(s) for s in d["steps"]]
-        return _ok(d)
+            return _ok(_kem_the(core.normalize_process(json.load(f))))
 
     @_bat_loi
-    def save_process_file(self, name, steps, edges=None, symbol=None, timeframe=None):
+    def save_process_file(self, doc):
         import webview
+        d = core.normalize_process(doc)
         r = self._window.create_file_dialog(
-            webview.SAVE_DIALOG, save_filename=f"{name or 'chien_luoc'}.json",
+            webview.SAVE_DIALOG, save_filename=f"{d['name']}.json",
             file_types=(self._LOC,))
         if not r:
             return {"ok": False}
         p = r if isinstance(r, str) else r[0]
-        d = core.normalize_process({"name": name, "steps": steps, "edges": edges,
-                                    "symbol": symbol, "timeframe": timeframe})
         with open(p, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, indent=2)
         return _ok({"path": p})
 
     # ------------------------------------------------------------------ chạy
     @_bat_loi
-    def mo_tester(self, name, steps, edges=None, symbol=None, timeframe=None):
+    def mo_tester(self, doc):
         """▶ Chạy — mở cửa sổ Strategy Tester.
 
-        Chặn TRƯỚC nếu sơ đồ còn lỗi: mở tester ra để nó báo lại đúng mấy lỗi mà bảng
-        Vấn đề đã hiện sẵn là bắt người dùng đi hai vòng cho cùng một thông tin."""
-        steps = steps or []
-        if edges is None:
-            edges = core.default_edges(steps)
-        probs = core.validate_process({"steps": steps, "edges": edges})
+        Chặn TRƯỚC nếu còn lỗi ở BẤT KỲ tab nào: mở tester ra để nó báo lại đúng mấy
+        lỗi mà bảng Vấn đề đã hiện sẵn là bắt người dùng đi hai vòng cho một thông tin."""
+        probs = core.validate_process(doc)
         loi = [p for p in probs if p["severity"] == "error"]
         if loi:
             return {"ok": False, "error": "Sơ đồ còn lỗi, chưa chạy được.", "loi": loi}
         canh_bao = [p for p in probs if p["severity"] == "warning"]
-
-        d = core.normalize_process({"name": name, "steps": steps, "edges": edges,
-                                    "symbol": symbol, "timeframe": timeframe})
+        d = core.normalize_process(doc)
         self._mo_cua_so_tester(d)
         return _ok({"da_mo": True}, canh_bao=canh_bao)
 
@@ -484,15 +455,38 @@ _TRANG_TESTER_TAM = """
 
 
 # ---------------------------------------------------------------------------
-# Sơ đồ mẫu — chiến lược Compress
+# Sơ đồ mẫu — chiến lược Compress (D_02)
 # ---------------------------------------------------------------------------
+#
+# Chép lại từ EA thật:
+#   MQL5\Experts\D_02_Compress\Projects\Experts\Compress.mq5
+#                             \Include\Controller\{FilterEngine,TradeManager}.mqh
+#
+# HAI SƠ ĐỒ, và ranh giới giữa chúng là điều quan trọng nhất:
+#
+#   ENTRY   chạy MỘT lượt mỗi nến, đi săn tín hiệu. Chỉ nó được TẠO lệnh.
+#   MANAGE  chạy MỘT LƯỢT CHO MỖI LỆNH đang sống, cũng mỗi nến. Chỉ nó được SỬA lệnh.
+#
+# Thứ tự trong một nến: MANAGE trước, ENTRY sau — đúng `OnTick`:
+#     CheckPendingActivation → ManageBreakEven → rồi mới tới phần quyết định.
+# Chạy ngược lại thì lệnh vừa sinh bị quản lý ngay trong chính nến đẻ ra nó.
+#
+# BA THỨ D_02 PHẢI GIẤU TRONG C++, Ở ĐÂY HIỆN RA THÀNH CỔNG:
+#
+#   `if(m_has_pending) return false`      → điều kiện "số lệnh chờ = 0"
+#   `if(pos_count >= max_positions) skip` → điều kiện "số vị thế < 3"
+#   `if(sl >= entry) continue`            → điều kiện "SL chưa ở hoà vốn"
+#
+# VÀ `COMP_CONSUMED` KHÔNG CẦN CỜ ẨN: lệnh mang `vùng_id`, nên "vùng này đã sinh lệnh"
+# chỉ là một phép tra bảng — có lệnh nào trỏ về vùng hiện hành không.
 
 
 def _so_do_mau():
-    """Compress: nén biến động → đặt lệnh chờ ngoài mép vùng → phá ra là khớp.
+    """Compress: biến động co lại như lò xo → đặt lệnh chờ ngay mép vùng → phá ra là khớp.
 
-    Mọi khoảng cách là bội của ATR hoặc của R, không có pip/đô nào — nên cùng một bộ
-    số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số."""
+    Mọi khoảng cách là bội của ATR hoặc của R, không một pip hay đô nào — nên cùng một
+    bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số."""
+
     def dk(ten, conds, x, y):
         s = core.make_action_step({"type": core.CHECK_COND, "name": ten,
                                    "conditions": conds})
@@ -504,93 +498,97 @@ def _so_do_mau():
         s["pos"] = [x, y]
         return s
 
-    def tt(ten, key, tf="M5", **kw):
-        return dict({"ten": key, "tf": tf}, **kw)
+    def so(ten, phep, gia_tri, **kw):
+        return {"trai": dict({"ten": ten}, **kw), "phep": phep,
+                "phai_loai": "so", "phai": gia_tri}
 
-    bd = core.make_start_step()
-    bd["pos"] = [40, 340]
+    def dung_sai(ten, dao=False):
+        c = {"trai": {"ten": ten}}
+        if dao:
+            c["dao"] = True
+        return c
 
-    nen = dk("Nến này có nén không?",
-             [{"trai": tt("", "atr_bps", period=14), "phep": "<",
-               "phai_loai": "so", "phai": 7.0}], 320, 200)
-
-    du_nen = dk("Đủ K nến & vùng vừa khổ?",
-                [{"trai": tt("", "so_nen_nen"), "phep": ">=", "phai_loai": "so",
-                  "phai": 10},
-                 {"trai": tt("", "rong_vung_atr"), "phep": "<=", "phai_loai": "so",
-                  "phai": 4.0}], 660, 200)
-
-    xu_huong_len = dk("Xu hướng LÊN (M15)",
-                      [{"trai": tt("", "close", tf="M15", shift=1), "phep": ">",
-                        "phai_loai": "toan_hang",
-                        "phai": tt("", "ma", tf="M15", period=50, method="SMA")},
-                       {"trai": tt("", "co_lenh_cho"), "dao": True}], 1000, 60)
-
-    xu_huong_xuong = dk("Xu hướng XUỐNG (M15)",
-                        [{"trai": tt("", "close", tf="M15", shift=1), "phep": "<",
-                          "phai_loai": "toan_hang",
-                          "phai": tt("", "ma", tf="M15", period=50, method="SMA")},
-                         {"trai": tt("", "co_lenh_cho"), "dao": True}], 1000, 340)
-
-    mua = hd("Buy Stop trên đỉnh vùng",
-             {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
-              "dem": {"tinh": "theo_ATR", "value": 0.1},
-              "sl": {"tinh": "theo_ATR", "value": 1.5},
-              "tp": {"tinh": "theo_R", "value": 2}}, 1340, 60)
-
-    ban = hd("Sell Stop dưới đáy vùng",
-             {"type": core.VAO_LENH, "huong": "ban", "loai": "stop", "lot": 0.01,
-              "dem": {"tinh": "theo_ATR", "value": 0.1},
-              "sl": {"tinh": "theo_ATR", "value": 1.5},
-              "tp": {"tinh": "theo_R", "value": 2}}, 1340, 340)
-
-    # Vòng theo dõi: mỗi nến mới lại thử hai cổng phía sau. Không cổng nào khớp thì
-    # đơn giản là chờ nến sau — đó là lý do khối này tồn tại, và cũng là lý do nó
-    # được miễn luật "phải có nhánh mặc định".
-    cho = core.make_loop_step("Chờ khớp / chờ vùng tan")
-    cho["pos"] = [1680, 200]
-    cho["tf"] = "M5"
-    cho["max_nen"] = 200
-    cho["actions"] = []
-
-    da_khop = dk("Lệnh đã khớp?", [{"trai": tt("", "lenh_da_khop")}], 2020, 60)
-    vung_tan = dk("Vùng đã tan? (ATR bung ra)",
-                  [{"trai": tt("", "atr_bps", period=14), "phep": ">=",
-                    "phai_loai": "so", "phai": 7.0}], 2020, 340)
-
-    hoa_von = hd("Dời SL về hoà vốn khi lãi 1R",
-                 {"type": core.SUA_LENH, "che_do": "hoa_von", "muc_tieu": "vi_the",
-                  "khoang": {"tinh": "theo_R", "value": 1}}, 2360, 60)
-
-    huy = hd("Huỷ lệnh chờ",
-             {"type": core.SUA_LENH, "che_do": "huy_cho", "muc_tieu": "lenh_cho"},
-             2360, 340)
-
-    # `nen` là điểm quay lại: mọi đường đi hết một vòng đều về đây đếm tiếp nến.
-    # GHIM nó lại → số của nó không đổi và không có cảnh báo vòng lặp nào.
-    nen["ghim"] = True
-
-    steps = [bd, nen, du_nen, xu_huong_len, xu_huong_xuong, mua, ban, cho,
-             da_khop, vung_tan, hoa_von, huy]
-
-    def e(a, b):
+    def canh(a, b):
         return {"from": a["id"], "to": b["id"], "port": "out",
                 "from_side": "right", "to_side": "left"}
 
-    edges = [
-        e(bd, nen), e(nen, du_nen),
-        e(du_nen, xu_huong_len), e(du_nen, xu_huong_xuong),
-        e(xu_huong_len, mua), e(xu_huong_xuong, ban),
-        e(mua, cho), e(ban, cho),
-        e(cho, da_khop), e(cho, vung_tan),
-        e(da_khop, hoa_von), e(vung_tan, huy),
-        # ── Ba cạnh QUAY LẠI, đều trỏ vào khối đã GHIM ──
-        # Không xu hướng nào hợp -> khỏi vào lệnh, quay về đếm nến tiếp.
-        e(du_nen, nen),
-        # Lệnh chờ bị huỷ vì vùng tan -> bắt đầu lại chu kỳ.
-        e(huy, nen),
-        # Đã dời SL về hoà vốn -> lệnh tự lo phần còn lại, đi tìm đợt nén mới.
-        e(hoa_von, nen),
-    ]
-    return {"schema": 1, "type": "strategy", "name": "Compress (mẫu)",
-            "symbol": "XAUUSD", "timeframe": "M5", "steps": steps, "edges": edges}
+    # ========================= ENTRY =========================
+    e_bd = core.make_start_step("Mỗi nến M5 — tìm tín hiệu")
+    e_bd["pos"] = [40, 300]
+
+    e_nen = dk("Vùng nén đã xác nhận?", [
+        so("atr_bps", "<", 7.0, tf="M5", period=14),   # nến này vẫn đang nén
+        so("so_nen_nen", ">=", 10),                    # đủ K nến liên tiếp
+        so("rong_vung_atr", "<=", 4.0),                # vùng không quá rộng
+        dung_sai("vung_da_sinh_lenh", dao=True),       # = COMP_CONSUMED
+    ], 340, 300)
+
+    e_cho = dk("Còn chỗ cho lệnh mới?", [
+        so("so_lenh_cho", "==", 0),      # D_02: đúng MỘT lệnh chờ tại một thời điểm
+        so("so_vi_the", "<", 3),         # = Max_Positions. Bằng nhau là đã đầy.
+    ], 700, 300)
+
+    def vao(huong):
+        return {
+            "type": core.VAO_LENH, "huong": huong, "loai": "stop", "lot": 0.01,
+            # Đệm đo bằng ATR HIỆN TẠI — tấm khiên mỏng ngoài mép vùng, đủ lọc một
+            # nhịp phá giả. Lệnh chờ luôn neo vào mép vùng thuận chiều.
+            "dem": {"tinh": "theo_ATR", "value": 0.10},
+            # Rủi ro đo bằng ATR TRUNG BÌNH CẢ VÙNG NÉN — lấy mức nhiễu thật suốt cú
+            # nén, nên mỗi lệnh rủi ro một R tương đương dù vùng rộng hẹp khác nhau.
+            # HAI CHỮ ATR NÀY LÀ HAI THỨ KHÁC NHAU, tách ra là có chủ ý.
+            "sl": {"tinh": "theo_ATR_vung", "value": 1.5},
+            "tp": {"tinh": "theo_R", "value": 2.0},
+        }
+
+    e_len = dk("Xu hướng LÊN?", [{
+        "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": ">",
+        "phai_loai": "toan_hang",
+        "phai": {"ten": "ma", "tf": "M15", "period": 50, "method": "SMA"}}], 1060, 160)
+    e_mua = hd("Buy Stop trên đỉnh vùng", vao("mua"), 1420, 160)
+
+    e_xuong = dk("Xu hướng XUỐNG?", [{
+        "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": "<",
+        "phai_loai": "toan_hang",
+        "phai": {"ten": "ma", "tf": "M15", "period": 50, "method": "SMA"}}], 1060, 440)
+    e_ban = hd("Sell Stop dưới đáy vùng", vao("ban"), 1420, 440)
+
+    entry = {
+        "steps": [e_bd, e_nen, e_cho, e_len, e_mua, e_xuong, e_ban],
+        "edges": [canh(e_bd, e_nen), canh(e_nen, e_cho),
+                  canh(e_cho, e_len), canh(e_len, e_mua),
+                  canh(e_cho, e_xuong), canh(e_xuong, e_ban)],
+    }
+
+    # ========================= MANAGE =========================
+    # Chạy lại từ đầu mỗi nến, CHO TỪNG LỆNH. Không giữ con trỏ — mọi câu hỏi đều tính
+    # lại từ trạng thái quan sát được, y như D_02 làm mỗi tick.
+    m_bd = core.make_start_step("Mỗi nến M5 — với TỪNG lệnh đang sống")
+    m_bd["pos"] = [40, 300]
+
+    m_huy = dk("Chưa khớp mà nén đã tan?", [
+        dung_sai("lenh_da_khop", dao=True),
+        so("atr_bps", ">=", 7.0, tf="M5", period=14),
+    ], 400, 160)
+    m_huy_hd = hd("Huỷ lệnh chờ",
+                  {"type": core.SUA_LENH, "che_do": "huy_cho"}, 760, 160)
+
+    # Ba dòng guard của `ManageBreakEven` gói đúng vào một cổng. Vế "SL chưa ở hoà vốn"
+    # KHÔNG được thiếu: Manage chạy lại mỗi nến, không có nó thì lệnh sửa SL bắn hoài.
+    m_be = dk("Đã khớp, đủ 1R, SL chưa hoà vốn?", [
+        dung_sai("lenh_da_khop"),
+        dung_sai("lenh_sl_hoa_von", dao=True),
+        so("lenh_lai_R", ">=", 1.0),
+    ], 400, 440)
+    m_be_hd = hd("Dời SL về giá vào",
+                 {"type": core.SUA_LENH, "che_do": "hoa_von"}, 760, 440)
+
+    manage = {
+        "steps": [m_bd, m_huy, m_huy_hd, m_be, m_be_hd],
+        "edges": [canh(m_bd, m_huy), canh(m_huy, m_huy_hd),
+                  canh(m_bd, m_be), canh(m_be, m_be_hd)],
+    }
+
+    return {"schema": 2, "type": "strategy", "name": "Compress (mẫu)",
+            "symbol": "XAUUSD", "timeframe": "M5",
+            "entry": entry, "manage": manage}

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import type { Tab } from '../types'
 import Icon from './Icon'
 
 /** Thanh công cụ kiểu ribbon của Paint: nút nhóm lại, nhãn nhóm nằm DƯỚI, có vạch
@@ -94,8 +95,6 @@ const S = {
 
 /** Icon 22px của ribbon — to hơn bộ 16px trong `Icon.tsx` nên vẽ riêng, cùng ngôn ngữ nét. */
 const I = {
-  loop: <svg viewBox="0 0 22 22" width="22" height="22"><path {...S} d="M4 11a7 7 0 0 1 11.9-5M18 11a7 7 0 0 1-11.9 5" /><path {...S} d="M15.5 3v3.4h-3.2M6.5 19v-3.4h3.2" /></svg>,
-  group: <svg viewBox="0 0 22 22" width="22" height="22"><rect {...S} x="3" y="4.5" width="16" height="13" rx="2" /><path {...S} d="M6.5 8.5h9M6.5 11.5h9M6.5 14.5h5" /></svg>,
   /* Một đường vào, hai đường ra — đúng hình rẽ nhánh người dùng vẽ trên giấy. */
   branch: <svg viewBox="0 0 22 22" width="22" height="22"><path {...S} d="M2.5 11h5M7.5 11l5-5M7.5 11l5 5" /><circle {...S} cx="15.5" cy="6" r="2.6" /><circle {...S} cx="15.5" cy="16" r="2.6" /></svg>,
   vao: <svg viewBox="0 0 22 22" width="22" height="22"><rect {...S} x="2.6" y="7.4" width="4" height="7.2" rx="1" /><path {...S} d="M4.6 4.8v2.6M4.6 14.6v2.6" /><path {...S} d="M10 14.6l4.8-4.8M11.2 9.2h3.8v3.8" /><path {...S} d="M18.6 4.4v13.2" strokeDasharray="2.2 2.2" /></svg>,
@@ -116,8 +115,7 @@ const I = {
 }
 
 export interface RibbonProps {
-  themVongTheoDoi: () => void
-  themNhom: () => void
+  tab: Tab
   themKiemTra: () => void
   themVaoLenh: () => void
   themSuaLenh: () => void
@@ -146,21 +144,51 @@ export interface RibbonProps {
   coTheLamLai: boolean
 }
 
+const TEN_TAB: Record<Tab, string> = { entry: 'Entry', manage: 'Manage' }
+const CHU_THICH_TAB: Record<Tab, string> = {
+  entry: 'Sơ đồ ĐI SĂN — chạy một lượt mỗi nến. Chỉ nó được TẠO lệnh.',
+  manage: 'Sơ đồ QUẢN LÝ — chạy một lượt cho MỖI lệnh đang sống. Chỉ nó được SỬA lệnh.',
+}
+
+/** Pill chuyển sơ đồ — nằm NGAY DƯỚI dải ribbon, sát mép trái.
+ *
+ *  Đặt ở đó vì nó không phải một nút trong ribbon mà là câu trả lời cho "mọi thứ phía
+ *  trên đang tác động lên sơ đồ NÀO". Chấm đỏ trên tab kia để lỗi không trốn được sau
+ *  lưng: bấm ▶ Chạy mới biết tab kia hỏng là quá muộn. */
+export function PillTab({ tab, datTab, tabCoLoi }: {
+  tab: Tab; datTab: (t: Tab) => void; tabCoLoi: Record<Tab, boolean>
+}) {
+  return (
+    <div className="pill-tab">
+      {(['entry', 'manage'] as Tab[]).map(t => (
+        <button key={t} className={'pill' + (tab === t ? ' dang' : '')}
+                title={CHU_THICH_TAB[t]} onClick={() => datTab(t)}>
+          {TEN_TAB[t]}
+          {tabCoLoi[t] && <span className="cham-loi" title="Sơ đồ này đang có lỗi" />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function Ribbon(p: RibbonProps) {
   return (
     <div className="ribbon">
+      {/* Nút nào hiện là do TAB quyết: Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh.
+          Làm mờ thì người dùng vẫn phải đoán vì sao; ẩn hẳn thì bảng chọn luôn đúng
+          với việc đang làm. */}
       <Nhom ten="Thêm khối">
         <Nut ten="Kiểm tra ĐK" icon={I.branch} onClick={p.themKiemTra}
              title={'Thêm cổng "Kiểm tra điều kiện" — nối nhiều cổng vào cùng một khối '
                     + 'để chia nhánh. Khớp thì đi nhánh đó, không khớp thì thử nhánh dưới.'} />
-        <Nut ten="Vào lệnh" icon={I.vao} onClick={p.themVaoLenh}
-             title="Mở vị thế mới: Mua/Bán, loại lệnh, khối lượng, SL và TP ban đầu" />
-        <Nut ten="Sửa lệnh" icon={I.sua} onClick={p.themSuaLenh}
-             title="Tác động lên lệnh ĐÃ CÓ: dời SL, dời TP, hoà vốn, trailing, đóng, huỷ chờ" />
-        <Nut ten="Vòng theo dõi" icon={I.loop} onClick={p.themVongTheoDoi}
-             title="Lặp lại theo mỗi nến mới cho tới khi thoả điều kiện hoặc hết số nến" />
-        <Nut ten="Nhóm" icon={I.group} onClick={p.themNhom}
-             title="Gộp vài hành động chạy đúng một lượt" />
+        {p.tab === 'entry' && (
+          <Nut ten="Vào lệnh" icon={I.vao} onClick={p.themVaoLenh}
+               title="Mở vị thế mới: Mua/Bán, loại lệnh, khối lượng, SL và TP ban đầu" />
+        )}
+        {p.tab === 'manage' && (
+          <Nut ten="Sửa lệnh" icon={I.sua} onClick={p.themSuaLenh}
+               title="Tác động lên lệnh ĐÃ CÓ: dời SL, dời TP, hoà vốn, trailing, đóng, huỷ chờ" />
+        )}
       </Nhom>
 
       <Nhom ten="Sửa">

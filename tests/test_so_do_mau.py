@@ -1,8 +1,18 @@
-"""Sơ đồ mẫu Compress phải mở ra SẠCH: không lỗi, không cảnh báo vòng lặp hở.
+"""Sơ đồ mẫu Compress (D_02) phải mở ra SẠCH và khớp đúng logic EA gốc.
 
-Bài này là bằng chứng bộ khối (Kiểm tra điều kiện / Vào lệnh / Sửa lệnh) đủ sức diễn
-tả một chiến lược THẬT — chứ không phải chỉ vẽ cho vui. Mẫu hỏng thì đó là lỗi thiết
-kế bộ khối, không phải lỗi của cái mẫu.
+Đây là bằng chứng bộ khối — Kiểm tra ĐK · Vào lệnh · Sửa lệnh, chia hai sơ đồ Entry và
+Manage — đủ sức diễn tả một chiến lược THẬT. Mẫu hỏng thì đó là lỗi THIẾT KẾ bộ khối,
+không phải lỗi của cái mẫu.
+
+Bốn điều bài này canh, vì cả bốn đều dễ trượt về chỗ cũ:
+
+  1. HAI SƠ ĐỒ, ranh giới rạch ròi — Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh, và
+     toán hạng "Lệnh này" chỉ có nghĩa ở Manage.
+  2. CẢ HAI đều là vòng lặp theo nến, nên KHÔNG có mũi tên ngược nào.
+  3. HAI CHỮ ATR LÀ HAI THỨ KHÁC NHAU — đệm đo bằng ATR hiện tại, rủi ro đo bằng ATR
+     trung bình cả vùng nén.
+  4. Ba dòng guard của `ManageBreakEven` phải HIỆN THÀNH CỔNG, đặc biệt là
+     "SL chưa ở hoà vốn" — thiếu nó thì lệnh sửa SL bắn lại mỗi nến.
 
 Chạy:  python tests\\test_so_do_mau.py
 """
@@ -32,90 +42,151 @@ def kiem(ten, dk, chi_tiet=""):
 
 a = api.Api()
 
+# ================= 1. bootstrap =================
 print("\n▸ bootstrap")
 b = a.bootstrap()
 kiem("bootstrap trả về được", b["ok"])
 bv = b["value"]
-kiem("chỉ hiện 3 hành động: Kiểm tra ĐK / Vào lệnh / Sửa lệnh",
+kiem("đúng BA hành động: Kiểm tra ĐK · Vào lệnh · Sửa lệnh",
      bv["action_types"] == ["check_cond", "vao_lenh", "sua_lenh"],
      f"— {bv['action_types']}")
-kiem("lõi vẫn hiểu đủ 4 hành động (Đặt cờ để dành, chỉ bị ẩn khỏi bảng chọn)",
-     len(bv["action_types_tat_ca"]) == 4)
-kiem("có đủ toán hạng cho Compress",
-     {"atr_bps", "ma", "close", "so_nen_nen", "rong_vung_atr", "lenh_da_khop"}
-     <= {t["key"] for t in bv["toan_hang"]})
+kiem("hai sơ đồ: Entry + Manage", bv["tabs"] == ["entry", "manage"])
+kiem("Entry chỉ TẠO, Manage chỉ SỬA",
+     bv["action_tabs"]["vao_lenh"] == ["entry"]
+     and bv["action_tabs"]["sua_lenh"] == ["manage"])
+kiem("chỉ còn HAI loại khối", bv["kinds"] == ["start", "action"])
+kiem("phép so dùng KÝ HIỆU",
+     [bv["phep_so"][k] for k in ("<", "<=", ">", ">=")] == ["<", "≤", ">", "≥"],
+     f"— {[bv['phep_so'][k] for k in ('<', '<=', '>', '>=')]}")
 print(f"    {len(bv['toan_hang'])} toán hạng / "
       f"{len(set(t['nhom'] for t in bv['toan_hang']))} nhóm, "
-      f"{len(bv['phep_so'])} phép so, {len(bv['sua_che_do'])} chế độ Sửa lệnh")
+      f"{len(bv['cach_tinh'])} cách tính khoảng cách")
 
-print("\n▸ sơ đồ mẫu Compress")
+# ================= 2. sơ đồ mẫu =================
+print("\n▸ Sơ đồ mẫu Compress")
 d = a.demo_process()
-kiem("mở được", d["ok"])
+kiem("mở được", d["ok"], "" if d["ok"] else f"— {d.get('error')}")
 doc = d["value"]
-kiem("có đúng một khối Bắt đầu",
-     sum(1 for s in doc["steps"] if core.is_start_step(s)) == 1)
+v = a.validate(doc)
 
-v = a.validate(doc["steps"], doc["edges"])
-kiem("KHÔNG có lỗi nào", v["so_loi"] == 0,
-     f"— {[p['message'][:90] for p in v['value'] if p['severity'] == 'error']}")
-kiem("mọi khối đều có nhãn (không khối nào lạc)",
-     len(v["order"]) == len(doc["steps"]) and not v["unreachable"],
-     f"— {len(v['order'])}/{len(doc['steps'])}, lạc: {v['unreachable']}")
-kiem("mọi cạnh quay lại đều ĐÃ GHIM, không còn vòng hở nào",
-     len(v["quay_lai"]) == 3 and not v["vong_ho"],
-     f"— quay_lai={len(v['quay_lai'])}, vòng hở={len(v['vong_ho'])}")
-kiem("không cảnh báo nào nhắc tới vòng lặp chưa ghim",
-     not any("chưa được ghim" in p["message"] for p in v["value"]))
-kiem("SẠCH hoàn toàn — không lỗi, không cảnh báo",
-     not v["value"], f"— {[p['message'][:80] for p in v['value']]}")
+kiem("SẠCH hoàn toàn, cả hai tab — không lỗi, không cảnh báo",
+     not v["value"], f"— {[(p['tab'], p['message'][:70]) for p in v['value']]}")
 
-# Hai nhánh MUA/BÁN phải đối xứng: cùng mức, chỉ khác chữ. Lệch nhau (một cái "4",
-# cái kia "3B") là dấu hiệu `diem_gop` nhận nhầm đầu nhánh làm điểm gộp khi đồ thị
-# có vòng lặp — đúng lỗi đã sửa.
-_nhan = {core.step_title(theo := {s["id"]: s for s in doc["steps"]}[sid]): n
-         for sid, n in v["order"].items()}
-kiem("nhánh MUA và BÁN đối xứng (3A / 3B)",
-     _nhan.get("Xu hướng LÊN (M15)") == "3A"
-     and _nhan.get("Xu hướng XUỐNG (M15)") == "3B",
-     f"— LÊN={_nhan.get('Xu hướng LÊN (M15)')}, "
-     f"XUỐNG={_nhan.get('Xu hướng XUỐNG (M15)')}")
-kiem("sau khi hai nhánh chụm lại, số về mức trên cùng (4)",
-     _nhan.get("Chờ khớp / chờ vùng tan") == "4",
-     f"— {_nhan.get('Chờ khớp / chờ vùng tan')}")
+theo, nhan = {}, {}
+for tab in core.TABS:
+    g = doc[tab]
+    theo[tab] = {s["id"]: s for s in g["steps"]}
+    L = v["luong"][tab]
+    nhan[tab] = {core.step_title(theo[tab][sid]): n for sid, n in L["order"].items()}
+    kiem(f"[{core.TAB_LABELS[tab]}] mọi khối có nhãn, không khối nào lạc",
+         len(L["order"]) == len(g["steps"]) and not L["unreachable"],
+         f"— {len(L['order'])}/{len(g['steps'])}")
+    kiem(f"[{core.TAB_LABELS[tab]}] KHÔNG mũi tên ngược — vốn đã là vòng lặp theo nến",
+         not L["quay_lai"] and not L["vong_ho"] and not L["lech_nhanh"])
+    kiem(f"[{core.TAB_LABELS[tab]}] có đúng một khối Bắt đầu",
+         sum(1 for s in g["steps"] if core.is_start_step(s)) == 1)
 
 print("\n  ── Nhãn trên sơ đồ ──")
-theo = {s["id"]: s for s in doc["steps"]}
-for sid, n in sorted(v["order"].items(),
-                     key=lambda x: (len(x[1].split(".")[0]), x[1])):
-    g = "  ⟲ đã ghim" if theo[sid].get("ghim") else ""
-    print(f"    [{n:<4}] {core.step_title(theo[sid])}{g}")
+for tab in core.TABS:
+    print(f"    {core.TAB_LABELS[tab]}  ({len(doc[tab]['steps'])} khối)")
+    for sid, n in sorted(v["luong"][tab]["order"].items(),
+                         key=lambda x: (len(x[1]), x[1])):
+        print(f"      [{n:<5}] {core.step_title(theo[tab][sid])}")
 
-if v["value"]:
-    print("\n  ── Còn lại ──")
-    for p in v["value"]:
-        print(f"    {'●' if p['severity'] == 'error' else '▲'} {p['message'][:120]}")
+# ================= 3. Entry — ba cổng, đúng thứ tự OnTick =================
+print("\n▸ Entry")
+kiem("Entry 7 khối", len(doc["entry"]["steps"]) == 7)
+kiem("không khối Sửa lệnh nào lọt vào Entry",
+     not any(s.get("type") == core.SUA_LENH for s in doc["entry"]["steps"]))
 
-print("\n▸ thẻ vẽ lên hộp")
-cards = {c["id"]: c for c in doc["cards"]}
-kiem("mọi khối đều có thẻ", len(cards) == len(doc["steps"]))
-kiem("cổng rẽ nhánh được đánh dấu `la_cong`",
-     sum(1 for c in cards.values() if c["la_cong"]) >= 5)
-kiem("khối đã ghim được đánh dấu trên thẻ",
-     any(c["ghim"] for c in cards.values()))
-mot = next(c for c in cards.values() if c["kind"] == "action" and c["la_cong"])
-kiem("chữ trên hộp do Python sinh, đọc được thành câu",
-     bool(mot["lines"]) and len(mot["lines"][0]["text"]) > 10,
-     f"— \"{mot['lines'][0]['text'][:70]}\"")
+keys = lambda st: [c["trai"]["ten"] for c in st["conditions"]]  # noqa: E731
+g_nen = next(s for s in doc["entry"]["steps"] if "nén" in core.step_title(s).lower())
+kiem("cổng nén: ngưỡng + đủ K nến + vùng vừa khổ + VÙNG CHƯA SINH LỆNH",
+     keys(g_nen) == ["atr_bps", "so_nen_nen", "rong_vung_atr", "vung_da_sinh_lenh"],
+     f"— {keys(g_nen)}")
+kiem("\"vùng đã sinh lệnh\" là điều kiện ĐẢO — thay cho COMP_CONSUMED",
+     g_nen["conditions"][-1].get("dao") is True)
 
-print("\n▸ lưu / mở lại")
-r = a.save_process("__test_mau__", doc["steps"], doc["edges"], "XAUUSD", "M5")
+g_cho = next(s for s in doc["entry"]["steps"] if "chỗ" in core.step_title(s))
+kiem("cổng hạn mức: đúng MỘT lệnh chờ + số vị thế < Max_Positions",
+     keys(g_cho) == ["so_lenh_cho", "so_vi_the"], f"— {keys(g_cho)}")
+kiem("dùng \"<\" chứ không phải \"≤\" cho Max_Positions — bằng nhau là đã đầy",
+     g_cho["conditions"][1]["phep"] == "<"
+     and g_cho["conditions"][0]["phep"] == "==",
+     f"— {[c['phep'] for c in g_cho['conditions']]}")
+
+kiem("hai nhánh MUA / BÁN đối xứng",
+     len(nhan["entry"]["Buy Stop trên đỉnh vùng"])
+     == len(nhan["entry"]["Sell Stop dưới đáy vùng"]))
+
+# ================= 4. Hai chữ ATR =================
+print("\n▸ Hai chữ ATR — tách ra là có chủ ý")
+for ten in ("Buy Stop trên đỉnh vùng", "Sell Stop dưới đáy vùng"):
+    st = next(s for s in doc["entry"]["steps"] if core.step_title(s) == ten)
+    kiem(f"{ten}: đệm = ATR HIỆN TẠI",
+         st["dem"] == {"tinh": "theo_ATR", "value": 0.10}, f"— {st.get('dem')}")
+    kiem(f"{ten}: rủi ro = ATR TRUNG BÌNH VÙNG",
+         st["sl"] == {"tinh": "theo_ATR_vung", "value": 1.5}, f"— {st.get('sl')}")
+    kiem(f"{ten}: TP = 2R", st["tp"] == {"tinh": "theo_R", "value": 2.0})
+
+# ================= 5. Manage =================
+print("\n▸ Manage")
+kiem("Manage 5 khối", len(doc["manage"]["steps"]) == 5)
+kiem("không khối Vào lệnh nào lọt vào Manage",
+     not any(s.get("type") == core.VAO_LENH for s in doc["manage"]["steps"]))
+
+g_be = next(s for s in doc["manage"]["steps"] if "1R" in core.step_title(s))
+kiem("cổng hoà vốn gói ĐỦ BA dòng guard của ManageBreakEven",
+     keys(g_be) == ["lenh_da_khop", "lenh_sl_hoa_von", "lenh_lai_R"],
+     f"— {keys(g_be)}")
+kiem("\"SL chưa ở hoà vốn\" là điều kiện ĐẢO — thiếu nó là sửa SL mỗi nến",
+     g_be["conditions"][1].get("dao") is True)
+
+be_hd = next(s for s in doc["manage"]["steps"] if s.get("che_do") == "hoa_von")
+kiem("hành động hoà vốn KHÔNG mang tham số — mốc kích hoạt đã dời lên cổng",
+     "khoang" not in be_hd, f"— {be_hd}")
+
+g_huy = next(s for s in doc["manage"]["steps"] if "tan" in core.step_title(s))
+kiem("cổng huỷ: lệnh này CHƯA khớp ∧ nén đã tan",
+     keys(g_huy) == ["lenh_da_khop", "atr_bps"]
+     and g_huy["conditions"][0].get("dao") is True
+     and g_huy["conditions"][1]["phep"] == ">=")
+
+# ================= 6. Ranh giới bị phá thì phải BÁO =================
+print("\n▸ Ranh giới Entry / Manage được canh")
+xau = {"entry": {"steps": [dict(be_hd)], "edges": []},
+       "manage": {"steps": [], "edges": []}}
+kiem("nhét Sửa lệnh vào Entry → báo lỗi",
+     any(p["tab"] == "entry" and "chỉ thuộc về" in p["message"]
+         for p in core.validate_process(xau)))
+
+xau2 = {"entry": {"steps": [dict(g_be)], "edges": []},
+        "manage": {"steps": [], "edges": []}}
+kiem("hỏi \"lệnh này\" trong Entry → báo lỗi",
+     any(p["tab"] == "entry" and "Lệnh này" in p["message"]
+         for p in core.validate_process(xau2)))
+
+# ================= 7. thẻ vẽ lên hộp =================
+print("\n▸ Thẻ vẽ lên hộp")
+cards = {c["id"]: c for c in doc["entry"]["cards"]}
+kiem("mọi khối Entry đều có thẻ", len(cards) == len(doc["entry"]["steps"]))
+kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
+     len(cards[g_nen["id"]]["lines"]) == 4, f"— {len(cards[g_nen['id']]['lines'])}")
+kiem("chữ trên hộp dùng ký hiệu, do Python sinh",
+     cards[g_nen["id"]]["lines"][0]["text"] == "ATR chuẩn hoá (bps)(M5, 14) < 7",
+     f"— \"{cards[g_nen['id']]['lines'][0]['text']}\"")
+
+# ================= 8. lưu / mở lại =================
+print("\n▸ Lưu / mở lại")
+r = a.save_process(dict(doc, name="__test_mau__"))
 kiem("lưu được", r["ok"])
 r2 = a.load_process("__test_mau__")
 kiem("mở lại được", r2["ok"])
 if r2["ok"]:
-    v2 = a.validate(r2["value"]["steps"], r2["value"]["edges"])
-    kiem("mở lại vẫn ĐÚNG y nhãn cũ (cờ ghim và pos sống sót qua file)",
-         v2["order"] == v["order"], f"— {v2['order'] == v['order']}")
+    v2 = a.validate(r2["value"])
+    kiem("mở lại vẫn ĐÚNG y nhãn cũ, cả hai tab",
+         all(v2["luong"][t]["order"] == v["luong"][t]["order"] for t in core.TABS))
+    kiem("mở lại vẫn sạch", not v2["value"])
 core.delete_template("strategy", "__test_mau__")
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")

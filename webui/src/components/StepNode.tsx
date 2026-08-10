@@ -2,30 +2,17 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { Card, StepKind } from '../types'
 import IconNet, { ICON_HANH_DONG } from './Icon'
 
-/** Số dòng hành động hiện tối đa trên một hộp.
+/** Số dòng hiện tối đa trên một hộp.
  *
- * Yêu cầu là "nhìn hộp phải hiểu khối này làm gì" — nhưng một Nhóm 40 hành động mà vẽ
- * hết thì hộp cao bằng cả màn hình và sơ đồ hết đọc được. Cắt ở đây rồi ghi rõ còn bao
- * nhiêu; muốn xem hết thì double-click mở hộp thoại.
+ * Yêu cầu là "nhìn hộp phải hiểu khối này kiểm tra gì" — nhưng một cổng 6 điều kiện mà
+ * vẽ hết thì hộp cao gấp đôi và sơ đồ hết đọc được. Cắt ở đây rồi ghi rõ còn bao nhiêu;
+ * muốn xem hết thì double-click mở hộp thoại.
  */
-const TOI_DA_DONG = 8
+const TOI_DA_DONG = 6
 
 const MAU: Record<StepKind, string> = {
   start: 'var(--start)',
-  loop: 'var(--loop)',
-  group: 'var(--group)',
-  action: 'var(--action)',
-}
-
-const TEN_LOAI: Record<StepKind, string> = {
-  start: 'Bắt đầu',
-  loop: 'Vòng theo dõi',
-  group: 'Nhóm 1 lần',
-  action: 'HĐ lẻ',
-}
-
-const ICON_KHOI: Record<StepKind, string> = {
-  start: 'start', loop: 'loop', group: 'group', action: 'action',
+  action: 'var(--accent)',
 }
 
 const SIDES: [string, Position][] = [
@@ -41,6 +28,9 @@ export default function StepNode({ data, selected }: NodeProps) {
   const hien = card.lines.slice(0, TOI_DA_DONG)
   const con = card.lines.length - hien.length
   const laStart = card.kind === 'start'
+  /* Icon lấy theo loại hành động của dòng ĐẦU — một khối chỉ mang một hành động, nên
+     dòng nào cũng cùng loại. Khối Bắt đầu thì không có dòng nào. */
+  const icon = laStart ? 'start' : (ICON_HANH_DONG[card.lines[0]?.type ?? ''] ?? 'action')
 
   return (
     <>
@@ -82,28 +72,22 @@ export default function StepNode({ data, selected }: NodeProps) {
 
         <div className="dau">
           <span className="dai-mau" style={{ background: MAU[card.kind] }} />
-          <IconNet name={ICON_KHOI[card.kind]} size={13} />
+          <IconNet name={icon} size={13} />
           <span className="ten" title={card.title}>{card.title}</span>
-          <span className="loai">{TEN_LOAI[card.kind]}</span>
         </div>
 
         {!laStart && (
           <div className="than">
-            {hien.length === 0 && <div className="dong rong">chưa có hành động nào</div>}
             {hien.map((d, i) => (
-              <div key={i}
-                   className={'dong' + (d.prologue ? ' mo-dau' : '')}
-                   title={d.text}>
-                <span className="danh">
-                  {d.prologue ? '1×' : card.kind === 'loop' ? '↻' : ''}
-                </span>
-                <IconNet name={ICON_HANH_DONG[d.type ?? ''] ?? ''} size={12} />
+              <div key={i} className="dong" title={d.text}>
+                {/* Nhiều điều kiện nối nhau bằng VÀ — ghi ra để không ai đoán là HOẶC. */}
+                <span className="danh">{i > 0 ? 'và' : ''}</span>
                 <span>{d.text}</span>
               </div>
             ))}
             {con > 0 && (
               <div className="dong con-nua">
-                <span className="danh" /><span>… còn {con} hành động</span>
+                <span className="danh" /><span>… còn {con} điều kiện</span>
               </div>
             )}
           </div>

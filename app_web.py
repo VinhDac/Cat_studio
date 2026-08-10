@@ -119,8 +119,14 @@ def tim_cua_so(chua_chuoi=TIEU_DE_GOC):
 def main():
     trang = duong_dan_giao_dien()
     if not os.path.exists(trang):
-        print("Chưa build giao diện. Chạy:  cd webui && npm install && npm run build",
-              file=sys.stderr)
+        # Cũng phải báo bằng HỘP THOẠI, không chỉ stderr: shortcut trên Desktop chạy
+        # bằng `pythonw.exe` nên KHÔNG có console — in ra stderr là không ai thấy, và
+        # người dùng chỉ thấy bấm đúp mà chẳng có gì mở lên.
+        bao_loi("Cat Studio — chưa build giao diện",
+                "Thư mục webui\\dist chưa có.\n\n"
+                "Chạy một lần:\n\n    tools\\setup.bat\n\n"
+                "hoặc:\n\n    cd webui && npm install && npm run build")
+        print("Chưa build giao diện. Chạy:  tools\\setup.bat", file=sys.stderr)
         return 1
 
     thieu = kiem_moi_truong()

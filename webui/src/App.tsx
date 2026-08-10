@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, Background, BackgroundVariant, ConnectionMode,
-  useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, MarkerType, useStore,
+  useNodesState, useEdgesState, addEdge, useReactFlow, ReactFlowProvider, MarkerType,
+  useStore, useNodesInitialized,
   type Node, type Edge, type Connection, type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 
 import { py, cho_cau_noi } from './api'
 import type {
-  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, Step, StepKind,
+  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, SoDo, Step, StepKind, Tab,
 } from './types'
-import Ribbon, { type MucMenu } from './components/Ribbon'
+import Ribbon, { PillTab, type MucMenu } from './components/Ribbon'
 import StepNode from './components/StepNode'
-import StepDialog from './components/StepDialog'
 import ActionDialog from './components/ActionDialog'
 import SettingsDialog from './components/SettingsDialog'
 import TemplatePicker from './components/TemplatePicker'
@@ -35,7 +35,7 @@ const PHIM_CHON_NHIEU = ['Control', 'Meta', 'Shift']
 
 /* ---------- đổi qua lại giữa tài liệu của Python và node/edge của React Flow ------- */
 
-function doc_sang_rf(doc: ProcessDoc): { nodes: Node[]; edges: Edge[] } {
+function so_do_sang_rf(doc: SoDo): { nodes: Node[]; edges: Edge[] } {
   const theo_id = new Map(doc.cards.map(c => [c.id, c]))
   const nodes: Node[] = doc.steps.map((s, i) => ({
     id: s.id,
@@ -75,7 +75,9 @@ function rf_sang_edges(edges: Edge[]): ProcEdge[] {
 
 /* ---------------------------------- Undo ---------------------------------- */
 
-interface Anh { nodes: Node[]; edges: Edge[]; ten: string }
+/** Ảnh chụp hoàn tác gom CẢ HAI sơ đồ + tab đang mở.
+ *  Chụp riêng từng tab thì Ctrl+Z sau khi đổi tab sẽ hoàn tác nhầm sơ đồ. */
+interface Anh { tab: Tab; entry: DoThi; manage: DoThi; ten: string }
 
 const TOI_DA_UNDO = 60
 
@@ -89,14 +91,20 @@ let boNhoKhoi: { steps: Step[]; edges: ProcEdge[] } = { steps: [], edges: [] }
 
 /* --------------------------------- App ----------------------------------- */
 
+interface DoThi { nodes: Node[]; edges: Edge[] }
+const RONG: DoThi = { nodes: [], edges: [] }
+
 function Ung() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  /** Tab đang mở. `nodes`/`edges` LUÔN là đồ thị của tab này; tab kia nằm ở `kho`. */
+  const [tab, setTab] = useState<Tab>('entry')
+  const kho = useRef<Record<Tab, DoThi>>({ entry: RONG, manage: RONG })
   const [ten, setTen] = useState('Chiến lược 1')
   const [symbol, setSymbol] = useState('XAUUSD')
   const [tf, setTf] = useState('M5')
   const [vanDe, setVanDe] = useState<Problem[]>([])
-  const [tab, setTab] = useState<'van-de' | 'nhat-ky'>('van-de')
+  const [tabDuoi, setTabDuoi] = useState<'van-de' | 'nhat-ky'>('van-de')
   const [nhatKy, setNhatKy] = useState<{ gio: string; msg: string; tag?: string | null }[]>([])
   const [sanSang, setSanSang] = useState(false)
   const [trangThai, setTrangThai] = useState('đang khởi động…')
@@ -127,7 +135,7 @@ function Ung() {
     { x: number; y: number; loai: 'nen' | 'khoi' | 'day'; id?: string;
       noi?: { x: number; y: number } } | null>(null)
   const [moPicker, setMoPicker] = useState<
-    { kind: 'strategy' | 'loop' | 'group'; tieuDe: string; xong: (t: string) => void } | null>(null)
+    { tieuDe: string; xong: (t: string) => void } | null>(null)
 
   const { fitView, zoomIn, zoomOut, setCenter, screenToFlowPosition } = useReactFlow()
   /* Mức thu phóng phải ĐĂNG KÝ THEO DÕI, không gọi getZoom() lúc render: React Flow
@@ -156,34 +164,43 @@ function Ung() {
 
   /** Chụp trạng thái TRƯỚC khi thay đổi. Ảnh chụp nguyên khối thay vì tính diff: tài
    *  liệu chỉ vài chục KB, mà diff sai thì undo hỏng theo kiểu rất khó tìm. */
+  /** Trạng thái hiện tại của CẢ HAI sơ đồ — tab đang mở lấy từ `nodes`/`edges` sống. */
+  const anhHienTai = useCallback((): Anh => ({
+    tab, ten,
+    entry: tab === 'entry' ? { nodes, edges } : kho.current.entry,
+    manage: tab === 'manage' ? { nodes, edges } : kho.current.manage,
+  }), [tab, ten, nodes, edges])
+
   const chup = useCallback(() => {
-    lui.current.push({ nodes, edges, ten })
+    lui.current.push(anhHienTai())
     if (lui.current.length > TOI_DA_UNDO) lui.current.shift()
     toi.current = []
     setCoLui(true); setCoToi(false)
-  }, [nodes, edges, ten])
+  }, [anhHienTai])
 
   const apDung = useCallback((a: Anh) => {
-    setNodes(a.nodes); setEdges(a.edges); setTen(a.ten)
+    kho.current = { entry: a.entry, manage: a.manage }
+    setTab(a.tab)
+    setNodes(a[a.tab].nodes); setEdges(a[a.tab].edges); setTen(a.ten)
   }, [setNodes, setEdges])
 
   const hoanTac = useCallback(() => {
     const a = lui.current.pop()
     if (!a) return
-    toi.current.push({ nodes, edges, ten })
+    toi.current.push(anhHienTai())
     apDung(a)
     setCoLui(lui.current.length > 0); setCoToi(true)
     setTrangThai('đã hoàn tác')
-  }, [nodes, edges, ten, apDung])
+  }, [anhHienTai, apDung])
 
   const lamLai = useCallback(() => {
     const a = toi.current.pop()
     if (!a) return
-    lui.current.push({ nodes, edges, ten })
+    lui.current.push(anhHienTai())
     apDung(a)
     setCoToi(toi.current.length > 0); setCoLui(true)
     setTrangThai('đã làm lại')
-  }, [nodes, edges, ten, apDung])
+  }, [anhHienTai, apDung])
 
   /* ------------------------------ khởi động ------------------------------ */
   useEffect(() => {
@@ -199,18 +216,15 @@ function Ung() {
         if (ui.panel_cao) setPanelCao(Math.max(CAO_TOI_THIEU, Math.min(600, Number(ui.panel_cao))))
         if (ui.panel_gap) setPanelGap(true)
 
-        const ds = await py.list_templates('strategy')
+        const ds = await py.list_templates()
         const co = ds.ok && (ds.value?.length ?? 0) > 0
         // Chưa có template nào thì mở sơ đồ MỚI (chỉ có khối Bắt đầu), không phải sơ đồ
-        // mẫu. Mẫu chỉ để xem thử; mở app ra đã thấy sẵn 12 khối lạ thì lần nào cũng
+        // mẫu. Mẫu chỉ để xem thử; mở app ra đã thấy sẵn 8 khối lạ thì lần nào cũng
         // phải xoá đi mới bắt đầu làm được. Vẫn mở lại được từ menu "Mở ▾".
         const r = co ? await py.load_process(ds.value![0]) : await py.new_process()
         if (r.ok && r.value) nap(r.value, co ? `mở "${ds.value![0]}"` : 'sơ đồ mới')
         setSanSang(true)
         setTrangThai('sẵn sàng')
-        // `maxZoom: 1` — sơ đồ mới chỉ có MỘT khối, để fitView tự do là nó phóng tới
-        // 200% và cái hộp chiếm nửa màn hình.
-        setTimeout(() => fitView({ padding: 0.25, duration: 300, maxZoom: 1 }), 60)
       } catch (e) {
         setTrangThai('không kết nối được Python: ' + String(e))
       }
@@ -219,28 +233,63 @@ function Ung() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** Hộp cao thấp khác nhau và React Flow chỉ biết chiều cao thật SAU khi vẽ xong.
+   *  Gọi `fitView` ngay lúc nạp thì nó tính theo chiều cao 0 và thu phóng ra một con
+   *  số vô nghĩa — sơ đồ mẫu 8 khối bị cắt mất nguyên một nhánh ở mép trên.
+   *  Nên: nạp xong thì DỰNG CỜ, `useNodesInitialized` báo đo xong mới fit. */
+  const canFit = useRef(false)
+  const daDoXong = useNodesInitialized()
+  useEffect(() => {
+    if (!canFit.current || !daDoXong) return
+    canFit.current = false
+    fitView({ padding: 0.2, duration: 300, maxZoom: 1 })
+  }, [daDoXong, nodes, fitView])
+
   const nap = useCallback((doc: ProcessDoc, loi: string) => {
-    const { nodes: n, edges: e } = doc_sang_rf(doc)
-    setNodes(n); setEdges(e)
+    kho.current = { entry: so_do_sang_rf(doc.entry), manage: so_do_sang_rf(doc.manage) }
+    setTab('entry')
+    setNodes(kho.current.entry.nodes); setEdges(kho.current.entry.edges)
     setTen(doc.name); setSymbol(doc.symbol); setTf(doc.timeframe)
+    canFit.current = true
     ghi(loi)
   }, [setNodes, setEdges, ghi])
+
+  /** Đổi tab: cất đồ thị đang mở vào kho, lấy đồ thị kia ra.
+   *  KHÔNG chụp hoàn tác — đổi tab không sửa gì cả. */
+  const doiTab = useCallback((t: Tab) => {
+    if (t === tab) return
+    kho.current[tab] = { nodes, edges }
+    setNodes(kho.current[t].nodes); setEdges(kho.current[t].edges)
+    setTab(t)
+    canFit.current = true
+  }, [tab, nodes, edges, setNodes, setEdges])
+
+  /** Tài liệu đầy đủ: tab đang mở lấy từ node sống, tab kia lấy từ kho. */
+  const layDoc = useCallback((): ProcessDoc => {
+    const g = (t: Tab) => (t === tab
+      ? { steps: rf_sang_steps(nodes), edges: rf_sang_edges(edges), cards: [] }
+      : { steps: rf_sang_steps(kho.current[t].nodes),
+          edges: rf_sang_edges(kho.current[t].edges), cards: [] })
+    return { name: ten, symbol, timeframe: tf, entry: g('entry'), manage: g('manage') }
+  }, [tab, nodes, edges, ten, symbol, tf])
 
   /* --------------------------- soát liên tục -------------------------- */
   useEffect(() => {
     if (!sanSang) return
     const h = setTimeout(async () => {
-      const r = await py.validate(rf_sang_steps(nodes), rf_sang_edges(edges))
+      const r = await py.validate(layDoc())
       if (!r.ok) return
+      // Vấn đề của CẢ HAI tab, không lọc: giấu lỗi tab kia thì bấm ▶ Chạy mới lòi ra.
       setVanDe(r.value ?? [])
+      const l = r.luong?.[tab]
       // Số thứ tự do PYTHON tính, bằng chính phép duyệt mà bộ máy chạy dùng — JS không
       // tự đếm, nếu không con số lại nói khác thực tế.
-      setThuTu(r.order ?? {})
-      setQuayLai(new Set((r.quay_lai ?? []).map(([a, b]) => `${a}|${b}`)))
-      setVongHo((r.vong_ho ?? []).length)
+      setThuTu(l?.order ?? {})
+      setQuayLai(new Set((l?.quay_lai ?? []).map(([a, b]) => `${a}|${b}`)))
+      setVongHo((l?.vong_ho ?? []).length)
     }, 250)   // gộp lại: kéo hộp bắn ra hàng chục thay đổi mỗi giây
     return () => clearTimeout(h)
-  }, [nodes, edges, sanSang])
+  }, [nodes, edges, sanSang, tab, layDoc])
 
   /* Tên chiến lược nằm ở THANH TIÊU ĐỀ cửa sổ. Hoãn 400ms vì gõ từng chữ mà gọi sang
      Python mỗi phím thì phí cầu nối. */
@@ -278,8 +327,8 @@ function Ung() {
   }, [panelCao, panelGap])
 
   useEffect(() => {
-    if (tab === 'nhat-ky') cuoiLog.current?.scrollIntoView({ block: 'end' })
-  }, [nhatKy, tab])
+    if (tabDuoi === 'nhat-ky') cuoiLog.current?.scrollIntoView({ block: 'end' })
+  }, [nhatKy, tabDuoi])
 
   /* ------------------------------ thao tác ------------------------------- */
   const dangChon = useMemo(() => nodes.filter(n => n.selected), [nodes])
@@ -495,23 +544,21 @@ function Ung() {
     if (!r.ok || !r.value) { ghi('không mở được sơ đồ mẫu: ' + r.error, 'err'); return }
     chup()
     nap(r.value, 'mở sơ đồ mẫu Compress')
-    setTimeout(() => fitView({ padding: 0.2, duration: 300, maxZoom: 1 }), 60)
   }, [chup, nap, ghi, fitView])
 
   const luu = useCallback(async () => {
     const t = window.prompt('Lưu chiến lược với tên:', ten)
     if (!t) return
-    const r = await py.save_process(t, rf_sang_steps(nodes), rf_sang_edges(edges), symbol, tf)
+    const r = await py.save_process({ ...layDoc(), name: t })
     if (r.ok) { setTen(t); ghi(`đã lưu "${t}"`, 'ok'); setTrangThai('đã lưu') }
     else ghi('lưu hỏng: ' + r.error, 'err')
-  }, [ten, nodes, edges, symbol, tf, ghi])
+  }, [ten, layDoc, ghi])
 
   const moChienLuoc = useCallback(async (t: string) => {
     const r = await py.load_process(t)
     if (!r.ok || !r.value) { ghi('mở hỏng: ' + r.error, 'err'); return }
     chup()
     nap(r.value, `mở "${t}"`)
-    setTimeout(() => fitView({ padding: 0.2, duration: 300, maxZoom: 1 }), 40)
   }, [chup, nap, ghi, fitView])
 
   const moFile = useCallback(async () => {
@@ -519,37 +566,13 @@ function Ung() {
     if (!r.ok) { if (r.error) ghi('mở hỏng: ' + r.error, 'err'); return }
     chup()
     nap(r.value!, 'mở từ file ngoài')
-    setTimeout(() => fitView({ padding: 0.2, duration: 300, maxZoom: 1 }), 40)
   }, [chup, nap, ghi, fitView])
 
   const luuRaFile = useCallback(async () => {
-    const r = await py.save_process_file(ten, rf_sang_steps(nodes), rf_sang_edges(edges),
-                                         symbol, tf)
+    const r = await py.save_process_file(layDoc())
     if (r.ok) ghi(`đã lưu ra ${r.value?.path}`, 'ok')
     else if (r.error) ghi('lưu hỏng: ' + r.error, 'err')
-  }, [ten, nodes, edges, symbol, tf, ghi])
-
-  const luuBuoc = useCallback(async (kind: 'loop' | 'group') => {
-    const n = dangChon[0]
-    if (!n) return
-    const st = (n.data as { step: Step }).step
-    const t = window.prompt(`Lưu ${kind === 'loop' ? 'Vòng theo dõi' : 'Nhóm'} với tên:`,
-                            String(st.name ?? ''))
-    if (!t) return
-    const r = await py.save_step_template(kind, t, st)
-    ghi(r.ok ? `đã lưu template ${kind} "${t}"` : 'lưu hỏng: ' + r.error, r.ok ? 'ok' : 'err')
-  }, [dangChon, ghi])
-
-  const chenBuoc = useCallback(async (kind: 'loop' | 'group', t: string) => {
-    const r = await py.insert_step_template(kind, t)
-    if (!r.ok || !r.value) { ghi('chèn hỏng: ' + r.error, 'err'); return }
-    chup()
-    const { step, card } = r.value
-    const x = nodes.length ? Math.max(...nodes.map(n => n.position.x)) + 380 : 80
-    setNodes(n => [...n.map(k => ({ ...k, selected: false })),
-      { id: step.id, type: 'buoc', position: { x, y: 200 }, data: { step, card }, selected: true }])
-    ghi(`chèn "${t}"`)
-  }, [nodes, chup, setNodes, ghi])
+  }, [layDoc, ghi])
 
   /** Đặt khối đang chọn làm khối CHẠY ĐẦU TIÊN.
    *
@@ -608,16 +631,16 @@ function Ung() {
 
   /* ------------------------------- ▶ Chạy --------------------------------- */
   const chay = useCallback(async () => {
-    const r = await py.mo_tester(ten, rf_sang_steps(nodes), rf_sang_edges(edges), symbol, tf)
+    const r = await py.mo_tester(layDoc())
     if (!r.ok) {
       const ds = ((r as any).loi as Problem[] | undefined)?.map(p => '✖ ' + p.message).join('\n\n')
       window.alert((r.error ?? 'không chạy được') + (ds ? '\n\n' + ds : ''))
-      setTab('van-de')
+      setTabDuoi('van-de')
       return
     }
     ghi('▶ mở Strategy Tester', 'ok')
     setTrangThai('đã mở Strategy Tester')
-  }, [ten, nodes, edges, symbol, tf, ghi])
+  }, [layDoc, ghi])
 
   /* --------------------------- menu chuột phải --------------------------- */
 
@@ -667,15 +690,12 @@ function Ung() {
         { ngan: true },
         { ten: 'Thêm Kiểm tra điều kiện', icon: 'check-cond',
           onClick: () => themKhoi('action', 'check_cond', taiDay) },
-        { ten: 'Thêm Vào lệnh', icon: 'vao-lenh',
-          onClick: () => themKhoi('action', 'vao_lenh', taiDay) },
-        { ten: 'Thêm Sửa lệnh', icon: 'sua-lenh',
-          onClick: () => themKhoi('action', 'sua_lenh', taiDay) },
-        { ngan: true },
-        { ten: 'Thêm Vòng theo dõi', icon: 'loop',
-          onClick: () => themKhoi('loop', undefined, taiDay) },
-        { ten: 'Thêm Nhóm', icon: 'group',
-          onClick: () => themKhoi('group', undefined, taiDay) },
+        // Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh — menu phải nói đúng như ribbon.
+        ...(tab === 'entry'
+          ? [{ ten: 'Thêm Vào lệnh', icon: 'vao-lenh',
+               onClick: () => themKhoi('action', 'vao_lenh', taiDay) }]
+          : [{ ten: 'Thêm Sửa lệnh', icon: 'sua-lenh',
+               onClick: () => themKhoi('action', 'sua_lenh', taiDay) }]),
       ]
     }
 
@@ -732,7 +752,7 @@ function Ung() {
         tat: laStart && !nhieu,
         viSao: 'khối Bắt đầu là điểm neo đánh số — không xoá được', onClick: xoa },
     ]
-  }, [menuPhai, nodes, edges, dangChon, thuTu, danKhoi, xoaDay, themKhoi, doiTen,
+  }, [menuPhai, nodes, edges, dangChon, thuTu, tab, danKhoi, xoaDay, themKhoi, doiTen,
       doiGhim, chepKhoi, nhanBan, noi, ngatKetNoi, xoa])
 
   /* ------------------------------ phím tắt ------------------------------- */
@@ -785,28 +805,14 @@ function Ung() {
         }
       : e)), [edges, quayLai])
 
-  const buocChon = dangChon[0] ? (dangChon[0].data as { step: Step }).step : null
-  const laLoop = buocChon?.kind === 'loop'
-  const laNhom = buocChon?.kind === 'group'
-
   const mucLuu: MucMenu[] = [
     { nhan: 'Lưu cả chiến lược thành template', chay: luu },
-    { nhan: 'Lưu riêng Vòng theo dõi đang chọn', chay: () => luuBuoc('loop'),
-      tat: !laLoop, lyDo: 'chọn một Vòng theo dõi trước' },
-    { nhan: 'Lưu riêng Nhóm đang chọn', chay: () => luuBuoc('group'),
-      tat: !laNhom, lyDo: 'chọn một Nhóm trước' },
     { nhan: 'Lưu ra file khác…', chay: luuRaFile },
   ]
   const mucMo: MucMenu[] = [
     { nhan: 'Mở chiến lược (thay toàn bộ)',
-      chay: () => setMoPicker({ kind: 'strategy', tieuDe: 'Mở chiến lược',
+      chay: () => setMoPicker({ tieuDe: 'Mở chiến lược',
                                 xong: t => { setMoPicker(null); moChienLuoc(t) } }) },
-    { nhan: 'Chèn Vòng theo dõi có sẵn',
-      chay: () => setMoPicker({ kind: 'loop', tieuDe: 'Chèn Vòng theo dõi',
-                                xong: t => { setMoPicker(null); chenBuoc('loop', t) } }) },
-    { nhan: 'Chèn Nhóm có sẵn',
-      chay: () => setMoPicker({ kind: 'group', tieuDe: 'Chèn Nhóm',
-                                xong: t => { setMoPicker(null); chenBuoc('group', t) } }) },
     { nhan: 'Mở từ file khác…', chay: moFile },
     { nhan: 'Sơ đồ mẫu Compress (xem thử)', chay: moMau },
   ]
@@ -817,7 +823,7 @@ function Ung() {
     { ten: 'File', muc: [
       { ten: 'Sơ đồ mới', icon: 'plus', onClick: soDoMoi },
       { ten: 'Mở chiến lược…', icon: 'folder', onClick: () => setMoPicker({
-          kind: 'strategy', tieuDe: 'Mở chiến lược',
+          tieuDe: 'Mở chiến lược',
           xong: t => { setMoPicker(null); moChienLuoc(t) } }) },
       { ten: 'Mở từ file…', onClick: moFile },
       { ten: 'Sơ đồ mẫu Compress (xem thử)', onClick: moMau },
@@ -864,16 +870,19 @@ function Ung() {
 
   const soLoi = vanDe.filter(v => v.severity === 'error').length
   const soCanhBao = vanDe.length - soLoi
+  const tabCoLoi: Record<Tab, boolean> = {
+    entry: vanDe.some(v => v.tab === 'entry' && v.severity === 'error'),
+    manage: vanDe.some(v => v.tab === 'manage' && v.severity === 'error'),
+  }
 
   return (
     <div className="khung">
       <TitleBar tieuDe={`${ten} — Cat Studio`} menus={menuTieuDe} />
       <Ribbon
+        tab={tab}
         themKiemTra={() => themKhoi('action', 'check_cond')}
         themVaoLenh={() => themKhoi('action', 'vao_lenh')}
         themSuaLenh={() => themKhoi('action', 'sua_lenh')}
-        themVongTheoDoi={() => themKhoi('loop')}
-        themNhom={() => themKhoi('group')}
         sua={() => dangChon[0] && setDangSua(dangChon[0].id)}
         datBatDau={datBatDau} doiGhim={doiGhim}
         nhanBan={nhanBan} xoa={xoa}
@@ -891,6 +900,10 @@ function Ung() {
       />
 
       <div className={'vung-canvas' + (dangNoi ? ' dang-noi' : '')}>
+        {/* Pill NỔI TRÊN canvas, không chiếm một dải riêng: nó là câu trả lời cho
+            "đang vẽ sơ đồ NÀO", nên nằm ngay trên chính cái đang vẽ là đúng chỗ. */}
+        <PillTab tab={tab} datTab={doiTab} tabCoLoi={tabCoLoi} />
+
         <ReactFlow
           nodes={nodesCoSo} edges={edgesCoNet}
           onNodesChange={onNodesChange as (c: NodeChange[]) => void}
@@ -946,16 +959,16 @@ function Ung() {
            style={{ height: panelGap ? CAO_GAP : panelCao }}>
         <div className="thanh-keo" onMouseDown={batDauKeoPanel} title="Kéo để chỉnh chiều cao" />
         <div className="hang-tab" onDoubleClick={() => setPanelGap(v => !v)}>
-          <button className={'tab' + (tab === 'van-de' ? ' dang' : '')}
-                  onClick={() => { setTab('van-de'); setPanelGap(false) }}>
+          <button className={'tab' + (tabDuoi === 'van-de' ? ' dang' : '')}
+                  onClick={() => { setTabDuoi('van-de'); setPanelGap(false) }}>
             Vấn đề{vanDe.length ? ` (${vanDe.length})` : ''}
           </button>
-          <button className={'tab' + (tab === 'nhat-ky' ? ' dang' : '')}
-                  onClick={() => { setTab('nhat-ky'); setPanelGap(false) }}>
+          <button className={'tab' + (tabDuoi === 'nhat-ky' ? ' dang' : '')}
+                  onClick={() => { setTabDuoi('nhat-ky'); setPanelGap(false) }}>
             Nhật ký
           </button>
           <span className="day" />
-          {tab === 'nhat-ky' && !panelGap &&
+          {tabDuoi === 'nhat-ky' && !panelGap &&
             <button className="nut-nho" onClick={() => setNhatKy([])}>Xoá nhật ký</button>}
           <button className="nut-nho nut-gap" onClick={() => setPanelGap(v => !v)}
                   title={panelGap ? 'Mở bảng' : 'Gập bảng xuống'}>
@@ -963,22 +976,28 @@ function Ung() {
           </button>
         </div>
         {!panelGap && <div className="noi-dung-tab">
-          {tab === 'van-de' ? (
+          {tabDuoi === 'van-de' ? (
             vanDe.length === 0
               ? <div className="trong">Không có vấn đề nào.</div>
               : vanDe.map((v, i) => (
                 <div key={i}
                      className={'dong-van-de ' + (v.severity === 'error' ? 'loi' : 'canh-bao')}
-                     title="Bấm để chọn khối bị lỗi"
+                     title="Bấm để nhảy tới khối bị lỗi"
                      onClick={() => {
+                       // Lỗi có thể ở tab kia — nhảy tab trước rồi mới chọn khối.
+                       if (v.tab !== tab) doiTab(v.tab)
                        const id = v.step as string | null | undefined
                        if (!id) return
-                       setNodes(ds => ds.map(k => ({ ...k, selected: k.id === id })))
-                       const n = nodes.find(k => k.id === id)
-                       if (n) setCenter(n.position.x + 150, n.position.y + 80,
-                                        { zoom: mucZoom, duration: 350 })
+                       setTimeout(() => {
+                         setNodes(ds => ds.map(k => ({ ...k, selected: k.id === id })))
+                         const n = (v.tab === tab ? nodes : kho.current[v.tab].nodes)
+                           .find(k => k.id === id)
+                         if (n) setCenter(n.position.x + 150, n.position.y + 80,
+                                          { zoom: mucZoom, duration: 350 })
+                       }, v.tab !== tab ? 60 : 0)
                      }}>
                   <span className="muc">{v.severity === 'error' ? '●' : '▲'}</span>
+                  <span className={'nhan-tab t-' + v.tab}>{v.tab === 'entry' ? 'Entry' : 'Manage'}</span>
                   <span>{v.message}</span>
                 </div>
               ))
@@ -1045,26 +1064,26 @@ function Ung() {
       )}
 
       {moPicker && (
-        <TemplatePicker kind={moPicker.kind} tieuDe={moPicker.tieuDe}
+        <TemplatePicker tieuDe={moPicker.tieuDe}
                         onChon={moPicker.xong} onDong={() => setMoPicker(null)}
-                        onDuyetFile={moPicker.kind === 'strategy'
-                          ? () => { setMoPicker(null); moFile() } : undefined} />
+                        onDuyetFile={() => { setMoPicker(null); moFile() }} />
       )}
 
       {dangSua && boot && (() => {
         const n = nodes.find(k => k.id === dangSua)
         if (!n) return null
         const st = (n.data as { step: Step }).step
-        // HĐ lẻ chính LÀ một hành động -> mở thẳng hộp thoại hành động, khỏi bắt người
-        // dùng đi qua một lớp "danh sách 1 phần tử" vô nghĩa.
-        return st.kind === 'action'
-          ? <ActionDialog action={st as Record<string, any>} boot={boot}
-                          onDong={() => setDangSua(null)}
-                          onLuu={a => ghiBuoc({ ...a, kind: 'action', id: st.id,
-                                                pos: st.pos, ghim: st.ghim } as Step)} />
-          : <StepDialog step={st} boot={boot}
-                        onDong={() => setDangSua(null)} onLuu={ghiBuoc} />
+        if (st.kind === 'start') return null      // khối Bắt đầu không có gì để sửa
+        // Một khối CHÍNH LÀ một hành động -> mở thẳng hộp thoại hành động, khỏi bắt
+        // người dùng đi qua một lớp "danh sách 1 phần tử" vô nghĩa.
+        return (
+          <ActionDialog action={st as Record<string, any>} boot={boot} tab={tab}
+                        onDong={() => setDangSua(null)}
+                        onLuu={a => ghiBuoc({ ...a, kind: 'action', id: st.id,
+                                              pos: st.pos, ghim: st.ghim } as Step)} />
+        )
       })()}
+
     </div>
   )
 }

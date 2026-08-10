@@ -7,6 +7,9 @@ __pycache__/
 settings.json
 templates/
 
+# Shortcut do tools/tao_shortcut.bat sinh ra — chứa đường dẫn tuyệt đối của máy này
+Cat Studio.lnk
+
 # Build
 webui/node_modules/
 webui/dist/
