@@ -174,47 +174,90 @@ kiem("R2", "Manage chỉ SỬA lệnh",
 kiem("R3", "sơ đồ mẫu SẠCH — không lỗi, không cảnh báo",
      not a.validate(doc)["value"])
 
+# Bảng "cố ý khác" bên dưới KHAI những điều này. Kiểm ngay tại đây để bảng không trôi
+# thành văn viết cho vui: mục 5 nói Manage chạy M1, mục 3 nói bề rộng vùng được kiểm
+# lại ở cổng vào lệnh — cả hai phải đúng với sơ đồ mẫu thật.
+nhip = {t: next(x["nhip"] for x in doc[t]["steps"] if core.is_start_step(x))
+        for t in core.TABS}
+kiem("R4", f"Entry M5 (quyết định) · Manage M1 (phản ứng, bản gốc chạy mỗi tick)",
+     nhip == {"entry": "M5", "manage": "M1"}, f"— {nhip}")
+kiem("R5", "bề rộng vùng VẪN được kiểm ở cổng vào lệnh (khác bản gốc, cố ý)",
+     any(c["trai"]["ten"] == "rong_vung_atr"
+         for st in doc["entry"]["steps"] for c in st.get("conditions") or []))
+
 # ============================ CỐ Ý KHÁC ============================
+# Cột cuối là thứ QUAN TRỌNG NHẤT của bảng này: khác bản gốc thì có làm ĐỔI SỐ không.
+# Không có nó thì bảy dòng "cố ý khác" trông ngang nhau, trong khi thực tế chỉ vài dòng
+# đụng tới kết quả — mà đúng mấy dòng đó mới cần cân nhắc lại khi số không khớp MT5.
+DOI_SO = "SỐ LỆNH"        # ra ít/nhiều lệnh hơn bản gốc
+DOI_TIEN = "GIÁ & P&L"    # cùng số lệnh, khác giá vào/ra
+KHONG = "không"           # tương đương từng ca
+
 KHAC = [
     ("Đọc \"lệnh chờ đã khớp\"",
      "`HasOpenPosition()` — có vị thế NÀO BẤT KỲ không",
      "hỏi thẳng `lệnh này đã khớp` theo id",
      "Bản gốc đọc NHẦM khi lệnh chờ bị huỷ từ ngoài trong lúc còn vị thế cũ. "
-     "Ta có id nên không phải đoán. CỐ Ý SỬA."),
+     "Ta có id nên không phải đoán. CỐ Ý SỬA.", KHONG),
     ("Đóng băng vùng khi có lệnh chờ",
      "`if(cur != COMP_PENDING)` mới cập nhật H/L",
      "lệnh mang `vung_id`, tự nhớ vùng của nó",
-     "Không cần đóng băng nữa — snapshot đi theo lệnh."),
+     "Không cần đóng băng nữa — snapshot đi theo lệnh.", KHONG),
     ("Kiểm lại bề rộng vùng",
      "CHỈ kiểm lúc COUNTING→CONFIRMED, sau đó thôi",
      "kiểm LẠI mỗi nến ở cổng vào lệnh",
      "Bản gốc: bị Max_Positions chặn thì vùng cứ nới rộng mà vẫn CONFIRMED, "
-     "entry trôi ra xa. Ta chặt hơn. KHÁC HÀNH VI — cân nhắc nếu muốn khớp 100 %."),
+     "entry trôi ra xa. Ta chặt hơn — ÍT LỆNH HƠN, và lệnh mất đi đúng là loại "
+     "entry đã trôi xa mép vùng. Đã chốt giữ bản sạch (core.md §12.6a).", DOI_SO),
     ("Máy trạng thái 5 giá trị",
      "`ENUM_COMPRESSION_STATE`",
      "vị trí con trỏ trên sơ đồ + `so_lenh_cho` + `vung_da_sinh_lenh`",
-     "MQL5 phải tự nhớ vì mỗi tick chạy lại từ đầu. Ta có đồ thị."),
-    ("Khớp lệnh",
-     "`deviation=30`, `ORDER_FILLING_FOK`, `ORDER_TIME_GTC`",
-     "chưa mô hình hoá",
-     "Chuyện khớp lệnh của sàn, không phải luật chiến lược. Để Strategy Tester lo."),
+     "MQL5 phải tự nhớ vì mỗi tick chạy lại từ đầu. Ta có đồ thị.", KHONG),
+    ("Nhịp quản lý lệnh",
+     "quyết định ở tick đầu nến M5, nhưng `ManageBreakEven()` chạy MỖI TICK "
+     "(`Compress.mq5:128`, ngoài mọi guard nến)",
+     "Entry nhịp M5 · Manage nhịp M1, mô phỏng bước từng nến M1",
+     "Không có dữ liệu tick thì M1 là nhanh nhất có thể. Để Manage ở M5 là một "
+     "nến quét lên đủ 1R rồi quay về SL sẽ ghi −1R trong khi EA thật đã kịp dời "
+     "SL và thoát ~0R. M1 thu hẹp 5 lần nhưng KHÔNG xoá hẳn sai lệch đó, và sai "
+     "lệch còn lại nghiêng về phía ta LỖ NHIỀU HƠN thực tế (core.md §12.4).",
+     DOI_TIEN),
+    ("Nến \"liên tiếp\" qua khoảng trống dữ liệu",
+     "đếm thẳng theo nến, cuối tuần cũng tính là liên tiếp",
+     "khoảng trống > 2 bước nến → vùng nén CHẾT, đếm lại",
+     "\"Nén\" là giá đứng yên trong một quãng LIỀN MẠCH; 48 giờ chợ đóng không "
+     "phải giá đứng yên. Bản gốc để vùng bắc cầu qua cuối tuần rồi lệnh chờ GTC "
+     "nằm đó, gap mở cửa Chủ nhật khớp nó cách xa entry — đúng loại lệnh cho kết "
+     "quả cực đoan nhất (core.md §12.6b).", DOI_SO),
+    ("Mô hình khớp lệnh",
+     "`deviation=30`, `ORDER_FILLING_FOK`, `ORDER_TIME_GTC`; "
+     "KHÔNG xử lý spread ở bất cứ đâu (grep `spread` = 0 kết quả)",
+     "đường đi 4 điểm trong nến M1 · spread ô nhập (mặc định 20 points) · "
+     "gap khớp ở giá MỞ CỬA · GTC giữ nguyên (lệnh chờ không hết hạn)",
+     "`deviation` và FOK không tác động vì EA không đặt lệnh thị trường nào. "
+     "Nhưng spread thì tác động CÓ HỆ THỐNG: sàn kích hoạt Buy Stop theo Ask "
+     "trên một mức giá tính từ nến Bid. Spread = 0 cho kết quả lãi hơn thực tế "
+     "(core.md §12.2, §12.3).", DOI_TIEN),
     ("Magic number",
      "`InpMagic_Number` lọc lệnh của chính EA",
      "id của ta",
-     "Sổ lệnh là của riêng app, không lẫn với ai."),
+     "Sổ lệnh là của riêng app, không lẫn với ai.", KHONG),
     ("CalcLot(entry, sl)",
      "khai hai tham số nhưng BỎ QUA cả hai, luôn trả Fixed_Lot",
      "chỉ có `lot` cố định, không hứa hẹn gì thêm",
-     "Không chép cái chữ ký nói dối."),
+     "Không chép cái chữ ký nói dối.", KHONG),
 ]
 
-print(f"\n{'─' * 78}\n  BẢY CHỖ CỐ Ý KHÁC BẢN GỐC — không phải lỗi\n{'─' * 78}")
-for i, (viec, goc, ta, vi_sao) in enumerate(KHAC, 1):
-    print(f"\n  {i}. {viec}")
+n_doi = sum(1 for k in KHAC if k[4] != KHONG)
+print(f"\n{'─' * 78}\n  {len(KHAC)} CHỖ CỐ Ý KHÁC BẢN GỐC — không phải lỗi"
+      f"  ({n_doi} chỗ ĐỔI SỐ)\n{'─' * 78}")
+for i, (viec, goc, ta, vi_sao, anh) in enumerate(KHAC, 1):
+    dau = "  " if anh == KHONG else "⚠ "
+    print(f"\n  {i}. {dau}{viec}   [{anh}]")
     print(f"     D_02  : {goc}")
     print(f"     ta    : {ta}")
     print(f"     vì sao: {vi_sao}")
 
 print(f"\n{'=' * 78}\n  {dung} luật khớp, {sai} luật RƠI  ·  {len(KHAC)} chỗ cố ý khác"
-      f"\n{'=' * 78}")
+      f", trong đó {n_doi} chỗ ĐỔI SỐ\n{'=' * 78}")
 sys.exit(1 if sai else 0)

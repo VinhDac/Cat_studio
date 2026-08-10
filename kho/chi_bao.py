@@ -13,9 +13,19 @@ MA_SO = "chi_bao"
 MO_TA = "ATR · MA · Donchian · Volume MA — tính thẳng từ nến, ai dùng cũng được."
 
 CHI_BAO = [
+    # ⚠ SMA của True Range, KHÔNG phải Wilder/SMMA. Đây là công thức của `iATR` trong
+    # MT5 (`MQL5\\Indicators\\Examples\\ATR.mq5`): giá trị đầu là trung bình cộng của
+    # `period` giá trị TR, các giá trị sau là cửa sổ trượt
+    # `ATR[i] = ATR[i-1] + (TR[i] − TR[i-period]) / period`.
+    # Chép nhầm sang Wilder là sai IM LẶNG và dây chuyền: ATR khác → `atr_bps` khác →
+    # nến nào là "nến nén" khác → số nến nén, thời điểm xác nhận vùng, đỉnh/đáy vùng,
+    # độ lớn 1R và TP lệch hết. Mà ngưỡng 7.0 bps được dò ra trên chính con số `iATR`
+    # trả về, nên đổi công thức là ngưỡng đó mất nghĩa.
     {"key": "atr", "nhan": "ATR", "tham_so": ["tf", "period"],
-     "cong_thuc": "Trung bình True Range theo Wilder",
-     "mo_ta": "Đo BỀ RỘNG một nến, tính bằng đơn vị giá. D_02 đọc ở nến đã đóng [1]."},
+     "cong_thuc": "SMA của True Range (đúng iATR của MT5 — KHÔNG phải Wilder)",
+     "mo_ta": "Đo BỀ RỘNG một nến, tính bằng đơn vị giá. "
+              "TR = max(High, Close[trước]) − min(Low, Close[trước]). "
+              "D_02 đọc ở nến đã đóng [1]."},
     {"key": "ma", "nhan": "Đường trung bình MA", "tham_so": ["tf", "period", "method"],
      "cong_thuc": "SMA / EMA / SMMA / LWMA trên giá đóng cửa",
      "mo_ta": "D_02 dùng SMA(50) trên khung Trend để chọn hướng."},

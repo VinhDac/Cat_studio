@@ -17,6 +17,9 @@ BAI = [
     ("test_kho_va_lenh.py", "Kho backend · sổ lệnh (id của ta) · lưu trữ · tham số"),
     ("test_so_do_mau.py", "Sơ đồ mẫu Compress phải mở ra SẠCH"),
     ("test_doi_chieu_d02.py", "ĐỐI CHIẾU từng luật của D_02 — có luật nào rơi không"),
+    ("test_nguon_nen.py", "Nguồn nến — luật MỘT DẢI LIỀN, ghép lô, nhận ra lỗ hổng"),
+    ("test_tinh_toan.py", "Chỉ báo — khớp MT5, NaN chứ không 0, gộp khung không nhìn trước"),
+    ("test_khop_lenh.py", "Khớp lệnh — đường đi 4 điểm, spread quy về Bid, gap"),
 ]
 
 hong = []

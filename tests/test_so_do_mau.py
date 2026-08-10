@@ -27,6 +27,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 import api  # noqa: E402
 import core  # noqa: E402
+import kho  # noqa: E402
 
 dung = sai = 0
 
@@ -253,6 +254,35 @@ xau_nhip["manage"]["steps"][0]["nhip"] = "M15"
 kiem("Manage chậm hơn Entry → cảnh báo (quản lý là phản ứng, phải nhanh hơn)",
      any(p["severity"] == "warning" and "CHẬM hơn Entry" in p["message"]
          for p in core.validate_process(xau_nhip)))
+
+# ================= 7c. công thức ATR & thứ tự nhánh =================
+print("\n▸ Bẫy im lặng")
+atr = next(c for c in kho.chi_bao.CHI_BAO if c["key"] == "atr")
+# `iATR` của MT5 là SMA của True Range, KHÔNG phải Wilder. Ngưỡng 7.0 bps của D_02 được
+# dò ra trên chính con số iATR trả về — chép nhầm sang Wilder là ATR khác, atr_bps khác,
+# nến nào là "nến nén" khác, rồi số nến nén / thời điểm xác nhận / 1R / TP lệch dây chuyền.
+kiem("ATR khai đúng iATR của MT5 — SMA của True Range, và nói rõ KHÔNG phải Wilder",
+     atr["cong_thuc"].startswith("SMA của True Range")
+     and "KHÔNG phải Wilder" in atr["cong_thuc"],
+     f'— {atr["cong_thuc"]!r}')
+
+# Thứ tự nhánh lấy từ (ghim, y, x, id). Hai đầu nhánh ngang nhau thì phân định bằng
+# `id` — một uuid không ai nhìn thấy — nên kết quả backtest phụ thuộc toạ độ canvas.
+ngang = json.loads(json.dumps(doc))
+for st in ngang["entry"]["steps"]:
+    if "Xu hướng" in (st.get("name") or ""):
+        st["pos"][1] = 300.0
+kiem("hai nhánh đặt NGANG NHAU → báo LỖI (thứ tự phải nhìn thấy được)",
+     any(p["severity"] == "error" and "NGANG NHAU" in p["message"]
+         for p in core.validate_process(ngang)))
+lech = json.loads(json.dumps(ngang))
+for st in lech["entry"]["steps"]:
+    if "XUỐNG" in (st.get("name") or ""):
+        st["pos"][1] = 300.0 + core.LECH_TOI_THIEU
+kiem(f"kéo lệch đủ {core.LECH_TOI_THIEU:.0f} px là hết lỗi",
+     not any("NGANG NHAU" in p["message"] for p in core.validate_process(lech)))
+kiem("sơ đồ mẫu không dính lỗi này",
+     not any("NGANG NHAU" in p["message"] for p in core.validate_process(doc)))
 
 # ================= 8. lưu / mở lại =================
 print("\n▸ Lưu / mở lại")

@@ -573,6 +573,12 @@ def _khoa_nhanh(step):
     return (1 if step.get("ghim") else 0, y, x, str(step.get("id") or ""))
 
 
+#: Hai đầu nhánh chênh nhau ÍT HƠN chừng này pixel thì coi như NGANG NHAU — mắt không
+#: phân biệt được cái nào trên, mà `_khoa_nhanh` vẫn phải chọn một thứ tự. Xem
+#: `_soat_thu_tu_nhanh`.
+LECH_TOI_THIEU = 8.0
+
+
 def flow_map(steps, edges):
     """(bảng_tra_id, kế_tiếp) với `kế_tiếp[id] = [id, ...]` THEO ĐÚNG THỨ TỰ ƯU TIÊN.
 
@@ -934,6 +940,26 @@ def validate_flow_graph(steps, edges):
         # không khớp nhánh nào là chiến lược chết đứng. Sai: cả sơ đồ là một vòng lặp
         # chạy lại ở mỗi nến, nên không khớp gì = HẾT LƯỢT, nến sau chạy lại từ đầu.
         # Đó là cách "chờ" được diễn tả, và nó là trường hợp thường gặp nhất.
+
+        # ---- Thứ tự nhánh phải NHÌN THẤY ĐƯỢC ----
+        # `_khoa_nhanh` xếp nhánh theo (ghim, y, x, id). Hai đầu nhánh chênh `y` vài
+        # pixel thì mắt thấy chúng ngang nhau, nhưng bộ chạy vẫn thử một cái trước —
+        # và nếu chênh 0 thì phân định bằng `id`, một uuid KHÔNG ai nhìn thấy và không
+        # ai đổi được. Kết quả backtest khi đó phụ thuộc toạ độ canvas: hai file có đồ
+        # thị y hệt mà khác vị trí sẽ chạy ra khác nhau.
+        # Báo LỖI chứ không cảnh báo: sửa chỉ tốn một cú kéo, còn để nguyên thì cái sai
+        # không bao giờ lộ ra — sơ đồ trông vẫn đúng.
+        for i, a in enumerate(thang):
+            for b in thang[i + 1:]:
+                ya, yb = _khoa_nhanh(theo_id[a])[1], _khoa_nhanh(theo_id[b])[1]
+                if abs(ya - yb) >= LECH_TOI_THIEU:
+                    continue
+                _loi(ra, "error", a,
+                     f"{ten(a)} và {ten(b)} là hai nhánh của {ten(sid)} nhưng nằm "
+                     f"NGANG NHAU (lệch {abs(ya - yb):.0f} px). Nhánh nào được thử "
+                     f"trước là do vị trí quyết, nên đặt ngang nhau là để máy tự chọn "
+                     f"bằng thứ mắt không thấy. Hãy kéo một trong hai lên hoặc xuống "
+                     f"ít nhất {LECH_TOI_THIEU:.0f} px.")
 
         # Hai cổng cùng điều kiện y hệt: cái dưới không bao giờ tới lượt.
         da_thay = {}

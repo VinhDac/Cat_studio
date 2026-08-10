@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 181/181
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 290/290
 Thiết kế **Strategy Tester chốt xong** → §12. Bộ chạy chưa viết một dòng nào.
 
 ---
@@ -943,6 +943,11 @@ khối trùng `y` và `x` thì phân định bằng **uuid** — thứ người 
 
 > Hai đầu nhánh của cùng một ngã rẽ lệch nhau **dưới 8 px** → `validate_process` báo **lỗi**.
 
+✅ **Đã làm** — `core.LECH_TOI_THIEU = 8.0`, soát trong `validate_so_do` ngay cạnh luật nhánh mặc
+định. Báo **lỗi** chứ không cảnh báo: sửa chỉ tốn một cú kéo, còn để nguyên thì cái sai không bao
+giờ lộ ra vì sơ đồ trông vẫn đúng. Cạnh quay lại (trỏ vào khối đã ghim) được miễn — nó luôn xếp
+cuối bất kể toạ độ, nên không có gì mơ hồ.
+
 ### 12.6 Vùng nén
 
 **a) Kiểm bề rộng MỖI NẾN, không chốt một lần.** D_02 kiểm `rong_vung_atr ≤ 4` đúng một lần lúc
@@ -1098,9 +1103,8 @@ riêng — **không nhét vào `save_settings`**, hàm đó đang giữ nghĩa "
 Ô nhập: `từ` · `đến` · `delay (ms)` · `deposit (USD)` · `margin (1:…)` · `commission (USD/lot)`
 · `spread (points, mặc định 20)`.
 
-**Nguồn nến** — lấy từ MT5 đang cài trên máy (thư viện `MetaTrader5` đã có trong `.venv`). Ràng
-buộc duy nhất: terminal phải đang mở và đã đăng nhập **lúc tải**; tải xong đóng MT5 vẫn backtest
-bình thường.
+**Nguồn nến** ✅ — `nguon_nen.py`, chỗ **duy nhất** biết MT5 tồn tại. Ràng buộc duy nhất:
+terminal phải đang mở và đã đăng nhập **lúc tải**; tải xong đóng MT5 vẫn backtest bình thường.
 
 - Tải **M1 theo symbol**, một symbol giữ đúng **một dải liền**. `từ`/`đến` điều khiển cả tải lẫn
   chạy: chồng lấn thì chỉ tải phần thiếu rồi nối vào; rời hẳn thì tải luôn phần ở giữa cho liền,
@@ -1111,7 +1115,23 @@ bình thường.
   nến, **bao nhiêu MB**, nút xoá.
 - Bấm ▶ mà thiếu dữ liệu thì **không tự tải**, chỉ báo và mời bấm Tải.
 
-Một năm XAUUSD M1 ≈ **18 MB**.
+**Đã đo thật** (XAUUSD, Exness, 2025-11): 29.917 nến một tháng = **1,37 MB** → một năm ≈
+**16,5 MB**, khớp ước tính. Tải một tháng mất **0,2 giây**, nên một năm chỉ vài giây — không cần
+thanh tiến độ cầu kỳ. Xin lại khoảng đã có: **0,00 s, không đụng tới MT5**.
+
+⚠ **`spread_tb` là con số phải nhìn.** XAUUSD của Exness có `digits = 3`, nên `20 points` chỉ là
+**0,02 USD** — quá nhỏ. Trung vị đo được trên dữ liệu thật là **37 points**. Vì thế `tai()` tính
+trung vị (không phải trung bình — vài nến tin tức giãn gấp chục lần sẽ kéo lệch) và cất vào meta,
+để ô spread trong Cài đặt gợi ý đúng thay vì bắt người dùng đoán.
+
+**`lo_hong()` — thứ luật vùng nén cần.** Một tháng XAUUSD có **26 lỗ**, dài nhất **3.083 phút
+(~51 giờ)**, và bốn cái dài nhất đều là cuối tuần. Đây chính là bằng chứng cụ thể cho §12.6b:
+không cắt vùng nén ở lỗ hổng thì máy sẽ đếm "nến liên tiếp" xuyên qua 51 giờ chợ đóng cửa.
+
+**Một cái bẫy đã bắt được lúc chạy thật:** xin một khoảng **rời hẳn** dải đang có mà chỉ tải phần
+mới thì dải bị **thủng** ở giữa, và bộ chạy sẽ chạy xuyên qua chỗ thủng mà không biết. `khoang_thieu`
+vì thế luôn kéo khoảng trái tới tận đầu dải và khoảng phải từ tận cuối dải — thà tải thừa phần
+giữa, vì người dùng đã được báo số MB trước khi bấm.
 
 ### 12.12 ✅ BA LỖI CÓ SẴN của cửa sổ tester — ĐÃ SỬA
 
@@ -1159,9 +1179,9 @@ Cat_Studio là một bộ soạn thảo hoàn chỉnh và một bộ chạy **b�
 
 | Module | Trách nhiệm |
 |---|---|
-| `nguon_nen.py` | chỗ **duy nhất** biết MT5 tồn tại. Tải · cache · liệt kê · xoá · MB |
-| `tinh_toan.py` | chỉ báo thuần: mảng nến → mảng `float64`. Warm-up trả **NaN**, không trả 0 |
-| `khop_lenh.py` | mô hình sàn: đường đi 4 điểm, spread, gap. **Tách riêng** vì đây là thứ duy nhất đổi mà đổi cả đường vốn |
+| ✅ `nguon_nen.py` | chỗ **duy nhất** biết MT5 tồn tại. Tải · cache · liệt kê · xoá · MB · `lo_hong()` |
+| ✅ `tinh_toan.py` | chỉ báo thuần: mảng nến → mảng `float64`. Warm-up trả **NaN**, không trả 0. Kèm `gop()` (M1 → M5/M15/H1) và `theo_truc()` (đưa cột khung lớn về trục quyết định) |
+| ✅ `khop_lenh.py` | mô hình sàn: đường đi 4 điểm, spread, gap. **Tách riêng** vì đây là thứ duy nhất đổi mà đổi cả đường vốn. Hàm THUẦN — không numpy, không sổ lệnh, không đồ thị |
 | `bo_chay.py` | biên dịch sơ đồ → chương trình phẳng, rồi vòng lặp nến |
 | `dong_thoi_gian.py` | vật chứa bất biến của một lần chạy |
 | `nhat_ky.py` | bản ghi rỗng chữ + hàm dựng câu theo lô |
@@ -1180,6 +1200,10 @@ Ngoài ra:
   lặng và dây chuyền: ATR khác → `atr_bps` khác → nến nào là nến nén khác → số nến nén, thời
   điểm xác nhận, đỉnh/đáy vùng, độ lớn 1R, TP lệch hết. **Cài theo MT5** và sửa luôn câu mô tả —
   ngưỡng 7.0 bps được dò ra trên chính con số `iATR` trả về.
+  ✅ **Đã sửa mô tả**: `"SMA của True Range (đúng iATR của MT5 — KHÔNG phải Wilder)"`, kèm công
+  thức cửa sổ trượt `ATR[i] = ATR[i-1] + (TR[i] − TR[i-period]) / period` trong chú thích. Câu
+  cảnh báo nằm ngay trong chuỗi hiển thị chứ không chỉ trong comment — hộp thoại Kho là chỗ
+  người ta tra công thức, để cảnh báo ở comment thì không ai thấy. Bộ TÍNH thì vẫn chưa có.
 - **Sáu toán hạng khai mà không có nguồn**: `drawdown_pt`, `so_lenh_hom_nay`, `bid`, `ask`,
   `spread`, `gio`, `thu`. Chọn được trong hộp thoại → vẽ ra sơ đồ hợp lệ mà bộ chạy không chạy
   nổi; sơ đồ mẫu tình cờ không dùng nên test vẫn xanh và lỗi này đang trốn. → **cài luôn cả
@@ -1191,6 +1215,66 @@ Ngoài ra:
 - `so_lenh.Lenh` cần thêm **đúng hai trường**: `phi` và `lai_tien`. **Không** thêm trường thời
   gian thật — `nen_khop` + mảng nến đã cho ra `datetime` bằng một phép tra bảng, thêm nữa là chép
   cùng một sự thật ra hai chỗ.
+
+### 12.13b Bảng đối chiếu D_02 — 9 chỗ cố ý khác, 4 chỗ ĐỔI SỐ
+
+`tests/test_doi_chieu_d02.py` in ra bảng này mỗi lần chạy. Cột quan trọng nhất là **có đổi số
+không** — thiếu nó thì chín dòng trông ngang nhau, trong khi chỉ bốn dòng đụng tới kết quả, và
+đúng bốn dòng đó mới cần lôi ra xem lại khi số không khớp MT5.
+
+| # | Chỗ khác | Đổi gì |
+|---|---|---|
+| 3 | Kiểm lại bề rộng vùng mỗi nến (bản gốc chỉ kiểm một lần) | **SỐ LỆNH** — ta ra ít hơn |
+| 5 | Manage nhịp M1 (bản gốc chạy hoà vốn mỗi tick) | **GIÁ & P&L** — ta lỗ nhiều hơn |
+| 6 | Vùng nén chết khi gặp khoảng trống dữ liệu | **SỐ LỆNH** — bỏ vùng bắc cầu cuối tuần |
+| 7 | Mô hình khớp: đường đi 4 điểm · spread · gap ở giá mở cửa | **GIÁ & P&L** — bản gốc không có spread |
+| 1, 2, 4, 8, 9 | id thay `HasOpenPosition` · `vung_id` thay đóng băng vùng · đồ thị thay máy trạng thái · id thay magic · bỏ `CalcLot` nói dối | không |
+
+Hai bài kiểm neo bảng này vào code thật để nó không trôi thành văn viết cho vui: **R4** đòi nhịp
+mẫu đúng M5/M1, **R5** đòi `rong_vung_atr` vẫn nằm trong cổng vào lệnh.
+
+### 12.13c Gộp khung — đã đối chiếu với MT5
+
+Gộp theo **BIÊN THỜI GIAN TUYỆT ĐỐI** (`t // 300`), KHÔNG phải đếm 5 nến một cụm. Dữ liệu M1
+thật đầy lỗ hổng, nên đếm cụm thì chỉ cần một nến thiếu là mọi nến M5 sau đó lệch pha khỏi biên
+thật của sàn — và không có gì báo cho biết.
+
+**Đã đối chiếu trên một tháng XAUUSD thật** với chính nến mà MT5 dựng: 5.994 nến M5 · 1.999 M15
+· 501 H1, **lệch OHLC lớn nhất = 0**. Cùng số nến, cùng mốc thời gian, cùng giá.
+
+⚠ **Ô CUỐI CÙNG bị BỎ nếu dữ liệu chưa chạy hết ô.** Đây là thứ phép đối chiếu trên lôi ra:
+dữ liệu M1 dừng đúng `2025-12-02 00:00` thì ô M5 `00:00–00:04` chỉ có 1/5 phút, và nến gộp ra
+lệch hẳn MT5 (close 4225.331 vs 4225.692). Giữ nó là bộ chạy đọc một cây nến **chưa đóng** như
+thể đã đóng — đúng loại lỗi nhìn trước tương lai mà cả kiến trúc này dựng lên để tránh.
+
+Bỏ đúng ô CUỐI, không bỏ ô thiếu phút ở giữa: ô giữa thiếu vài phút vẫn là ô đã đóng thật (sàn
+cũng dựng vậy), chỉ ở ô cuối ta mới không biết sau đó còn gì. Chart muốn thấy cây nến đang chạy
+lớn dần thì xin `giu_nen_do_dang=True`.
+
+### 12.13d Khớp lệnh — bốn luật đã cài
+
+`khop_lenh.py` cố ý **không biết** `digits` là gì, không biết sổ lệnh, không import numpy. Nó
+nhận một lệnh + một nến + spread (đơn vị GIÁ) và trả danh sách sự kiện. Nhờ vậy mọi ca đều kiểm
+được bằng con số tính tay.
+
+| Luật | Cài thế nào |
+|---|---|
+| SL/TP cùng nến | đường đi 4 điểm quyết cái nào tới trước; nến tăng → đáy trước, nến giảm → đỉnh trước |
+| Spread | quy mọi mức về Bid MỘT lần: Mua-vào và Bán-ra dịch `− spread`, hai cái kia giữ nguyên |
+| Gap | chạm mức ở **bước 0** nghĩa là mở cửa đã ở bên kia → khớp tại giá MỞ CỬA |
+| Khớp rồi chết cùng nến | chỉ là hai bước liền nhau trên cùng đường đi, không phải ca đặc biệt |
+
+Hai chi tiết dễ bỏ sót, đã có bài kiểm riêng:
+
+- **SL/TP chỉ được xét TỪ bước khớp trở đi.** Nến tăng `O=99 → L=94 → H=101` khớp Buy Stop 100
+  ở bước 2; cái đáy 94 đi qua ở bước 1, TRƯỚC khi lệnh tồn tại, nên không được tính là chạm SL.
+  Xét cả nến là để một cái SL chưa tồn tại giết một vị thế chưa mở.
+- **Gap qua TP thì tốt hơn mức đặt, gap qua SL thì xấu hơn** — đúng như sàn khớp, và bất đối
+  xứng đó là thật chứ không phải thiên vị.
+
+`ca_hai_trong_nen()` đếm số nến mà cả SL lẫn TP đều nằm trong biên độ. Không dùng để quyết định
+gì — đường đi đã quyết rồi. Chạy một năm mà con số đó bằng 0 thì có **bằng chứng** kết quả không
+phụ thuộc vào giả định đường đi.
 
 ### 12.14 So hai lần chạy
 
@@ -1210,13 +1294,17 @@ Thiết kế Strategy Tester đã chốt hết ở §12. Còn lại là **việc
 
 - [x] ~~Sửa 3 lỗi có sẵn của cửa sổ tester (§12.12)~~ — xong, đã đo bằng chuột thật
 - [x] ~~`nhip` thay `timeframe`~~ — xong, schema 4, di cư file cũ tự động
-- [ ] Sửa mô tả ATR trong `kho/chi_bao.py` (Wilder → SMA của True Range) (§12.13)
-- [ ] Lỗi soát khi hai đầu nhánh lệch dưới 8 px (§12.5c)
-- [ ] `nguon_nen.py` → `tinh_toan.py` → `khop_lenh.py` → `bo_chay.py`
+- [x] ~~Sửa mô tả ATR trong `kho/chi_bao.py`~~ — xong, và bộ TÍNH cũng đã có (`tinh_toan.atr`)
+- [x] ~~Lỗi soát khi hai đầu nhánh lệch dưới 8 px~~ — xong, `core.LECH_TOI_THIEU`
+- [x] ~~Cập nhật `test_doi_chieu_d02.py`~~ — giờ **9 chỗ cố ý khác**, mỗi chỗ gắn nhãn có
+      ĐỔI SỐ hay không (`SỐ LỆNH` · `GIÁ & P&L` · `không`); 4 chỗ đổi số
+- [x] ~~`nguon_nen.py`~~ — xong, đã tải thật 30k nến XAUUSD; 22 bài kiểm không cần MT5
+- [x] ~~`tinh_toan.py`~~ — xong. **Gộp M1→M5/M15/H1 trùng khít MT5 tới từng chữ số** trên
+      một tháng dữ liệu thật (5.994 nến M5 · 1.999 M15 · 501 H1, lệch OHLC = 0)
+- [x] ~~`khop_lenh.py`~~ — xong, 30 bài kiểm từng ca tính tay được
+- [ ] `bo_chay.py` — vòng lặp nến, biên dịch sơ đồ, dòng thời gian
 - [ ] **Đo tốc độ trên 1 năm thật** trước khi viết một dòng giao diện nào (§12.13)
 - [ ] Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá
-- [ ] Cập nhật `test_doi_chieu_d02.py` — danh sách "cố ý khác" giờ thêm: bước theo nến M1 thay
-      vì tick, và vùng nén chết khi gặp khoảng trống dữ liệu
 
 Chưa liên quan tới tester:
 
