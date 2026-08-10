@@ -109,3 +109,75 @@ THAM_SO_MAC_DINH = [
      "ghi_chu": "D_02 dùng lot cố định — ĐỪNG tối ưu nó, lot to là đòn bẩy chứ không "
                 "phải lợi thế."},
 ]
+
+
+# ---------------------------------------------------------------------------
+# MÁY VÙNG NÉN — code nằm CÙNG FILE với `BANG_TRANG_THAI["luat"]` ở trên
+# ---------------------------------------------------------------------------
+# Cố ý đặt ở đây chứ không trong `bo_chay.py`. Bốn câu "luật" phía trên mô tả đúng cái
+# máy này bằng tiếng Việt; để code ở file khác thì sớm muộn hai bên nói khác nhau, và
+# lời hứa "thêm một chiến lược = thêm MỘT file vào kho/" cũng tan.
+#
+# `kho/nen_tang.py` thì ngược lại — nó KHÔNG có Engine, vì giá/thời gian/tài khoản
+# không phải ý tưởng của chiến lược nào.
+import so_lenh                                                      # noqa: E402
+
+
+class Engine:
+    """Nuôi bảng `vung_nen` — thứ thay cho `ENUM_COMPRESSION_STATE` 5 giá trị của D_02.
+
+    Bề mặt hẹp, đúng hai việc:
+      * `moi_nen(ctx)` — runtime gọi MỘT LẦN mỗi nến quyết định, TRƯỚC khi chạy sơ đồ.
+      * `doc(ten, ctx)` — trả giá trị cho 7 toán hạng nhóm "Vùng nén".
+    """
+
+    #: Tham số bắt buộc phải có trong bảng tham số. Thiếu là báo lỗi TRƯỚC khi chạy,
+    #: chứ không phải chết ở nến thứ 40.000.
+    THAM_SO_CAN = ("nguong_nen_bps", "chu_ky_atr")
+
+    def moi_nen(self, ctx):
+        """Một nến quyết định vừa đóng — cập nhật vùng nén.
+
+        Bốn luật ở `BANG_TRANG_THAI["luat"]`, cộng luật thứ năm của riêng ta:
+        **khoảng trống dữ liệu > 2 bước nến thì vùng CHẾT** (core.md §12.6b). "Nén" là
+        giá đứng yên trong một quãng LIỀN MẠCH; 48 giờ chợ đóng cửa không phải giá đứng
+        yên — không có giá nào cả."""
+        so = ctx.so
+        if ctx.co_lo_hong:
+            so.dong_vung()
+
+        bps = ctx.chi_bao("atr_bps", period=ctx.ts["chu_ky_atr"])
+        atr = ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+        # NaN (chưa đủ dữ liệu) KHÔNG phải "nén" — mọi phép so với NaN đều False, và đó
+        # đúng là ý muốn: chưa biết gì thì không đếm.
+        if not (bps == bps) or bps >= ctx.ts["nguong_nen_bps"]:
+            so.dong_vung()                       # ATR bung lên → vùng chết NGAY
+            return
+        v = so.vung_hien_hanh() or so.mo_vung(ctx.i)
+        v.them_nen(ctx.gia_nen("h"), ctx.gia_nen("l"), atr)
+
+    def doc(self, ten, ctx):
+        """Giá trị của một toán hạng nhóm "Vùng nén" ngay lúc này.
+
+        CHƯA CÓ VÙNG NÀO → trả `NaN` chứ không trả 0. `0` là lời nói dối lọt qua mọi
+        phép so: `rong_vung_atr <= 4` sẽ ĐÚNG trong lúc chẳng có vùng nén nào tồn tại."""
+        so = ctx.so
+        if ten == "vung_da_sinh_lenh":
+            return so.vung_da_sinh_lenh()
+        v = so.vung_hien_hanh()
+        if v is None:
+            return float("nan")
+        return {
+            "so_nen_nen": lambda: float(v.so_nen),
+            "dinh_vung": lambda: float(v.dinh),
+            "day_vung": lambda: float(v.day),
+            "rong_vung": lambda: float(v.rong),
+            "rong_vung_atr": lambda: float(v.rong_atr),
+            "atr_tb_vung": lambda: float(v.atr_tb),
+        }[ten]()
+
+
+#: Toán hạng nào do Engine trả lời. `atr_bps` KHÔNG nằm đây — nó là chỉ báo thuần,
+#: `tinh_toan.py` tính, không cần biết vùng nén là gì.
+ENGINE_TRA_LOI = ("so_nen_nen", "dinh_vung", "day_vung", "rong_vung",
+                  "rong_vung_atr", "atr_tb_vung", "vung_da_sinh_lenh")

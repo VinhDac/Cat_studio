@@ -20,6 +20,8 @@ BAI = [
     ("test_nguon_nen.py", "Nguồn nến — luật MỘT DẢI LIỀN, ghép lô, nhận ra lỗ hổng"),
     ("test_tinh_toan.py", "Chỉ báo — khớp MT5, NaN chứ không 0, gộp khung không nhìn trước"),
     ("test_khop_lenh.py", "Khớp lệnh — đường đi 4 điểm, spread quy về Bid, gap"),
+    ("test_bo_chay.py", "Bộ chạy — thứ tự trong nhịp, luật lùi, tính xác định"),
+    ("test_nhat_ky.py", "Nhật ký — bản ghi rỗng chữ, nhãn dựng lại, ghi/đọc ngược"),
 ]
 
 hong = []

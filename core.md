@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 290/290
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 332/332
 Thiết kế **Strategy Tester chốt xong** → §12. Bộ chạy chưa viết một dòng nào.
 
 ---
@@ -1182,9 +1182,9 @@ Cat_Studio là một bộ soạn thảo hoàn chỉnh và một bộ chạy **b�
 | ✅ `nguon_nen.py` | chỗ **duy nhất** biết MT5 tồn tại. Tải · cache · liệt kê · xoá · MB · `lo_hong()` |
 | ✅ `tinh_toan.py` | chỉ báo thuần: mảng nến → mảng `float64`. Warm-up trả **NaN**, không trả 0. Kèm `gop()` (M1 → M5/M15/H1) và `theo_truc()` (đưa cột khung lớn về trục quyết định) |
 | ✅ `khop_lenh.py` | mô hình sàn: đường đi 4 điểm, spread, gap. **Tách riêng** vì đây là thứ duy nhất đổi mà đổi cả đường vốn. Hàm THUẦN — không numpy, không sổ lệnh, không đồ thị |
-| `bo_chay.py` | biên dịch sơ đồ → chương trình phẳng, rồi vòng lặp nến |
-| `dong_thoi_gian.py` | vật chứa bất biến của một lần chạy |
-| `nhat_ky.py` | bản ghi rỗng chữ + hàm dựng câu theo lô |
+| ✅ `bo_chay.py` | biên dịch sơ đồ → chương trình phẳng, rồi vòng lặp nến |
+| ✅ `bo_chay.KetQua` | vật chứa bất biến của một lần chạy (không cần file riêng — nó chỉ là kết quả của `chay()`) |
+| ✅ `nhat_ky.py` | bản ghi rỗng chữ + dựng câu theo lô + ghi/đọc `.jsonl` + so hai lần chạy |
 | `api_tester.py` | `Api` riêng cho cửa sổ thứ hai |
 
 **Biên dịch sơ đồ MỘT LẦN trước vòng lặp** không phải tối ưu sớm mà là điều kiện sống còn:
@@ -1276,6 +1276,53 @@ Hai chi tiết dễ bỏ sót, đã có bài kiểm riêng:
 gì — đường đi đã quyết rồi. Chạy một năm mà con số đó bằng 0 thì có **bằng chứng** kết quả không
 phụ thuộc vào giả định đường đi.
 
+### 12.13e Bộ chạy — đã đo trên một năm thật
+
+| | |
+|---|---|
+| Dữ liệu | XAUUSD M1 2025, **354.503 nến** (16,2 MB) · 271 lỗ hổng, dài nhất 4.388 phút |
+| Một lần bấm ▶ | **2,9 giây** → 71.071 nến M5 · 135.010 lượt chạy |
+| Kết quả | 550 lệnh · 388 đóng · 162 huỷ · thắng 25,5 % · **tổng −9,5R** |
+| **`nen_mo_ho`** | **0** |
+
+`nen_mo_ho = 0` suốt một năm là con số quan trọng nhất bảng này: **không một nến M1 nào có cả SL
+lẫn TP nằm trong biên độ**. Nghĩa là kết quả trên KHÔNG phụ thuộc vào giả định đường đi 4 điểm —
+đó là bằng chứng, không phải niềm tin (§12.13d).
+
+**Lần đo đầu là 11,5 giây.** `cProfile` chỉ thẳng: `so_lenh.dang_song()` ăn **57 %** thời gian —
+nó quét TOÀN SỔ mỗi lần gọi, mà bộ chạy gọi nó trên mỗi nến M1: 354.000 × 550 lệnh = **195 triệu**
+phép kiểm. Bộ chạy giờ tự nuôi danh sách lệnh đang sống, O(1–3) mỗi nến → **2,9 s**, và kết quả
+**giống hệt tới từng con số** (550 lệnh, 99 thắng, 289 thua, −9,5R, 135.010 lượt) — đó mới là bằng
+chứng tối ưu không đổi hành vi.
+
+Nuôi danh sách ở BỘ CHẠY chứ không sửa `so_lenh`: đó là chuyện tốc độ của vòng lặp, không phải
+chuyện mô hình sổ lệnh.
+
+### 12.13f Nhật ký — đã chạy trên dữ liệu thật
+
+Dựng chữ cho lô 14 dòng đang nhìn mất **0,6 ms**; 8.020 bản ghi không tốn một byte chữ nào lúc
+chạy. Ghi ra `.jsonl` (3,3 MB) mất 0,06 s, đọc ngược lại đủ cả lệnh lẫn lượt.
+
+```
+11-05 19:00  ENTRY   [1]→[2]→[3]→[3A]→[3A.1]  đặt Mua L-0001 @3986.33  SL 3982.42  TP 3994.15
+11-06 11:45  MANAGE L-0003  [1]→[1B]→[1B.1]   sửa L-0003 · Dời SL về hoà vốn → SL 4013.73
+11-07 05:55  MANAGE L-0004  [1]→[1A]→[1A.1]   huỷ lệnh chờ L-0004
+11-20 03:00  ENTRY   [1]  hết lượt tại [2] · ATR chuẩn hoá (bps)(M5, 14) = 21.44, không < 7.00
+11-02 23:00  ENTRY   [1]  hết lượt tại [2] · ATR chuẩn hoá (bps)(M5, 14) chưa có dữ liệu
+```
+
+**Ba chỗ hỏng mà vẫn "trông có vẻ chạy", đã bắt được và có bài kiểm riêng:**
+
+1. **`Lenh.tom_tat()` có sẵn khoá `loai`** (stop/limit/market). Trải phẳng nó vào bản ghi là
+   ĐÈ MẤT nhãn dòng, nên đọc ngược file nhận nhầm 29 lệnh thành 29 lượt — mà **ghi thì vẫn báo
+   thành công**. Lồng vào `{"loai": "lenh", "lenh": …}` là hết.
+2. **"chưa có số" bị đọc thành "so xong thấy không đạt"** — `NaN` hiện ra là `= —, không < 7.00`,
+   nghe như một phép so thất bại. Hai chuyện rất khác nhau lúc debug, giờ tách hẳn thành
+   `"… chưa có dữ liệu"`.
+3. **Vân tay chỉ hash các KHỐI**, không hash cạnh và tham số — hai sơ đồ cùng bộ khối mà nối
+   khác nhau lại ra cùng vân tay, tức "so hai lần chạy" sẽ nói "sơ đồ không đổi" trong khi nó đã
+   đổi hẳn. Giờ hash cả cạnh lẫn bảng tham số, và vẫn bỏ `pos` (kéo khối không đổi logic).
+
 ### 12.14 So hai lần chạy
 
 Mục đích của bạn là *nâng cấp model*, mà đó là một vòng lặp: sửa → chạy lại → chỗ nào tốt lên,
@@ -1302,8 +1349,9 @@ Thiết kế Strategy Tester đã chốt hết ở §12. Còn lại là **việc
 - [x] ~~`tinh_toan.py`~~ — xong. **Gộp M1→M5/M15/H1 trùng khít MT5 tới từng chữ số** trên
       một tháng dữ liệu thật (5.994 nến M5 · 1.999 M15 · 501 H1, lệch OHLC = 0)
 - [x] ~~`khop_lenh.py`~~ — xong, 30 bài kiểm từng ca tính tay được
-- [ ] `bo_chay.py` — vòng lặp nến, biên dịch sơ đồ, dòng thời gian
-- [ ] **Đo tốc độ trên 1 năm thật** trước khi viết một dòng giao diện nào (§12.13)
+- [x] ~~`bo_chay.py`~~ — xong: biên dịch, vòng lặp M1, Manage/Entry theo nhịp, nhật ký
+- [x] ~~**Đo tốc độ trên 1 năm thật**~~ — **2,9 s** cho 354.503 nến M1 (§12.13e)
+- [x] ~~`nhat_ky.py`~~ — xong: dựng 200 dòng mất **0,6 ms**, ghi 8.020 lượt ra 3,3 MB
 - [ ] Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá
 
 Chưa liên quan tới tester:

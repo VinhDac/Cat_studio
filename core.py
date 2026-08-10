@@ -900,6 +900,30 @@ def validate_flow_graph(steps, edges):
                  f"lại chính mình mãi mãi. Muốn lặp thì nối về một khối phía trước và "
                  f"ghim số khối đó.")
 
+    # ---- HAI khối Vào lệnh trên CÙNG một đường ----
+    # Cổng "số lệnh chờ = 0" chỉ được hỏi MỘT LẦN ở đầu lượt, nên hai khối Vào lệnh nối
+    # tiếp nhau sẽ đẻ ra hai lệnh mà không cổng nào chặn được. D_02 chốt cứng đúng MỘT
+    # lệnh chờ (`TradeManager.mqh:330-334`).
+    #
+    # Chặn ở đây chứ không chặn trong bộ chạy: bộ chạy phải làm ĐÚNG những gì sơ đồ vẽ,
+    # còn thứ không nên vẽ thì đừng cho vẽ. Bộ chạy tự ý dừng sau lệnh đầu là nó âm thầm
+    # bỏ qua một khối người dùng đã đặt vào.
+    vao_lenh = [sid for sid, st in theo_id.items() if st.get("type") == VAO_LENH]
+    for sid in vao_lenh:
+        tham, hang = {sid}, list(ke.get(sid, []))
+        while hang:
+            uv = hang.pop(0)
+            if uv in tham:
+                continue
+            tham.add(uv)
+            if theo_id.get(uv, {}).get("type") == VAO_LENH:
+                _loi(ra, "error", uv,
+                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường — một lượt sẽ "
+                     f"đẻ ra HAI lệnh, mà cổng \"số lệnh chờ\" chỉ được hỏi một lần ở "
+                     f"đầu lượt nên không chặn được. Hãy tách chúng thành hai NHÁNH.")
+                break
+            hang += ke.get(uv, [])
+
     # ---- Cổng khớp rồi mà phía sau trống ----
     for sid, st in theo_id.items():
         if is_branch_gate(st) and not ke.get(sid):
