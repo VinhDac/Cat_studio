@@ -6,7 +6,7 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 332/332
+Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 332/332 · giao diện tester đã chạy thật
 Thiết kế **Strategy Tester chốt xong** → §12. Bộ chạy chưa viết một dòng nào.
 
 ---
@@ -1095,13 +1095,33 @@ vẽ sẵn có và không phụ thuộc mạng. Cuộn chuột = zoom. Crosshair
 
 Nút đổi timeframe trên toolbar **chỉ đổi cách vẽ** (gộp M1 lên M5/M15/H1…), không đụng kết quả.
 
-### 12.11 Cài đặt Strategy Test · nguồn nến
+### 12.11 ✅ Cài đặt Strategy Test · nguồn nến
+
+**Nằm trong Cài đặt của APP** (bánh răng ở thanh trạng thái, hoặc File → Cài đặt), thành một mục
+riêng "Strategy Test" — **KHÔNG nằm trong cửa sổ tester**.
+
+> Cài đặt là thứ đặt một lần rồi quên. Để nó trong cửa sổ tester thì mỗi lần bấm ▶ lại phải đi
+> qua một bảng nữa mới chạy được — một thao tác hoá ba. Giờ **bấm ▶ ở cửa sổ vẽ là tester mở ra
+> và CHẠY LUÔN**, cửa sổ đó chỉ còn nút `↻ Chạy lại`.
 
 Khoá riêng `test` trong `du_lieu/cai_dat.json` + hàm `save_test_settings` với danh sách trắng
-riêng — **không nhét vào `save_settings`**, hàm đó đang giữ nghĩa "cài đặt của trình soạn thảo".
+riêng — **không nhét vào `save_settings`**, hàm đó đang giữ nghĩa "cài đặt của trình soạn thảo";
+trộn vào là hai thứ khác hẳn nhau cùng một cửa và sớm muộn giẫm chân nhau.
 
-Ô nhập: `từ` · `đến` · `delay (ms)` · `deposit (USD)` · `margin (1:…)` · `commission (USD/lot)`
-· `spread (points, mặc định 20)`.
+Ô nhập: `symbol` · `từ` · `đến` · `spread (points)` · `vốn (USD)` · `phí (USD/lot)` ·
+`đòn bẩy 1:…` · `delay (ms)`. Cộng bảng **nguồn dữ liệu** ngay trên đó: mỗi symbol một dòng —
+có từ ngày nào đến ngày nào, bao nhiêu nến, **bao nhiêu MB**, nút Xoá, nút Tải thêm.
+
+Quản lý nguồn nến đặt ở `Api` CHÍNH chứ không ở `ApiTester`: nến là tài sản của **app** — tải một
+lần rồi mọi chiến lược dùng chung — không phải của một lần chạy.
+
+⚠ **Tester KHÔNG nhớ cài đặt.** `test_chay` đọc lại từ cửa sổ chính mỗi lần chạy. Nhớ ở phía JS
+thì sửa Cài đặt xong bấm ▶ lại vẫn ăn bản cũ — mà cửa sổ tester sống lâu hơn một lần chạy, nên
+mọi thứ nó "nhớ" đều có nguy cơ cũ.
+
+Ô spread hiện **quy đổi ngay cạnh**: `XAUUSD: 1 point = 0.001 · spread 37 points = 0.037 USD ·
+trung vị đo được trên dữ liệu đã tải: 37 points`. Thiếu dòng này thì "20 points" là con số vô
+nghĩa — XAUUSD 3 chữ số thì đó chỉ là 0,02 USD, nhỏ hơn spread thật gần hai lần.
 
 **Nguồn nến** ✅ — `nguon_nen.py`, chỗ **duy nhất** biết MT5 tồn tại. Ràng buộc duy nhất:
 terminal phải đang mở và đã đăng nhập **lúc tải**; tải xong đóng MT5 vẫn backtest bình thường.
@@ -1323,6 +1343,138 @@ chạy. Ghi ra `.jsonl` (3,3 MB) mất 0,06 s, đọc ngược lại đủ cả 
    khác nhau lại ra cùng vân tay, tức "so hai lần chạy" sẽ nói "sơ đồ không đổi" trong khi nó đã
    đổi hẳn. Giờ hash cả cạnh lẫn bảng tham số, và vẫn bỏ `pos` (kéo khối không đổi logic).
 
+### 12.15 ✅ Giao diện tester — đã chạy thật trong cửa sổ
+
+```
+ thanh công cụ   ⚙ ▶Chạy │ ⏮ ◀ ▶ ▶ ⏭  delay 60ms │ 🔍+ 🔍− ✛ Nến▾ M5▾ │ 2025-01-02 12:45
+ dải tóm tắt     550 lệnh · 99T/289B · thắng 25.5% · tổng −9.5R · vốn 9966.93 · nến mơ hồ 0
+ ┌──────────────────────────── chart ──────────────────────┬─── bảng số liệu ───┐
+ │  nến M5 · CHỈ vẽ lệnh · crosshair                        │ toán hạng đang dùng│
+ │  ▲──────▼  lệnh đã xong (hai mũi tên + vạch nối)         │ vùng nén (engine)  │
+ │  ▲────    lệnh đang sống                                 │ tài khoản          │
+ │  ┄┄┄┄┄┄   lệnh chờ: 3 đường entry · TP · SL              │ lệnh đang sống     │
+ ├──────────────────────────── nhật ký (ảo hoá) ────────────┴────────────────────┤
+ │ 01-02 12:40 MANAGE L-0003 [1]→[1B]→[1B.1] sửa L-0003 · Dời SL về hoà vốn …    │
+ └───────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Ba vùng đọc CÙNG MỘT con trỏ `j`** (chỉ số nến M1), nên chúng không thể nói khác nhau. Xem thì
+trượt liên tục, debug thì bấm một dòng nhật ký để nhảy mốc — cùng một con trỏ, hai cách di chuyển.
+
+**Đã đối chiếu bằng mắt trên dữ liệu thật**, đúng cái mà bản phản biện lo nhất: bấm dòng
+`MANAGE L-0003 · Dời SL về hoà vốn` thì bảng phải hiện `L-0003` gắn chấm *hoà vốn*, `SL = giá vào
+= 2643.067`, và `Vùng này đã sinh lệnh = đúng`. **Bảng và nhật ký khớp nhau**, vì bảng dựng từ
+CỘT đã ghi lúc chạy chứ không hỏi lại sổ lệnh.
+
+**Ba chi tiết đáng ghi:**
+
+- **Chart nhận đúng `{nen, lenh}`** và không có đường nào chạm tới bảng số liệu — luật "tuyệt đối
+  không indicator trên chart" được ép bằng KIỂU DỮ LIỆU, muốn vi phạm phải sửa chữ ký hàm.
+- **Gộp M1 → khung vẽ làm ở JS, cố ý và có giới hạn.** Python vẫn là nguồn sự thật cho mọi con số
+  đi vào QUYẾT ĐỊNH (`tinh_toan.gop`); JS chỉ gộp OHLC để VẼ. Nhờ vậy kéo con trỏ trong một nến M5
+  thì cây nến cuối LỚN DẦN mà không phải hỏi Python 20 lần một giây.
+- **Nhật ký ảo hoá tự viết ~40 dòng**, chiều cao dòng cố định (hằng `CAO` trong `Journey.tsx` PHẢI
+  khớp `.nk-dong` trong `app.css`). 135.000 dòng đổ thẳng vào DOM là treo hẳn WebView2.
+
+**Một lỗi bố cục bắt được lúc soi ảnh:** bảng "Lệnh đang sống" thiếu `table-layout: fixed` nên bốn
+cột số dính liền thành `2643.0672643.0672647.8181.19` — đọc ra một con số vô nghĩa, mà đây lại
+đúng là bảng người dùng nhìn để đánh giá. Nhãn "hoà vốn" cũng đổi thành một CHẤM: thêm một chữ
+nữa trên hàng là vỡ cả bảng, còn thông tin thì rê chuột vẫn đọc được.
+
+### 12.16 ⭐ PHÁT LẠI — sửa một hiểu sai của tôi
+
+Bản đầu tôi dựng một **trình xem lịch sử**: mở ra là mọi lệnh đã vẽ sẵn đủ hình hài, con trỏ thả
+vào giữa. Nhìn thì có vẻ xong. Nhưng người dùng nói thẳng: *"tín hiệu pending, tín hiệu vào vì bạn
+vẽ sẵn hết rồi nên tôi cũng không kiểm tra được"* — và đúng.
+
+> **Cốt lõi là KHOẢNH KHẮC**: lệnh chờ hiện ra, giá bò tới, khớp, SL dời về hoà vốn, chốt — với
+> nhật ký tự chạy và chỉ báo nhảy số cùng nhịp. Vẽ sẵn là giết đúng thứ đó.
+
+**Vòng đời giờ là:** bấm ▶ ở cửa sổ vẽ → **thanh tiến trình** (backtest chạy trên luồng nền) →
+phát lại **từ đầu**, nến hình thành từng cây.
+
+| Việc | Cách làm |
+|---|---|
+| Nến lớn dần | `series.update()` mỗi nhịp M1 — cây nến khung hiển thị phình ra qua 5 nhịp |
+| Trục thời gian · kéo ngang · zoom | `lightweight-charts` của TradingView |
+| Lệnh hiện đúng lúc | vẽ theo **trạng thái TẠI CON TRỎ**, không phải trạng thái cuối |
+| Nhật ký sống | dòng nảy lên đúng nhịp nó xảy ra, tự cuộn khi đang phát |
+| Nhảy tới sự kiện | `test_luot_ke` — không ai xem hết 71.000 nến buồn tẻ để đợi một lệnh |
+| Tốc độ | 0,25× → 16× |
+
+**Dùng thư viện ngoài, có cân nhắc.** `lightweight-charts` là dependency đầu tiên ngoài React và
+React Flow. Ba thứ thiếu — trục thời gian, kéo ngang, zoom — đều là bài đã có lời giải; tự viết
+lại là ~400 dòng để đổi lấy một bản kém hơn. Bundle tăng 583 KB (gzip 189 KB), chấp nhận được.
+
+**KÉO THEO LÔ, không hỏi từng khung hình.** Phát ở 60 ms/nhịp mà mỗi nhịp gọi cầu nối hai lần là
+~33 lời gọi/giây; `evaluate_js` đồng bộ và payload mã hoá hai lần, nên phát sẽ giật — mà nhịp đều
+mới là thứ quan trọng nhất khi xem nến hình thành. `test_doan(j0, 300)` mang đủ mọi thứ ba vùng
+cần cho 300 nhịp: **9 ms, 171 KB**. Lô kế nạp trước khi dùng hết 2/3.
+
+**Ba lỗi bắt được lúc soi ảnh chạy thật:**
+
+1. **Chart lộ tương lai TRONG một lô.** Nó vẽ lệnh theo `trang_thai` cuối cùng, mà lô mang cả sự
+   kiện còn ở tương lai (tới 300 nhịp = 5 giờ) — nên bảng nói "L-0006 đang sống, −0,81R" trong khi
+   chart đã vẽ nó đóng ở −1,00R. Đúng cái bệnh "vẽ sẵn" vừa chữa, chỉ nhỏ hơn. Giờ chart nhận
+   `tBayGio` và tự suy trạng thái tại đó.
+2. **Nhật ký dựng lại 400 dòng mỗi nhịp** kéo nhịp phát từ 60 ms xuống ~190 ms. Chỉ dựng lại khi
+   CÓ dòng mới — mà lượt mới thì 5 nhịp mới có một lần.
+3. **Cài đặt bị JS nhớ** từ lúc mở cửa sổ (xem §12.11).
+
+### 12.17 BẢNG MÀU CỦA CHART — ba tầng, ba nghĩa
+
+Bản trước có **ba thứ dùng chung một cặp màu**: nến xanh/đỏ, hướng lệnh xanh/đỏ, lãi/lỗ xanh/đỏ.
+Một cặp màu mang ba nghĩa thì chẳng còn nghĩa nào — người dùng nói thẳng *"màu xanh đỏ đang khó
+nhìn vì nến cũng cùng màu đó"*.
+
+| Tầng | Màu | Nghĩa DUY NHẤT |
+|---|---|---|
+| Nến | **xám** — tăng rỗng viền sáng, giảm đặc tối | bối cảnh. Giá là thứ XẢY RA |
+| Mức lệnh (vào · SL · TP) | **cam** `#ffa657` | "chỗ TA đặt" |
+| Kết quả (thắng/thua) | **xanh / đỏ** | và chỉ có nghĩa này |
+
+Làm nến im đi không phải để đẹp: để lúc không có lệnh thì chart lặng như tờ, lúc có lệnh thì mắt
+bị kéo tới ngay. **Hướng mua/bán không dùng màu nữa — dùng HÌNH:** ▲ mua, ▼ bán.
+
+| Trạng thái | Vẽ gì |
+|---|---|
+| Chờ | 3 đoạn cam: vào (gạch đứt) · TP, SL (chấm) — **chỉ trong quãng lệnh sống** |
+| Khớp | ▲/▼ cam tại nến khớp · SL, TP cam vẫn treo |
+| Đóng | **vạch nối vào→ra** xanh/đỏ + ô vuông `L-0007 −1.00R` |
+| Huỷ (nén tan) | `✕` **xám** — không thắng không thua, không đụng màu kết quả |
+
+**Hai thứ sửa được nhờ đổi `createPriceLine` → `LineSeries`:**
+
+1. **Đường không còn kéo suốt chart.** `PriceLine` luôn full-width, nên ba đường của một lệnh đặt
+   lúc 09:00 cũng chạy ngược về 06:00 — quãng nó chưa tồn tại. Nhiễu, và nói dối.
+2. **Vạch nối vào→ra quay lại** (§12.10 có, bản lightweight-charts đầu làm rơi). Nó chính là chỗ
+   mang màu kết quả: dốc lên xanh, dốc xuống đỏ, nằm ngang = hoà vốn.
+
+**Đường SL vẽ theo LỊCH SỬ**, dựng từ chính nhật ký (`lenh_sua`), nên lúc `Dời SL về hoà vốn` chạy
+thì nó **nhảy bậc** ngay trên chart — khoảnh khắc đáng kiểm chứng nhất, mà bản trước chỉ vẽ SL
+cuối cùng nên nó tàng hình. ⚠ Điểm đầu phải suy ngược từ `gia_dat` và `R`: `Lenh.sl` là SL HIỆN
+TẠI, đã bị mọi lần dời ghi đè — lấy nó làm điểm đầu là ra một đường phẳng và cái bậc biến mất.
+
+### 12.18 Nút "Tới sự kiện kế tiếp" — hai lỗi, một gốc
+
+Người dùng báo: *"nút tới sự kiện kế tiếp bị lỗi, nó xoá luôn đi những sự kiện cũ."* Hai lỗi, và
+cả hai đều từ một chỗ: **nhảy = dựng lại chart từ số không**.
+
+1. **Chart trắng bốc sau khi nhảy.** `veDau` nạp đúng MỘT cây nến (`[nenTai(L, 0)]`) rồi để phát
+   bồi thêm. Mọi lệnh cũ biến mất, và người xem mất hẳn ngữ cảnh — không biết giá vừa từ đâu tới.
+   → Lô giờ bắt đầu **sớm hơn con trỏ `LUI = 720` nhịp** (≈144 nến M5, nửa màn hình) và chart được
+   nạp thẳng toàn bộ đoạn quá khứ đó. **Cùng một lời gọi**, không thêm vòng nào.
+
+2. **Bấm ba lần vẫn đứng yên.** Nút nhảy tới *40 nhịp TRƯỚC* sự kiện cho "dễ xem nó xảy ra" —
+   nhưng thế thì lần bấm sau lại tìm thấy chính sự kiện đó (nó vẫn nằm phía trước con trỏ) và
+   nhảy về đúng chỗ cũ. Một vòng lặp đứng im.
+   → Dừng **ĐÚNG NGAY sự kiện**: mũi tên hiện ở mép phải, quá khứ vẫn còn nguyên nhờ đệm, và lần
+   bấm sau đi tiếp được. Muốn xem lại khoảnh khắc thì ◀ vài nhịp rồi ▶.
+
+Kèm hai chi tiết nhỏ mà thiếu thì vẫn lạc: nhật ký **luôn cuộn xuống cuối** khi danh sách đổi
+(đang dừng thì không có dòng mới nên không sợ giật), và dòng vừa nhảy tới được **tô sáng** — nó
+trả lời "tôi đang đứng ở đâu" ngay lúc chart đổi.
+
 ### 12.14 So hai lần chạy
 
 Mục đích của bạn là *nâng cấp model*, mà đó là một vòng lặp: sửa → chạy lại → chỗ nào tốt lên,
@@ -1352,7 +1504,8 @@ Thiết kế Strategy Tester đã chốt hết ở §12. Còn lại là **việc
 - [x] ~~`bo_chay.py`~~ — xong: biên dịch, vòng lặp M1, Manage/Entry theo nhịp, nhật ký
 - [x] ~~**Đo tốc độ trên 1 năm thật**~~ — **2,9 s** cho 354.503 nến M1 (§12.13e)
 - [x] ~~`nhat_ky.py`~~ — xong: dựng 200 dòng mất **0,6 ms**, ghi 8.020 lượt ra 3,3 MB
-- [ ] Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá
+- [x] ~~Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá~~ — xong, đã chạy
+      backtest thật trong cửa sổ và đối chiếu bảng ↔ nhật ký (§12.15)
 
 Chưa liên quan tới tester:
 

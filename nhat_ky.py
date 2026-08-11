@@ -158,6 +158,27 @@ def dung_lo(kq, tu=0, so=200, chi_co_viec=True):
     return {"tong": len(ds), "tu": tu, "dong": ra}
 
 
+def dung_lo_theo_nen(kq, j0, t_den):
+    """Những lượt xảy ra TRONG một lô khung hình, kèm chỉ số M1 để phát đúng lúc.
+
+    Khác `dung_lo` (cuộn theo trang): hàm này phục vụ PHÁT LẠI — nhật ký phải hiện ra
+    đúng cái nhịp mà nó xảy ra, chứ không phải đổ ra một cục. Nhờ vậy người xem thấy
+    dòng "đặt Buy Stop" nảy lên đúng lúc lệnh chờ hiện trên chart."""
+    doc = kq.doc
+    nhan, khoi = nhan_khoi(doc), _khoi_theo_id(doc)
+    ts = core.bang_tham_so(doc)
+    ra = []
+    for i, r in enumerate(kq.nhat_ky):
+        if r["j"] < j0:
+            continue
+        if kq.nen1["t"][r["j"]] > t_den:
+            break
+        ra.append({"i": i, "j": r["j"], "co_viec": bool(r["viec"]),
+                   "lenh_id": r.get("lenh_id"),
+                   "chu": dong_chu(r, nhan, khoi, ts, kq.nen5)})
+    return ra
+
+
 def loc(nhat_ky, chi_co_viec=True):
     """Chỉ số các lượt được hiện. Trả CHỈ SỐ chứ không trả bản ghi — để giao diện cuộn
     tới đúng dòng mà không phải chép cả danh sách."""

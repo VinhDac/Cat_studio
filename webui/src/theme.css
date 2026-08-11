@@ -22,6 +22,10 @@
   --muted: #9a9a9a;
   --dim: #7a7a7a;
 
+  /* NẾN XÁM — giá là bối cảnh, không phải nhân vật. Xanh/đỏ để dành CHỈ cho lãi/lỗ,
+     cam để dành CHỈ cho mức lệnh. Một cặp màu mang ba nghĩa thì chẳng còn nghĩa nào. */
+  --nen-len: #9aa0a6;
+  --nen-xuong: #5c6166;
   --ok: #4ec96a;
   --err: #e5534b;
   --warn: #d9a441;
@@ -61,6 +65,8 @@
   --border: #d6d6d6;
   --border-soft: #e4e4e4;
   --text: #1f1f1f;
+  --nen-len: #5c6166;
+  --nen-xuong: #b9bec4;
   --muted: #5f5f5f;
   --dim: #8a8a8a;
   --canvas-bg: #fafafa;

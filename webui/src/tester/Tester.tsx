@@ -1,74 +1,311 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cho_cau_noi, pyTester } from '../api'
+import IconNet from '../components/Icon'
 import TitleBar from '../components/TitleBar'
 import { useKhungCuaSo } from '../useKhungCuaSo'
-import type { ProcessDoc } from '../types'
+import type { DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay } from '../types'
+import BangSoLieu, { type BangCat } from './BangSoLieu'
+import Chart, { type Bar, type NenM1 } from './Chart'
+import Journey, { type DongNk } from './Journey'
 
-/** Cửa sổ Strategy Tester.
+const TF = [['M1', 1], ['M5', 5], ['M15', 15], ['M30', 30], ['H1', 60],
+            ['H4', 240], ['D1', 1440]] as const
+const TEN_TF: Record<number, string> =
+  Object.fromEntries(TF.map(([t, p]) => [p, t]))
+const TOC = [0.25, 0.5, 1, 2, 4, 8, 16] as const
+const LO = 300     // số khung hình phát tiếp được trong một lô
+const LUI = 720    // đệm quá khứ cho NHẬT KÝ — nến thì lấy trọn bằng `test_nen_tf`
+
+/** CỬA SỔ STRATEGY TESTER — một TRÌNH PHÁT LẠI, không phải trình xem lịch sử.
  *
- * Hiện mới là KHUNG, và cái khung đó chính là phần khó: nó chứng minh đường đi đã
- * thông — cửa sổ thứ hai nạp được trang (không còn `file:///` → trang trắng), có
- * `ApiTester` riêng nên bấm ✕ ở đây KHÔNG đóng cửa sổ chính, có `KhungTuVe` riêng nên
- * kéo thanh tiêu đề không kéo nhầm cửa sổ chính, và đọc được sơ đồ đã đóng băng.
+ * Vòng đời:
  *
- * Nội dung thật — chart · bảng số liệu · nhật ký — theo `core.md` §12.
+ *     bấm ▶ ở cửa sổ vẽ
+ *        → thanh tiến trình (backtest chạy trên luồng nền, ~3 s cho một năm)
+ *        → phát lại từ ĐẦU: nến lớn dần, lệnh hiện ra đúng lúc, nhật ký tự chạy
  *
- * `TitleBar` dùng lại NGUYÊN VẸN: nó gọi `py.cua_so_*`, mà cầu nối tra hàm theo TÊN
- * trên đúng api của cửa sổ đang chạy, nên ở đây những cái tên đó rơi vào `ApiTester`.
+ * ⚠ Bản trước vẽ sẵn cả lịch sử rồi thả con trỏ vào giữa. Nhìn thì có vẻ xong, nhưng
+ * nó giết đúng thứ cần xem: KHOẢNH KHẮC lệnh chờ ra đời, giá bò tới, khớp, SL dời về
+ * hoà vốn, chốt. Vẽ sẵn thì không kiểm chứng được gì cả.
+ *
+ * Lúc phát, JS KHÔNG hỏi Python câu nào: mỗi lô `test_doan` mang đủ 300 khung hình
+ * (nến · chỉ báo · vùng nén · lệnh sống · nhật ký), và lô kế được nạp trước khi dùng hết.
  */
 export default function Tester() {
-  const [doc, setDoc] = useState<ProcessDoc | null>(null)
-  const [loi, setLoi] = useState('')
-
-  /* KHÔNG được quên: hook này mới là thứ gắn handler kéo/giãn, và nó nằm ở TRANG chứ
-     không nằm trong `TitleBar`. Thiếu nó thì cửa sổ frameless mở ra đẹp nhưng không
-     kéo được, không giãn được, không snap được — trông y như lỗi của `khung_cua_so`. */
   useKhungCuaSo(32)
 
+  const [doc, setDoc] = useState<ProcessDoc | null>(null)
+  const [loi, setLoi] = useState('')
+  const [tt, setTt] = useState<TrangThaiChay | null>(null)
+  const [kq, setKq] = useState<KetQuaChay | null>(null)
+
+  // --- con trỏ + phát ---
+  const [j, setJ] = useState(0)
+  const [phat, setPhat] = useState(false)
+  const [toc, setToc] = useState(1)
+  const [tfVe, setTfVe] = useState(5)
+  const [hienBang, setHienBang] = useState(true)
+  const [hienNk, setHienNk] = useState(true)
+
+  // --- lô đang phát ---
+  const lo = useRef<DoanPhat | null>(null)
+  const loSau = useRef<DoanPhat | null>(null)
+  const [batDau, setBatDau] = useState(0)
+  const [datNen, setDatNen] = useState<Bar[] | null>(null)
+  const [themNen, setThemNen] = useState<NenM1 | null>(null)
+  const [lenh, setLenh] = useState<LenhVe[]>([])
+  const [dong, setDong] = useState<DongNk[]>([])
+  const [khungBang, setKhungBang] = useState<BangCat | null>(null)
+  const [tBayGio, setTBayGio] = useState(0)
+  const delay = useRef(60)
+
+  // ---------------- khởi động ----------------
   useEffect(() => {
     void (async () => {
       try {
-        // Chờ `bootstrap_tester` chứ không phải `bootstrap`: cửa sổ này không có
-        // `bootstrap`, chờ nhầm là treo 10 giây rồi báo mất kết nối.
         await cho_cau_noi('bootstrap_tester')
         const r = await pyTester.bootstrap_tester()
-        if (!r.ok) return setLoi(r.error ?? 'không nạp được')
-        if (r.value?.accent) {
+        if (!r.ok || !r.value) return setLoi(r.error ?? 'không nạp được')
+        if (r.value.accent) {
           document.documentElement.style.setProperty('--accent', r.value.accent)
         }
-        setDoc(r.value?.doc ?? null)
-      } catch (e) {
-        setLoi(String(e))
-      }
+        setDoc(r.value.doc)
+        delay.current = Number((r.value.cai_dat ?? {}).delay_ms ?? 60)
+        void chay()
+      } catch (e) { setLoi(String(e)) }
     })()
-    // Bấm ▶ lần nữa trong lúc cửa sổ này còn sống: Python KHÔNG tạo cửa sổ mới (làm
-    // vậy là mất con trỏ, mức thu phóng, vị trí cuộn nhật ký) mà bắn sự kiện xuống.
     window.__su_kien = (ten, d) => {
-      if (ten === 'so_do_moi') setDoc(d as ProcessDoc)
+      if (ten !== 'so_do_moi') return
+      setDoc(d as ProcessDoc)
+      void chay()
     }
   }, [])
 
-  const dem = (t: 'entry' | 'manage') => doc?.[t]?.steps?.length ?? 0
+  /* Bấm ▶ → chạy nền + hỏi tiến trình 200 ms một lần. Ba giây im lặng không phân biệt
+     được với treo, nên phải THẤY nó đang chạy tới đâu. */
+  const chay = async () => {
+    setLoi(''); setPhat(false); setKq(null)
+    setTt({ dang_chay: true, da: 0, tong: 0, chu: 'đang nạp nến…', xong: null, loi: null })
+    const r = await pyTester.test_chay({})
+    if (!r.ok) { setTt(null); return setLoi(r.error ?? 'chạy hỏng') }
+    for (;;) {
+      await new Promise(k => setTimeout(k, 200))
+      const s = await pyTester.test_trang_thai()
+      if (!s.ok || !s.value) { setTt(null); return setLoi(s.error ?? 'mất kết nối') }
+      setTt(s.value)
+      if (s.value.dang_chay) continue
+      if (s.value.loi) { setTt(null); return setLoi(s.value.loi) }
+      setKq(s.value.xong!)
+      await veDau(0)
+      setTt(null)
+      return
+    }
+  }
+
+  /* Nhảy tới một vị trí — và MANG THEO QUÁ KHỨ.
+   *
+   * ⚠ Bản trước dựng lại chart bằng đúng MỘT cây nến (`[nenTai(r.value, 0)]`), nên bấm
+   * "tới sự kiện kế tiếp" là chart trắng bốc, mọi lệnh cũ biến mất, và người xem mất
+   * hẳn ngữ cảnh — không biết giá vừa từ đâu tới. Lô giờ bắt đầu SỚM HƠN con trỏ `LUI`
+   * nhịp, và chart được nạp thẳng toàn bộ đoạn quá khứ đó. Cùng MỘT lời gọi, không
+   * thêm vòng nào. */
+  const veDau = useCallback(async (jj: number, tf = tfVe) => {
+    const j0 = Math.max(0, jj - LUI)
+    // Hai lời gọi, mỗi cái một việc: LÔ để phát tiếp (nhật ký · số liệu · lệnh), và
+    // TOÀN BỘ NẾN để chart kéo đi đâu cũng đủ. Nhảy là chuyện hiếm nên hai vòng không sao.
+    const [r, n] = await Promise.all([
+      pyTester.test_doan(j0, (jj - j0) + LO),
+      pyTester.test_nen_tf(TEN_TF[tf] ?? 'M5', jj),
+    ])
+    if (!r.ok || !r.value) return
+    const L = r.value
+    lo.current = L; loSau.current = null
+    soDong.current = -1                 // ép dựng lại nhật ký sau khi nhảy
+    const k = Math.max(0, Math.min(jj - L.j0, L.n - 1))
+    setJ(L.j0 + k)
+    if (n.ok && n.value) {
+      const v = n.value
+      setDatNen(v.t.map((t, x) => ({ time: t as never, open: v.o[x], high: v.h[x],
+                                     low: v.l[x], close: v.c[x] })))
+    }
+    setBatDau(x => x + 1)
+    setThemNen(null)
+    apDung(L, k)
+  }, [tfVe])
+
+  /* Một nhịp phát: lấy khung hình kế TỪ LÔ, không hỏi Python. */
+  const nhip = useCallback(() => {
+    const L = lo.current
+    if (!L) return false
+    const k = j + 1 - L.j0
+    if (k >= L.n) {
+      if (!loSau.current) return false
+      lo.current = loSau.current; loSau.current = null
+      soDong.current = -1
+      return nhip()
+    }
+    setJ(L.j0 + k)
+    setThemNen(nenTai(L, k))
+    apDung(L, k)
+    // Nạp trước lô kế khi còn ~100 nhịp — để không bao giờ khựng giữa chừng.
+    if (k > L.n - 100 && !loSau.current) {
+      void pyTester.test_doan(L.j0 + L.n, LUI + LO).then(r => {
+        if (r.ok && r.value?.n) loSau.current = r.value
+      })
+    }
+    return true
+  }, [j])
+
+  /* Số dòng nhật ký đã hiện. Giữ ở `ref` để biết CÓ DÒNG MỚI hay không.
+     Đo được: dựng lại mảng 400 dòng mỗi nhịp làm React render lại 400 phần tử và kéo
+     nhịp phát từ 60 ms xuống ~190 ms — tức phát chậm gấp ba lần cái đã đặt. Nhật ký chỉ
+     đổi khi có lượt mới, mà lượt mới thì 5 nhịp mới có một lần. */
+  const soDong = useRef(0)
+
+  const apDung = (L: DoanPhat, k: number) => {
+    setLenh(L.lenh)
+    setTBayGio(L.t[Math.max(0, Math.min(k, L.n - 1))])
+    setKhungBang(dungBang(L, k))
+    const jj = L.j0 + k
+    let n = 0
+    while (n < L.nhat_ky.length && L.nhat_ky[n].j <= jj) n++
+    if (n !== soDong.current) {
+      soDong.current = n
+      setDong(L.nhat_ky.slice(Math.max(0, n - 400), n))
+    }
+  }
+
+  useEffect(() => {
+    if (!phat || !kq) return
+    const id = window.setTimeout(() => { if (!nhip()) setPhat(false) },
+                                 Math.max(4, delay.current / toc))
+    return () => clearTimeout(id)
+  }, [phat, j, toc, kq, nhip])
+
+  /* Đổi khung hiển thị → nạp lại TOÀN BỘ nến ở khung mới. Không đụng kết quả chạy. */
+  const doiTf = (p: number) => { setTfVe(p); setPhat(false); void veDau(j, p) }
+
+  /* Nhảy tới SỰ KIỆN kế tiếp — không ai ngồi xem hết 71.000 nến buồn tẻ để đợi một lệnh.
+   *
+   * ⚠ Con trỏ dừng ĐÚNG NGAY sự kiện, không phải trước nó. Bản trước lùi 40 nhịp cho
+   * "dễ xem nó xảy ra", nhưng thế thì lần bấm sau lại tìm thấy chính sự kiện đó (nó vẫn
+   * ở phía trước con trỏ) và nhảy về đúng chỗ cũ — bấm ba lần vẫn đứng yên.
+   * Dừng đúng tại sự kiện thì mũi tên/vạch hiện ngay ở mép phải, quá khứ vẫn còn nguyên
+   * nhờ đệm `LUI`, và lần bấm sau đi tiếp được. Muốn xem lại khoảnh khắc thì ◀ vài nhịp
+   * rồi ▶. */
+  const toiSuKien = async () => {
+    const L = lo.current
+    if (!L) return
+    setPhat(false)
+    const trong = L.nhat_ky.find(x => x.j > j && x.co_viec)
+    if (trong) return veDau(trong.j)
+    const r = await pyTester.test_luot_ke(j)
+    if (r.ok && r.value && r.value.j >= 0) await veDau(r.value.j)
+  }
+
+  const tk = kq?.thong_ke
+  const nut = (icon: string, ten: string, on: () => void, bat = false, tat = false) => (
+    <button className={'tb-nut' + (bat ? ' bat' : '')} title={ten}
+            disabled={tat} onClick={on}><IconNet name={icon} size={15} /></button>
+  )
 
   return (
     <div className="khung">
       <TitleBar tieuDe={doc ? `${doc.name} — Strategy Tester` : 'Strategy Tester'}
                 menus={[]} />
-      <div className="tester-trong">
-        {loi ? <div className="tester-loi">{loi}</div>
-          : !doc ? <div className="tester-mo">đang nạp sơ đồ…</div>
-            : (
-              <>
-                <div className="tester-ten">{doc.name}</div>
-                <div className="tester-phu">
-                  {doc.symbol} · Entry {dem('entry')} khối · Manage {dem('manage')} khối
-                </div>
-                <div className="tester-ghi">
-                  Chưa có bộ chạy. Thiết kế đầy đủ ở <code>core.md §12</code>.
-                </div>
-              </>
-            )}
+
+      <div className="tb">
+        <button className="nut chinh" onClick={chay} disabled={!!tt?.dang_chay}>↻ Chạy lại</button>
+        <span className="tb-ngan" />
+        {nut('dau', 'Về đầu', () => { setPhat(false); void veDau(0) }, false, !kq)}
+        {nut('undo', 'Lùi 1 nến',
+             () => { setPhat(false); void veDau(Math.max(0, j - 1)) }, false, !kq)}
+        <button className="tb-nut rong" disabled={!kq} onClick={() => setPhat(v => !v)}
+                title={phat ? 'Dừng' : 'Phát — nến hình thành từng cây như live'}>
+          {phat ? '❚❚' : '▶'}
+        </button>
+        {nut('redo', 'Tới 1 nến', () => { setPhat(false); nhip() }, false, !kq)}
+        {nut('cuoi', 'Tới SỰ KIỆN kế tiếp', () => void toiSuKien(), false, !kq)}
+        <select className="o nho" value={toc} onChange={e => setToc(+e.target.value)}
+                title="Tốc độ phát">
+          {TOC.map(x => <option key={x} value={x}>{x}×</option>)}
+        </select>
+        <span className="tb-ngan" />
+        <select className="o nho" value={tfVe} onChange={e => doiTf(+e.target.value)}
+                title="Chỉ đổi CÁCH VẼ — không đụng kết quả">
+          {TF.map(([t, p]) => <option key={t} value={p}>{t}</option>)}
+        </select>
+        <span className="tb-day" />
+        {lo.current && <span className="tb-gio">{gio(nenTai(lo.current, j - lo.current.j0).t)}</span>}
+        {nut('copy', 'Bảng số liệu', () => setHienBang(v => !v), hienBang)}
+        {nut('edit', 'Nhật ký', () => setHienNk(v => !v), hienNk)}
       </div>
+
+      {tt?.dang_chay && (
+        <div className="tt-nap">
+          <div className="tt-nap-chu">{tt.chu}</div>
+          <div className="tt-nap-thanh">
+            <div style={{ width: tt.tong ? `${tt.da / tt.tong * 100}%` : '8%' }} />
+          </div>
+        </div>
+      )}
+      {loi && <div className="tt-loi">{loi}</div>}
+      {tk && (
+        <div className="tt-tom">
+          <b>{tk.so_lenh}</b> lệnh · <b>{tk.thang}</b>T/<b>{tk.thua}</b>B ·
+          thắng <b>{tk.ty_le_thang}%</b> · tổng <b className={tk.tong_R >= 0 ? 'lai' : 'lo'}>
+            {tk.tong_R}R</b> · vốn <b>{tk.von_cuoi}</b> · DD <b>{tk.drawdown_pt}%</b>
+          <span className={'tt-moho' + (tk.nen_mo_ho ? ' xau' : '')}
+                title="Số nến M1 có CẢ SL lẫn TP trong biên độ. 0 = kết quả không phụ thuộc giả định đường đi.">
+            nến mơ hồ {tk.nen_mo_ho}
+          </span>
+          {kq?.so_hai_lan && <span className="tt-so">{kq.so_hai_lan}</span>}
+        </div>
+      )}
+
+      <div className="tt-giua">
+        <Chart tfPhut={tfVe} digits={kq?.digits ?? 2} lenh={lenh} tBayGio={tBayGio}
+               batDau={batDau} dat={datNen} them={themNen} />
+        {hienBang && <BangSoLieu k={khungBang} digits={kq?.digits ?? 2} />}
+      </div>
+
+      {hienNk && kq && (
+        <Journey dong={dong}
+                 nhay={async i => {
+                   setPhat(false)
+                   const r = await pyTester.test_luot(i)
+                   if (r.ok && r.value) await veDau(Math.max(0, r.value.j - 40))
+                 }} />
+      )}
     </div>
   )
+}
+
+function nenTai(L: DoanPhat, k: number): NenM1 {
+  const i = Math.max(0, Math.min(k, L.n - 1))
+  return { t: L.t[i], o: L.o[i], h: L.h[i], l: L.l[i], c: L.c[i] }
+}
+
+/** Bảng số liệu tại khung hình thứ k của lô. Chỉ CẮT LÁT, không tính gì —
+ *  mọi con số đã do Python tính lúc chạy. */
+function dungBang(L: DoanPhat, k: number): BangCat {
+  const lay = (o: Record<string, (number | string | boolean | null)[]>) =>
+    Object.entries(o).map(([ten, ds]) => ({ ten, gia_tri: ds[k] ?? null }))
+  return {
+    toan_hang: lay(L.chi_bao),
+    engine: lay(L.vung),
+    tai_khoan: [
+      { ten: 'Giá Bid', gia_tri: L.tai_khoan[k]?.gia ?? null },
+      { ten: 'Số lệnh chờ', gia_tri: L.tai_khoan[k]?.cho ?? 0 },
+      { ten: 'Số vị thế đang mở', gia_tri: L.tai_khoan[k]?.mo ?? 0 },
+    ],
+    lenh: L.lenh_song[k] ?? [],
+  }
+}
+
+function gio(t: number) {
+  const d = new Date(t * 1000)
+  const s = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${s(d.getUTCMonth() + 1)}-${s(d.getUTCDate())} `
+       + `${s(d.getUTCHours())}:${s(d.getUTCMinutes())}`
 }

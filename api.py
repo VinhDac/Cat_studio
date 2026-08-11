@@ -24,8 +24,12 @@ import traceback
 import core
 import kho
 import khung_cua_so
+import bo_chay
 import luu_tru
+import nguon_nen
+import nhat_ky
 import so_lenh
+import tinh_toan
 
 
 def _bat_loi(fn):
@@ -256,6 +260,8 @@ class Api(NenCuaSo):
             "phien_ban": core.PHIEN_BAN,
             "settings": self._cai_dat,
             "app_dir": core.app_dir(),
+            "nguon": nguon_nen.liet_ke(),
+            "co_mt5": nguon_nen.CO_MT5,
 
             "kinds": [core.KIND_START, core.KIND_ACTION],
             "kind_labels": core.KIND_LABELS,
@@ -446,6 +452,8 @@ class Api(NenCuaSo):
         self._doc_tester = doc
         if self._tester is not None:
             self._tester.set_title(f"{doc['name']} — Strategy Tester")
+            # Cửa sổ còn sống: đẩy sơ đồ mới xuống, nó TỰ CHẠY LẠI. Bấm ▶ là chạy, không
+            # phải mở ra một bảng cài đặt nữa rồi bấm tiếp.
             self._api_tester._ban("so_do_moi", doc)
             return
 
@@ -519,6 +527,61 @@ class Api(NenCuaSo):
         return _ok(self._cai_dat)
 
     @_bat_loi
+    def save_test_settings(self, t):
+        """Điều kiện chạy Strategy Test. Danh sách trắng RIÊNG, không nhét vào
+        `save_settings`: hàm kia đang giữ nghĩa "cài đặt của trình soạn thảo", trộn vào
+        là hai thứ khác hẳn nhau cùng một cửa và sớm muộn giẫm chân nhau."""
+        t = t or {}
+        cu = dict(luu_tru.CAI_DAT_MAC_DINH["test"])
+        cu.update(self._cai_dat.get("test") or {})
+        for k in ("tu", "den"):
+            if k in t:
+                cu[k] = str(t[k]).strip()
+        if t.get("symbol"):
+            cu["symbol"] = str(t["symbol"]).strip().upper()
+        for k in ("spread_diem", "deposit", "commission"):
+            if k in t:
+                try:
+                    cu[k] = float(t[k])
+                except (TypeError, ValueError):
+                    pass
+        for k in ("don_bay", "delay_ms"):
+            if k in t:
+                try:
+                    cu[k] = int(t[k])
+                except (TypeError, ValueError):
+                    pass
+        cd = dict(self._cai_dat)
+        cd["test"] = cu
+        self._cai_dat = core.save_settings(cd)
+        return _ok(cu)
+
+    # ---------------------------------------------------------- nguồn dữ liệu
+    # Nằm ở Api CHÍNH vì nguồn nến là tài sản của APP, không phải của một lần chạy:
+    # tải một lần rồi mọi chiến lược đều dùng chung, và xoá thì xoá hẳn.
+    @_bat_loi
+    def nguon_liet_ke(self):
+        return _ok({"ds": nguon_nen.liet_ke(), "co_mt5": nguon_nen.CO_MT5})
+
+    @_bat_loi
+    def nguon_uoc_tinh(self, symbol, tu, den):
+        """Bấm Tải sẽ tải bao nhiêu? BÁO TRƯỚC số MB — không bao giờ tải lén."""
+        k = nguon_nen.khoang_thieu(symbol, tu, den)
+        return _ok(dict(nguon_nen.uoc_tinh(k), du=not k))
+
+    @_bat_loi
+    def nguon_tai(self, symbol, tu, den):
+        r = nguon_nen.tai(symbol, tu, den,
+                          tien_do=lambda i, n, c: self._ban(
+                              "tai", {"da": i, "tong": n, "chu": c}))
+        return _ok({"chu": r["chu"], "meta": r["meta"], "ds": nguon_nen.liet_ke()})
+
+    @_bat_loi
+    def nguon_xoa(self, symbol):
+        nguon_nen.xoa(symbol)
+        return _ok({"ds": nguon_nen.liet_ke()})
+
+    @_bat_loi
     def save_ui(self, state):
         """Bố cục bảng dưới.
 
@@ -555,6 +618,9 @@ class ApiTester(NenCuaSo):
     def __init__(self, cha):
         super().__init__()
         self._cha = cha          # `Api` của cửa sổ chính — chỉ ĐỌC
+        self._kq = None          # kết quả lần chạy gần nhất (bất biến)
+        self._cd = None
+        self._chi_co_viec = True
 
     @_bat_loi
     def ping(self):
@@ -567,12 +633,252 @@ class ApiTester(NenCuaSo):
             "phien_ban": core.PHIEN_BAN,
             "accent": (self._cha._cai_dat or {}).get("accent"),
             "doc": self._cha._doc_tester,
+            # Điều kiện chạy do CỬA SỔ CHÍNH giữ (File → Cài đặt → Strategy Test).
+            # Tester chỉ đọc rồi chạy — nó không có ô nhập nào.
+            "cai_dat": (self._cha._cai_dat or {}).get("test") or {},
+            "timeframes": core.TIMEFRAMES,
         })
 
     @_bat_loi
     def tester_doc(self):
         """Cửa sổ tester hỏi: tôi đang phải chạy sơ đồ nào?"""
         return _ok(self._cha._doc_tester)
+
+    # ------------------------------------------------------------- chạy
+    @_bat_loi
+    def test_chay(self, ci):
+        """▶ Chạy backtest TRÊN LUỒNG NỀN, trả về ngay. Giao diện hỏi `test_trang_thai`.
+
+        Chạy nền chứ không đồng bộ vì người dùng phải THẤY tiến trình: một năm mất ~3
+        giây, và ba giây im lặng thì không phân biệt được với treo. Luồng nền ở đây an
+        toàn vì nó KHÔNG chia sẻ trạng thái nào — nó dựng một `KetQua` mới rồi mới gán
+        vào `self._kq` bằng một phép gán duy nhất."""
+        self._tt = {"dang_chay": True, "da": 0, "tong": 0, "chu": "đang nạp nến…",
+                    "xong": None, "loi": None}
+        threading.Thread(target=self._chay_nen, args=(ci or {},), daemon=True).start()
+        return _ok(True)
+
+    @_bat_loi
+    def test_trang_thai(self):
+        """Tiến trình lần chạy đang diễn ra. Giao diện hỏi ~200 ms một lần."""
+        return _ok(getattr(self, "_tt", {"dang_chay": False}))
+
+    def _chay_nen(self, ci):
+        try:
+            self._tt.update(self._chay_that(ci))
+        except Exception as e:
+            self._tt.update({"loi": f"{type(e).__name__}: {e}"})
+        finally:
+            self._tt["dang_chay"] = False
+
+    def _chay_that(self, ci):
+        # ĐỌC LẠI cài đặt từ cửa sổ chính mỗi lần chạy, không dùng bản JS nhớ từ lúc mở
+        # cửa sổ: người dùng sửa Cài đặt rồi bấm ▶ lại thì phải ăn ngay. Cửa sổ tester
+        # sống lâu hơn một lần chạy, nên mọi thứ nó "nhớ" đều có nguy cơ cũ.
+        luu = dict(luu_tru.CAI_DAT_MAC_DINH["test"])
+        luu.update((self._cha._cai_dat or {}).get("test") or {})
+        luu.update(ci or {})
+        ci = luu
+        doc = self._cha._doc_tester
+        if not doc:
+            raise RuntimeError("Chưa có sơ đồ nào để chạy.")
+        m = nguon_nen.doc_meta(ci.get("symbol") or "XAUUSD") or {}
+        nen = nguon_nen.doc(ci.get("symbol") or "XAUUSD", ci.get("tu"), ci.get("den"))
+        if not len(nen):
+            raise RuntimeError(
+                "Chưa có nến nào cho khoảng này. Mở Cài đặt → Strategy Test → Tải thêm.")
+        cd = bo_chay.CaiDat(
+            symbol=ci.get("symbol") or "XAUUSD", tu=ci.get("tu"), den=ci.get("den"),
+            spread_diem=ci.get("spread_diem", m.get("spread_tb") or 20),
+            point=m.get("point") or 0.01,
+            contract_size=m.get("contract_size") or 100.0,
+            digits=m.get("digits") or 2,
+            deposit=ci.get("deposit", 10000.0),
+            commission=ci.get("commission", 0.0),
+            don_bay=ci.get("don_bay", 100))
+        cu = self._tom_tat_lan_truoc()
+        self._tt.update({"tong": 0, "chu": "đang biên dịch sơ đồ…"})
+
+        def tien_do(i, tong):
+            self._tt.update({"da": int(i), "tong": int(tong),
+                             "chu": f"đang chạy {i:,}/{tong:,} nến".replace(",", ".")})
+
+        kq = bo_chay.chay(doc, nen, cd, tien_do=tien_do)
+        self._kq, self._cd = kq, cd          # gán MỘT lần, sau khi đã tính xong
+        self._chi_co_viec = True
+        return {"xong": {
+            "so_nen_m1": int(len(self._kq.nen1)),
+            "so_nen_truc": int(len(self._kq.nen5)),
+            "tf": self._kq.tf,
+            "t_dau": int(self._kq.nen1["t"][0]), "t_cuoi": int(self._kq.nen1["t"][-1]),
+            "thong_ke": self._kq.thong_ke,
+            # Vân tay PHẢI lấy trên bản ĐÃ CHUẨN HOÁ ở cả hai lần: `normalize_process`
+            # sắp lại khoá và dọn rác, nên hash bản thô ở lần này rồi so với bản đã
+            # chuẩn hoá ở lần trước là lúc nào cũng kêu "sơ đồ ĐÃ ĐỔI".
+            "so_hai_lan": nhat_ky.so_hai_lan(
+                cu, {"thong_ke": self._kq.thong_ke,
+                     "van_tay": nhat_ky._van_tay(self._kq.doc)}),
+            "digits": cd.digits,
+        }}
+
+    def _tom_tat_lan_truoc(self):
+        if getattr(self, "_kq", None) is None:
+            return None
+        return {"thong_ke": self._kq.thong_ke,
+                "van_tay": nhat_ky._van_tay(self._kq.doc)}
+
+    # ------------------------------------------------- đọc dòng thời gian
+    @_bat_loi
+    def test_nen(self, j, so=400):
+        """Cửa sổ nến M1 kết thúc ở con trỏ. KHÔNG trả nến bên phải con trỏ.
+
+        Đó là cả điểm của replay: nến chưa xảy ra thì CHƯA TỒN TẠI. Thấy trước nến sau
+        rồi thì mọi phán đoán "chỗ này lẽ ra nên vào lệnh" đều là tự lừa mình."""
+        kq = self._doi_kq()
+        j = max(0, min(int(j), len(kq.nen1) - 1))
+        i0 = max(0, j - int(so) + 1)
+        a = kq.nen1[i0:j + 1]
+        return _ok({
+            "t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
+            "l": a["l"].tolist(), "c": a["c"].tolist(), "j0": i0, "j": j,
+        })
+
+    @_bat_loi
+    def test_khung(self, j):
+        """Mọi thứ giao diện cần tại MỘT vị trí con trỏ: bảng số liệu + lệnh để vẽ."""
+        kq = self._doi_kq()
+        j = max(0, min(int(j), len(kq.nen1) - 1))
+        i = max(0, int(kq._ct.m1_to_5[j]))
+        return _ok({
+            "j": j, "i": i,
+            "t": int(kq.nen1["t"][j]),
+            "bang": kq.bang(i, j),
+            "lenh": kq.the_lenh(i),
+        })
+
+    @_bat_loi
+    def test_nen_tf(self, tf, j, tran=60000):
+        """TOÀN BỘ nến khung `tf` từ ĐẦU dữ liệu tới con trỏ — để chart kéo đi đâu cũng đủ.
+
+        Chart phải hành xử như một cuốn VIDEO: quá khứ luôn có sẵn, kéo qua kéo lại thoải
+        mái. Bản trước mỗi lần nhảy lại dựng chart từ một cửa sổ 720 nhịp, nên kéo ra
+        ngoài khoảng đó là trắng — sai hẳn bản chất.
+
+        Trả mảng SONG SONG (`t[] o[] h[] l[] c[]`) chứ không phải danh sách object: một
+        năm M5 là 71.000 nến, dạng object thì JSON phình gấp mấy lần mà chẳng thêm gì.
+
+        Nến CUỐI cố ý để DỞ DANG (`giu_nen_do_dang`) — nó chính là cây đang hình thành
+        tại con trỏ. Còn `gop` mặc định bỏ nó đi, vì lúc QUYẾT ĐỊNH thì đọc một cây nến
+        chưa đóng là nhìn trước tương lai."""
+        kq = self._doi_kq()
+        j = max(0, min(int(j), len(kq.nen1) - 1))
+        a = tinh_toan.gop(kq.nen1[:j + 1], tf if tf in core.TF_PHUT else kq.tf,
+                          giu_nen_do_dang=True)
+        if len(a) > int(tran):
+            a = a[-int(tran):]
+        return _ok({"t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
+                    "l": a["l"].tolist(), "c": a["c"].tolist(), "j": j})
+
+    @_bat_loi
+    def test_doan(self, j0, n=300):
+        """MỘT lô khung hình liên tiếp — cửa DUY NHẤT dùng lúc PHÁT LẠI.
+
+        ⚠ Vì sao phải kéo theo lô: phát ở 60 ms/nhịp mà mỗi nhịp gọi cầu nối hai lần
+        (nến + số liệu) là ~33 lời gọi/giây. `evaluate_js` của pywebview ĐỒNG BỘ và
+        payload bị mã hoá hai lần, nên phát sẽ giật và tụt nhịp — mà "xem nến hình thành
+        như thật" thì nhịp đều mới là cái quan trọng nhất.
+        Một lời gọi cho 300 nhịp là 0,1 lời gọi/giây. Khác nhau 300 lần.
+
+        Lô mang đủ MỌI thứ ba vùng cần, nên khi phát thì JS không hỏi Python một câu nào."""
+        kq = self._doi_kq()
+        j0 = max(0, min(int(j0), len(kq.nen1) - 1))
+        n = max(1, min(int(n), 2000))
+        j1 = min(len(kq.nen1), j0 + n)
+        a = kq.nen1[j0:j1]
+        i5 = kq._ct.m1_to_5[j0:j1]
+        cv = kq.cot_vung
+
+        def cot_theo_khung(mang):
+            return [(float(mang[k]) if 0 <= k < len(mang)
+                     and mang[k] == mang[k] else None) for k in i5]
+
+        chi_bao = {}
+        for k, mang in sorted(kq.cot.items()):
+            ten, tf, ck, pp = k
+            nhan = core.TOAN_HANG_LABELS.get(ten, ten)
+            phan = [tf] + ([str(int(ck))] if ck else []) + ([pp] if pp else [])
+            chi_bao[f"{nhan}({', '.join(phan)})"] = cot_theo_khung(mang)
+
+        vung = {t: cot_theo_khung(cv[k]) for t, k in (
+            ("Số nến nén", "so_nen_nen"), ("Đỉnh vùng", "dinh_vung"),
+            ("Đáy vùng", "day_vung"), ("Bề rộng ÷ ATR", "rong_vung_atr"),
+            ("ATR trung bình vùng", "atr_tb_vung"))}
+        vung["Vùng hiện hành"] = [kq.vung_id[k] if 0 <= k < len(kq.vung_id) else None
+                                  for k in i5]
+        vung["Vùng này đã sinh lệnh"] = [
+            bool(cv["vung_da_sinh_lenh"][k]) if 0 <= k < len(kq.nen5) else None
+            for k in i5]
+
+        # Lệnh SỐNG tại từng khung + lệnh đã đóng còn nằm trong tầm nhìn (để vẽ).
+        song, tk = [], []
+        for x, k in enumerate(i5):
+            ds = kq.lenh_tai(int(k))
+            gia = float(a["c"][x])
+            song.append([{"id": l.id, "huong": l.huong, "da_khop": bool(l.da_khop),
+                          "gia_vao": bo_chay._js(l.gia_khop), "sl": bo_chay._js(l.sl),
+                          "tp": bo_chay._js(l.tp),
+                          "lai_R": bo_chay._js(l.lai_R(gia)) if l.da_khop else None,
+                          "sl_hoa_von": bool(l.sl_o_hoa_von)} for l in ds])
+            tk.append({"cho": sum(1 for l in ds if not l.da_khop),
+                       "mo": sum(1 for l in ds if l.da_khop),
+                       "gia": gia})
+
+        i_cuoi = int(i5[-1]) if len(i5) else 0
+        nk = nhat_ky.dung_lo_theo_nen(kq, j0, int(a["t"][-1]) if len(a) else 0)
+        return _ok({
+            "j0": j0, "n": int(j1 - j0),
+            "t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
+            "l": a["l"].tolist(), "c": a["c"].tolist(),
+            "chi_bao": chi_bao, "vung": vung, "lenh_song": song, "tai_khoan": tk,
+            "lenh": kq.the_lenh(i_cuoi), "nhat_ky": nk,
+        })
+
+    @_bat_loi
+    def test_nhat_ky(self, tu=0, so=200, chi_co_viec=True):
+        kq = self._doi_kq()
+        return _ok(nhat_ky.dung_lo(kq, int(tu), int(so), bool(chi_co_viec)))
+
+    @_bat_loi
+    def test_luot(self, i):
+        """Một lượt cụ thể → vị trí con trỏ, để bấm dòng nhật ký là chart nhảy tới."""
+        kq = self._doi_kq()
+        r = kq.nhat_ky[int(i)]
+        return _ok({"j": r["j"], "nen": r["nen"], "tab": r["tab"],
+                    "lenh_id": r.get("lenh_id"), "cong": r.get("cong")})
+
+    @_bat_loi
+    def test_luot_ke(self, j):
+        """Lượt CÓ VIỆC gần nhất sau vị trí `j`. `j = -1` nghĩa là hết.
+
+        Không ai ngồi xem hết 71.000 nến buồn tẻ để đợi một cây nến có chuyện. Nút này
+        là thứ biến "phát lại" từ một món đồ chơi thành một công cụ dùng được."""
+        kq = self._doi_kq()
+        j = int(j)
+        for r in kq.nhat_ky:
+            if r["j"] > j and r["viec"]:
+                return _ok({"j": int(r["j"]), "i": int(r["nen"])})
+        return _ok({"j": -1, "i": -1})
+
+    @_bat_loi
+    def test_ghi_nhat_ky(self):
+        kq = self._doi_kq()
+        return _ok({"duong_dan": nhat_ky.ghi(kq, self._cd)})
+
+    def _doi_kq(self):
+        kq = getattr(self, "_kq", None)
+        if kq is None:
+            raise RuntimeError("Chưa chạy backtest nào — bấm ▶ Chạy trước.")
+        return kq
 
 
 _TRANG_TESTER_TAM = """

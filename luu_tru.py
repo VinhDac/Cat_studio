@@ -28,6 +28,17 @@ CAI_DAT_MAC_DINH = {
     "symbol": "XAUUSD",
     "accent": "#ffa657",
     "ui": {"panel_cao": 176, "panel_gap": False},
+    # Điều kiện chạy Strategy Test. Ở ĐÂY chứ không ở cửa sổ tester: bấm ▶ là phải CHẠY
+    # NGAY, không phải mở ra một bảng nữa rồi mới bấm tiếp. Cài đặt là thứ đặt một lần
+    # rồi quên; nó thuộc về app, không thuộc về một lần chạy.
+    "test": {
+        "symbol": "XAUUSD", "tu": "", "den": "",
+        "spread_diem": 20.0,      # nến là giá Bid; Ask = Bid + spread
+        "deposit": 10000.0,
+        "commission": 0.0,        # USD mỗi lot, ROUND-TURN
+        "don_bay": 100,
+        "delay_ms": 60,           # nhịp PHÁT LẠI, không phải tốc độ mô phỏng
+    },
 }
 
 

@@ -957,8 +957,7 @@ select.o { cursor: pointer; }
 .bang-tham-so .o.loi { border-color: var(--err); }
 
 /* ---------------------------------------------------------------- Tester ---
-   Cửa sổ Strategy Tester mới có KHUNG. Chỗ này giữ đúng phần "chưa có nội dung";
-   chart · bảng số liệu · nhật ký sẽ có style riêng khi viết tới (core.md §12). */
+   Ba vùng — chart · bảng phải · nhật ký dưới — đều đọc CÙNG MỘT con trỏ. */
 .tester-trong {
   flex: 1;
   display: grid;
@@ -973,3 +972,150 @@ select.o { cursor: pointer; }
 .tester-ghi { font-size: 12px; color: var(--dim); margin-top: 10px; }
 .tester-mo  { font-size: 12px; color: var(--dim); }
 .tester-loi { font-size: 12px; color: var(--err); max-width: 520px; }
+
+
+/* ---- thanh công cụ ---- */
+.tb {
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 8px; background: var(--chrome);
+  border-bottom: 1px solid var(--border); flex: 0 0 auto;
+}
+.tb-nut {
+  width: 26px; height: 24px; display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--muted); cursor: pointer;
+}
+.tb-nut:hover:not(:disabled) { background: var(--raised-hover); color: var(--text); }
+.tb-nut.bat { background: var(--raised); color: var(--accent); border-color: var(--border); }
+.tb-nut:disabled { opacity: .35; cursor: default; }
+.tb-nut.rong { width: 34px; font-size: 12px; color: var(--accent); }
+.tb-ngan { width: 1px; height: 18px; background: var(--border); margin: 0 5px; }
+.tb-day { flex: 1; }
+.tb-o { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+.tb-o input { width: 46px; }
+.tb-gio { font: 11px var(--mono); color: var(--muted); margin-right: 6px; }
+
+/* ---- cài đặt chạy ---- */
+.cd-test {
+  padding: 8px 10px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex: 0 0 auto;
+}
+.cd-hang { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.cd-hang label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.cd-hang input { width: 92px; }
+.cd-nguon { font-size: 11px; color: var(--muted); }
+.cd-dong { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.cd-goi-y { color: var(--accent); }
+.nut.nho { padding: 1px 8px; font-size: 11px; }
+
+/* ---- dải tóm tắt ---- */
+.tt-tom {
+  padding: 5px 10px; font-size: 12px; color: var(--muted);
+  background: var(--surface); border-bottom: 1px solid var(--border); flex: 0 0 auto;
+}
+.tt-tom b { color: var(--text); }
+.tt-loi {
+  padding: 6px 10px; font-size: 12px; color: var(--err);
+  background: var(--surface); border-bottom: 1px solid var(--border); flex: 0 0 auto;
+}
+.tt-moho { margin-left: 10px; color: var(--ok); }
+.tt-moho.xau { color: var(--warn); }
+.tt-so { margin-left: 10px; color: var(--accent); }
+.lai { color: var(--ok); } .lo { color: var(--err); }
+.mua { color: var(--ok); } .ban { color: var(--err); }
+
+/* ---- giữa: chart + bảng ---- */
+.tt-giua { flex: 1; display: flex; min-height: 0; }
+.chart-boc { flex: 1; position: relative; min-width: 0; background: var(--canvas-bg); }
+.chart-goi-y {
+  position: absolute; pointer-events: none; z-index: 5;
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 5px 8px;
+  font: 11px var(--font); color: var(--text); box-shadow: var(--shadow);
+}
+
+/* ---- bảng số liệu ---- */
+.bang-so-lieu {
+  width: 300px; flex: 0 0 auto; overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--border);
+}
+.bang-trong { width: 300px; display: grid; place-items: center; color: var(--dim); font-size: 12px; }
+.bang-khoi { border-bottom: 1px solid var(--border-soft); padding: 6px 8px; }
+.bang-ten { font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.bang-khoi table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.bang-khoi td { padding: 1px 0; color: var(--muted); }
+.bang-khoi td.mono { text-align: right; font-family: var(--mono); color: var(--text); }
+.bang-rong { font-size: 11px; color: var(--dim); font-style: italic; }
+/* `table-layout: fixed` + `nowrap` là bắt buộc: thiếu nó thì bốn cột số dính liền nhau
+   thành "2643.0672643.0672647.8181.19" — đọc ra một con số vô nghĩa, mà đây lại đúng là
+   bảng người dùng nhìn để đánh giá. */
+.bang-lenh { table-layout: fixed; width: 100%; font-size: 10px; }
+.bang-lenh th { font-size: 9px; color: var(--dim); text-align: right; font-weight: 400; }
+.bang-lenh th:first-child { text-align: left; width: 34%; }
+.bang-lenh td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bang-lenh td.mono { font-size: 10px; }
+.bang-lenh tr.cho { opacity: .72; }
+/* Nhãn "hoà vốn" là một CHẤM, không phải một chữ: một chữ nữa trên hàng là vỡ cả bảng,
+   mà thông tin thì rê chuột vẫn đọc được. */
+.the-nho {
+  display: inline-block; width: 6px; height: 6px; margin-left: 3px;
+  border-radius: 50%; background: var(--accent); text-indent: -999px; overflow: hidden;
+}
+
+/* ---- nhật ký ---- */
+.nk {
+  height: 210px; flex: 0 0 auto; display: flex; flex-direction: column;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+.nk-dau {
+  display: flex; align-items: center; gap: 10px; padding: 3px 10px;
+  font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border-soft);
+}
+.nk-dau label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.nk-dem { margin-left: auto; font-family: var(--mono); }
+.nk-cuon { flex: 1; overflow-y: auto; }
+/* Chiều cao PHẢI khớp hằng CAO trong Journey.tsx — nó tính vị trí bằng phép nhân. */
+.nk-dong {
+  padding: 0 10px; line-height: 19px;
+  font: 11px/19px var(--mono); color: var(--dim);
+  white-space: pre; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.nk-dong:hover { background: var(--raised-hover); }
+.nk-dong.co-viec { color: var(--text); }
+.nk-dong.dang-chon { background: var(--raised); color: var(--accent); }
+
+
+/* ---- Cài đặt → Strategy Test ---- */
+.cd-muc {
+  margin: 14px 0 6px; padding-top: 10px; font-size: 12px; font-weight: 600;
+  color: var(--accent); border-top: 1px solid var(--border);
+}
+.cd-nguon-bang {
+  background: var(--field); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 8px; margin-bottom: 8px;
+}
+.cd-nguon-dau { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.cd-rong { font-size: 11px; color: var(--dim); font-style: italic; }
+.chu-dan.canh { color: var(--warn); }
+
+
+/* ---- thanh tiến trình lúc chạy backtest ----
+   Ba giây im lặng không phân biệt được với treo, nên phải THẤY nó chạy tới đâu. */
+.tt-nap {
+  padding: 8px 12px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex: 0 0 auto;
+}
+.tt-nap-chu { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.tt-nap-thanh {
+  height: 4px; border-radius: 2px; background: var(--field); overflow: hidden;
+}
+.tt-nap-thanh > div {
+  height: 100%; background: var(--accent); transition: width .18s linear;
+}
+
+/* Dòng VỪA XẢY RA sau khi nhảy tới sự kiện — không phải trang trí, nó trả lời câu
+   "tôi đang đứng ở đâu" ngay khi chart đổi. */
+.nk-dong.vua-xay-ra {
+  background: rgba(255, 166, 87, .15);
+  color: var(--accent);
+}

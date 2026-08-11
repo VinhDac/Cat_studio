@@ -54,6 +54,9 @@ const HINH: Record<string, React.ReactNode> = {
   fit: <><path {...S} d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3" /><rect {...S} x="6" y="6" width="4" height="4" rx=".8" /></>,
   chay: <><circle {...S} cx="8" cy="8" r="6" /><path {...S} d="M6.5 5.3l4.4 2.7-4.4 2.7z" /></>,
   motSo: <><circle {...S} cx="8" cy="8" r="5.8" /><path {...S} d="M6.8 6.2L8.4 5.2v5.6M7 10.8h2.8" /></>,
+  minus: <><path {...S} d="M3 8h10" /></>,
+  dau: <><path {...S} d="M11.5 3.4 6.4 8l5.1 4.6M4.6 3.4v9.2" /></>,
+  cuoi: <><path {...S} d="M4.5 3.4 9.6 8l-5.1 4.6M11.4 3.4v9.2" /></>,
 }
 
 export default function Icon({ name, size = 14 }: { name: string; size?: number }) {

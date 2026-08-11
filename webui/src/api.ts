@@ -4,7 +4,9 @@
  * sau này đổi cách vận chuyển (hoặc giả lập khi test) chỉ phải sửa một file.
  */
 import type {
-  Bootstrap, Card, KetQuaSoat, KhoDanhMuc, ProcessDoc, Reply, Step, Tab, ThamSo,
+  BoNen, Bootstrap, Card, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
+  LoNhatKy, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
+  DoanPhat, TrangThaiChay,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -98,6 +100,16 @@ export const py = {
     goi<Record<string, unknown>>('save_settings', s),
   save_ui: (state: Record<string, unknown>) =>
     goi<Record<string, unknown>>('save_ui', state),
+  save_test_settings: (t: Record<string, unknown>) =>
+    goi<Record<string, unknown>>('save_test_settings', t),
+
+  // --- nguồn nến: tài sản của APP, không của một lần chạy ---
+  nguon_liet_ke: () => goi<{ ds: BoNen[]; co_mt5: boolean }>('nguon_liet_ke'),
+  nguon_uoc_tinh: (symbol: string, tu: string, den: string) =>
+    goi<{ so_nen: number; mb: number; du: boolean }>('nguon_uoc_tinh', symbol, tu, den),
+  nguon_tai: (symbol: string, tu: string, den: string) =>
+    goi<{ chu: string; ds: BoNen[] }>('nguon_tai', symbol, tu, den),
+  nguon_xoa: (symbol: string) => goi<{ ds: BoNen[] }>('nguon_xoa', symbol),
 
   // --- ▶ Chạy → cửa sổ Strategy Tester ---
   mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),
@@ -121,7 +133,27 @@ export const py = {
  * bấm ✕ ở tester chỉ đóng tester. Nhờ vậy `TitleBar` dùng lại được nguyên vẹn.
  */
 export const pyTester = {
-  bootstrap_tester: () =>
-    goi<{ phien_ban: string; accent?: string; doc: ProcessDoc | null }>('bootstrap_tester'),
+  bootstrap_tester: () => goi<TesterBoot>('bootstrap_tester'),
   tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
+
+
+  // --- chạy (luồng nền + tiến trình) ---
+  test_chay: (ci: Record<string, unknown>) => goi<boolean>('test_chay', ci),
+  test_trang_thai: () => goi<TrangThaiChay>('test_trang_thai'),
+
+  // --- PHÁT LẠI: một lô = 300 khung hình, JS không hỏi gì thêm ---
+  test_doan: (j0: number, n: number) => goi<DoanPhat>('test_doan', j0, n),
+  /** TOÀN BỘ nến khung `tf` từ đầu dữ liệu tới con trỏ — chart kéo đi đâu cũng đủ. */
+  test_nen_tf: (tf: string, j: number) =>
+    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+      'test_nen_tf', tf, j),
+  test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
+
+  // --- đọc dòng thời gian ---
+  test_nen: (j: number, so: number) => goi<CuaSoNen>('test_nen', j, so),
+  test_khung: (j: number) => goi<Khung>('test_khung', j),
+  test_nhat_ky: (tu: number, so: number, chiCoViec: boolean) =>
+    goi<LoNhatKy>('test_nhat_ky', tu, so, chiCoViec),
+  test_luot: (i: number) => goi<{ j: number; nen: number; tab: string }>('test_luot', i),
+  test_ghi_nhat_ky: () => goi<{ duong_dan: string }>('test_ghi_nhat_ky'),
 }

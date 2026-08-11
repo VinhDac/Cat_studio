@@ -590,6 +590,8 @@ class KetQua:
     chụp — `so_lenh.Lenh` vốn đã mang sẵn `nen_dat` / `nen_khop` / `nen_dong`."""
 
     def __init__(self, ct, so, nhat_ky, cot, thong_ke):
+        self._ct = ct
+        self._sl_theo_lenh = None       # dựng lười, dùng lại cho mọi lệnh
         self.nen1, self.nen5 = ct.nen1, ct.nen5
         self.tf = ct.tf5
         self.so, self.nhat_ky, self.cot = so, nhat_ky, cot
@@ -606,6 +608,18 @@ class KetQua:
                 continue
             ra.append(l)
         return ra
+
+    def bang(self, i, j):
+        """Bảng số liệu tại con trỏ — xem `_bang`."""
+        return _bang(self, i, j)
+
+    def the_lenh(self, i, tu_t=None):
+        """Lệnh để CHART vẽ: mọi lệnh đã tồn tại tính tới nến i (kể cả đã đóng, vì lệnh
+        đã đóng vẫn phải vẽ hai mũi tên nối nhau)."""
+        return [_the_lenh(self, l) for l in self.so.lenh
+                if l.nen_dat <= i and (tu_t is None
+                                       or self.nen5["t"][l.nen_dong if l.nen_dong
+                                                         is not None else i] >= tu_t)]
 
 
 def _thong_ke(so, cd):
@@ -696,6 +710,18 @@ def chay(doc, nen1, cd=None, tien_do=None):
     # không phải chuyện mô hình sổ lệnh.
     song, n_lenh = [], 0
 
+    # ⚠ VÙNG NÉN PHẢI THÀNH CỘT. `VungNen` mutate liên tục (đếm nến, nới đỉnh/đáy), nên
+    # trạng thái vùng tại nến i KHÔNG suy ra được từ đối tượng cuối cùng. Bảng số liệu
+    # mà hỏi lại `so.vung_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
+    # BACKTEST — bảng nói một đằng, nhật ký nói một nẻo, đúng lúc đang debug.
+    # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
+    CV = ("so_nen_nen", "dinh_vung", "day_vung", "rong_vung", "rong_vung_atr",
+          "atr_tb_vung")
+    cot_vung = {k: np.full(len(ct.nen5), NAN) for k in CV}
+    cot_vung["vung_da_sinh_lenh"] = np.zeros(len(ct.nen5), dtype=bool)
+    vung_id = [None] * len(ct.nen5)
+    so_vung = np.zeros(len(ct.nen5), dtype=np.int32)
+
     for j in range(len(ct.nen1)):
         # Đồng bộ đầu nến: lệnh mới sinh ở lượt Entry nến TRƯỚC giờ mới được xét khớp —
         # đúng bản chất, giá của nến trước đã là quá khứ.
@@ -728,6 +754,13 @@ def chay(doc, nen1, cd=None, tien_do=None):
             ctx.co_lo_hong = bool(ct.lo_hong5[i5])
             ctx.lenh = None
             ct.engine.moi_nen(ctx)
+            for k in CV:
+                cot_vung[k][i5] = ct.engine.doc(k, ctx)
+            cot_vung["vung_da_sinh_lenh"][i5] = bool(ct.engine.doc(
+                "vung_da_sinh_lenh", ctx))
+            v_ht = so.vung_hien_hanh()
+            vung_id[i5] = v_ht.id if v_ht else None
+            so_vung[i5] = len(so.vung)
             i5_truoc = i5
 
         # ---- 3. MANAGE — một lượt cho MỖI lệnh đang sống ----
@@ -764,4 +797,107 @@ def chay(doc, nen1, cd=None, tien_do=None):
     tk = _thong_ke(so, cd)
     tk["nen_mo_ho"] = mo_ho
     tk["so_luot"] = len(nhat_ky)
-    return KetQua(ct, so, nhat_ky, ct._cot, tk)
+    kq = KetQua(ct, so, nhat_ky, ct._cot, tk)
+    kq.cot_vung = cot_vung
+    kq.vung_id = vung_id
+    kq.so_vung = so_vung
+    return kq
+
+
+# ---------------------------------------------------------------------------
+# BẢNG SỐ LIỆU — bốn khối, mỗi khối một nguồn rõ ràng (core.md §12.9)
+# ---------------------------------------------------------------------------
+def _bang(kq, i, j):
+    """Số liệu tại con trỏ. Bốn khối, KHÔNG trộn lẫn nguồn.
+
+    ⚠ Bảng này và nhật ký PHẢI nói cùng một thứ. Chỗ dễ lệch nhất: toán hạng nhóm
+    "Lệnh này" không có MỘT giá trị tại nến i — Manage chạy một lượt cho MỖI lệnh, nên
+    mỗi lệnh một bộ số. Vì thế chúng nằm ở khối THỨ TƯ, mỗi lệnh một hàng, chứ không bị
+    ép thành một con số duy nhất."""
+    ct = kq._ct
+    so = kq.so
+    ra = {"toan_hang": [], "engine": [], "tai_khoan": [], "lenh": []}
+
+    for k, cot in sorted(ct._cot.items()):
+        ten, tf, ck, pp = k
+        nhan = core.TOAN_HANG_LABELS.get(ten, ten)
+        phan = [tf] + ([str(int(ck))] if ck else []) + ([pp] if pp else [])
+        v = float(cot[i]) if 0 <= i < len(cot) else NAN
+        ra["toan_hang"].append({"ten": f"{nhan}({', '.join(phan)})", "gia_tri": _js(v)})
+
+    # ĐỌC CỘT, không hỏi lại `so.vung_hien_hanh()`: sổ đang ở trạng thái CUỐI backtest,
+    # nên hỏi lại là ở con trỏ nào cũng ra cùng một đáp án — sai và im lặng.
+    cv = kq.cot_vung
+    co = 0 <= i < len(kq.nen5)
+    ra["engine"] = [{"ten": x, "gia_tri": y} for x, y in (
+        ("Vùng hiện hành", kq.vung_id[i] if co else None),
+        ("Số nến nén", _js(cv["so_nen_nen"][i]) if co else None),
+        ("Đỉnh vùng", _js(cv["dinh_vung"][i]) if co else None),
+        ("Đáy vùng", _js(cv["day_vung"][i]) if co else None),
+        ("Bề rộng ÷ ATR", _js(cv["rong_vung_atr"][i]) if co else None),
+        ("ATR trung bình vùng", _js(cv["atr_tb_vung"][i]) if co else None),
+        ("Vùng này đã sinh lệnh", bool(cv["vung_da_sinh_lenh"][i]) if co else None),
+    )]
+
+    song = kq.lenh_tai(i)
+    ra["tai_khoan"] = [{"ten": x, "gia_tri": y} for x, y in (
+        ("Giá Bid", _js(float(ct.nen1["c"][j]))),
+        ("Số lệnh chờ", sum(1 for l in song if not l.da_khop)),
+        ("Số vị thế đang mở", sum(1 for l in song if l.da_khop)),
+        ("Số lệnh đã đóng", sum(1 for l in so.lenh if l.nen_dong is not None
+                                and l.nen_dong <= i)),
+        ("Số vùng nén đã sinh", int(kq.so_vung[i]) if co else 0),
+    )]
+
+    gia = float(ct.nen1["c"][j])
+    for l in song:
+        ra["lenh"].append({
+            "id": l.id, "huong": l.huong, "da_khop": bool(l.da_khop),
+            "gia_vao": _js(l.gia_khop), "sl": _js(l.sl), "tp": _js(l.tp),
+            "lai_R": _js(l.lai_R(gia)) if l.da_khop else None,
+            "sl_hoa_von": bool(l.sl_o_hoa_von),
+            "so_nen_song": int(l.so_nen_song(i)),
+        })
+    return ra
+
+
+def _sl_lich_su(kq, l):
+    """Đường đi của SL theo thời gian: `[[t, sl], …]`.
+
+    Nguồn là chính NHẬT KÝ (`lenh_sua`), không phải suy đoán — nên chart vẽ ra đúng cái
+    bậc thang mà `Dời SL về hoà vốn` tạo ra, đúng nến nó xảy ra. Đó là khoảnh khắc người
+    dùng muốn kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng nên nó tàng hình."""
+    if l.sl is None:
+        return []
+    if kq._sl_theo_lenh is None:
+        m = {}
+        for r in kq.nhat_ky:
+            for v in r["viec"]:
+                if v.get("loai") == "lenh_sua" and v.get("sl") is not None:
+                    m.setdefault(v["lenh_id"], []).append(
+                        [int(kq.nen5["t"][r["nen"]]), float(v["sl"])])
+        kq._sl_theo_lenh = m
+    doi = kq._sl_theo_lenh.get(l.id) or []
+    t0 = int(kq.nen5["t"][l.nen_dat])
+    # ⚠ `l.sl` là SL HIỆN TẠI — nó đã bị mọi lần dời ghi đè. SL LÚC ĐẶT phải suy ngược
+    # từ giá đặt và R (R chốt cứng lúc vào lệnh, không đổi). Lấy `l.sl` làm điểm đầu là
+    # vẽ ra một đường phẳng, và cái bậc thang hoà vốn biến mất.
+    chieu = -1.0 if l.huong == sl.MUA else 1.0
+    dau = l.gia_dat + chieu * (l.R or 0.0) if doi else float(l.sl)
+    return [[t0, float(dau)]] + doi
+
+
+def _the_lenh(kq, l):
+    """Một lệnh → thứ chart cần để vẽ. Chart KHÔNG được biết gì ngoài đây."""
+    return {
+        "sl_lich_su": _sl_lich_su(kq, l),
+        "id": l.id, "huong": l.huong, "trang_thai": l.trang_thai,
+        "t_dat": int(kq.nen5["t"][l.nen_dat]),
+        "t_khop": int(kq.nen5["t"][l.nen_khop]) if l.nen_khop is not None else None,
+        "t_dong": int(kq.nen5["t"][l.nen_dong]) if l.nen_dong is not None else None,
+        "gia_dat": _js(l.gia_dat), "gia_khop": _js(l.gia_khop),
+        "gia_dong": _js(l.gia_dong), "sl": _js(l.sl), "tp": _js(l.tp),
+        "ly_do_dong": l.ly_do_dong, "lot": l.lot,
+        "lai_R": _js((l.gia_dong - l.gia_khop) * (1 if l.huong == sl.MUA else -1) / l.R)
+        if (l.gia_dong is not None and l.gia_khop is not None and l.R) else None,
+    }
