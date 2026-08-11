@@ -5,13 +5,13 @@ Mọi hiểu biết về ĐỊNH DẠNG FILE nằm ở đây; `api.py` chỉ chu
 
 Ba tầng:  webui/ (vẽ)  →  api.py (cầu nối duy nhất)  →  core.py (lõi)
 
-Xem `core.md` để hiểu VÌ SAO. File này giữ HÀNH VI.
+Xem `tai_lieu/core.md` để hiểu VÌ SAO. File này giữ HÀNH VI.
 """
 import json
 import uuid
 
-import kho
-import luu_tru
+from . import kho
+from . import luu_tru
 
 PHIEN_BAN = "0.2"
 

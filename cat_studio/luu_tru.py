@@ -42,11 +42,18 @@ CAI_DAT_MAC_DINH = {
 }
 
 
+#: Thư mục GỐC DỰ ÁN khi chạy từ mã nguồn — LÊN MỘT BẬC từ file này.
+#: ⚠ File này nằm trong gói `cat_studio/`, nên `dirname(__file__)` là thư mục GÓI chứ
+#: không phải gốc dự án. Thiếu bậc `..` thì `du_lieu/` bị đẻ vào trong gói và `webui/dist`
+#: tìm không ra — đúng hai thứ vỡ khi gom module vào package.
+_GOC_MA_NGUON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def thu_muc_app():
-    """Nơi ĐẶT DỮ LIỆU NGƯỜI DÙNG: cạnh file exe (bản đóng gói) hoặc cạnh mã nguồn."""
+    """Nơi ĐẶT DỮ LIỆU NGƯỜI DÙNG: cạnh file exe (bản đóng gói) hoặc gốc dự án."""
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+    return _GOC_MA_NGUON
 
 
 def thu_muc_goi():
@@ -56,7 +63,7 @@ def thu_muc_goi():
     một-file giải nén tài nguyên vào một thư mục TẠM (`sys._MEIPASS`) rồi xoá lúc thoát:
     để dữ liệu người dùng ở đó là mất sạch sau mỗi lần chạy. Ngược lại, tìm `webui/dist`
     cạnh .exe thì không thấy, vì nó nằm trong gói."""
-    return getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+    return getattr(sys, "_MEIPASS", None) or _GOC_MA_NGUON
 
 
 def trang_giao_dien():

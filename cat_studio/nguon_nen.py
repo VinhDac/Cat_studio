@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-import luu_tru
+from . import luu_tru
 
 try:
     import MetaTrader5 as mt5

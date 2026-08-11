@@ -22,7 +22,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import nguon_nen as nn  # noqa: E402
+from cat_studio import nguon_nen as nn  # noqa: E402
 
 dung = sai = 0
 
@@ -152,7 +152,7 @@ import json as _json  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
 
-import luu_tru  # noqa: E402
+from cat_studio import luu_tru  # noqa: E402
 
 _tam = tempfile.mkdtemp(prefix="catstudio_test_")
 _that_goc = luu_tru.goc

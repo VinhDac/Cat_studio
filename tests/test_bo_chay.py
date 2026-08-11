@@ -24,9 +24,9 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import bo_chay as bc  # noqa: E402
-import core  # noqa: E402
-import nguon_nen as nn  # noqa: E402
+from cat_studio import bo_chay as bc  # noqa: E402
+from cat_studio import core  # noqa: E402
+from cat_studio import nguon_nen as nn  # noqa: E402
 
 dung = sai = 0
 
@@ -252,7 +252,7 @@ kiem("`lenh_tai(i)` lọc theo nến, không cần ảnh chụp nào",
 # cùng sai vẫn "khớp". Ở đây tự gộp M15 từ mảng M1 thô rồi tra tay nến M15 ĐÃ ĐÓNG gần
 # nhất — một sự thật độc lập, không mượn gì của bộ chạy.
 print("\n▸ Toán hạng giá đọc đúng khung của chính nó")
-import tinh_toan as tt  # noqa: E402
+from cat_studio import tinh_toan as tt  # noqa: E402
 
 # Giá TĂNG ĐỀU: mỗi nến M1 một giá khác nhau, nên close M5 và close M15 không bao giờ
 # tình cờ bằng nhau — đọc nhầm khung là lộ ra ngay.

@@ -129,20 +129,25 @@ Sửa giao diện xong phải `tools\build_ui.bat` mới thấy đổi — `app_
 ## Cấu trúc
 
 ```
-core.md            sổ ghi cốt lõi — VÌ SAO mọi thứ như vậy. Đọc file này trước.
-core.py            lõi — đồ thị, đánh số, soát lỗi
-kho/               danh mục mọi thứ app tính được, chia theo NGUỒN
-  nen_tang.py        giá · thời gian · tài khoản · lệnh này
-  chi_bao.py         ATR · MA · Donchian · Volume MA
-  engine_d02.py      atr_bps · bảng vùng nén      (ý tưởng riêng của D_02)
-so_lenh.py         bảng lệnh + vùng nén, id của CHÍNH TA
-luu_tru.py         MỘT chỗ duy nhất biết file nằm ở đâu
-api.py             bề mặt DUY NHẤT giao diện gọi tới  (JS → api.py → core.py)
-app_web.py         khởi động cửa sổ (pywebview + WebView2)
-khung_cua_so.py    vá cửa sổ Win32 cho thanh tiêu đề tự vẽ (kéo/giãn/phóng to)
+app_web.py         ĐIỂM KHỞI ĐỘNG — thứ duy nhất còn ở gốc (pywebview + WebView2)
+cat_studio/        toàn bộ lõi app
+  core.py            đồ thị, đánh số, soát lỗi
+  kho/               danh mục mọi thứ app tính được, chia theo NGUỒN
+    nen_tang.py        giá · thời gian · tài khoản · lệnh này
+    chi_bao.py         ATR · MA · Donchian · Volume MA
+    engine_d02.py      atr_bps · bảng vùng nén    (ý tưởng riêng của D_02)
+  so_lenh.py         bảng lệnh + vùng nén, id của CHÍNH TA
+  luu_tru.py         MỘT chỗ duy nhất biết file nằm ở đâu
+  api.py             bề mặt DUY NHẤT giao diện gọi tới  (JS → api.py → core.py)
+  khung_cua_so.py    vá cửa sổ Win32 cho thanh tiêu đề tự vẽ (kéo/giãn/phóng to)
+tai_lieu/          sổ ghi cốt lõi
+  core.md            VÌ SAO mọi thứ như vậy. Đọc file này trước.
+  D02_Compress_ban_giao.md   bàn giao chiến lược gốc
 webui/             giao diện: React + TypeScript + React Flow
 tests/             bộ test — không mở cửa sổ, không cần MT5
 du_lieu/           dữ liệu của bạn (sinh ra lúc chạy, không nằm trong repo)
+tools/             kịch bản: chạy · build giao diện · chạy test · ĐÓNG GÓI
+dist/              sản phẩm đóng gói + bản .zip phát hành (không nằm trong repo)
 ```
 
 Menu **File → Kho** liệt kê mọi thứ app tính được, chia theo nguồn: nền tảng · chỉ báo

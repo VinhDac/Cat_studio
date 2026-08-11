@@ -22,8 +22,8 @@ import json
 import os
 import time
 
-import luu_tru
-import nhat_ky
+from . import luu_tru
+from . import nhat_ky
 
 #: Giữ bao nhiêu mục MỀM. Mục đã đặt tên không tính vào đây.
 GIU = 20

@@ -26,8 +26,8 @@ import json
 import os
 from datetime import datetime, timezone
 
-import core
-import luu_tru
+from . import core
+from . import luu_tru
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import khop_lenh as kl  # noqa: E402
+from cat_studio import khop_lenh as kl  # noqa: E402
 
 dung = sai = 0
 

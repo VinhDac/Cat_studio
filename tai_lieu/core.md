@@ -1865,6 +1865,41 @@ Id chỉ cần duy nhất TRONG MỘT tài liệu nên đặt cứng hoàn toàn
 Kiểm: 3 lần mở lại và chạy → **1 mục lịch sử**, `so_hai_lan` trả *"y hệt"*. Luồng lưu/mở file vốn
 đã đúng từ trước (ids nằm trong file), đã kiểm lại luôn.
 
+### 13.2 ✅ Dọn thư mục gốc
+
+- **`settings.json` ở gốc: xoá.** Của bản cũ, `luu_tru.di_cu()` đã chuyển sang
+  `du_lieu/cai_dat.json` từ lâu và từ đó nó nằm không — nhưng ai đọc repo vẫn tưởng nó có tác dụng.
+- **`logo/` : xoá.** Trùng byte-for-byte với `assets/` (chỉ khác tên file), không một chỗ nào gọi
+  tới. `assets/logo.ico` thì `tools/tao_shortcut.ps1` đang dùng thật nên giữ.
+- **`tai_lieu/`**: `core.md` + `D02_Compress_ban_giao.md`. `README.md` ở lại gốc theo lệ.
+- **Mọi sản phẩm build vào `dist/`**, kể cả bản `.zip` phát hành — thư mục gốc không giữ thứ gì
+  sinh ra từ lệnh build. `build/` thì `tools/dong_goi.bat` tự xoá sau khi nén xong.
+
+#### 13.3 ✅ Gom lõi vào gói `cat_studio/`
+
+Thư mục gốc còn đúng **một file `.py`: `app_web.py`** — điểm khởi động. Nhìn vào gốc là thấy ngay
+"chạy cái gì"; "gồm những gì" thì mở gói ra xem.
+
+11 module + `kho/` vào `cat_studio/`, và **import trong gói chuyển sang tương đối** (`from . import
+core`, `kho/` dùng `from .. import so_lenh`). Ngoài gói — `app_web.py` và 9 bài kiểm — dùng
+`from cat_studio import …`.
+
+⚠ **Chỗ vỡ mà đổi tên import không lộ ra:** `luu_tru` xác định gốc dự án bằng
+`dirname(__file__)`. File này giờ nằm TRONG gói, nên nó trả về thư mục gói chứ không phải gốc —
+`du_lieu/` bị đẻ vào trong `cat_studio/`, và `webui/dist` tìm không thấy. Thêm một bậc `..`
+(`_GOC_MA_NGUON`) là xong, nhưng nếu chỉ chạy `import` để kiểm thì không bao giờ thấy: phải chạy
+thật mới lộ. Đây là loại lỗi mà "gom file cho gọn" hay kéo theo.
+
+`__init__.py` cố ý **không re-export gì**: `from cat_studio import core` phải nạp đúng một module,
+không kéo cả cây. Nạp `api` là kéo theo numpy và MetaTrader5, mà `tests/test_danh_so` chỉ cần
+`core`.
+
+`.spec` chỉ đổi `hiddenimports` thành `cat_studio.kho.*`; `tools/*.bat` không phải sửa gì vì tất cả
+đều trỏ vào `app_web.py` ở gốc.
+
+Kiểm: **9/9 bài qua**, đóng gói lại, giải nén sang thư mục khác chạy ra **547 lệnh · −10,50 R ·
+DD 0,91 % · vốn cuối 9955,04** — trùng từng con số với trước khi gom.
+
 ### 13.1 ✅ ĐÓNG GÓI — đã build và chạy thật
 
 ```bat

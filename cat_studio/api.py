@@ -21,16 +21,16 @@ import threading
 import time
 import traceback
 
-import core
-import kho
-import khung_cua_so
-import bo_chay
-import lich_su
-import luu_tru
-import nguon_nen
-import nhat_ky
-import so_lenh
-import tinh_toan
+from . import core
+from . import kho
+from . import khung_cua_so
+from . import bo_chay
+from . import lich_su
+from . import luu_tru
+from . import nguon_nen
+from . import nhat_ky
+from . import so_lenh
+from . import tinh_toan
 
 
 def _bat_loi(fn):

@@ -1,6 +1,7 @@
 @echo off
 REM ============================================================
-REM  Dong goi Cat_Studio -> dist\Cat_Studio\ + Cat_Studio-windows.zip
+REM  Dong goi Cat_Studio -> dist\Cat_Studio\ + dist\Cat_Studio-windows.zip
+REM  (moi san pham build deu nam trong dist\, thu muc goc khong giu gi)
 REM
 REM  Chay tu THU MUC GOC:   tools\dong_goi.bat
 REM
@@ -82,8 +83,8 @@ REM  Compress-Archive gom het vao bo nho truoc khi ghi nen voi goi 211 file / 67
 REM  no treo - da do that: chay 22 PHUT chua xong, phai kill. Ban .NET ghi thang ra dia:
 REM  2,6 GIAY, ra 29,2 MB. (Auto_Clicker dung Compress-Archive duoc vi goi nho hon nhieu.)
 echo [6/6] Nen thanh .zip de phat hanh...
-if exist Cat_Studio-windows.zip del /F /Q Cat_Studio-windows.zip
-powershell -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path 'dist\Cat_Studio').Path, (Join-Path (Get-Location) 'Cat_Studio-windows.zip'), [System.IO.Compression.CompressionLevel]::Optimal, $true)"
+if exist dist\Cat_Studio-windows.zip del /F /Q dist\Cat_Studio-windows.zip
+powershell -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path 'dist\Cat_Studio').Path, (Join-Path (Get-Location) 'dist\Cat_Studio-windows.zip'), [System.IO.Compression.CompressionLevel]::Optimal, $true)"
 if errorlevel 1 (
     echo *** NEN ZIP THAT BAI ***
     pause
@@ -97,6 +98,6 @@ if exist build rmdir /S /Q build
 echo.
 echo Xong!
 echo    Thu muc      : dist\Cat_Studio\
-echo    Ban phat hanh: Cat_Studio-windows.zip
+echo    Ban phat hanh: dist\Cat_Studio-windows.zip
 echo.
 pause

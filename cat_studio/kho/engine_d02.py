@@ -120,7 +120,7 @@ THAM_SO_MAC_DINH = [
 #
 # `kho/nen_tang.py` thì ngược lại — nó KHÔNG có Engine, vì giá/thời gian/tài khoản
 # không phải ý tưởng của chiến lược nào.
-import so_lenh                                                      # noqa: E402
+from .. import so_lenh                                                      # noqa: E402
 
 
 class Engine:

@@ -38,11 +38,11 @@ import math
 
 import numpy as np
 
-import core
-import khop_lenh
-import kho
-import so_lenh as sl
-import tinh_toan as tt
+from . import core
+from . import khop_lenh
+from . import kho
+from . import so_lenh as sl
+from . import tinh_toan as tt
 
 NAN = float("nan")
 

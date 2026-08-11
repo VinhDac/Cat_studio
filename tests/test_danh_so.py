@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # đó — in một dấu ✔ là chết ngay, bài test "hỏng" mà không có lấy một dòng lý do.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import core  # noqa: E402
+from cat_studio import core  # noqa: E402
 
 dung = sai = 0
 

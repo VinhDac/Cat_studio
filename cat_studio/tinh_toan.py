@@ -27,7 +27,7 @@ nến M5 sau đó lệch pha khỏi biên thật của sàn, và không có gì 
 """
 import numpy as np
 
-import core
+from . import core
 
 #: Kiểu số dùng xuyên suốt. float64 vì `atr_bps` là hiệu của hai số lớn gần bằng nhau —
 #: float32 mất chữ số đúng ở chỗ quan trọng nhất.

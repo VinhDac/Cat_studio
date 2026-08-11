@@ -22,11 +22,11 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import api  # noqa: E402
-import bo_chay as bc  # noqa: E402
-import core  # noqa: E402
-import nguon_nen as nn  # noqa: E402
-import nhat_ky as nk  # noqa: E402
+from cat_studio import api  # noqa: E402
+from cat_studio import bo_chay as bc  # noqa: E402
+from cat_studio import core  # noqa: E402
+from cat_studio import nguon_nen as nn  # noqa: E402
+from cat_studio import nhat_ky as nk  # noqa: E402
 
 dung = sai = 0
 

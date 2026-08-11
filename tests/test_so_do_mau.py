@@ -25,9 +25,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Console Windows mặc định cp1252, in tiếng Việt là vỡ ngay.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-import api  # noqa: E402
-import core  # noqa: E402
-import kho  # noqa: E402
+from cat_studio import api  # noqa: E402
+from cat_studio import core  # noqa: E402
+from cat_studio import kho  # noqa: E402
 
 dung = sai = 0
 
