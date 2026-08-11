@@ -1717,6 +1717,28 @@ Sửa ô "Từ" ở Cài đặt → Strategy Test thành 2016-08-09 trở đi r�
 **Nút Xoá trong bảng nguồn thì Ở LẠI.** Tải là an toàn và đảo ngược được nên tự động; xoá thì
 không, phải do tay người bấm.
 
+### 8.4 ⚠ LỖI: ba nút hộp thoại file đều chết vì một hằng số sai kiểu
+
+*"nút mở từ file khác, duyệt từ file khác đang không dùng được."*
+
+`_LOC` khai là **tuple** `("Chiến lược Cat_Studio (*.json)", "*.json")`, rồi truyền
+`file_types=(self._LOC,)`. pywebview đòi mỗi bộ lọc là một **CHUỖI** đúng dạng `Mô tả (*.đuôi)`
+và tự tách lấy đuôi — đưa tuple vào thì `parse_file_type` ném `TypeError: expected string, got
+'tuple'` **ngay, trước cả khi hộp thoại kịp mở**.
+
+Một hằng số sai kiểu giết **ba** nút cùng lúc, vì cả ba dùng chung nó: *Mở từ file khác…* ·
+*Duyệt file khác…* (trong hộp chọn chiến lược) · *Lưu ra file khác…*.
+
+**Vì sao im lặng suốt:** `_bat_loi` bắt gọn ngoại lệ thành `{ok: false, error: …}`, và JS có báo —
+nhưng báo vào **bảng Nhật ký ở dưới**, chỗ người dùng đang không mở. Bấm nút thì thấy *không có gì
+xảy ra*. Lỗi được xử lý đúng mà vẫn vô hình: chỗ báo lỗi phải nằm nơi người ta đang nhìn.
+
+Sửa: `_LOC` thành một chuỗi. Nhân tiện đổi `webview.OPEN_DIALOG`/`SAVE_DIALOG` sang
+`webview.FileDialog.OPEN`/`.SAVE` — pywebview đã in cảnh báo *"will be removed in a future
+version"* ngay trên stderr, cùng giá trị 10/30.
+
+Đã bấm thật cả hai: hộp `Open` và hộp `Save As` đều hiện ra, Esc huỷ xong app vẫn chạy.
+
 ### 12.22 ✅ Ba lối vào tester, một hàm
 
 `▶ Chạy` trên ribbon · `File → Mở Strategy Tester` · phím `Ctrl+R`. Cả ba trỏ về **đúng một hàm**

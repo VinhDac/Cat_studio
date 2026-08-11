@@ -464,13 +464,21 @@ class Api(NenCuaSo):
         return _ok(core.delete_template(kind, name))
 
     # -- file ngoài --
-    _LOC = ("Chiến lược Cat_Studio (*.json)", "*.json")
+    #: ⚠ MỘT CHUỖI, không phải tuple `(mô tả, đuôi)`. pywebview đòi mỗi bộ lọc là một
+    #: chuỗi đúng dạng `Mô tả (*.đuôi)` và tự tách lấy đuôi; đưa tuple vào thì
+    #: `parse_file_type` ném `TypeError: expected string, got 'tuple'` NGAY, trước cả khi
+    #: hộp thoại kịp mở — nên "Mở từ file khác…", "Duyệt file khác…" và "Lưu ra file
+    #: khác…" đều bấm mà không thấy gì. Lỗi có được báo, nhưng vào bảng Nhật ký ở dưới,
+    #: chỗ người dùng đang không mở.
+    _LOC = "Chiến lược Cat_Studio (*.json)"
 
     @_bat_loi
     def open_process_file(self):
         import webview
+        # `FileDialog.OPEN` chứ không phải hằng `OPEN_DIALOG` cũ — pywebview đã đánh dấu
+        # bỏ nó ("will be removed in a future version"), cùng giá trị 10.
         r = self._window.create_file_dialog(
-            webview.OPEN_DIALOG, allow_multiple=False, file_types=(self._LOC,))
+            webview.FileDialog.OPEN, allow_multiple=False, file_types=(self._LOC,))
         if not r:
             return {"ok": False}          # người dùng bấm Huỷ — KHÔNG phải lỗi
         with open(r[0], encoding="utf-8") as f:
@@ -481,7 +489,7 @@ class Api(NenCuaSo):
         import webview
         d = core.normalize_process(doc)
         r = self._window.create_file_dialog(
-            webview.SAVE_DIALOG, save_filename=f"{d['name']}.json",
+            webview.FileDialog.SAVE, save_filename=f"{d['name']}.json",
             file_types=(self._LOC,))
         if not r:
             return {"ok": False}
