@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 export interface DongNk {
   i: number; j: number; co_viec: boolean; lenh_id: string | null; chu: string
@@ -13,11 +13,7 @@ interface Nhom {
   dem: number
 }
 
-/** Bảng nhật ký cao tối thiểu lúc kéo, và cao khi đã gập (vừa đủ hàng tab). */
-const CAO_TOI_THIEU = 90
-const CAO_GAP = 33
-
-/** NHẬT KÝ SỐNG — dòng nảy lên đúng lúc nó xảy ra.
+/** NHẬT KÝ SỐNG — dòng nảy lên đúng lúc nó xảy ra. (Vỏ bảng nằm ở `BangDuoi`.)
  *
  * Khác bản trước (một danh sách tĩnh cuộn được): lúc PHÁT, nó phải tự chạy theo con
  * trỏ. Đó là cả điểm của việc "đọc journey sống" — thấy dòng `đặt Buy Stop` hiện ra
@@ -32,17 +28,14 @@ const CAO_GAP = 33
  * 5 lần, vừa TRẢ LỜI THÊM được câu "cổng đó chặn mấy lượt liền" — thứ mà đếm tay không
  * ra. Chỉ gộp dãy LIỀN KỀ, không gộp cách quãng: gộp cách quãng là xáo trộn thứ tự thật.
  */
-export default function Journey({ dong, jBayGio, nhay, ghiFile }: {
+export default function Journey({ dong, jBayGio, nhay, chiViec }: {
   dong: DongNk[]
   /** Nến M1 con trỏ đang đứng — quyết định dòng nào được tô sáng. */
   jBayGio: number
   nhay: (i: number) => void
-  ghiFile: () => void
+  chiViec: boolean
 }) {
   const boc = useRef<HTMLDivElement>(null)
-  const [cao, setCao] = useState(210)
-  const [gap, setGap] = useState(false)
-  const [chiViec, setChiViec] = useState(false)
 
   const nhom = useMemo(() => {
     const ra: Nhom[] = []
@@ -78,62 +71,19 @@ export default function Journey({ dong, jBayGio, nhay, ghiFile }: {
     if (boc.current) boc.current.scrollTop = boc.current.scrollHeight
   }, [nhom])
 
-  /** Kéo mép trên để chỉnh chiều cao. Bám theo con trỏ cho tới khi thả, kể cả khi chuột
-   *  đi ra ngoài cửa sổ — chỉ nghe trên chính thanh kéo thì kéo nhanh một cái là mất
-   *  dấu. Giống hệt bảng dưới của cửa sổ chính. */
-  const batDauKeo = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setGap(false)
-    const y0 = e.clientY
-    const cao0 = gap ? CAO_GAP : cao
-    const di = (ev: MouseEvent) =>
-      setCao(Math.max(CAO_TOI_THIEU, Math.min(600, cao0 + (y0 - ev.clientY))))
-    const thoi = () => {
-      window.removeEventListener('mousemove', di)
-      window.removeEventListener('mouseup', thoi)
-    }
-    window.addEventListener('mousemove', di)
-    window.addEventListener('mouseup', thoi)
-  }, [cao, gap])
-
   return (
-    <div className="nk" style={{ height: gap ? CAO_GAP : cao }}>
-      <div className="thanh-keo" onMouseDown={batDauKeo} title="Kéo để chỉnh chiều cao" />
-      <div className="hang-tab" onDoubleClick={() => setGap(v => !v)}>
-        <button className="tab dang" onClick={() => setGap(v => !v)}>
-          Nhật ký <span className="nk-dem">{nhom.length}</span>
-        </button>
-        <span className="day" />
-        {!gap && <>
-          <label className="nk-loc">
-            <input type="checkbox" checked={chiViec}
-                   onChange={e => setChiViec(e.target.checked)} />
-            chỉ dòng có việc
-          </label>
-          <button className="nut-nho" onClick={ghiFile}
-                  title="Ghi TOÀN BỘ nhật ký ra .jsonl">Ghi ra file</button>
-        </>}
-        <button className="nut-nho nut-gap" onClick={() => setGap(v => !v)}
-                title={gap ? 'Mở nhật ký' : 'Gập nhật ký xuống'}>
-          {gap ? '▲' : '▼'}
-        </button>
-      </div>
-
-      {!gap && (
-        <div className="nk-cuon" ref={boc}>
-          {nhom.map((n, k) => (
-            <div key={n.i}
-                 className={'nk-dong' + (n.co_viec ? ' co-viec' : '')
-                            + (k === sang ? ' bay-gio' : '')}
-                 onClick={() => nhay(n.i)}>
-              <span className="chu">{n.chu}</span>
-              {n.dem > 1 && <span className="lap" title={`${n.dem} lượt liền nhau giống hệt`}>
-                ×{n.dem}
-              </span>}
-            </div>
-          ))}
+    <div className="nk-cuon" ref={boc}>
+      {nhom.map((n, k) => (
+        <div key={n.i}
+             className={'nk-dong' + (n.co_viec ? ' co-viec' : '')
+                        + (k === sang ? ' bay-gio' : '')}
+             onClick={() => nhay(n.i)}>
+          <span className="chu">{n.chu}</span>
+          {n.dem > 1 && <span className="lap" title={`${n.dem} lượt liền nhau giống hệt`}>
+            ×{n.dem}
+          </span>}
         </div>
-      )}
+      ))}
     </div>
   )
 }

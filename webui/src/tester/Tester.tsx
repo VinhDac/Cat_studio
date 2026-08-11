@@ -6,7 +6,8 @@ import { useKhungCuaSo } from '../useKhungCuaSo'
 import type { DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay } from '../types'
 import BangSoLieu, { type BangCat } from './BangSoLieu'
 import Chart, { type Bar, type NenM1 } from './Chart'
-import Journey, { type DongNk } from './Journey'
+import BangDuoi from './BangDuoi'
+import type { DongNk } from './Journey'
 
 const TF = [['M1', 1], ['M5', 5], ['M15', 15], ['M30', 30], ['H1', 60],
             ['H4', 240], ['D1', 1440]] as const
@@ -202,6 +203,49 @@ export default function Tester() {
     if (r.ok && r.value && r.value.j >= 0) await veDau(r.value.j)
   }
 
+  /** Giá trị ô "nhảy tới mốc". PHẢI là state, không được để ô tự giữ.
+   *
+   * ⚠ LỖI ĐÃ SỬA: để `defaultValue` (uncontrolled) thì gõ ngày → nhảy → gõ tiếp giờ là
+   * ô **im lặng hẳn**, `onChange` không bắn nữa, con trỏ kẹt ở cú nhảy dở dang trong khi
+   * ô hiện một mốc khác. Tái hiện chắc chắn: gõ `07/04/2025`, đợi cú nhảy chạy xong, gõ
+   * tiếp `03:00` — đồng hồ đứng ở `07-06 22:05` còn ô ghi `03:00 PM`. Nguyên nhân: cú
+   * nhảy gọi `veDau` → dựng lại chart + đặt 6 state, và qua lần re-render lớn đó bộ theo
+   * dõi giá trị của React lệch pha với DOM. Ô có state riêng thì React luôn nắm giá trị,
+   * không còn chỗ cho lệch. */
+  const [moc, setMoc] = useState('')
+  useEffect(() => { if (kq) setMoc(chuoiMoc(kq.t_dau)) }, [kq])
+
+  /** Cú nhảy mốc thứ mấy — để bỏ qua kết quả của cú đã cũ. */
+  const lanMoc = useRef(0)
+  const hoanMoc = useRef<number | undefined>(undefined)
+
+  /* Nhảy tới một MỐC THỜI GIAN cụ thể — soi đúng đoạn đang nghi mà không phải tua từ đầu.
+   *
+   * ⚠ HAI CÁI BẪY, cả hai đều do ô `datetime-local` bắn ra một giá trị HỢP LỆ sau MỖI
+   * đoạn gõ (gõ xong tháng đã là một mốc, gõ xong ngày lại một mốc nữa):
+   *
+   * 1. Không hoãn thì một lần gõ = 5-6 cú nhảy chồng nhau. Đo được: gõ `07/04/2025 03:00
+   *    PM` mà con trỏ dừng ở `07-06 22:05` — vì mốc DỞ DANG `07/04 11:05 PM` rơi vào tối
+   *    thứ Sáu (chợ đã đóng) nên nó bị đẩy sang phiên mở cửa Chủ nhật, và nó về đích SAU
+   *    CÙNG. Chart nói một đằng, nhật ký nói một nẻo.
+   * 2. Nên chỉ hoãn thôi vẫn chưa đủ: hai cú nhảy vẫn có thể về không đúng thứ tự gửi.
+   *    `lanMoc` chốt lại — kết quả nào không phải của cú mới nhất thì vứt.
+   *
+   * Lọc theo khoảng dữ liệu bỏ luôn mấy bước vô nghĩa (năm mới gõ "2" đã là năm 0002),
+   * nên không cần bắt người dùng bấm Enter mới chịu nhảy. */
+  const toiMoc = (v: string, ngay = false) => {
+    const t = tuChuoiMoc(v)
+    if (t === null || !kq || t < kq.t_dau - 86400 || t > kq.t_cuoi + 86400) return
+    window.clearTimeout(hoanMoc.current)
+    hoanMoc.current = window.setTimeout(async () => {
+      const lan = ++lanMoc.current
+      setPhat(false)
+      const r = await pyTester.test_tim_moc(t)
+      if (lan !== lanMoc.current || !r.ok || !r.value) return
+      await veDau(r.value.j)
+    }, ngay ? 0 : 350)
+  }
+
   const nut = (icon: string, ten: string, on: () => void, bat = false, tat = false) => (
     <button className={'tb-nut' + (bat ? ' bat' : '')} title={ten}
             disabled={tat} onClick={on}><IconNet name={icon} size={15} /></button>
@@ -233,6 +277,22 @@ export default function Tester() {
                 title="Chỉ đổi CÁCH VẼ — không đụng kết quả">
           {TF.map(([t, p]) => <option key={t} value={p}>{t}</option>)}
         </select>
+        <span className="tb-ngan" />
+        {/* Ô nhảy tới mốc. TÁCH khỏi đồng hồ bên phải chứ không gộp làm một: đồng hồ đổi
+            8 lần/giây lúc phát, mà một ô nhập tự đổi giá trị dưới tay người đang gõ thì
+            không gõ nổi. Bấm vào ô thì nó nạp mốc hiện tại — vẫn "đi tiếp từ chỗ đang
+            đứng" mà không phải ô điều khiển chung. */}
+        <input type="datetime-local" className="o tb-moc" step={60} disabled={!kq}
+               title="Nhảy tới mốc thời gian"
+               min={kq ? chuoiMoc(kq.t_dau) : undefined}
+               max={kq ? chuoiMoc(kq.t_cuoi) : undefined}
+               value={moc}
+               onFocus={() => {
+                 const L = lo.current
+                 if (L) setMoc(chuoiMoc(nenTai(L, j - L.j0).t))
+               }}
+               onChange={e => { setMoc(e.target.value); toiMoc(e.target.value) }}
+               onKeyDown={e => { if (e.key === 'Enter') toiMoc(e.currentTarget.value, true) }} />
         <span className="tb-day" />
         {lo.current && <span className="tb-gio">{gio(nenTai(lo.current, j - lo.current.j0).t)}</span>}
         {nut('copy', 'Bảng số liệu', () => setHienBang(v => !v), hienBang)}
@@ -261,7 +321,7 @@ export default function Tester() {
           chính. Nút gập nằm ngay trên hàng tab của chính nó chứ không phải ở góc thanh
           công cụ: tay đang ở đâu thì nút ở đó. */}
       {kq && (
-        <Journey dong={dong} jBayGio={j}
+        <BangDuoi dong={dong} jBayGio={j}
                  ghiFile={async () => {
                    const r = await pyTester.test_ghi_nhat_ky()
                    if (r.ok && r.value) alert(`Đã ghi:\n${r.value.duong_dan}`)
@@ -298,4 +358,19 @@ function gio(t: number) {
   const s = (n: number) => String(n).padStart(2, '0')
   return `${d.getUTCFullYear()}-${s(d.getUTCMonth() + 1)}-${s(d.getUTCDate())} `
        + `${s(d.getUTCHours())}:${s(d.getUTCMinutes())}`
+}
+
+/** unix (giây) → chuỗi của ô `datetime-local`.
+ *
+ * Dựng tay theo giờ UTC, KHÔNG dùng `toISOString`/`Date` tự định dạng: nến của MT5 là
+ * giờ sàn và cả app hiển thị nguyên như thế, còn `Date` thì cộng lệch múi giờ của máy —
+ * ô nhập sẽ lệch vài tiếng so với chính cái đồng hồ ngay cạnh nó. */
+function chuoiMoc(t: number) {
+  return gio(t).replace(' ', 'T')
+}
+
+/** Ngược lại — đọc chuỗi ô nhập NHƯ GIỜ UTC. `null` = chưa thành một mốc đọc được. */
+function tuChuoiMoc(v: string) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v)
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) / 1000 : null
 }

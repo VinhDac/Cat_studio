@@ -923,6 +923,37 @@ class ApiTester(NenCuaSo):
         return _ok({"j": -1, "i": -1})
 
     @_bat_loi
+    def test_thong_ke(self):
+        """Toàn bộ số + đường vốn cho tab Thống kê. Gọi MỘT lần lúc mở tab.
+
+        CỐ ĐỊNH, không theo con trỏ: đây là tổng kết cả lượt chạy, không phải thứ tua
+        được. Kèm cả khoảng ĐÃ YÊU CẦU lẫn khoảng THẬT SỰ có nến — hai cái này lệch nhau
+        là chuyện thường (thiếu dữ liệu đầu/cuối), mà đọc số mà không biết nó tính trên
+        quãng nào thì con số vô nghĩa."""
+        kq = self._doi_kq()
+        return _ok({
+            "tk": kq.thong_ke,
+            "duong_von": kq.duong_von,
+            "t_dau": int(kq.nen1["t"][0]), "t_cuoi": int(kq.nen1["t"][-1]),
+            "yc_tu": self._cd.tu, "yc_den": self._cd.den,
+            "symbol": self._cd.symbol,
+            "nhip": dict(kq._ct.nhip),
+        })
+
+    @_bat_loi
+    def test_tim_moc(self, t):
+        """Nến M1 đầu tiên có thời điểm ≥ `t` — cho ô "nhảy tới mốc" trên thanh công cụ.
+
+        Phải hỏi Python chứ không nhẩm ở JS: dữ liệu có 271 lỗ hổng (chợ đóng cửa), nên
+        `(t − t_đầu) / 60` ra một chỉ số lệch hẳn. `searchsorted` thì luôn rơi đúng vào
+        cây nến CÓ THẬT gần nhất về phía sau — chọn nhằm chiều thứ Bảy thì nhảy tới đúng
+        lúc mở cửa, chứ không rơi vào khoảng trống."""
+        kq = self._doi_kq()
+        j = int(kq.nen1["t"].searchsorted(int(t), side="left"))
+        j = max(0, min(j, len(kq.nen1) - 1))
+        return _ok({"j": j, "t": int(kq.nen1["t"][j])})
+
+    @_bat_loi
     def test_ghi_nhat_ky(self):
         kq = self._doi_kq()
         return _ok({"duong_dan": nhat_ky.ghi(kq, self._cd)})

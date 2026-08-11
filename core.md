@@ -1593,8 +1593,109 @@ bị kéo tới ngay. **Hướng mua/bán không dùng màu nữa — dùng HÌN
 
 **Đường SL vẽ theo LỊCH SỬ**, dựng từ chính nhật ký (`lenh_sua`), nên lúc `Dời SL về hoà vốn` chạy
 thì nó **nhảy bậc** ngay trên chart — khoảnh khắc đáng kiểm chứng nhất, mà bản trước chỉ vẽ SL
-cuối cùng nên nó tàng hình. ⚠ Điểm đầu phải suy ngược từ `gia_dat` và `R`: `Lenh.sl` là SL HIỆN
-TẠI, đã bị mọi lần dời ghi đè — lấy nó làm điểm đầu là ra một đường phẳng và cái bậc biến mất.
+cuối cùng nên nó tàng hình. ⚠ Điểm đầu KHÔNG được lấy `Lenh.sl`: đó là SL HIỆN TẠI, đã bị mọi lần
+dời ghi đè — lấy nó làm điểm đầu là ra một đường phẳng và cái bậc biến mất. Nay điểm đầu lấy thẳng
+từ bản ghi `lenh_dat` trong nhật ký (§12.9d), chính xác và dùng được cho cả TP.
+
+### 12.20 ✅ Tab Thống kê — tổng kết cố định, không tua
+
+Tab thứ hai của **bảng dưới**, cạnh `Nhật ký`, dùng chung thanh kéo và nút gập đã có. Nội dung xếp
+**dọc và cuộn được**: khối số → đường vốn → sụt giảm.
+
+**Cố định, không theo con trỏ.** Đây là tổng kết cả lượt chạy, `test_thong_ke()` gọi đúng một lần
+lúc mở tab. Ghi rõ **khoảng thật sự có nến** *và* **khoảng đã yêu cầu** trong Cài đặt — hai cái
+lệch nhau là chuyện thường, mà đọc số không biết nó tính trên quãng nào thì con số vô nghĩa.
+
+**Đường vốn là VỐN ĐÃ CHỐT**, mỗi nến trục có lệnh đóng một điểm (386 lệnh → 384 điểm cho một
+năm). Cố ý KHÔNG vẽ lãi nổi: nó đổi theo từng nến M1 → 353.000 điểm, giật liên tục, và
+`drawdown_pt` vốn đã cố tình loại nó ra vì đúng lý do đó (§12.13e).
+
+**Số và cả hai đường ra từ MỘT vòng lặp** trong `_thong_ke`, nên điểm cuối đường vốn *bằng đúng*
+`von_cuoi` và đáy đường sụt giảm *bằng đúng* `drawdown_pt` — không có hai nguồn để lệch nhau. Nhiều
+lệnh cùng đóng trong một nến trục thì gộp làm một điểm (thư viện vẽ đòi mốc tăng ngặt), giữ `von`
+của lệnh cuối nhưng giữ mức sụt **sâu nhất**, để đáy đồ thị vẫn khớp con số.
+
+**KHÔNG có `số vùng nén`** dù `thong_ke` đang mang sẵn — khái niệm riêng của một chiến lược, đúng
+cái bẫy đã gỡ ở bảng số liệu bên phải (§12.9c).
+
+#### 12.20c ✅ HAI ĐỒ THỊ VẼ TAY — bỏ lightweight-charts ở tab này
+
+Bản đầu dùng lightweight-charts cho cả hai. Bỏ, vì ba lý do và không lý do nào là "cho vui":
+
+- nó **đóng khung một mảng nền đen** riêng giữa bảng vốn màu xám — người dùng: *"để nó đè lên nền
+  xám luôn chứ, lại để nền đen như này"*;
+- nó **dán logo TradingView** vào góc mỗi đồ thị;
+- nó kéo cả một bộ máy biểu đồ nến chỉ để vẽ một đường gấp khúc 384 điểm.
+
+Chart **phát lại** thì vẫn giữ nó — chỗ đó cần trục thời gian, thu phóng, kéo ngang, marker, tooltip
+theo nến. Chỗ này không cần gì trong số đó.
+
+Mẹo để **không phải đo bề ngang bằng JS**: `<svg preserveAspectRatio="none">` với hệ toạ độ cố
+định 1000×100, cho nó tự kéo giãn đầy khung; nét không méo theo nhờ `vector-effect:
+non-scaling-stroke`. Còn CHỮ thì đứng **ngoài** SVG — nhãn là thẻ HTML đặt theo phần trăm, nên
+không dính phép kéo giãn đó. Không `ResizeObserver`, không state kích thước, tự co giãn.
+
+Ba chi tiết làm rồi mới thấy cần:
+
+1. **Mảng tô cắt đôi ở đường mốc** — trên mốc xanh (đang lãi), dưới mốc đỏ (đang lỗ), bằng hai
+   `clipPath`. Tô một màu cam duy nhất thì nửa khung thành một khối cam nặng trịch mà chẳng nói
+   gì; cắt đôi thì đúng nghĩa xanh/đỏ mà bảng màu đã dành riêng cho lãi/lỗ (§12.17).
+   `clipPath` phải mang **id riêng từng đồ thị** (`useId`) — trùng id thì đồ thị này bị cắt theo
+   mốc của đồ thị kia.
+2. **Bước trục giá phải có 2.5.** Thiếu nó thì biên độ 93 $ nhảy thẳng từ bước 20 lên bước 50 —
+   cả đồ thị còn đúng 2 vạch, gần như không có trục. Có 2.5 thì ra bước 25, đủ 4 vạch.
+3. **Crosshair tự làm.** Bỏ thư viện là mất cái crosshair đọc số, mà đó là thứ duy nhất đáng giữ
+   lại: rê chuột ra vạch dọc + chấm trên đường + ô ghi `9,959.10 $ · 2025-07-25 11:00`. Tìm điểm
+   gần nhất **theo thời gian**, không theo chỉ số — các điểm cách nhau không đều (lệnh đóng dày
+   thưa tuỳ đoạn), chia đều chỉ số là trỏ sai chỗ.
+
+#### 12.20b ⚠ LỖI THẬT: đường vốn cộng dồn theo thứ tự TẠO lệnh
+
+`_thong_ke` duyệt `so.lenh` — tức thứ tự **đặt** lệnh — rồi cộng dồn vốn theo đó. Tổng thì thứ tự
+nào cũng ra một số, nhưng **đường đi** của vốn thì không, mà `drawdown_pt` lại đo trên chính đường
+đi đó. Đo trên một năm thật: **9/386 lệnh đóng đảo thứ tự** so với lúc đặt.
+
+Lần này may: cả hai cách đều ra 0.792 %. Nhưng đồ thị vẽ ra sẽ giật ngược thời gian, và một bộ dữ
+liệu khác là con số sai hẳn. Sửa: sắp theo `(nen_dong, id)` trước khi cộng dồn.
+
+Nhân tiện `_thong_ke` trả thêm: `von_dau · lai_pt · drawdown_tien · drawdown_luc · R_moi_lenh ·
+R_khi_thang · R_khi_thua · he_so_lai · chuoi_thua`. `he_so_lai` trả **`None` khi chưa có lệnh lỗ
+nào**, không phải 0 — hai chuyện khác hẳn nhau, và bảng hiện dấu gạch.
+
+### 12.19 ✅ Ô "nhảy tới mốc" trên thanh công cụ
+
+*"thêm phần move to date ở ribbon để tôi muốn test khoảng thời gian cụ thể nếu cần."*
+
+Một ô `datetime-local` (Chromium có sẵn bộ chọn ngày, không thêm thư viện nào), **tách khỏi đồng
+hồ bên phải** chứ không gộp làm một: đồng hồ đổi 8 lần/giây lúc phát, mà một ô nhập tự đổi giá trị
+dưới tay người đang gõ thì không gõ nổi. Bấm vào ô thì nó nạp mốc hiện tại, nên vẫn "đi tiếp từ
+chỗ đang đứng".
+
+**Tìm nến phải hỏi Python** (`ApiTester.test_tim_moc` → `searchsorted`), không nhẩm ở JS: dữ liệu
+có 271 lỗ hổng nên `(t − t_đầu) / 60` ra một chỉ số lệch hẳn. Chọn nhằm chiều thứ Bảy thì nhảy
+đúng tới phiên mở cửa Chủ nhật; chọn ngoài khoảng thì kẹp về nến đầu/cuối. Đo thật:
+`07-04 15:00 → 07-04 15:00` · `07-04 23:05 → 07-06 22:05 (CN)` · `2030-… → nến cuối`.
+
+**Ba cái bẫy, cả ba đều đã cắn:**
+
+1. **Giờ UTC.** Nến MT5 là giờ sàn và cả app hiển thị nguyên như thế. Để `Date` tự định dạng là nó
+   cộng lệch múi giờ máy — ô nhập lệch vài tiếng so với chính cái đồng hồ ngay cạnh nó. Dựng và
+   đọc chuỗi bằng tay theo UTC.
+
+2. **Ô bắn ra một giá trị HỢP LỆ sau MỖI đoạn gõ** (xong tháng đã là một mốc, xong ngày lại một
+   mốc nữa). Không hoãn thì một lần gõ = 5-6 cú nhảy chồng nhau, và cú **về đích sau cùng** mới là
+   cái hiển thị. Đo được: gõ `07/04/2025 03:00 PM` mà con trỏ dừng ở `07-06 22:05`, vì mốc dở dang
+   `07/04 11:05 PM` rơi vào tối thứ Sáu (chợ đã đóng) nên bị đẩy sang phiên Chủ nhật. → hoãn 350ms
+   + một số đếm `lanMoc` để vứt kết quả của cú đã cũ.
+
+3. **⚠ Ô uncontrolled thì IM LẶNG HẲN sau cú nhảy đầu.** Tái hiện chắc chắn: gõ `07/04/2025`, đợi
+   cú nhảy chạy xong, gõ tiếp `03:00` — `onChange` không bắn nữa, đồng hồ kẹt ở `07-06 22:05` còn
+   ô ghi `03:00 PM`. Cú nhảy gọi `veDau` → dựng lại chart + đặt 6 state, và qua lần re-render lớn
+   đó **bộ theo dõi giá trị của React lệch pha với DOM**. Cho ô một state riêng (controlled) là
+   hết — React luôn nắm giá trị, không còn chỗ cho lệch.
+
+   Bài học: cái bẫy này **chỉ lộ ra khi gõ có ngắt quãng**. Gõ liền một mạch thì hoãn 350ms gộp
+   hết lại thành một cú nhảy và mọi thứ trông đúng. Kiểm bằng "gõ một phát rồi chụp" là bỏ lọt.
 
 ### 12.18 Nút "Tới sự kiện kế tiếp" — hai lỗi, một gốc
 

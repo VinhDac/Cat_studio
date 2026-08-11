@@ -630,6 +630,9 @@ class KetQua:
         self.so, self.nhat_ky, self.cot = so, nhat_ky, cot
         self.thong_ke = thong_ke
         self.doc = ct.doc
+        #: `[[t, vốn, sụt_giảm_%], …]` — mỗi nến trục có lệnh đóng một điểm. Cố định,
+        #: không theo con trỏ: đây là tổng kết cả lượt chạy (`_thong_ke`).
+        self.duong_von = []
 
     def lenh_tai(self, i):
         """Mọi lệnh CÒN SỐNG tại nến quyết định thứ i — cho chart vẽ."""
@@ -655,39 +658,89 @@ class KetQua:
                                                          is not None else i] >= tu_t)]
 
 
-def _thong_ke(so, cd):
-    """Bảng tổng kết. Lãi/lỗ bằng TIỀN suy ra từ giá, không lưu thêm trường nào."""
+def _thong_ke(so, cd, ct):
+    """Bảng tổng kết + ĐƯỜNG VỐN. Lãi/lỗ bằng TIỀN suy ra từ giá, không lưu thêm trường.
+
+    ⚠ LỖI ĐÃ SỬA: phải cộng dồn theo THỨ TỰ ĐÓNG LỆNH, không phải thứ tự tạo lệnh. Tổng
+    thì thứ tự nào cũng ra một số, nhưng ĐƯỜNG ĐI của vốn thì không — mà sụt giảm lại đo
+    trên chính đường đi đó. Đo trên một năm thật: **9/386 lệnh đóng đảo thứ tự** so với
+    lúc đặt. Lần này may mà con số cuối vẫn bằng nhau, nhưng đồ thị vẽ ra thì giật ngược
+    thời gian, và một bộ dữ liệu khác là sụt giảm sai hẳn.
+
+    Trả `(bảng_số, đường_vốn)`. Cả hai ra từ MỘT vòng lặp nên điểm cuối đường vốn bằng
+    đúng `von_cuoi` và đáy sâu nhất bằng đúng `drawdown_pt` — không có hai nguồn để lệch.
+    """
+    xong = sorted((l for l in so.lenh
+                   if l.nen_dong is not None and l.gia_dong is not None
+                   and l.gia_khop is not None),
+                  key=lambda l: (l.nen_dong, l.id))
+
     lai, thang, thua, tong_r = 0.0, 0, 0, 0.0
-    duong_von, von = [], cd.deposit
-    for l in so.lenh:
-        if l.nen_dong is None or l.gia_dong is None or l.gia_khop is None:
-            continue
+    r_thang, r_thua, lai_duong, lo_am = [], [], 0.0, 0.0
+    von = dinh = cd.deposit
+    dd_pt, dd_tien, dd_luc = 0.0, 0.0, None
+    thua_lien, thua_dai = 0, 0
+    duong = []
+
+    for l in xong:
         chieu = 1.0 if l.huong == sl.MUA else -1.0
         tien = (l.gia_dong - l.gia_khop) * chieu * l.lot * cd.contract_size
         tien -= cd.commission * l.lot           # round-turn, trừ một lần lúc đóng
         lai += tien
         von += tien
-        duong_von.append(von)
-        if l.R:
-            tong_r += (l.gia_dong - l.gia_khop) * chieu / l.R
-        thang += tien > 0
-        thua += tien <= 0
-    dinh, dd = cd.deposit, 0.0
-    for v in duong_von:
-        dinh = max(dinh, v)
-        dd = max(dd, (dinh - v) / dinh * 100.0 if dinh else 0.0)
+        r = (l.gia_dong - l.gia_khop) * chieu / l.R if l.R else 0.0
+        tong_r += r
+        if tien > 0:
+            thang += 1
+            r_thang.append(r)
+            lai_duong += tien
+            thua_lien = 0
+        else:
+            thua += 1
+            r_thua.append(r)
+            lo_am -= tien
+            thua_lien += 1
+            thua_dai = max(thua_dai, thua_lien)
+
+        dinh = max(dinh, von)
+        sut = (dinh - von) / dinh * 100.0 if dinh else 0.0
+        if sut > dd_pt:
+            dd_pt, dd_tien = sut, dinh - von
+            dd_luc = int(ct.nen5["t"][l.nen_dong])
+        # Nhiều lệnh cùng đóng trong MỘT nến trục thì gộp làm một điểm: thư viện vẽ đòi
+        # mốc thời gian tăng ngặt. Giữ `von` của lệnh cuối (đúng số dư sau nến đó) nhưng
+        # giữ mức sụt SÂU NHẤT, để đáy đồ thị vẫn bằng đúng `drawdown_pt`.
+        t = int(ct.nen5["t"][l.nen_dong])
+        if duong and duong[-1][0] == t:
+            duong[-1][1] = round(von, 2)
+            duong[-1][2] = min(duong[-1][2], round(-sut, 3))
+        else:
+            duong.append([t, round(von, 2), round(-sut, 3)])
+
+    n = thang + thua
+    tb = lambda ds: round(sum(ds) / len(ds), 3) if ds else 0.0
     return {
         "so_lenh": len(so.lenh),
-        "so_dong": thang + thua,
+        "so_dong": n,
         "so_huy": sum(1 for l in so.lenh if l.ly_do_dong == "huy"),
         "thang": thang, "thua": thua,
-        "ty_le_thang": round(thang / (thang + thua) * 100, 1) if thang + thua else 0.0,
+        "ty_le_thang": round(thang / n * 100, 1) if n else 0.0,
         "lai_tien": round(lai, 2),
         "tong_R": round(tong_r, 2),
+        "von_dau": round(cd.deposit, 2),
         "von_cuoi": round(cd.deposit + lai, 2),
-        "drawdown_pt": round(dd, 2),
+        "lai_pt": round(lai / cd.deposit * 100, 2) if cd.deposit else 0.0,
+        "drawdown_pt": round(dd_pt, 2),
+        "drawdown_tien": round(dd_tien, 2),
+        "drawdown_luc": dd_luc,
+        "R_moi_lenh": round(tong_r / n, 3) if n else 0.0,
+        "R_khi_thang": tb(r_thang),
+        "R_khi_thua": tb(r_thua),
+        # `None` = chưa có lệnh lỗ nào, KHÔNG phải 0. Hai chuyện khác hẳn nhau.
+        "he_so_lai": round(lai_duong / lo_am, 2) if lo_am else None,
+        "chuoi_thua": thua_dai,
         "so_vung": len(so.vung),
-    }
+    }, duong
 
 
 # ---------------------------------------------------------------------------
@@ -830,10 +883,11 @@ def chay(doc, nen1, cd=None, tien_do=None):
                 "het_du_lieu" if l.da_khop else "huy")
         ghi_tien(l)
 
-    tk = _thong_ke(so, cd)
+    tk, duong_von = _thong_ke(so, cd, ct)
     tk["nen_mo_ho"] = mo_ho
     tk["so_luot"] = len(nhat_ky)
     kq = KetQua(ct, so, nhat_ky, ct._cot, tk)
+    kq.duong_von = duong_von
     kq.cot_vung = cot_vung
     kq.vung_id = vung_id
     kq.so_vung = so_vung

@@ -231,11 +231,33 @@ export interface ThongKe {
   so_lenh: number; so_dong: number; so_huy: number
   thang: number; thua: number; ty_le_thang: number
   lai_tien: number; tong_R: number; von_cuoi: number; drawdown_pt: number
+  von_dau: number; lai_pt: number
+  drawdown_tien: number
+  /** Thời điểm chạm đáy sụt giảm. `null` = chưa có lệnh nào đóng. */
+  drawdown_luc: number | null
+  R_moi_lenh: number; R_khi_thang: number; R_khi_thua: number
+  /** `null` = CHƯA CÓ lệnh lỗ nào, không phải 0. Hai chuyện khác hẳn nhau. */
+  he_so_lai: number | null
+  chuoi_thua: number
   so_vung: number
   /** Số nến M1 có CẢ SL lẫn TP trong biên độ. 0 = kết quả không phụ thuộc giả định
    *  đường đi 4 điểm (core.md §12.13d). */
   nen_mo_ho: number
   so_luot: number
+}
+
+/** Tab Thống kê — tổng kết CẢ LƯỢT CHẠY, cố định, không theo con trỏ. */
+export interface ThongKeChay {
+  tk: ThongKe
+  /** `[thời_điểm, vốn, sụt_giảm_%]` — mỗi nến trục có lệnh đóng một điểm. Sụt giảm là
+   *  số ÂM để vẽ úp xuống. */
+  duong_von: [number, number, number][]
+  /** Khoảng THẬT SỰ có nến. */
+  t_dau: number; t_cuoi: number
+  /** Khoảng ĐÃ YÊU CẦU trong Cài đặt — lệch với trên là chuyện thường. */
+  yc_tu: string; yc_den: string
+  symbol: string
+  nhip: { entry: string; manage: string }
 }
 
 export interface KetQuaChay {
