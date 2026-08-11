@@ -174,7 +174,12 @@ input, textarea { user-select: text; }
   box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg);
 }
 
+/* Dải tiêu đề mang MÀU THEO MỤC ĐÍCH của khối (`--mau-khoi` do StepNode đặt).
+   Nền nhuộm rất nhạt mới là thứ quyết định, không phải cái thanh: ở mức thu phóng 67%
+   — mức hay dùng để nhìn cả sơ đồ — thanh 3px chỉ còn 2px và gần như biến mất, còn một
+   dải nhuộm thì vẫn quét mắt ra được. */
 .hop .dau {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -182,7 +187,21 @@ input, textarea { user-select: text; }
   background: var(--raised);
   border-bottom: 1px solid var(--border);
 }
-.hop .dau .dai-mau { width: 3px; height: 15px; border-radius: 2px; flex: 0 0 auto; }
+.hop .dau::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--mau-khoi); opacity: .10; pointer-events: none;
+}
+/* Thanh cao HẾT dải tiêu đề, không phải 15px giữa chừng. */
+.hop .dau .dai-mau {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--mau-khoi); flex: 0 0 auto;
+}
+.hop .dau .mui-huong {
+  flex: 0 0 13px; text-align: center; font-size: 12px; line-height: 13px;
+  color: var(--mau-khoi);
+}
+/* Chữ và icon phải nằm TRÊN lớp nhuộm. */
+.hop .dau > *:not(.dai-mau) { position: relative; z-index: 1; }
 /* Tên khối cũng KHÔNG cắt: "Mỗi nến M5 — với TỪNG lệnh đang sống" bị cụt thành
    "…đang số…" thì mất đúng chỗ quan trọng nhất của câu. */
 .hop .dau .ten {
@@ -195,7 +214,9 @@ input, textarea { user-select: text; }
 }
 /* Tiêu đề xuống dòng thì icon phải bám mép trên cho thẳng hàng với dòng đầu. */
 .hop .dau { align-items: flex-start; }
-.hop .dau .dai-mau, .hop .dau .icon { margin-top: 2px; }
+/* `.dai-mau` đã chuyển sang định vị tuyệt đối nên không còn chịu margin — chỉ icon và
+   mũi tên hướng cần hạ 2px cho thẳng hàng chữ. */
+.hop .dau .icon, .hop .dau .mui-huong { margin-top: 2px; }
 .hop .dau .loai { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
 
 .hop .than { padding: 5px 0; }
@@ -1010,6 +1031,9 @@ select.o { cursor: pointer; }
 }
 .tb-moc::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .55; }
 .tb-moc::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* Thay chỗ nút "Tải thêm" cũ — nói ra cho biết thiếu nến thì ai lo, khỏi tìm nút. */
+.cd-tu-tai { font-size: 11.5px; color: var(--dim); font-style: italic; }
 
 /* ---- cài đặt chạy ---- */
 .cd-test {

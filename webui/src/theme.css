@@ -39,6 +39,16 @@
   --group: #6cb6ff;
   --action: #a8a8a8;
 
+  /* MÀU THEO MỤC ĐÍCH KHỐI (khoá do `api._mau_khoi` suy ra).
+     · Bắt đầu  -> `--action` xám: nó là ĐIỂM NEO, không phải hành động. Trước đây nó
+       xanh, mà `--start` và `--ok` trùng đúng một mã — để khối Mua màu xanh thì hai
+       loại khối nhìn y hệt nhau. Trả xanh về đúng một nghĩa: MUA.
+     · Kiểm tra ĐK -> lam, một CÂU HỎI.
+     · Mua/Bán -> xanh/đỏ (`--ok`/`--err`), kèm ▲/▼ để không phải chỉ dựa vào màu.
+     · Sửa lệnh -> tím, không đụng warn/accent đã có nghĩa khác. */
+  --khoi-hoi: #6cb6ff;
+  --khoi-sua: #b892f0;
+
   /* Ghim số ⟲ — dùng cho cả huy hiệu khối đã ghim lẫn đường nối quay lại.
      MỘT màu cho cả hai là cố ý: nhìn một cái là nối được "đường này quay về đâu". */
   --ghim: #d9a441;

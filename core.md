@@ -1639,6 +1639,83 @@ và mắt đã quen con số ở khối gốc. Nhập từ file thì cả cụm 
 Sửa: `clone_steps(steps, tham_so)`. Với lần **nhập** phải truyền bảng **ĐÃ GỘP**, vì tham số vừa
 thêm chưa nằm trong `thamSo` của lần render đang chạy — gộp trước, thả cụm sau.
 
+### 4.6 ✅ MÀU KHỐI THEO MỤC ĐÍCH
+
+Trước đây `dai-mau` chỉ có hai màu: xanh cho Bắt đầu, **cam cho MỌI khối hành động** — nhìn xa thì
+Kiểm tra ĐK, Vào lệnh, Sửa lệnh giống hệt nhau.
+
+`api._mau_khoi(st)` gắn vào thẻ một **khoá ngữ nghĩa**, không phải mã màu: `start · hoi · mua ·
+ban · sua`. Suy từ `type` + `huong` — phạm trù của chính app, không phải khái niệm riêng của một
+chiến lược, nên chiến lược nào sau này cũng ra màu đúng. Giao diện ánh xạ khoá → biến CSS, nên đổi
+bảng màu là việc của CSS.
+
+| khối | màu | vì sao |
+|---|---|---|
+| Bắt đầu | xám `--action` | ĐIỂM NEO, không phải hành động |
+| Kiểm tra ĐK | lam `--khoi-hoi` | một câu hỏi |
+| Vào lệnh · Mua | xanh `--ok` + ▲ | |
+| Vào lệnh · Bán | đỏ `--err` + ▼ | |
+| Sửa lệnh | tím `--khoi-sua` | không đụng `--warn`/`--accent` đã có nghĩa khác |
+
+**Khối Bắt đầu phải bỏ màu xanh.** `--start` và `--ok` trùng đúng một mã `#4ec96a`, nên để khối Mua
+màu xanh mà giữ nguyên Bắt đầu thì hai loại khối nhìn y hệt nhau. Trả xanh về đúng MỘT nghĩa: mua.
+
+**Nền dải tiêu đề nhuộm 10% mới là thứ quyết định, không phải cái thanh.** Ở mức thu phóng 67% —
+mức hay dùng để nhìn cả sơ đồ — thanh 3px chỉ còn 2px và gần như biến mất; một dải nhuộm thì vẫn
+quét mắt ra được. Thanh cũng được kéo cao hết dải tiêu đề thay vì 15px giữa chừng.
+
+**Hướng dùng HÌNH ▲/▼ chứ không chỉ dùng màu** — cùng ngôn ngữ với chart (§12.17), và đọc được cả
+khi mù màu.
+
+Cái lợi kèm theo: cam đang mang hai nghĩa cùng lúc — "khối hành động" và "đang chọn · số thứ tự".
+Đẩy khối hành động sang màu riêng thì **cam chỉ còn nghĩa *của ta · đang chọn***, viền chọn nổi hẳn.
+
+Thân khối, viền, phông chữ, huy hiệu: **không đổi một pixel**.
+
+### 12.23 ✅ Bỏ nút "Tải thêm" — ▶ Chạy tự tải phần còn thiếu
+
+Luật cũ ghi ở `nguon_uoc_tinh` là *"không bao giờ tải lén"*, và nó đẻ ra một nút. Luật vẫn đúng,
+chỉ là cách giữ nó sai: luật đúng phải là **"không bao giờ tải mà không NÓI"** — thanh tiến trình
+nói ra là đủ, không cần bắt bấm thêm một bước.
+
+Giờ `▶ Chạy` → `_tai_neu_thieu(symbol, tu, den)`:
+
+- `khoang_thieu` rỗng → **không đụng tới MT5 một lần nào**, chạy luôn.
+- Có thiếu → tải **đúng phần thiếu** (tải bổ sung, không tải lại từ đầu), chữ chạy vào chính thanh
+  loading đang có: `đang tải nến XAUUSD từ MT5 (≈4.1 MB)…` rồi `đang chạy 210.000/353.129 nến`.
+
+**Số MB thay cho hộp xác nhận.** Gõ nhầm `2015` thay vì `2025` thì thấy ngay `≈171.95 MB` mà đóng
+lại — không cần một hộp `confirm` nào, đúng thứ vừa bỏ đi.
+
+**Lỗi phải tự nói ra đang thiếu gì.** Trước đây lỗi MT5 rơi vào nút "Tải thêm" nên tự nó đã rõ;
+giờ nó rơi vào GIỮA một lần chạy. Đã kiểm bằng cách tắt `CO_MT5`:
+
+```
+Thiếu nến XAUUSD khoảng 2010-01-01 00:00 → 2016-08-09 00:00 và không tải được.
+Máy chưa cài thư viện MetaTrader5 (pip install MetaTrader5).
+```
+
+**⚠ Xin XA hơn thứ nguồn có thì phải DỪNG, không được chạy tiếp.** Tải xong mà đầu khoảng vẫn
+thiếu nghĩa là MT5 không có dữ liệu xa tới thế. Hai lý do phải ném lỗi:
+
+1. chạy tiếp trên khoảng ngắn hơn thì người dùng tưởng mình đang backtest từ 2015 trong khi thật
+   ra từ 2016;
+2. khoảng đó **không bao giờ lấp được**, nên mỗi lần bấm ▶ lại mở MT5 tải lại một lượt vô ích —
+   cái giá này chỉ xuất hiện *từ khi bỏ nút "Tải thêm"*, trước đó người dùng chỉ bấm Tải một lần
+   rồi thôi.
+
+Chỉ xét ĐẦU khoảng. Thiếu ở đuôi là chuyện thường (dữ liệu chỉ có tới hôm nay), chặn là vô lý.
+
+```
+MT5 không có nến XAUUSD sớm tới 2010-01-01 00:00.
+Nguồn chỉ có từ 2016-08-09 00:00 đến 2026-01-02 00:00.
+
+Sửa ô "Từ" ở Cài đặt → Strategy Test thành 2016-08-09 trở đi rồi chạy lại.
+```
+
+**Nút Xoá trong bảng nguồn thì Ở LẠI.** Tải là an toàn và đảo ngược được nên tự động; xoá thì
+không, phải do tay người bấm.
+
 ### 12.22 ✅ Ba lối vào tester, một hàm
 
 `▶ Chạy` trên ribbon · `File → Mở Strategy Tester` · phím `Ctrl+R`. Cả ba trỏ về **đúng một hàm**

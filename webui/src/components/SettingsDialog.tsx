@@ -30,8 +30,6 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
   const [delay, setDelay] = useState(Number(t.delay_ms ?? 60))
 
   const [nguon, setNguon] = useState<BoNen[]>(boot.nguon ?? [])
-  const [ban, setBan] = useState(false)
-  const [chu, setChu] = useState('')
 
   const bo = nguon.find(n => n.symbol === tSymbol)
 
@@ -44,22 +42,15 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
     onDong()
   }
 
-  async function tai() {
-    setBan(true); setChu('')
-    // BÁO TRƯỚC số MB rồi mới tải — không bao giờ tải lén.
-    const u = await py.nguon_uoc_tinh(tSymbol, tu, den)
-    if (u.ok && u.value?.du) { setBan(false); return setChu('Đã đủ dữ liệu cho khoảng này.') }
-    if (u.ok && u.value && !confirm(
-      `Sẽ tải khoảng ${u.value.so_nen.toLocaleString('vi')} nến M1 `
-      + `(~${u.value.mb} MB) cho ${tSymbol}.\n\nMetaTrader 5 phải đang mở và đã đăng nhập.`
-    )) { setBan(false); return }
-    const r = await py.nguon_tai(tSymbol, tu, den)
-    setBan(false)
-    if (!r.ok) return setChu(r.error ?? 'tải hỏng')
-    setNguon(r.value?.ds ?? [])
-    setChu(r.value?.chu ?? '')
-  }
+  /* KHÔNG còn nút "Tải thêm". Thiếu nến thì chính lần bấm ▶ tự tải đúng phần thiếu rồi
+     chạy tiếp (`api._tai_neu_thieu`) — bớt hẳn một bước, và không còn cảnh bấm ▶ rồi bị
+     đuổi ngược về đây.
 
+     Luật "không bao giờ tải lén" vẫn giữ, chỉ đổi cách: thay vì bắt bấm thêm một nút,
+     tải cứ tải nhưng NÓI RA trên thanh tiến trình kèm số MB.
+
+     Nút Xoá thì ở lại: tải là an toàn và đảo ngược được nên tự động, còn xoá thì không —
+     phải do tay người. */
   async function xoa(sym: string) {
     if (!confirm(`Xoá hẳn bộ nến ${sym}?`)) return
     const r = await py.nguon_xoa(sym)
@@ -125,9 +116,7 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
                onChange={e => setTu(e.target.value)} /></label>
         <label>Đến<input className="o nho" value={den} placeholder="2026-01-01"
                onChange={e => setDen(e.target.value)} /></label>
-        <button className="nut" onClick={tai} disabled={ban}>
-          {ban ? 'đang tải…' : 'Tải thêm'}
-        </button>
+        <span className="cd-tu-tai">thiếu nến thì ▶ Chạy tự tải</span>
       </div>
 
       <div className="hang cd-hang">
@@ -161,7 +150,6 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
           )}
         </div>
       )}
-      {chu && <div className="chu-dan">{chu}</div>}
 
       <div className="chu-dan">
         Cài đặt lưu vào <code>du_lieu/cai_dat.json</code> cạnh app, không nằm trong repo.

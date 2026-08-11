@@ -51,6 +51,9 @@ export interface Card {
   nhip?: string
   ghim: boolean
   la_cong: boolean
+  /** Khoá màu NGỮ NGHĨA do Python suy ra: `start · hoi · mua · ban · sua`. Không phải mã
+   *  màu — giao diện tự ánh xạ sang biến CSS, nên đổi bảng màu không phải sửa Python. */
+  mau?: string
 }
 
 export interface Problem {

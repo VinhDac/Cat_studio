@@ -735,6 +735,53 @@ class ApiTester(NenCuaSo):
         finally:
             self._tt["dang_chay"] = False
 
+    def _tai_neu_thieu(self, sym, tu, den):
+        """Thiếu nến cho khoảng này thì TỰ TẢI đúng phần thiếu, rồi chạy tiếp.
+
+        Bỏ nút "Tải thêm" đi được là nhờ chỗ này. Luật cũ ghi ở `nguon_uoc_tinh` là
+        *"không bao giờ tải lén"*, và nó vẫn đúng — chỉ là cách giữ luật đổi: thay vì bắt
+        bấm thêm một nút, tải cứ tải nhưng **nói ra** trên chính thanh tiến trình, kèm số
+        MB. Gõ nhầm `2015` thay vì `2025` thì thấy ngay `≈180 MB` mà đóng lại, không cần
+        một hộp xác nhận nào.
+
+        `khoang_thieu` vốn chỉ trả về những mẩu CÒN THIẾU nên đây là tải bổ sung, không
+        phải tải lại từ đầu; đủ rồi thì không đụng tới MT5 một lần nào."""
+        thieu = nguon_nen.khoang_thieu(sym, tu, den)
+        if not thieu:
+            return
+        ut = nguon_nen.uoc_tinh(thieu)
+        self._tt.update({"da": 0, "tong": 0,
+                         "chu": f"đang tải nến {sym} từ MT5 (≈{ut['mb']} MB)…"})
+        try:
+            nguon_nen.tai(sym, tu, den, tien_do=lambda i, n, c: self._tt.update(
+                {"da": int(i), "tong": int(n),
+                 "chu": f"đang tải nến {sym} từ MT5 · {c}"}))
+        except nguon_nen.LoiNguon as e:
+            # Trước đây lỗi này rơi vào nút "Tải thêm" nên tự nó đã rõ. Giờ nó rơi vào
+            # GIỮA một lần chạy, nên phải tự nói ra là đang thiếu gì.
+            a, b = thieu[0][0], thieu[-1][1]
+            raise RuntimeError(
+                f"Thiếu nến {sym} khoảng {nguon_nen._ngay(a)} → {nguon_nen._ngay(b)} "
+                f"và không tải được.\n\n{e}") from None
+
+        # ⚠ Tải xong mà ĐẦU khoảng vẫn thiếu = nguồn không có dữ liệu xa tới thế. Phải
+        # dừng, vì hai lý do:
+        #   1. chạy tiếp trên một khoảng ngắn hơn thì người dùng tưởng mình đang backtest
+        #      từ 2015 trong khi thật ra từ 2016;
+        #   2. khoảng đó KHÔNG BAO GIỜ lấp được, nên mỗi lần bấm ▶ lại mở MT5 tải lại một
+        #      lượt vô ích — cái giá này chỉ xuất hiện từ khi bỏ nút "Tải thêm".
+        # Chỉ xét đầu khoảng: thiếu ở ĐUÔI là chuyện thường (dữ liệu chỉ có tới hôm nay),
+        # không có lý do gì chặn.
+        con = nguon_nen.khoang_thieu(sym, tu, den)
+        t0 = nguon_nen.thoi_diem(tu)
+        if con and t0 is not None and con[0][0] <= t0:
+            tt = nguon_nen.tom_tat(sym)
+            raise RuntimeError(
+                f"MT5 không có nến {sym} sớm tới {nguon_nen._ngay(t0)}.\n"
+                f"Nguồn chỉ có từ {tt['tu_chu']} đến {tt['den_chu']}.\n\n"
+                f'Sửa ô "Từ" ở Cài đặt → Strategy Test thành {tt["tu_chu"][:10]} '
+                f"trở đi rồi chạy lại.")
+
     def _chay_that(self, ci, doc=None):
         # ĐỌC LẠI cài đặt từ cửa sổ chính mỗi lần chạy, không dùng bản JS nhớ từ lúc mở
         # cửa sổ: người dùng sửa Cài đặt rồi bấm ▶ lại thì phải ăn ngay. Cửa sổ tester
@@ -750,11 +797,14 @@ class ApiTester(NenCuaSo):
         doc = doc or self._cha._doc_tester
         if not doc:
             raise RuntimeError("Chưa có sơ đồ nào để chạy.")
-        m = nguon_nen.doc_meta(ci.get("symbol") or "XAUUSD") or {}
-        nen = nguon_nen.doc(ci.get("symbol") or "XAUUSD", ci.get("tu"), ci.get("den"))
+        sym = ci.get("symbol") or "XAUUSD"
+        self._tai_neu_thieu(sym, ci.get("tu"), ci.get("den"))
+        m = nguon_nen.doc_meta(sym) or {}
+        nen = nguon_nen.doc(sym, ci.get("tu"), ci.get("den"))
         if not len(nen):
             raise RuntimeError(
-                "Chưa có nến nào cho khoảng này. Mở Cài đặt → Strategy Test → Tải thêm.")
+                f"Không có nến nào cho {sym} trong khoảng này. Kiểm tra lại mã symbol và "
+                f"khoảng From→To ở Cài đặt → Strategy Test.")
         cd = bo_chay.CaiDat(
             symbol=ci.get("symbol") or "XAUUSD", tu=ci.get("tu"), den=ci.get("den"),
             spread_diem=ci.get("spread_diem", m.get("spread_tb") or 20),
