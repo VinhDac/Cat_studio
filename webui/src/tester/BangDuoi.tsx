@@ -16,10 +16,11 @@ const CAO_GAP = 33
  * Tách khỏi `Journey` vì giờ có hai tab: vỏ là chuyện của bảng, danh sách dòng là
  * chuyện của nhật ký. Gộp lại thì thêm tab thứ ba là phải sửa cả hai.
  */
-export default function BangDuoi({ dong, jBayGio, nhay, ghiFile, xemLS, thoiXem }: {
+export default function BangDuoi({ dong, jBayGio, nhay, soi, ghiFile, xemLS, thoiXem }: {
   dong: DongNk[]
   jBayGio: number
   nhay: (i: number) => void
+  soi: (i: number) => void
   ghiFile: () => void
   /** Đang xem tóm tắt của một mục LỊCH SỬ thay vì lần chạy hiện tại. */
   xemLS: XemLichSu | null
@@ -92,7 +93,7 @@ export default function BangDuoi({ dong, jBayGio, nhay, ghiFile, xemLS, thoiXem 
       </div>
 
       {!gap && (tab === 'nhat-ky'
-        ? <Journey dong={dong} jBayGio={jBayGio} nhay={nhay} chiViec={chiViec} />
+        ? <Journey dong={dong} jBayGio={jBayGio} nhay={nhay} soi={soi} chiViec={chiViec} />
         : <ThongKe nguon={xemLS} thoiXem={thoiXem} />)}
     </div>
   )

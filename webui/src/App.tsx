@@ -8,7 +8,8 @@ import {
 
 import { py, cho_cau_noi } from './api'
 import type {
-  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, SoDo, Step, StepKind, Tab, ThamSo,
+  Bootstrap, Card, ProcEdge, Problem, ProcessDoc, SoDo, SoiKhoi, SoiLuot, Step, StepKind,
+  Tab, ThamSo,
 } from './types'
 import Ribbon, { PillTab, type MucMenu } from './components/Ribbon'
 import StepNode from './components/StepNode'
@@ -208,6 +209,35 @@ function Ung() {
     setCoToi(toi.current.length > 0); setCoLui(true)
     setTrangThai('đã làm lại')
   }, [anhHienTai, apDung])
+
+  /* ---------------- SOI MỘT LƯỢT trên sơ đồ ----------------
+   *
+   * Nhật ký ở cửa sổ tester trả lời "chuyện gì đã xảy ra" bằng chữ. Câu tiếp theo luôn
+   * là "chỗ nào trên sơ đồ", mà dò tay 20 hộp thì mất cả phút. Chuột phải một dòng →
+   * cửa sổ này nhảy lên trước và tự tô đúng đường lượt đó đã đi. */
+  const [soi, setSoi] = useState<SoiLuot | null>(null)
+  const soiRef = useRef<((d: SoiLuot) => void) | null>(null)
+  soiRef.current = (d: SoiLuot) => {
+    if (d.tab !== tab) doiTab(d.tab)
+    setSoi(d)
+  }
+
+  useEffect(() => {
+    window.__su_kien = (ten, d) => {
+      // Qua `ref` chứ không đóng gói `tab`/`doiTab` vào effect: gắn lại listener mỗi
+      // lần đổi tab là thừa, mà quên phụ thuộc thì nó tô nhầm tab — bẫy cũ, tránh hẳn.
+      if (ten === 'soi_luot') soiRef.current?.(d as SoiLuot)
+    }
+    return () => { window.__su_kien = undefined }
+  }, [])
+
+  // Esc để thoát. Soi xong mà không rời ra được thì sơ đồ kẹt trong trạng thái mờ.
+  useEffect(() => {
+    if (!soi) return
+    const f = (e: KeyboardEvent) => { if (e.key === 'Escape') setSoi(null) }
+    window.addEventListener('keydown', f)
+    return () => window.removeEventListener('keydown', f)
+  }, [soi])
 
   /** Nạp lại `boot` từ Python.
    *
@@ -937,9 +967,32 @@ function Ung() {
 
   /* Gắn số thứ tự vào node ngay trước khi vẽ. Không nhét vào state `nodes` để đừng làm
      bẩn dữ liệu khối — số thứ tự là thứ TÍNH RA, không phải thuộc tính. */
-  const nodesCoSo = useMemo(
-    () => nodes.map(n => ({ ...n, data: { ...(n.data as object), thuTu: thuTu[n.id] } })),
-    [nodes, thuTu])
+  const nodesCoSo = useMemo(() => {
+    const tren = soi ? new Set(soi.duong) : null
+    const cong = new Map((soi?.cong ?? []).map(c => [c.khoi, c]))
+    return nodes.map(n => {
+      const card = (n.data as { card: Card }).card
+      const c = cong.get(n.id)
+      // ⚠ Chỉ tô TỪNG DÒNG khi số dòng còn khớp. Sửa sơ đồ sau khi chạy (thêm/bớt một
+      // điều kiện) là dòng thứ k không còn là điều kiện thứ k nữa — lúc đó tô cả khối
+      // thôi. Thà nói ít hơn nói sai.
+      const veKhop = c && c.ve.length === card.lines.length
+      const soiKhoi: SoiKhoi | undefined = soi && (tren!.has(n.id) || c)
+        ? { daChay: tren!.has(n.id), truot: !!c && !c.khop,
+            dieuKien: veKhop ? c!.ve.map(v => v.dat) : [] }
+        : undefined
+      return { ...n, data: { ...(n.data as object), thuTu: thuTu[n.id],
+                             soiKhoi, moSoi: !!soi && !soiKhoi } }
+    })
+  }, [nodes, thuTu, soi])
+
+  /** Có id nào trong lượt không còn trên sơ đồ nữa không — tức sơ đồ đã bị sửa sau khi
+   *  chạy. Tô nửa vời mà không nói gì thì người đọc tin vào một đường không có thật. */
+  const soiLech = useMemo(() => {
+    if (!soi) return false
+    const co = new Set(nodes.map(n => n.id))
+    return [...soi.duong, ...soi.cong.map(c => c.khoi)].some(k => !co.has(k))
+  }, [soi, nodes])
 
   /* Cạnh quay lại vẽ NÉT ĐỨT màu khác: nhìn sơ đồ là thấy ngay chỗ nào lặp về đâu,
      không phải dò từng mũi tên. */
@@ -1067,6 +1120,23 @@ function Ung() {
         {/* Pill NỔI TRÊN canvas, không chiếm một dải riêng: nó là câu trả lời cho
             "đang vẽ sơ đồ NÀO", nên nằm ngay trên chính cái đang vẽ là đúng chỗ. */}
         <PillTab tab={tab} datTab={doiTab} tabCoLoi={tabCoLoi} />
+
+        {/* Dải SOI — nổi trên canvas, ngay cạnh pill tab. Bắt buộc phải có: sơ đồ đang
+            mờ đi một cách bất thường thì phải nói ra vì sao, và phải có đường thoát
+            nhìn thấy được chứ không chỉ phím Esc. */}
+        {soi && (
+          <div className="soi-dai">
+            <span className="soi-nhan">Soi lượt</span>
+            <span className="soi-chu">{soi.chu}</span>
+            {soiLech && (
+              <span className="soi-canh" title="Có khối trong lượt này không còn trên sơ đồ">
+                sơ đồ đã đổi từ lúc chạy
+              </span>
+            )}
+            <button className="soi-tat" title="Thôi soi (Esc)"
+                    onClick={() => setSoi(null)}>✕</button>
+          </div>
+        )}
 
         <ReactFlow
           nodes={nodesCoSo} edges={edgesCoNet}

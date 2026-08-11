@@ -1427,3 +1427,45 @@ select.o { cursor: pointer; }
   display: block; font-size: 12px; color: var(--text); font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- SOI MỘT LƯỢT ĐÃ CHẠY (chuột phải một dòng nhật ký ở tester) ----
+
+   Ba trạng thái, và cái thứ ba mới là thứ làm nó đọc được: LÀM MỜ phần không liên
+   quan. Sơ đồ 20 hộp mà chỉ tô sáng 5 cái thì đường sáng vẫn chìm trong đám còn lại;
+   dìm phần kia xuống thì mắt bắt ngay đường đi mà không phải dò. */
+.hop.soi-mo { opacity: .22; filter: saturate(.3); }
+.hop.soi-chay {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(255, 166, 87, .30);
+}
+/* Cổng TRƯỢT — chỗ lượt dừng lại. Đỏ, và đè lên cả `soi-chay`: đây là câu trả lời cho
+   "vì sao nó không đi tiếp", thứ người ta mở cái này ra để tìm. */
+.hop.soi-truot {
+  border-color: var(--err);
+  box-shadow: 0 0 0 1px var(--err), 0 0 14px rgba(229, 83, 75, .30);
+}
+/* Đúng DÒNG điều kiện hỏng. Không dùng riêng màu chữ: dòng đạt cũng cần thấy được là
+   đã đạt, nếu không thì một cổng 4 điều kiện chỉ tô đỏ một dòng, ba dòng kia lửng lơ
+   không rõ là đã xét hay chưa. */
+.hop .dong.dk-dat > span:last-child { color: var(--ok); }
+.hop .dong.dk-truot > span:last-child { color: var(--err); font-weight: 600; }
+.hop .dong.dk-truot { background: rgba(229, 83, 75, .12); border-radius: 3px; }
+
+.soi-dai {
+  position: absolute; z-index: 6; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: min(860px, calc(100% - 40px));
+  padding: 5px 6px 5px 12px; font-size: 12px;
+  background: var(--raised); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 999px; box-shadow: var(--shadow);
+}
+.soi-nhan { flex: none; color: var(--accent); font-weight: 600; }
+.soi-chu {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+.soi-canh { flex: none; color: var(--warn); }
+.soi-tat {
+  flex: none; width: 20px; height: 20px; border: none; border-radius: 50%;
+  background: none; color: var(--muted); cursor: pointer; font-size: 12px;
+}
+.soi-tat:hover { background: var(--raised-hover); color: var(--text); }

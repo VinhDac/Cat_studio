@@ -1081,6 +1081,40 @@ class ApiTester(NenCuaSo):
         return _ok({"j": -1, "i": -1})
 
     @_bat_loi
+    def test_soi_luot(self, i):
+        """SOI một lượt TRÊN SƠ ĐỒ: kéo cửa sổ vẽ lên trước và tô đường lượt đó đã đi.
+
+        Nhật ký trả lời "chuyện gì đã xảy ra" bằng chữ; câu hỏi tiếp theo luôn là "chỗ
+        nào trên sơ đồ", mà dò tay một sơ đồ 20 hộp thì mất cả phút. Cái này nối thẳng
+        hai đầu đó.
+
+        Gửi nguyên `duong` và `cong` chứ không tự tóm tắt: `cong` đã ghi MỌI cổng đã
+        thử kèm vết TỪNG điều kiện (`_xet_cong` cố ý tính đủ, không ngắt ở cái sai đầu
+        tiên), nên giao diện tô được tới đúng dòng điều kiện hỏng. Tóm tắt ở đây là vứt
+        đi đúng phần đắt nhất."""
+        kq = self._doi_kq()
+        i = int(i)
+        if not (0 <= i < len(kq.nhat_ky)):
+            return _ok({"da_ban": False})
+        r = kq.nhat_ky[i]
+        nhan = nhat_ky.nhan_khoi(kq.doc)
+        self._cha._ban("soi_luot", {
+            "tab": r["tab"],
+            "duong": list(r["duong"]),
+            "cong": r["cong"],
+            "ket": r["ket"],
+            "lenh_id": r.get("lenh_id"),
+            "nhan": {k: nhan.get(k, "?") for k in
+                     set(r["duong"]) | {c["khoi"] for c in r["cong"]}},
+            "chu": nhat_ky.dong_chu(r, nhan, nhat_ky._khoi_theo_id(kq.doc),
+                                    core.bang_tham_so(kq.doc), kq.nen5),
+        })
+        # Bắn TRƯỚC rồi mới kéo cửa sổ: kéo trước thì cửa sổ hiện ra trong một nhịp còn
+        # chưa có gì được tô, nhìn như bấm hụt.
+        self._cha._khung.keo_len_truoc()
+        return _ok({"da_ban": True})
+
+    @_bat_loi
     def test_luot_truoc(self, j):
         """Bản soi gương của `test_luot_ke`: lượt CÓ VIỆC gần nhất TRƯỚC `j`.
 

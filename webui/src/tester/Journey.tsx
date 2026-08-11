@@ -29,11 +29,13 @@ interface Nhom {
  * 5 lần, vừa TRẢ LỜI THÊM được câu "cổng đó chặn mấy lượt liền" — thứ mà đếm tay không
  * ra. Chỉ gộp dãy LIỀN KỀ, không gộp cách quãng: gộp cách quãng là xáo trộn thứ tự thật.
  */
-export default function Journey({ dong, jBayGio, nhay, chiViec }: {
+export default function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
   dong: DongNk[]
   /** Nến M1 con trỏ đang đứng — quyết định dòng nào được tô sáng. */
   jBayGio: number
   nhay: (i: number) => void
+  /** Kéo cửa sổ vẽ lên trước và tô đường lượt này đã đi. */
+  soi: (i: number) => void
   chiViec: boolean
 }) {
   const boc = useRef<HTMLDivElement>(null)
@@ -108,8 +110,13 @@ export default function Journey({ dong, jBayGio, nhay, chiViec }: {
                      muc={[
                        // KHÔNG dùng icon `dau`: trên thanh công cụ nó đang mang nghĩa
                        // "về sự kiện trước". Một hình hai nghĩa là hỏng cả hai.
-                       { ten: 'Nhảy tới đây', icon: 'dat_co',
+                       { ten: 'Nhảy tới đây', icon: 'dat-co',
                          onClick: () => nhay(menu.i) },
+                       // Câu hỏi ngay sau "chuyện gì đã xảy ra" luôn là "chỗ nào trên
+                       // sơ đồ". Dò tay 20 hộp mất cả phút; cái này nối thẳng hai đầu.
+                       { ten: 'Xem trên sơ đồ', icon: 'branch',
+                         onClick: () => soi(menu.i) },
+                       { ngan: true },
                        // Nhật ký là thứ hay phải mang đi hỏi/đối chiếu. Không chép được
                        // thì chỉ còn cách gõ tay lại một dòng mono dài.
                        { ten: 'Chép dòng', icon: 'copy',

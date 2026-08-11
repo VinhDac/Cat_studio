@@ -194,6 +194,27 @@ class KhungTuVe:
         except Exception:
             return False
 
+    def keo_len_truoc(self):
+        """Kéo cửa sổ này lên trên cùng và trao tiêu điểm cho nó.
+
+        Khôi phục trước rồi mới đưa lên: cửa sổ đang thu nhỏ thì `SetForegroundWindow`
+        chỉ nháy nút trên taskbar chứ không hiện ra, mà người dùng vừa bấm một mục menu
+        nói "xem trên sơ đồ" thì phải THẤY sơ đồ.
+
+        ⚠ Windows chỉ cho tiến trình ĐANG có tiêu điểm gọi `SetForegroundWindow`. Ở đây
+        cả hai cửa sổ cùng một tiến trình và lệnh xuất phát từ cú bấm của người dùng nên
+        được phép; vẫn bọc try vì thất bại chỉ làm cửa sổ nháy taskbar, không được để nó
+        ném ngược lên giao diện."""
+        try:
+            if not self.hwnd:
+                return False
+            if u.IsIconic(self.hwnd):
+                u.ShowWindow(self.hwnd, 9)          # SW_RESTORE
+            u.SetForegroundWindow(self.hwnd)
+            return True
+        except Exception:
+            return False
+
     def dang_hien(self):
         """Windows CÒN ĐANG VẼ cửa sổ này không.
 

@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import type { Card, StepKind } from '../types'
+import type { Card, SoiKhoi, StepKind } from '../types'
 import IconNet, { ICON_HANH_DONG } from './Icon'
 
 /** Số dòng hiện tối đa trên một hộp.
@@ -36,6 +36,10 @@ const SIDES: [string, Position][] = [
 export default function StepNode({ data, selected }: NodeProps) {
   const card = (data as { card: Card }).card
   const thuTu = (data as { thuTu?: string }).thuTu
+  /* SOI một lượt đã chạy: khối này có nằm trên đường đi không, và nếu là cổng thì
+     trượt ở điều kiện nào. `moSoi` = đang soi nhưng khối này không dính gì. */
+  const soi = (data as { soiKhoi?: SoiKhoi }).soiKhoi
+  const moSoi = (data as { moSoi?: boolean }).moSoi
   const hien = card.lines.slice(0, TOI_DA_DONG)
   const con = card.lines.length - hien.length
   const laStart = card.kind === 'start'
@@ -71,7 +75,9 @@ export default function StepNode({ data, selected }: NodeProps) {
         + (thuTu ? '' : ' khong-toi')
         + (laStart ? ' la-start' : '')
         + (card.ghim ? ' da-ghim' : '')
-        + (card.la_cong ? ' la-cong' : '')}>
+        + (card.la_cong ? ' la-cong' : '')
+        + (soi?.truot ? ' soi-truot' : soi?.daChay ? ' soi-chay' : '')
+        + (moSoi ? ' soi-mo' : '')}>
 
         {/* Số THỨ TỰ CHẠY THẬT, do Python tính bằng chính phép duyệt của bộ máy.
             Không có số = đường nối không dẫn tới khối này, nó sẽ KHÔNG chạy — phải
@@ -106,7 +112,8 @@ export default function StepNode({ data, selected }: NodeProps) {
              không phải "có phải khối Bắt đầu không". */
           <div className="than" title={card.mo_ta}>
             {hien.map((d, i) => (
-              <div key={i} className="dong">
+              <div key={i} className={'dong'
+                   + (soi?.dieuKien.length ? (soi.dieuKien[i] ? ' dk-dat' : ' dk-truot') : '')}>
                 {/* "và" CHỈ đúng với khối kiểm tra: ở đó mỗi dòng là một điều kiện nối
                     nhau bằng VÀ, phải ghi ra để không ai đoán là HOẶC. Ở khối vào/sửa
                     lệnh, mỗi dòng là một TRƯỜNG (lot, đệm, SL, TP) — dán "và" vào là

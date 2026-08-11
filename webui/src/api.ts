@@ -162,6 +162,8 @@ export const pyTester = {
   test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
   /** Ngược lại: sự kiện gần nhất TRƯỚC `j`. `j = -1` nghĩa là phía trước không còn gì. */
   test_luot_truoc: (j: number) => goi<{ j: number; i: number }>('test_luot_truoc', j),
+  /** Kéo cửa sổ VẼ lên trước và tô đường mà lượt `i` đã đi — tới tận điều kiện hỏng. */
+  test_soi_luot: (i: number) => goi<{ da_ban: boolean }>('test_soi_luot', i),
   /** ĐƯỜNG RAY của một lệnh: nó đã đi qua những khối nào. Gọi MỘT lần cho mỗi lệnh
    *  người dùng rê chuột vào — không nhét vào lô phát, vì 300 lệnh mà 99% không ai xem. */
   test_duong_ray: (lenh_id: string) => goi<{ chang: ChangRay[] }>('test_duong_ray', lenh_id),

@@ -254,11 +254,22 @@ v8 = core.make_action_step({
 v8["pos"] = [0.0, 0.0]
 bdm8 = core.make_start_step("theo dõi", "M1")
 bdm8["pos"] = [0.0, 0.0]
+# Cổng HAI điều kiện, cố ý. Cổng một điều kiện không soi được hợp đồng "một vết cho mỗi
+# điều kiện": ngắt sớm ở cái sai đầu tiên vẫn ra đúng một vết, nên bài kiểm sẽ mù.
+# Điều kiện 1 sai ở đoạn giá 90, điều kiện 2 luôn đúng — nên nếu ai đó cho `_xet_cong`
+# ngắt sớm thì vết cụt đi và bài kiểm dưới bắt được ngay.
+g8 = core.make_action_step({
+    "type": core.CHECK_COND, "name": "giá trong khoảng",
+    "conditions": [{"trai": {"ten": "close"}, "phep": ">",
+                    "phai_loai": "so", "phai": 100.0},
+                   {"trai": {"ten": "close"}, "phep": "<",
+                    "phai_loai": "so", "phai": 1000.0}]})
+g8["pos"] = [0.0, 0.0]
 d8 = core.normalize_process({
     "name": "thử ray", "symbol": "X", "tham_so": d["tham_so"],
-    "entry": {"steps": [bd, g, v8],
-              "edges": [{"from": bd["id"], "to": g["id"], "port": "out"},
-                        {"from": g["id"], "to": v8["id"], "port": "out"}]},
+    "entry": {"steps": [bd, g8, v8],
+              "edges": [{"from": bd["id"], "to": g8["id"], "port": "out"},
+                        {"from": g8["id"], "to": v8["id"], "port": "out"}]},
     "manage": {"steps": [bdm8], "edges": []}})
 kq8 = bc.chay(d8, nen_m1([90.0] * 20 + [110.0] * 12 + [116.0] * 15), cd)
 at8 = api.ApiTester(object())
@@ -294,6 +305,66 @@ kiem("cắt ở ngay trước lúc khớp → đúng phần đã xảy ra, chưa
      f"— {len(cat)}/{len(ray)} chặng")
 kiem("chặng còn dở thì `t_het` vẫn ở tương lai — giao diện lấy đó để KHÔNG in số lặp",
      any(c["t_het"] > moc_cat for c in ray) or len(cat) == len(ray))
+
+# ================= 9. soi một lượt trên sơ đồ =================
+#
+# `test_soi_luot` bắn sang CỬA SỔ VẼ để nó tô đường lượt đó đã đi. Giao diện tô tới tận
+# DÒNG điều kiện hỏng, và nó làm được điều đó chỉ nhờ một giả định: `ve` có đúng một
+# phần tử cho mỗi điều kiện của cổng, ĐÚNG THỨ TỰ các dòng trong hộp. Giả định đó không
+# nằm ở đâu ngoài đây — lệch một cái là giao diện tô đỏ nhầm dòng, mà nhìn vẫn "có vẻ
+# chạy". Bài này giữ nó.
+print("\n▸ Soi một lượt trên sơ đồ")
+
+
+class ChaGia:
+    """Cửa sổ VẼ giả — chỉ để bắt xem tester bắn sang đúng chỗ."""
+    def __init__(self):
+        self.ban = []
+        self._khung = type("K", (), {"keo_len_truoc": lambda s: True})()
+
+    def _ban(self, ten, d):
+        self.ban.append((ten, d))
+
+
+cha = ChaGia()
+at9 = api.ApiTester(cha)
+at9._kq = kq8
+khoi9 = {s["id"]: s for s in d8["entry"]["steps"] + d8["manage"]["steps"]}
+
+k_truot = next(k for k, r in enumerate(kq8.nhat_ky) if r["ket"] == "het_luot" and r["cong"])
+at9.test_soi_luot(k_truot)
+kiem("bắn sang CỬA SỔ VẼ, không phải cửa sổ tester",
+     len(cha.ban) == 1 and cha.ban[0][0] == "soi_luot")
+d = cha.ban[0][1]
+kiem("mang đủ đường đi, cổng đã thử và nhãn để gọi tên khối",
+     d["duong"] and d["cong"] and d["chu"]
+     and all(k in d["nhan"] for k in d["duong"]))
+
+# ĐÂY là hợp đồng: mỗi cổng có đúng một vết cho mỗi điều kiện, đúng thứ tự.
+lech = [c["khoi"] for c in d["cong"]
+        if len(c["ve"]) != len(khoi9[c["khoi"]].get("conditions") or [])]
+kiem("mỗi cổng: số VẾT khớp đúng số ĐIỀU KIỆN — giao diện tô theo chỉ số này",
+     not lech, f"— {len(lech)} cổng lệch")
+
+xau = [c for c in d["cong"] if not c["khop"]]
+kiem("cổng trượt có ít nhất một điều kiện `dat = False` để tô đỏ",
+     xau and all(any(not v["dat"] for v in c["ve"]) for c in xau),
+     f"— {len(xau)} cổng trượt")
+kiem("cổng ĐỖ thì mọi điều kiện đều đạt — không có cái nào lọt",
+     all(all(v["dat"] for v in c["ve"]) for c in d["cong"] if c["khop"]))
+
+# Lượt CÓ VIỆC: đường đi phải dài hơn một khối, và mọi cổng trên đường đều có nhãn.
+cha.ban.clear()
+k_viec = next(k for k, r in enumerate(kq8.nhat_ky) if r["viec"])
+at9.test_soi_luot(k_viec)
+dv = cha.ban[0][1]
+kiem("lượt có việc: đi qua nhiều khối, mọi cổng đã thử đều có nhãn",
+     len(dv["duong"]) > 1 and all(c["khoi"] in dv["nhan"] for c in dv["cong"]),
+     f"— {len(dv['duong'])} khối")
+
+cha.ban.clear()
+at9.test_soi_luot(999999)
+kiem("chỉ số ngoài khoảng thì im lặng, không bắn gì", not cha.ban)
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

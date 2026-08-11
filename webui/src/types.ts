@@ -314,6 +314,29 @@ export interface LenhVe {
   sl_lich_su?: [number, number][]
 }
 
+/** SOI MỘT LƯỢT trên sơ đồ — do `api.test_soi_luot` bắn sang cửa sổ vẽ.
+ *
+ *  `cong` mang MỌI cổng lượt đó đã thử, kèm vết TỪNG điều kiện theo đúng thứ tự các
+ *  dòng trong hộp — nhờ vậy tô được tới đúng dòng điều kiện hỏng, không chỉ tô cả hộp. */
+export interface SoiLuot {
+  tab: Tab
+  duong: string[]
+  cong: { khoi: string; khop: boolean; ve: { trai: number | null; phai: number | null; dat: boolean }[] }[]
+  ket: string
+  lenh_id: string | null
+  nhan: Record<string, string>
+  chu: string
+}
+
+/** Thứ bơm vào từng node lúc vẽ. `null` = không soi gì. */
+export interface SoiKhoi {
+  daChay: boolean
+  truot: boolean
+  /** `dat` của từng điều kiện, cùng thứ tự với `card.lines`. Rỗng = không tô dòng nào
+   *  (khối không phải cổng, hoặc số điều kiện đã đổi từ lúc chạy). */
+  dieuKien: boolean[]
+}
+
 /** Một chặng trên ĐƯỜNG RAY của một lệnh — xem `api.test_duong_ray`.
  *  `tab = null` nghĩa là chặng này do THỊ TRƯỜNG, không phải sơ đồ (khớp, chạm SL/TP). */
 export interface ChangRay {

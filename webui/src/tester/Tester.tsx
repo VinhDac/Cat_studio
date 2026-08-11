@@ -379,6 +379,7 @@ export default function Tester() {
                    const r = await pyTester.test_ghi_nhat_ky()
                    if (r.ok && r.value) alert(`Đã ghi:\n${r.value.duong_dan}`)
                  }}
+                 soi={i => void pyTester.test_soi_luot(i)}
                  nhay={async i => {
                    setPhat(false)
                    const r = await pyTester.test_luot(i)
