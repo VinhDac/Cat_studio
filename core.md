@@ -738,9 +738,18 @@ và `Ctrl+Z` thành vô dụng.
 | Python | 3.14.2 |
 | Node | v20.19.0 · npm 10.8.2 |
 | MetaTrader5 (pip) | 5.0.5735 ✔ đã có |
-| Cần thêm | `pywebview` (**cài trong `.venv` riêng** — gói `quantconnect-stubs` global chiếm namespace `Microsoft` và giết pywebview lúc khởi động) |
+| Cần thêm | `pywebview` — xem ghi chú ngay dưới bảng |
 | **Bỏ** so với Auto_Clicker | `pyautogui`, `keyboard`, `pyperclip`, `pillow`, toàn bộ `winrt-*` (OCR), `overlay_ui.py`, `overlays.py`, `update_mods.py`, `data/mods_*.txt` |
 | Máy | Windows 10 Pro 19045 — cần .NET ≥ 4.7.2 và WebView2 Runtime |
+
+**✅ `quantconnect-stubs` không còn giết pywebview nữa.** Gói đó ship một thư mục `Microsoft/` ở
+`site-packages`, mà pywebview (backend WinForms) cần `Microsoft.Win32.SystemEvents` — một
+**namespace .NET**. pythonnet gắn bộ tìm của nó vào **cuối** `sys.meta_path`, tức sau bộ tìm đọc
+`site-packages`, nên gói Python cướp mất tên và app chết ngay lúc mở cửa sổ với
+`FileNotFoundException: Could not load … 'Microsoft'` — một câu **không liên quan gì tới lỗi
+thật**. Trước đây phải né bằng một `.venv` riêng; giờ `app_web._uu_tien_namespace_dotnet()` đẩy
+`DotNetFinder` lên đầu `meta_path` **trước** `import webview`. Bộ tìm đó chỉ nhận namespace .NET
+có thật nên không nuốt nhầm gói Python nào.
 
 ---
 
@@ -1059,6 +1068,37 @@ không bắt được chỗ bất thường.
 **Ghi ra đĩa** một file `.jsonl` mỗi lần chạy trong `luu_tru.thu_muc_nhat_ky()`, đầu file là
 nguyên bản `normalize_process(doc)` + hash — để mở lại và **so hai lần chạy**.
 
+#### 12.8b ✅ GỘP DÃY LẶP — thứ đáng giá nhất của bảng nhật ký
+
+Chạy thật rồi mới lòi ra: 296 dòng trên màn hình mà 7/9 dòng liên tiếp **giống hệt nhau từng
+chữ**. Manage chạy nhịp M1 nên mỗi nến M5 đẻ ra 5 dòng y đúc; người dùng phải cuộn qua một bức
+tường chữ trùng lặp để tìm dòng có nghĩa.
+
+Gộp **dãy liền kề** giống hệt lại thành một dòng kèm huy hiệu `×4`. Ba điều:
+
+- gọn ~5 lần (mỗi nến M5: 6 dòng → 3);
+- **trả lời thêm** được câu *"cổng đó chặn mấy lượt liền"* — thứ cuộn tay đếm không ra;
+- chỉ gộp **liền kề**, không gộp cách quãng: gộp cách quãng là xáo trộn thứ tự thật. Dòng
+  **có việc** thì KHÔNG BAO GIỜ bị gộp — hai lần đặt lệnh trùng chữ vẫn là hai việc khác nhau.
+
+Kết quả thật trên một nến M5: `MANAGE ×1 · ENTRY ×1 · MANAGE ×4`. Dòng ENTRY cắt đôi dãy Manage,
+và chính chỗ cắt đó làm nhịp M5 hiện ra bằng mắt.
+
+Kèm theo: ô lọc **"chỉ dòng có việc"** (mỗi dòng đã mang sẵn cờ `co_viec`, lọc ở JS, không đụng
+backend) và nút **Ghi ra file**.
+
+**Dòng được tô trắng là dòng GẦN NHẤT tính tới con trỏ**, không phải "dòng vừa được thêm" và cũng
+không phải "dòng trùng đúng nến hiện tại":
+
+- *"dòng vừa thêm"* sai khi **tua ngược** — tua lùi thì dòng mới nhất không còn là chỗ đang đứng;
+- *"trùng đúng nến hiện tại"* thì 4/5 khung hình **chẳng có gì sáng** (Entry chỉ chạy ở biên nến
+  M5). Đã dựng thử đúng cách này và chụp màn hình mới thấy — bảng tối om suốt.
+- Còn *"gần nhất tính tới con trỏ"* thì **luôn có đáp án**, và đúng cả khi tua tới lẫn tua lui.
+
+Cụp/mở: bê nguyên `.bang-duoi` của cửa sổ chính — thanh kéo ở mép trên để chỉnh chiều cao, hàng
+tab bên trái, `▼/▲` ở góc phải hàng tab, nhấp đúp hàng tab cũng cụp. Nút gập nằm trên chính bảng
+nhật ký chứ không ở góc thanh công cụ: *tay đang ở đâu thì nút ở đó*. Chữ 12px, bằng bảng số liệu.
+
 ### 12.9 Bảng số liệu bên phải
 
 **Nó phải dựng từ chính vết đánh giá của lượt đang xem, không được hỏi lại bộ tra.** Nếu không,
@@ -1074,6 +1114,79 @@ Bốn khối, mỗi khối một nguồn rõ ràng:
 3. **Tài khoản** — equity, drawdown, margin đã dùng, số vị thế, số lệnh chờ.
 4. **Bảng theo TỪNG LỆNH đang sống** — mỗi lệnh một hàng, cột là 6 toán hạng nhóm "Lệnh này".
    Thiếu bảng này thì tab Manage vô hình.
+
+#### 12.9b ✅ BẢNG TỰ SINH TỪ SƠ ĐỒ — không một nhóm nào viết tay
+
+Bản đầu chia bốn khối như trên, nhưng khối 2 mang đúng cái tên `Vùng nén (engine)` **viết cứng
+trong `BangSoLieu.tsx`**. Hôm nay nó đúng vì chiến lược mẫu là D_02; làm chiến lược khác là bảng
+nói dối, và ai đó phải nhớ sửa tay. Nhận xét của người dùng nói thẳng ra điều đó:
+
+> *"không nên có cả vùng nén(engine) … tôi chỉ cần xem số các phép toán đang dùng là được. về sau
+> làm chế thuật khác sẽ loạn."*
+
+Nên bảng **không còn khối nào định trước**:
+
+- **Hàng nào có** ← `core.toan_hang_dung(doc)`: quét đúng những toán hạng sơ đồ **thật sự đọc** —
+  hai vế của mọi điều kiện, cộng những thứ một *cách tính* ngầm đọc (`TINH_CAN_TOAN_HANG`), cộng
+  đỉnh/đáy vùng khi có lệnh chờ **stop** (giá đặt neo vào mép vùng, không điều kiện nào hỏi tới
+  nhưng người dùng phải thấy lệnh sắp nằm ở đâu). Dedupe, giữ nguyên thứ tự gặp.
+- **Nhóm nào có** ← chính `nhom` mà `kho/` đã khai ở mỗi toán hạng — nhưng xem 12.9c, tên nhóm
+  cuối cùng KHÔNG được in ra.
+- **Giá trị** ← `ApiTester._cot_toan_hang`, ba nguồn theo thứ tự rẻ dần: cột đã tính sẵn (chỉ báo
+  + giá) → cột engine ghi lúc chạy → thứ suy được từ sổ lệnh/thời gian. Không tra được thì trả
+  `None` và bảng để trống: **thà bỏ trống còn hơn bịa một con số**.
+- `bo_chay` cũng lấy danh sách cột engine cần ghi từ chính `toan_hang_dung` (∩ `ENGINE_TRA_LOI`),
+  nên nó chỉ ghi những cột bảng sẽ dùng — bỏ được bộ 6 cột cố định trước đây.
+
+Thêm một engine mới vào `kho/` là bảng có ngay, **không sửa một dòng giao diện nào**.
+
+Nhóm *"Lệnh này"* cố ý ĐỨNG NGOÀI cơ chế trên: nhóm đó không có **một** giá trị tại nến `i` —
+Manage chạy một lượt cho **mỗi** lệnh đang sống. Ép thành một con số là bảng lại nói khác nhật ký,
+đúng cái bẫy đầu mục này cảnh báo. Nên nó là bảng riêng bên dưới, mỗi lệnh một hàng.
+
+#### 12.9c ✅ BỎ HẲN TÊN NHÓM · ba cột · lệnh hai dòng
+
+Cơ chế 12.9b đã tổng quát, nhưng **kết quả in ra thì không**: `VÙNG NÉN` đứng ngang hàng với
+`CHỈ BÁO / TÀI KHOẢN / GIÁ`, mà ba cái kia là phạm trù phổ quát còn nó là khái niệm riêng của một
+chiến lược. Người dùng: *"tôi không thích gọi là vùng nén vì đây không tổng quát."* Đây là một
+bài học chung: **cơ chế tổng quát vẫn có thể đẻ ra một màn hình không tổng quát.**
+
+Chốt: **tên nhóm không in ra nữa.** `nhom` vẫn về đủ trong payload, nhưng giao diện chỉ dùng nó để
+biết **chỗ kẻ một đường mảnh**. Không tiêu đề nào thì không tiêu đề nào sai được — chiến lược nào
+sau này cũng đúng, vĩnh viễn. Cấu trúc không mất, vì danh sách vốn xếp theo đúng thứ tự sơ đồ đọc
+nên các số cùng loại tự nằm cạnh nhau. Bỏ 4 tiêu đề còn thu lại ~110px chiều cao.
+
+**Ba cột thay vì hai.** Chỗ phí nhất là khe rỗng giữa nhãn trái và số phải, trong khi tên dài lại
+bị cắt cụt. Tách nhãn làm đôi ngay ở `api.py` (`ten` + `phu`) rồi đặt `phu` (`M15·50·SMA`, chữ mờ
+10.5px) vào đúng cái khe đó: hết phí chỗ, và tên ngắn lại nên thôi bị cắt. Số dùng
+`tabular-nums` — thiếu nó thì lúc phát cả cột giật ngang theo từng con số, mắt không quét dọc nổi.
+
+Chữ **12px** — 11px mỏi mắt, 13px chiếm chỗ mà chẳng rõ thêm.
+
+**Mỗi lệnh HAI DÒNG.** Một dòng 5 cột thì ba mức giá bị cắt thành `2643.0…`, đọc ra một con số vô
+nghĩa. Dòng trên là *tình trạng* (hướng · id · đã khớp/chờ Stop · R), dòng dưới là *ba mức giá đủ
+số*. Chấm hoà vốn chuyển sang nằm cạnh **SL** — nó nói về SL chứ không nói về cái id.
+
+#### 12.9d ⚠ LỖI THẬT: hàng lệnh đọc trạng thái CUỐI backtest
+
+Tìm ra lúc soi ảnh chụp kiểm bố cục mới, không phải lúc tìm lỗi.
+
+`L-0006` **đặt** 17:55 nhưng mãi **19:55** mới khớp — bảng lại hiện *"đã khớp · −1.21R"* ngay ở con
+trỏ 17:59. Nguyên nhân: hàng lệnh đọc thẳng `l.da_khop` / `l.gia_khop` / `l.sl` / `l.tp`, mà `Lenh`
+là đối tượng của **cuối backtest** và mọi lần *Sửa lệnh* đã ghi đè lên chúng.
+
+Đây đúng là cái bẫy §12.9 dựng cả mục ra để cảnh báo, và **chart đã dính đúng nó một lần rồi**
+(§12.16). Một cơ chế cắt lát đã có sẵn không tự lan sang chỗ mới: chỗ nào đọc `Lenh` cũng phải hỏi
+lại "trường này là của lúc nào".
+
+Sửa: `bo_chay.lenh_tai_nen(kq, l, i, gia)` cắt **mọi** trường theo `i`. Kèm hai thứ:
+
+- `_moc_muc(kq)` gom mọi mốc SL/TP từ nhật ký (`lenh_dat` + `lenh_sua`), `_muc_tai` tra ngược ra
+  mức tại nến `i` — nên **TP cũng hết rò**, không chỉ SL.
+- `_sl_lich_su` lấy điểm đầu từ chính bản ghi `lenh_dat` thay vì suy ngược `gia_dat ± R`. Cách suy
+  ngược đúng với SL nhưng chịu thua với TP, vì công thức khoảng cách TP không được lưu ở đâu cả.
+
+Kiểm lại: 17:59 → `chờ Stop @2638.965`, `lai_R = None`; 20:05 → `đã khớp`, `−0.37R`.
 
 Khi con trỏ đứng đúng lượt có lệnh được đặt, hiện thêm **phép tính vào lệnh đã dùng số nào**:
 `đệm = 0.10 × ATR_hiện_tại = 0.42 · R = 1.5 × ATR_TB_vùng = 4.80`. Đây là chỗ **duy nhất** bắt
@@ -1301,8 +1414,8 @@ phụ thuộc vào giả định đường đi.
 | | |
 |---|---|
 | Dữ liệu | XAUUSD M1 2025, **354.503 nến** (16,2 MB) · 271 lỗ hổng, dài nhất 4.388 phút |
-| Một lần bấm ▶ | **2,9 giây** → 71.071 nến M5 · 135.010 lượt chạy |
-| Kết quả | 550 lệnh · 388 đóng · 162 huỷ · thắng 25,5 % · **tổng −9,5R** |
+| Một lần bấm ▶ | **2,9 giây** → 70.795 nến M5 · 134.067 lượt chạy |
+| Kết quả | 548 lệnh · 386 đóng · 162 huỷ · thắng 25,6 % · **tổng −7,5R** |
 | **`nen_mo_ho`** | **0** |
 
 `nen_mo_ho = 0` suốt một năm là con số quan trọng nhất bảng này: **không một nến M1 nào có cả SL
@@ -1317,6 +1430,34 @@ chứng tối ưu không đổi hành vi.
 
 Nuôi danh sách ở BỘ CHẠY chứ không sửa `so_lenh`: đó là chuyện tốc độ của vòng lặp, không phải
 chuyện mô hình sổ lệnh.
+
+*(Bảng trên là số SAU khi sửa lỗi khung giờ ở 12.13e-bis. Trước đó là 550 lệnh · −9,5R, và phép
+so "giống hệt tới từng con số" của tối ưu `dang_song` được đo trên bộ số cũ đó — nó vẫn đúng: tối
+ưu không đổi hành vi, cái đổi số là lỗi dưới đây.)*
+
+#### 12.13e-bis ⚠ LỖI THẬT: toán hạng GIÁ bỏ quên khung thời gian
+
+Tìm ra lúc dựng bảng số liệu tổng quát, không phải lúc tìm lỗi.
+
+`close(M15, nến[1])` **đọc thẳng `nen5`** — tức nến M5. Nên cổng xu hướng đang so **Close M5 với
+MA M15**, trong khi D_02 so `Close[1]` với `MA[1]` **cùng khung Trend** (`FilterEngine.mqh:324`).
+Chỉ báo thì đã đúng từ đầu (chúng đi qua `_xin_cot`); riêng bốn toán hạng giá
+`close/open/high/low` đi đường tắt.
+
+Hai chỗ sửa, cả hai nằm ở `bo_chay.ChuongTrinh`:
+
+1. `_xin_cot_gia` — toán hạng giá cũng **xin một cột riêng cho khung của nó**, rồi đưa về trục
+   quyết định bằng đúng cách chỉ báo vẫn làm (giá trị của nến khung lớn **đã đóng** gần nhất).
+2. `khoa()` gán `period=None` cho toán hạng giá. Để mặc định 14 chui vào khoá thì `close(M15)`
+   thành `('close','M15',14.0,None)` — vô nghĩa, và đụng ngay nếu sau này có toán hạng giá thật
+   sự nhận chu kỳ.
+
+Cùng lúc chốt luôn nghĩa của `shift`: **đếm ngược từ nến ĐÃ ĐÓNG**. Mọi cột ở đây vốn đã là "giá
+trị của nến đã đóng gần nhất", nên `nến[1]` (quy ước MT5) chính là **lệch 0**.
+
+Đo mức lệch: trung bình **1,34**, lớn nhất **56**, và **chiều xu hướng khác nhau trên 3,48 % số
+nến**. Thống kê cuối tình cờ không đổi mấy (548 lệnh, 99T/287B, −7,5R) — nhưng "tình cờ không đổi
+mấy" không phải là lý do để giữ một phép so sai khung.
 
 ### 12.13f Nhật ký — đã chạy trên dữ liệu thật
 

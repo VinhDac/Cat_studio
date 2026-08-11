@@ -1034,55 +1034,113 @@ select.o { cursor: pointer; }
   font: 11px var(--font); color: var(--text); box-shadow: var(--shadow);
 }
 
-/* ---- bảng số liệu ---- */
+/* ---- bảng số liệu ----
+   Cỡ chữ 12px: 11px thì mỏi mắt, 13px thì chiếm chỗ mà chẳng rõ thêm. Đây là bảng người
+   dùng NHÌN SUỐT lúc phát để đánh giá chiến lược, không phải chú thích cuối trang. */
 .bang-so-lieu {
-  width: 300px; flex: 0 0 auto; overflow-y: auto;
+  width: 360px; flex: 0 0 auto; overflow-y: auto;
   background: var(--surface); border-left: 1px solid var(--border);
+  font-size: 12px;
 }
-.bang-trong { width: 300px; display: grid; place-items: center; color: var(--dim); font-size: 12px; }
-.bang-khoi { border-bottom: 1px solid var(--border-soft); padding: 6px 8px; }
-.bang-ten { font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
-.bang-khoi table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.bang-khoi td { padding: 1px 0; color: var(--muted); }
-.bang-khoi td.mono { text-align: right; font-family: var(--mono); color: var(--text); }
-.bang-rong { font-size: 11px; color: var(--dim); font-style: italic; }
-/* `table-layout: fixed` + `nowrap` là bắt buộc: thiếu nó thì bốn cột số dính liền nhau
-   thành "2643.0672643.0672647.8181.19" — đọc ra một con số vô nghĩa, mà đây lại đúng là
-   bảng người dùng nhìn để đánh giá. */
-.bang-lenh { table-layout: fixed; width: 100%; font-size: 10px; }
-.bang-lenh th { font-size: 9px; color: var(--dim); text-align: right; font-weight: 400; }
-.bang-lenh th:first-child { text-align: left; width: 34%; }
-.bang-lenh td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bang-lenh td.mono { font-size: 10px; }
-.bang-lenh tr.cho { opacity: .72; }
-/* Nhãn "hoà vốn" là một CHẤM, không phải một chữ: một chữ nữa trên hàng là vỡ cả bảng,
-   mà thông tin thì rê chuột vẫn đọc được. */
-.the-nho {
-  display: inline-block; width: 6px; height: 6px; margin-left: 3px;
-  border-radius: 50%; background: var(--accent); text-indent: -999px; overflow: hidden;
+.bang-trong { width: 360px; display: grid; place-items: center; color: var(--dim); font-size: 12px; }
+
+/* BA CỘT. Cột giữa (`phu`) chính là chỗ trước đây bỏ không: nhãn trái, số phải, giữa là
+   một khe rỗng dài. Đẩy `M15·50·SMA` vào đó thì vừa hết phí chỗ, vừa làm cột tên ngắn
+   lại nên tên thôi bị cắt cụt. */
+.bang-toan-hang { width: 100%; border-collapse: collapse; padding: 0; }
+.bang-toan-hang td {
+  padding: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bang-toan-hang td.ten { color: var(--muted); max-width: 178px; padding-left: 11px; }
+.bang-toan-hang td.phu {
+  color: var(--dim); font-size: 10.5px; font-family: var(--mono);
+  padding: 0 6px; max-width: 84px;
+}
+/* `tabular-nums`: lúc phát, chữ số đổi liên tục — không có nó thì cả cột giật ngang
+   theo từng con số, mắt không quét dọc nổi. */
+.bang-toan-hang td.gt {
+  text-align: right; font-family: var(--mono); color: var(--text);
+  font-variant-numeric: tabular-nums; padding-right: 11px; width: 1%;
+}
+/* Đổi nhóm = một đường mảnh, KHÔNG một dòng chữ. Tên nhóm (`VÙNG NÉN`…) là khái niệm
+   riêng của từng chiến lược nên in ra là sớm muộn cũng sai; đường kẻ thì chiến lược nào
+   cũng đúng, mà lại không tốn dòng nào. */
+.bang-toan-hang tr.sang-nhom td { border-top: 1px solid var(--border-soft); }
+.bang-toan-hang tr:first-child td { padding-top: 9px; }
+
+.bang-lenh-khoi { border-top: 1px solid var(--border); padding: 8px 11px 10px; margin-top: 4px; }
+.bang-ten {
+  font-size: 10.5px; font-weight: 600; color: var(--accent); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.bang-ten .dem { color: var(--dim); font-weight: 400; margin-left: 2px; }
+.bang-rong { font-size: 12px; color: var(--dim); font-style: italic; }
+
+/* MỖI LỆNH HAI DÒNG. Một dòng 5 cột thì ba mức giá bị cắt thành `2643.0…` — đọc ra một
+   con số vô nghĩa, mà đây đúng là thứ người dùng cần đọc. Dòng trên: tình trạng. Dòng
+   dưới: ba mức giá đủ số. */
+.the-lenh { padding: 4px 0; }
+.the-lenh + .the-lenh { border-top: 1px dashed var(--border-soft); }
+.the-lenh.cho { opacity: .74; }
+.the-lenh .d1 { display: flex; align-items: baseline; gap: 6px; }
+.the-lenh .ma { font-family: var(--mono); color: var(--text); }
+.the-lenh .tt { color: var(--dim); font-size: 11px; }
+.the-lenh .r {
+  margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.the-lenh .d2 {
+  display: flex; gap: 10px; margin-top: 3px; padding-left: 15px;
+  font-family: var(--mono); font-size: 11.5px; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.the-lenh .d2 i { color: var(--dim); font-style: normal; margin-right: 4px; }
+/* Nhãn "hoà vốn" là một CHẤM cạnh SL — nó nói về SL, không nói về cái id. Một chữ nữa
+   trên hàng là vỡ bố cục, mà thông tin thì rê chuột vẫn đọc được. */
+.the-lenh .cham {
+  display: inline-block; width: 5px; height: 5px; margin-left: 4px;
+  border-radius: 50%; background: var(--accent); vertical-align: middle;
 }
 
-/* ---- nhật ký ---- */
+/* ---- nhật ký ----
+   Chiều cao do React đặt (kéo được bằng `.thanh-keo`, y như bảng dưới của cửa sổ chính)
+   nên KHÔNG đặt `height` ở đây. `position: relative` để thanh kéo bám được mép trên. */
 .nk {
-  height: 210px; flex: 0 0 auto; display: flex; flex-direction: column;
+  flex: 0 0 auto; position: relative; display: flex; flex-direction: column;
+  overflow: hidden;
   background: var(--surface); border-top: 1px solid var(--border);
 }
-.nk-dau {
-  display: flex; align-items: center; gap: 10px; padding: 3px 10px;
-  font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border-soft);
+.nk .tab { cursor: pointer; }
+.nk-dem { font-family: var(--mono); color: var(--dim); margin-left: 2px; }
+.nk-loc {
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 12px; color: var(--muted); padding: 0 6px;
 }
-.nk-dau label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-.nk-dem { margin-left: auto; font-family: var(--mono); }
+.nk-loc input { accent-color: var(--accent); cursor: pointer; }
 .nk-cuon { flex: 1; overflow-y: auto; }
-/* Chiều cao PHẢI khớp hằng CAO trong Journey.tsx — nó tính vị trí bằng phép nhân. */
+/* 12px — bằng bảng số liệu. 11px thì đọc mỏi, mà đây là thứ người dùng đọc lâu nhất. */
 .nk-dong {
-  padding: 0 10px; line-height: 19px;
-  font: 11px/19px var(--mono); color: var(--dim);
-  white-space: pre; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 0 10px; font: 12px/20px var(--mono); color: var(--dim); cursor: pointer;
+}
+.nk-dong .chu {
+  flex: 1; min-width: 0;
+  white-space: pre; overflow: hidden; text-overflow: ellipsis;
+}
+/* `×3` = ba lượt LIỀN NHAU cho ra đúng một câu. Nó không phải trang trí: đó là câu trả
+   lời cho "cổng đó chặn mấy lượt liền", thứ mà cuộn tay đếm không ra. */
+.nk-dong .lap {
+  flex: 0 0 auto; font-size: 11px; color: var(--dim);
+  background: var(--raised); border-radius: 8px; padding: 0 6px;
 }
 .nk-dong:hover { background: var(--raised-hover); }
 .nk-dong.co-viec { color: var(--text); }
-.nk-dong.dang-chon { background: var(--raised); color: var(--accent); }
+/* Dòng của NẾN ĐANG ĐỨNG — trắng sáng. Mốc là con trỏ chứ không phải "dòng vừa thêm":
+   tua ngược thì "dòng mới nhất" chỉ sai chỗ, còn mốc con trỏ thì lúc nào cũng đúng. */
+.nk-dong.bay-gio {
+  color: #fff; background: var(--raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.nk-dong.bay-gio .lap { background: var(--raised-hover); color: var(--muted); }
 
 
 /* ---- Cài đặt → Strategy Test ---- */
@@ -1113,9 +1171,7 @@ select.o { cursor: pointer; }
   height: 100%; background: var(--accent); transition: width .18s linear;
 }
 
-/* Dòng VỪA XẢY RA sau khi nhảy tới sự kiện — không phải trang trí, nó trả lời câu
-   "tôi đang đứng ở đâu" ngay khi chart đổi. */
-.nk-dong.vua-xay-ra {
-  background: rgba(255, 166, 87, .15);
-  color: var(--accent);
-}
+/* Dòng CÓ VIỆC — đặt/sửa/đóng lệnh. Nền cam nhạt vì đây là LOẠI dòng khác hẳn, không
+   phải "dòng mới hơn"; nó phải nhận ra được kể cả khi cuộn nhanh. */
+.nk-dong.co-viec { background: rgba(255, 166, 87, .10); }
+.nk-dong.co-viec.bay-gio { background: rgba(255, 166, 87, .22); }

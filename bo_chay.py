@@ -110,7 +110,7 @@ class Ctx:
         k = self.i - int(shift)
         return float(self.ct.nen5[cot][k]) if k >= 0 else NAN
 
-    def chi_bao(self, ten, tf=None, period=None, method=None, shift=0):
+    def chi_bao(self, ten, tf=None, period=None, method=None, shift=1):
         """Giá trị một chỉ báo đã tính sẵn, tại thời điểm này."""
         return self.ct.doc_cot(
             {"ten": ten, "tf": tf, "period": period, "method": method}, self.i, shift)
@@ -211,13 +211,23 @@ class ChuongTrinh:
         nên cùng một chỉ báo ra hai khoá khác nhau: tính lúc biên dịch xong xuôi rồi tới
         lúc chạy lại báo "chưa được tính trước". Lỗi chỉ lộ ra với điều kiện KHÔNG ghi
         `period` — mà sơ đồ mẫu thì ô nào cũng ghi, nên nó trốn kỹ."""
+        # Toán hạng GIÁ không có chu kỳ. Để mặc định 14 chui vào khoá thì `close(M15)`
+        # thành `('close','M15',14.0,None)` — vô nghĩa, và đụng ngay nếu sau này có một
+        # toán hạng giá thật sự nhận chu kỳ.
+        if o["ten"] in self.COT_GIA:
+            return (o["ten"], o.get("tf") or self.tf5, None, None)
         ck = o.get("period", self.CHU_KY_MAC_DINH)
         if ck is None:
             ck = self.CHU_KY_MAC_DINH
         return (o["ten"], o.get("tf") or self.tf5, self.so(ck), o.get("method") or None)
 
+    #: Toán hạng giá → cột nào của mảng nến.
+    COT_GIA = {"close": "c", "open": "o", "high": "h", "low": "l"}
+
     def _xin_cot(self, o, tab, st):
         ten = o["ten"]
+        if ten in self.COT_GIA:
+            return self._xin_cot_gia(o, st)
         if ten not in tt.BANG:
             return                              # toán hạng phi-chỉ-báo, tra lúc chạy
         nhan = f"[{core.step_title(st)}] " if st else ""
@@ -237,12 +247,35 @@ class ChuongTrinh:
         except (ValueError, KeyError) as e:
             raise LoiChay(f"{nhan}{e}")
 
-    def doc_cot(self, o, i, shift=0):
+    def _xin_cot_gia(self, o, st):
+        """Cột GIÁ của một khung thời gian, đưa về trục quyết định.
+
+        ⚠ LỖI ĐÃ SỬA: trước đây `close(M15, nến[1])` đọc thẳng `nen5` — tức nến M5 — nên
+        cổng xu hướng so **Close M5 với MA M15**, trong khi D_02 so Close[1] với MA[1]
+        CÙNG khung Trend (`FilterEngine.mqh:324-328`). Sai im lặng: không báo lỗi, chỉ ra
+        một chuỗi lệnh khác. Giá phải đi qua đúng đường của chỉ báo — gộp lên khung của
+        nó rồi `theo_truc` về trục quyết định."""
+        k = self.khoa(o)
+        if k in self._cot:
+            return
+        nen = tt.gop(self.nen1, k[1])
+        gt = tt._f(nen[self.COT_GIA[o["ten"]]])
+        if k[1] != self.tf5:
+            gt = tt.theo_truc(gt, tt.moc_dong(nen, k[1]),
+                              tt.moc_dong(self.nen5, self.tf5))
+        self._cot[k] = gt
+
+    def doc_cot(self, o, i, shift=None):
         k = self.khoa(o)
         a = self._cot.get(k)
         if a is None:
             raise LoiChay(f"Chỉ báo {o['ten']} chưa được tính trước — lỗi biên dịch.")
-        i -= int(shift or 0)
+        # `shift` ĐẾM NGƯỢC TỪ NẾN ĐÃ ĐÓNG. Mọi cột ở đây vốn đã là "giá trị của nến đã
+        # đóng gần nhất", nên `nến[1]` (quy ước MT5: nến vừa đóng) chính là lệch 0.
+        # Mặc định 1 để công thức không ghi `shift` vẫn ra đúng nến đã đóng.
+        if shift is None:
+            shift = o.get("shift")
+        i -= max(0, int(shift if shift is not None else 1) - 1)
         return float(a[i]) if 0 <= i < len(a) else NAN
 
     # ----------------------------------------------------------------- luồng
@@ -715,10 +748,14 @@ def chay(doc, nen1, cd=None, tien_do=None):
     # mà hỏi lại `so.vung_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
     # BACKTEST — bảng nói một đằng, nhật ký nói một nẻo, đúng lúc đang debug.
     # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
-    CV = ("so_nen_nen", "dinh_vung", "day_vung", "rong_vung", "rong_vung_atr",
-          "atr_tb_vung")
+    # Toán hạng nào do ENGINE trả lời thì phải GHI THÀNH CỘT — đối tượng vùng nén mutate
+    # liên tục, hỏi lại nó sau khi chạy xong là ở con trỏ nào cũng ra trạng thái cuối.
+    # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
+    CV = tuple(dict.fromkeys(
+        x["ten"] for x in core.toan_hang_dung(doc)
+        if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
     cot_vung = {k: np.full(len(ct.nen5), NAN) for k in CV}
-    cot_vung["vung_da_sinh_lenh"] = np.zeros(len(ct.nen5), dtype=bool)
+    dung_sai = {k for k in CV if k in core.TOAN_HANG_DUNG_SAI}
     vung_id = [None] * len(ct.nen5)
     so_vung = np.zeros(len(ct.nen5), dtype=np.int32)
 
@@ -755,9 +792,8 @@ def chay(doc, nen1, cd=None, tien_do=None):
             ctx.lenh = None
             ct.engine.moi_nen(ctx)
             for k in CV:
-                cot_vung[k][i5] = ct.engine.doc(k, ctx)
-            cot_vung["vung_da_sinh_lenh"][i5] = bool(ct.engine.doc(
-                "vung_da_sinh_lenh", ctx))
+                v = ct.engine.doc(k, ctx)
+                cot_vung[k][i5] = float(v) if k in dung_sai else v
             v_ht = so.vung_hien_hanh()
             vung_id[i5] = v_ht.id if v_ht else None
             so_vung[i5] = len(so.vung)
@@ -829,15 +865,11 @@ def _bang(kq, i, j):
     # nên hỏi lại là ở con trỏ nào cũng ra cùng một đáp án — sai và im lặng.
     cv = kq.cot_vung
     co = 0 <= i < len(kq.nen5)
-    ra["engine"] = [{"ten": x, "gia_tri": y} for x, y in (
-        ("Vùng hiện hành", kq.vung_id[i] if co else None),
-        ("Số nến nén", _js(cv["so_nen_nen"][i]) if co else None),
-        ("Đỉnh vùng", _js(cv["dinh_vung"][i]) if co else None),
-        ("Đáy vùng", _js(cv["day_vung"][i]) if co else None),
-        ("Bề rộng ÷ ATR", _js(cv["rong_vung_atr"][i]) if co else None),
-        ("ATR trung bình vùng", _js(cv["atr_tb_vung"][i]) if co else None),
-        ("Vùng này đã sinh lệnh", bool(cv["vung_da_sinh_lenh"][i]) if co else None),
-    )]
+    ra["engine"] = [
+        {"ten": core.TOAN_HANG_LABELS.get(k, k),
+         "gia_tri": (bool(cv[k][i]) if k in core.TOAN_HANG_DUNG_SAI else _js(cv[k][i]))
+         if co and cv[k][i] == cv[k][i] else None}
+        for k in cv]
 
     song = kq.lenh_tai(i)
     ra["tai_khoan"] = [{"ten": x, "gia_tri": y} for x, y in (
@@ -861,30 +893,79 @@ def _bang(kq, i, j):
     return ra
 
 
-def _sl_lich_su(kq, l):
-    """Đường đi của SL theo thời gian: `[[t, sl], …]`.
+def _moc_muc(kq):
+    """Mọi mốc SL/TP của từng lệnh theo thời gian: `{id: [[t, sl, tp], …]}`.
 
-    Nguồn là chính NHẬT KÝ (`lenh_sua`), không phải suy đoán — nên chart vẽ ra đúng cái
-    bậc thang mà `Dời SL về hoà vốn` tạo ra, đúng nến nó xảy ra. Đó là khoảnh khắc người
-    dùng muốn kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng nên nó tàng hình."""
-    if l.sl is None:
-        return []
+    Điểm ĐẦU lấy từ chính bản ghi `lenh_dat`, không suy ngược từ `gia_dat ± R` như bản
+    trước: cách suy ngược đúng với SL nhưng chịu thua với TP, vì công thức khoảng cách
+    TP không được lưu lại đâu cả.
+
+    Dựng lười một lần rồi dùng lại — mỗi khung hình phát lại đều hỏi tới nó."""
     if kq._sl_theo_lenh is None:
         m = {}
         for r in kq.nhat_ky:
             for v in r["viec"]:
-                if v.get("loai") == "lenh_sua" and v.get("sl") is not None:
+                if v.get("loai") in ("lenh_dat", "lenh_sua"):
                     m.setdefault(v["lenh_id"], []).append(
-                        [int(kq.nen5["t"][r["nen"]]), float(v["sl"])])
+                        [int(kq.nen5["t"][r["nen"]]), v.get("sl"), v.get("tp")])
         kq._sl_theo_lenh = m
-    doi = kq._sl_theo_lenh.get(l.id) or []
-    t0 = int(kq.nen5["t"][l.nen_dat])
-    # ⚠ `l.sl` là SL HIỆN TẠI — nó đã bị mọi lần dời ghi đè. SL LÚC ĐẶT phải suy ngược
-    # từ giá đặt và R (R chốt cứng lúc vào lệnh, không đổi). Lấy `l.sl` làm điểm đầu là
-    # vẽ ra một đường phẳng, và cái bậc thang hoà vốn biến mất.
-    chieu = -1.0 if l.huong == sl.MUA else 1.0
-    dau = l.gia_dat + chieu * (l.R or 0.0) if doi else float(l.sl)
-    return [[t0, float(dau)]] + doi
+    return kq._sl_theo_lenh
+
+
+def _sl_lich_su(kq, l):
+    """Đường đi của SL theo thời gian: `[[t, sl], …]`.
+
+    Nguồn là chính NHẬT KÝ, không phải suy đoán — nên chart vẽ ra đúng cái bậc thang mà
+    `Dời SL về hoà vốn` tạo ra, đúng nến nó xảy ra. Đó là khoảnh khắc người dùng muốn
+    kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng nên nó tàng hình."""
+    if l.sl is None:
+        return []
+    ra, cuoi = [], None
+    for t, s, _ in _moc_muc(kq).get(l.id) or []:
+        if s is None or s == cuoi:
+            continue
+        ra.append([t, float(s)])
+        cuoi = s
+    return ra or [[int(kq.nen5["t"][l.nen_dat]), float(l.sl)]]
+
+
+def lenh_tai_nen(kq, l, i, gia):
+    """Một lệnh còn sống, NHÌN TỪ nến quyết định thứ i. Không được lộ tương lai.
+
+    ⚠ LỖI ĐÃ SỬA — `Lenh` là đối tượng của CUỐI backtest. `l.da_khop`, `l.gia_khop`,
+    `l.sl`, `l.tp` đều là trạng thái cuối, và mọi lần `Sửa lệnh` đã ghi đè lên chúng.
+    Đọc thẳng ra bảng thì L-0006 — đặt 17:55, khớp 19:55 — hiện ngay là "đã khớp,
+    −1.21R" khi con trỏ mới ở 17:59, tức bảng nói khác nhật ký ĐÚNG LÚC người dùng đang
+    kiểm. Đó chính là cái bẫy core.md §12.9 dựng cả mục ra để cảnh báo, và chart đã
+    dính một lần rồi (§12.16). Mọi trường dưới đây phải cắt theo `i`."""
+    khop = l.nen_khop is not None and l.nen_khop <= i
+    s, p = _muc_tai(kq, l, i)
+    hoa_von = False
+    if khop and s is not None:
+        hoa_von = s >= l.gia_khop if l.huong == sl.MUA else s <= l.gia_khop
+    return {
+        "id": l.id, "huong": l.huong, "loai": l.loai, "da_khop": bool(khop),
+        "gia_dat": _js(l.gia_dat),
+        "gia_vao": _js(l.gia_khop) if khop else None,
+        "sl": _js(s), "tp": _js(p),
+        "lai_R": _js((gia - l.gia_khop) * (1.0 if l.huong == sl.MUA else -1.0) / l.R)
+        if (khop and l.R) else None,
+        "sl_hoa_von": bool(hoa_von),
+    }
+
+
+def _muc_tai(kq, l, i):
+    """(SL, TP) của một lệnh TẠI nến quyết định thứ i — không phải mức cuối cùng."""
+    t = int(kq.nen5["t"][i])
+    s, p = l.sl, l.tp
+    for k, (tt, vs, vp) in enumerate(_moc_muc(kq).get(l.id) or []):
+        if tt > t:
+            break
+        if k == 0 or vs is not None:
+            s = vs
+        if k == 0 or vp is not None:
+            p = vp
+    return s, p
 
 
 def _the_lenh(kq, l):

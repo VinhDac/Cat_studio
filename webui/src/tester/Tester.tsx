@@ -45,7 +45,6 @@ export default function Tester() {
   const [toc, setToc] = useState(1)
   const [tfVe, setTfVe] = useState(5)
   const [hienBang, setHienBang] = useState(true)
-  const [hienNk, setHienNk] = useState(true)
 
   // --- lô đang phát ---
   const lo = useRef<DoanPhat | null>(null)
@@ -203,7 +202,6 @@ export default function Tester() {
     if (r.ok && r.value && r.value.j >= 0) await veDau(r.value.j)
   }
 
-  const tk = kq?.thong_ke
   const nut = (icon: string, ten: string, on: () => void, bat = false, tat = false) => (
     <button className={'tb-nut' + (bat ? ' bat' : '')} title={ten}
             disabled={tat} onClick={on}><IconNet name={icon} size={15} /></button>
@@ -238,7 +236,6 @@ export default function Tester() {
         <span className="tb-day" />
         {lo.current && <span className="tb-gio">{gio(nenTai(lo.current, j - lo.current.j0).t)}</span>}
         {nut('copy', 'Bảng số liệu', () => setHienBang(v => !v), hienBang)}
-        {nut('edit', 'Nhật ký', () => setHienNk(v => !v), hienNk)}
       </div>
 
       {tt?.dang_chay && (
@@ -250,18 +247,9 @@ export default function Tester() {
         </div>
       )}
       {loi && <div className="tt-loi">{loi}</div>}
-      {tk && (
-        <div className="tt-tom">
-          <b>{tk.so_lenh}</b> lệnh · <b>{tk.thang}</b>T/<b>{tk.thua}</b>B ·
-          thắng <b>{tk.ty_le_thang}%</b> · tổng <b className={tk.tong_R >= 0 ? 'lai' : 'lo'}>
-            {tk.tong_R}R</b> · vốn <b>{tk.von_cuoi}</b> · DD <b>{tk.drawdown_pt}%</b>
-          <span className={'tt-moho' + (tk.nen_mo_ho ? ' xau' : '')}
-                title="Số nến M1 có CẢ SL lẫn TP trong biên độ. 0 = kết quả không phụ thuộc giả định đường đi.">
-            nến mơ hồ {tk.nen_mo_ho}
-          </span>
-          {kq?.so_hai_lan && <span className="tt-so">{kq.so_hai_lan}</span>}
-        </div>
-      )}
+      {/* Dải tóm tắt (số lệnh · T/B · tổng R · vốn · DD · nến mơ hồ) tạm BỎ theo yêu cầu —
+          sẽ đặt lại chỗ khác sau. Số liệu vẫn nằm nguyên ở `kq.thong_ke`, dựng lại chỉ
+          là một khối JSX; không cần đụng tới backend. */}
 
       <div className="tt-giua">
         <Chart tfPhut={tfVe} digits={kq?.digits ?? 2} lenh={lenh} tBayGio={tBayGio}
@@ -269,8 +257,15 @@ export default function Tester() {
         {hienBang && <BangSoLieu k={khungBang} digits={kq?.digits ?? 2} />}
       </div>
 
-      {hienNk && kq && (
-        <Journey dong={dong}
+      {/* Nhật ký TỰ giữ chuyện cụp/mở và chiều cao của nó — giống bảng dưới của cửa sổ
+          chính. Nút gập nằm ngay trên hàng tab của chính nó chứ không phải ở góc thanh
+          công cụ: tay đang ở đâu thì nút ở đó. */}
+      {kq && (
+        <Journey dong={dong} jBayGio={j}
+                 ghiFile={async () => {
+                   const r = await pyTester.test_ghi_nhat_ky()
+                   if (r.ok && r.value) alert(`Đã ghi:\n${r.value.duong_dan}`)
+                 }}
                  nhay={async i => {
                    setPhat(false)
                    const r = await pyTester.test_luot(i)
@@ -289,16 +284,11 @@ function nenTai(L: DoanPhat, k: number): NenM1 {
 /** Bảng số liệu tại khung hình thứ k của lô. Chỉ CẮT LÁT, không tính gì —
  *  mọi con số đã do Python tính lúc chạy. */
 function dungBang(L: DoanPhat, k: number): BangCat {
-  const lay = (o: Record<string, (number | string | boolean | null)[]>) =>
-    Object.entries(o).map(([ten, ds]) => ({ ten, gia_tri: ds[k] ?? null }))
   return {
-    toan_hang: lay(L.chi_bao),
-    engine: lay(L.vung),
-    tai_khoan: [
-      { ten: 'Giá Bid', gia_tri: L.tai_khoan[k]?.gia ?? null },
-      { ten: 'Số lệnh chờ', gia_tri: L.tai_khoan[k]?.cho ?? 0 },
-      { ten: 'Số vị thế đang mở', gia_tri: L.tai_khoan[k]?.mo ?? 0 },
-    ],
+    nhom: L.bang.map(g => ({
+      nhom: g.nhom,
+      dong: g.dong.map(d => ({ ten: d.ten, phu: d.phu, gia_tri: d.gia_tri[k] ?? null })),
+    })),
     lenh: L.lenh_song[k] ?? [],
   }
 }

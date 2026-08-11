@@ -309,11 +309,23 @@ export interface TrangThaiChay {
 export interface DoanPhat {
   j0: number; n: number
   t: number[]; o: number[]; h: number[]; l: number[]; c: number[]
-  /** tên chỉ báo → giá trị tại TỪNG khung hình */
-  chi_bao: Record<string, (number | null)[]>
-  vung: Record<string, (number | string | boolean | null)[]>
+  /** BẢNG SỐ LIỆU: nhóm do `kho/` khai, hàng do SƠ ĐỒ quyết (`core.toan_hang_dung`),
+   *  mỗi hàng một mảng giá trị theo TỪNG khung hình. Không nhóm nào viết cứng ở JS —
+   *  thêm engine mới là bảng có ngay. */
+  bang: {
+    /** KHÔNG in ra. Giao diện chỉ dùng nó để biết chỗ kẻ một đường mảnh — xem
+     *  `BangSoLieu`. */
+    nhom: string
+    dong: {
+      ten: string
+      /** Bổ nghĩa: `M15·50·SMA`. Rỗng với toán hạng không có khung/chu kỳ. */
+      phu: string
+      gia_tri: (number | string | boolean | null)[]
+    }[]
+  }[]
   lenh_song: {
     id: string; huong: string; da_khop: boolean
+    loai: string; gia_dat: number | null
     gia_vao: number | null; sl: number | null; tp: number | null
     lai_R: number | null; sl_hoa_von: boolean
   }[][]

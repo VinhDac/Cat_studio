@@ -802,33 +802,47 @@ class ApiTester(NenCuaSo):
             return [(float(mang[k]) if 0 <= k < len(mang)
                      and mang[k] == mang[k] else None) for k in i5]
 
-        chi_bao = {}
-        for k, mang in sorted(kq.cot.items()):
-            ten, tf, ck, pp = k
-            nhan = core.TOAN_HANG_LABELS.get(ten, ten)
-            phan = [tf] + ([str(int(ck))] if ck else []) + ([pp] if pp else [])
-            chi_bao[f"{nhan}({', '.join(phan)})"] = cot_theo_khung(mang)
-
-        vung = {t: cot_theo_khung(cv[k]) for t, k in (
-            ("Số nến nén", "so_nen_nen"), ("Đỉnh vùng", "dinh_vung"),
-            ("Đáy vùng", "day_vung"), ("Bề rộng ÷ ATR", "rong_vung_atr"),
-            ("ATR trung bình vùng", "atr_tb_vung"))}
-        vung["Vùng hiện hành"] = [kq.vung_id[k] if 0 <= k < len(kq.vung_id) else None
-                                  for k in i5]
-        vung["Vùng này đã sinh lệnh"] = [
-            bool(cv["vung_da_sinh_lenh"][k]) if 0 <= k < len(kq.nen5) else None
-            for k in i5]
+        # BẢNG SỐ LIỆU — sinh TỪ SƠ ĐỒ, nhóm theo `nhom` mà `kho/` đã khai.
+        #
+        # ⚠ Trước đây khối "Vùng nén (engine)" bị VIẾT CỨNG ở đây. Hôm nay nó đúng vì
+        # chiến lược mẫu là D_02; mai thêm một engine khác là bảng nói dối, và ai đó phải
+        # nhớ sửa tay. Giờ bảng chỉ liệt kê đúng những toán hạng SƠ ĐỒ THẬT SỰ ĐỌC, và
+        # nhóm lấy thẳng từ danh mục — thêm engine là bảng có ngay, không sửa giao diện.
+        bang, nhom_dau, ct_ = [], {}, kq._ct
+        for o in core.toan_hang_dung(kq.doc):
+            ds = self._cot_toan_hang(kq, o, i5, a)
+            if ds is None:
+                continue
+            # Ô khung để trống nghĩa là "khung quyết định" (`ChuongTrinh.khoa`). Bảng ghi
+            # rõ khung THẬT chứ không bỏ trống: `ATR` trơ ra một mình thì người dùng
+            # không biết đang xem ATR của khung nào. Toán hạng engine vốn không có khung.
+            tf = o.get("tf")
+            if not tf and (o["ten"] in tinh_toan.BANG or o["ten"] in ct_.COT_GIA):
+                tf = ct_.tf5
+            phan = [tf] if tf else []
+            if o.get("period"):
+                phan.append(str(ct_.so(o["period"]) if isinstance(o["period"], str)
+                                else o["period"]).rstrip("0").rstrip("."))
+            if o.get("method"):
+                phan.append(str(o["method"]))
+            # Nhãn tách LÀM ĐÔI. Trước đây nối thành `ATR chuẩn hoá (bps)(M5, 14)` rồi
+            # giao diện dán cả cục vào cột trái, nên tên dài bị cắt cụt trong khi giữa
+            # nhãn và số là một khe rỗng dài. Giờ phần bổ nghĩa (khung · chu kỳ · kiểu)
+            # là một cột riêng, nằm đúng vào cái khe đó.
+            if o["nhom"] not in nhom_dau:
+                nhom_dau[o["nhom"]] = {"nhom": o["nhom"], "dong": []}
+                bang.append(nhom_dau[o["nhom"]])
+            nhom_dau[o["nhom"]]["dong"].append(
+                {"ten": o["nhan"], "phu": "·".join(phan), "gia_tri": ds})
 
         # Lệnh SỐNG tại từng khung + lệnh đã đóng còn nằm trong tầm nhìn (để vẽ).
         song, tk = [], []
         for x, k in enumerate(i5):
             ds = kq.lenh_tai(int(k))
             gia = float(a["c"][x])
-            song.append([{"id": l.id, "huong": l.huong, "da_khop": bool(l.da_khop),
-                          "gia_vao": bo_chay._js(l.gia_khop), "sl": bo_chay._js(l.sl),
-                          "tp": bo_chay._js(l.tp),
-                          "lai_R": bo_chay._js(l.lai_R(gia)) if l.da_khop else None,
-                          "sl_hoa_von": bool(l.sl_o_hoa_von)} for l in ds])
+            # Cắt theo `k` — KHÔNG đọc thẳng `l.da_khop`/`l.sl`, đó là trạng thái cuối
+            # backtest. Xem `bo_chay.lenh_tai_nen`.
+            song.append([bo_chay.lenh_tai_nen(kq, l, int(k), gia) for l in ds])
             tk.append({"cho": sum(1 for l in ds if not l.da_khop),
                        "mo": sum(1 for l in ds if l.da_khop),
                        "gia": gia})
@@ -839,9 +853,48 @@ class ApiTester(NenCuaSo):
             "j0": j0, "n": int(j1 - j0),
             "t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
             "l": a["l"].tolist(), "c": a["c"].tolist(),
-            "chi_bao": chi_bao, "vung": vung, "lenh_song": song, "tai_khoan": tk,
+            "bang": bang, "lenh_song": song, "tai_khoan": tk,
             "lenh": kq.the_lenh(i_cuoi), "nhat_ky": nk,
         })
+
+    def _cot_toan_hang(self, kq, o, i5, a):
+        """Giá trị một toán hạng tại TỪNG khung hình của lô. `None` = chưa ghi lại được.
+
+        Ba nguồn, theo đúng thứ tự rẻ dần: cột đã tính sẵn (chỉ báo + giá), cột engine đã
+        ghi lúc chạy (vùng nén), rồi mới tới thứ suy được từ sổ lệnh/thời gian."""
+        ten = o["ten"]
+        ct = kq._ct
+
+        def theo(mang, ep_bool=False):
+            ra = []
+            for k in i5:
+                if not (0 <= k < len(mang)):
+                    ra.append(None); continue
+                v = mang[k]
+                if ep_bool:
+                    ra.append(bool(v) if v == v else None)
+                else:
+                    ra.append(float(v) if v == v else None)
+            return ra
+
+        k = ct.khoa(o) if (ten in tinh_toan.BANG or ten in ct.COT_GIA) else None
+        if k is not None and k in ct._cot:
+            return theo(ct._cot[k])
+        if ten in kq.cot_vung:
+            return theo(kq.cot_vung[ten], ten in core.TOAN_HANG_DUNG_SAI)
+        if ten in ("so_lenh_cho", "so_vi_the"):
+            cho = ten == "so_lenh_cho"
+            return [sum(1 for l in kq.lenh_tai(int(x)) if l.da_khop != cho) for x in i5]
+        if ten == "bid":
+            return [float(v) for v in a["c"]]
+        if ten == "ask":
+            return [float(v) + self._cd.spread_gia for v in a["c"]]
+        if ten == "spread":
+            return [self._cd.spread_diem] * len(i5)
+        if ten in ("gio", "thu"):
+            return [float((int(t) // 3600) % 24) if ten == "gio"
+                    else float((int(t) // 86400 + 4) % 7 + 2) for t in a["t"]]
+        return None     # chưa ghi lại theo nến — thà bỏ trống còn hơn bịa một con số
 
     @_bat_loi
     def test_nhat_ky(self, tu=0, so=200, chi_co_viec=True):

@@ -1290,6 +1290,64 @@ def _tham_so_dang_dung(doc):
     return ra
 
 
+#: Cách tính khoảng cách nào ngầm ĐỌC toán hạng nào. `theo_ATR_vung` không xuất hiện
+#: trong điều kiện nào cả, nhưng nó chính là thứ định nghĩa 1R — bảng số liệu mà thiếu
+#: nó thì người dùng không kiểm được vì sao SL nằm ở đó.
+#: `theo_ATR` đọc ATR trên khung QUYẾT ĐỊNH với chu kỳ `chu_ky_atr` — đúng thứ
+#: `bo_chay._khoang` gọi. Ghi kèm TÊN tham số (không phải giá trị: ở đây chưa biết) để
+#: bảng hiện `ATR(M5, 14)` chứ không trơ ra một chữ "ATR" không rõ là ATR nào.
+TINH_CAN_TOAN_HANG = {
+    "theo_ATR": ({"ten": "atr", "period": "chu_ky_atr"},),
+    "theo_ATR_vung": ({"ten": "atr_tb_vung"},),
+    "theo_bien_vung": ({"ten": "dinh_vung"}, {"ten": "day_vung"}),
+}
+
+
+def toan_hang_dung(doc):
+    """Mọi toán hạng sơ đồ THẬT SỰ đọc, đã dedupe, giữ nguyên thứ tự gặp.
+
+    Đây là nguồn của bảng số liệu bên phải. Cố ý suy TỪ SƠ ĐỒ chứ không viết cứng một
+    danh sách: viết cứng thì hôm nay là "Vùng nén" của D_02, mai thêm một engine khác là
+    bảng nói dối — mà nhóm thì `kho/` đã khai sẵn ở mỗi toán hạng rồi.
+
+    KHÔNG gồm nhóm "Lệnh này": chúng không có MỘT giá trị tại nến i (Manage chạy một
+    lượt cho mỗi lệnh), nên chúng thuộc về bảng-theo-từng-lệnh (core.md §12.9)."""
+    ra, da = [], set()
+
+    def them(o):
+        if not isinstance(o, dict) or not o.get("ten"):
+            return
+        t = o["ten"]
+        if TOAN_HANG_NHOM.get(t) == NHOM_LENH_NAY:
+            return
+        k = (t, o.get("tf"), o.get("period"), o.get("method"))
+        if k in da:
+            return
+        da.add(k)
+        ra.append({"ten": t, "tf": o.get("tf"), "period": o.get("period"),
+                   "method": o.get("method"), "shift": o.get("shift"),
+                   "nhan": TOAN_HANG_LABELS.get(t, t),
+                   "nhom": TOAN_HANG_NHOM.get(t, "Khác")})
+
+    for tab in TABS:
+        for st in (doc.get(tab) or {}).get("steps") or []:
+            for c in st.get("conditions") or []:
+                them(c.get("trai"))
+                if c.get("phai_loai") == "toan_hang":
+                    them(c.get("phai"))
+            for k in ("dem", "sl", "tp", "khoang"):
+                tinh = (st.get(k) or {}).get("tinh") if isinstance(st.get(k), dict) else None
+                for t in TINH_CAN_TOAN_HANG.get(tinh, ()):
+                    them(dict(t))
+            # Lệnh chờ STOP neo vào MÉP VÙNG thuận chiều (`bo_chay._vao_lenh`) — đỉnh/đáy
+            # vùng là thứ quyết định giá đặt, dù không điều kiện nào hỏi tới. Người dùng
+            # phải thấy được nó để biết lệnh sắp nằm ở đâu.
+            if st.get("type") == VAO_LENH and st.get("loai") == "stop":
+                them({"ten": "dinh_vung"})
+                them({"ten": "day_vung"})
+    return ra
+
+
 def bang_tham_so(doc):
     """{tên: giá trị} — dạng mọi hàm hiển thị cần."""
     return {t["ten"]: t["gia_tri"] for t in (doc or {}).get("tham_so") or []}

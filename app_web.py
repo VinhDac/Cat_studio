@@ -12,6 +12,29 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Tiêu đề lúc mở. Sau đó JS ghi đè thành "<tên chiến lược> — Cat Studio".
 TIEU_DE_GOC = "Cat Studio"
 
+def _uu_tien_namespace_dotnet():
+    """Cho namespace .NET thắng gói Python cùng tên. PHẢI chạy TRƯỚC `import webview`.
+
+    pywebview (backend WinForms) cần `Microsoft.Win32.SystemEvents` — một namespace
+    .NET. pythonnet gắn bộ tìm của nó vào CUỐI `sys.meta_path`, tức là SAU bộ tìm đọc
+    `site-packages`. Nên chỉ cần môi trường có một gói tên `Microsoft/` là gói đó cướp
+    mất tên: `quantconnect-stubs` chẳng hạn ship đúng một cái như thế, và app chết ngay
+    lúc mở cửa sổ với `FileNotFoundException: Could not load ... 'Microsoft'` — một câu
+    không liên quan gì tới lỗi thật.
+
+    Đẩy bộ tìm của pythonnet lên đầu là hết. Nó chỉ nhận những namespace .NET có thật,
+    nên không gói Python nào bị nó nuốt nhầm."""
+    try:
+        import clr                                # noqa: F401  (gắn DotNetFinder)
+    except Exception:
+        return                                    # không có pythonnet -> kệ, để lỗi sau
+    for f in [x for x in sys.meta_path if type(x).__name__ == "DotNetFinder"]:
+        sys.meta_path.remove(f)
+        sys.meta_path.insert(0, f)
+
+
+_uu_tien_namespace_dotnet()
+
 import webview                                    # noqa: E402
 from api import Api                               # noqa: E402
 import luu_tru                                    # noqa: E402
