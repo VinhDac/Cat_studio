@@ -10,9 +10,11 @@ import Modal from './Modal'
  * nữa mới chạy được — một thao tác hoá ba. Giờ bấm ▶ ở cửa sổ vẽ là tester mở ra và
  * CHẠY LUÔN bằng đúng những gì lưu ở đây.
  */
-export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
+export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }: {
   boot: Bootstrap
   doiMauNgay: (mau: string) => void
+  /** Nạp lại `boot` sau khi lưu — xem chú thích trong `luu()`. */
+  lamMoiBoot: () => Promise<void>
   onDong: () => void
 }) {
   const s = boot.settings as Record<string, any>
@@ -49,12 +51,26 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
 
   const bo = nguon.find(n => n.symbol === tSymbol)
 
+  const [loiLuu, setLoiLuu] = useState('')
+
   async function luu() {
-    await py.save_settings({ symbol, accent })
-    await py.save_test_settings({
-      symbol: tSymbol, tu, den, spread_diem: spread,
-      deposit, commission: phi, don_bay: donBay, delay_ms: delay,
-    })
+    setLoiLuu('')
+    // ⚠ PHẢI xem kết quả. Trước đây bỏ qua rồi `onDong()` vô điều kiện, nên đĩa đầy hay
+    // mất quyền ghi thì hộp thoại vẫn đóng như đã lưu xong — im lặng, không dấu vết.
+    for (const r of [
+      await py.save_settings({ symbol, accent }),
+      await py.save_test_settings({
+        symbol: tSymbol, tu, den, spread_diem: spread,
+        deposit, commission: phi, don_bay: donBay, delay_ms: delay,
+      }),
+    ]) {
+      if (!r.ok) return setLoiLuu(r.error ?? 'không lưu được cài đặt')
+    }
+    // ⚠ NẠP LẠI `boot` rồi mới đóng. `boot` vốn chỉ nạp MỘT LẦN lúc mở app, mà hộp thoại
+    // này lấy giá trị ban đầu từ đó — nên lưu xong, mở lại là thấy y nguyên số CŨ, và
+    // người dùng kết luận "bấm lưu không lưu được" (thật ra đĩa đã ghi đúng). `bootstrap`
+    // chỉ 1 ms / 7 KB nên nạp lại là rẻ nhất, và nó đồng bộ luôn cả danh sách nguồn nến.
+    await lamMoiBoot()
     onDong()
   }
 
@@ -77,6 +93,7 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
     <Modal title="Cài đặt" width={620} onClose={onDong}
            footer={
              <>
+               {loiLuu && <span className="loi-ghi">{loiLuu}</span>}
                <button className="nut" onClick={onDong}>Huỷ</button>
                <button className="nut chinh" onClick={luu}>Lưu</button>
              </>

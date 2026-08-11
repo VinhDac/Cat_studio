@@ -209,6 +209,20 @@ function Ung() {
     setTrangThai('đã làm lại')
   }, [anhHienTai, apDung])
 
+  /** Nạp lại `boot` từ Python.
+   *
+   *  ⚠ Trước đây `boot` chỉ nạp ĐÚNG MỘT LẦN lúc mở app và không bao giờ mới lại. Hộp
+   *  thoại Cài đặt lấy giá trị ban đầu từ nó, nên sửa ngày → Lưu → mở lại là thấy y
+   *  nguyên số CŨ, và người dùng kết luận "bấm lưu không lưu được" — trong khi đĩa đã
+   *  ghi đúng. Giao diện nói dối về chính thứ nó vừa làm.
+   *
+   *  `bootstrap` chỉ 1 ms / 7 KB nên nạp lại nguyên cục là rẻ và chắc hơn vá từng mảnh,
+   *  và nó đồng bộ luôn danh sách nguồn nến sau khi xoá. */
+  const lamMoiBoot = useCallback(async () => {
+    const b = await py.bootstrap()
+    if (b.ok && b.value) setBoot(b.value)
+  }, [])
+
   /* ------------------------------ khởi động ------------------------------ */
   useEffect(() => {
     (async () => {
@@ -1220,6 +1234,7 @@ function Ung() {
 
       {moCaiDat && boot && (
         <SettingsDialog boot={boot} doiMauNgay={doiMauNgay}
+                        lamMoiBoot={lamMoiBoot}
                         onDong={() => setMoCaiDat(false)} />
       )}
 
