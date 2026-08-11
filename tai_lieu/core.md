@@ -1900,6 +1900,42 @@ không kéo cả cây. Nạp `api` là kéo theo numpy và MetaTrader5, mà `tes
 Kiểm: **9/9 bài qua**, đóng gói lại, giải nén sang thư mục khác chạy ra **547 lệnh · −10,50 R ·
 DD 0,91 % · vốn cuối 9955,04** — trùng từng con số với trước khi gom.
 
+### 13.4 ⚠ MÁY MỚI KHÔNG TỰ TẢI ĐƯỢC — chuỗi rỗng bị hiểu là "đã đủ"
+
+Cài bản đóng gói lên máy mới, bấm ▶, nhận:
+
+```
+RuntimeError: Không có nến nào cho XAUUSD trong khoảng này.
+Kiểm tra lại mã symbol và khoảng From→To ở Cài đặt → Strategy Test.
+```
+
+Câu lỗi đổ tội cho **mã symbol**, trong khi symbol hoàn toàn đúng. Chuỗi hỏng:
+
+1. Mặc định `test.tu` và `test.den` là **chuỗi rỗng**;
+2. `thoi_diem("")` trả `None`;
+3. `khoang_thieu` gặp `None` thì trả `[]` — **mà `[]` nghĩa là "đã đủ, khỏi tải"**;
+4. `_tai_neu_thieu` về ngay, KHÔNG tải gì;
+5. `doc()` trả mảng rỗng → ném câu lỗi nói về symbol.
+
+Một giá trị rỗng đi qua bốn tầng rồi biến thành một câu lỗi nói về chuyện khác hẳn.
+
+⚠ **Đợt soát §13.0 ĐÃ TÌM RA lỗi này** — nguyên văn *"máy trắng bấm ▶ lần đầu: tính năng tự-tải-nến
+KHÔNG chạy, và lỗi đổ tội nhầm cho mã symbol"*, xếp mức `vua`. Nó nằm trong 25 phát hiện nhưng rơi
+khỏi danh sách 7 mục phải sửa, và tôi không rà lại. Tìm ra rồi vẫn để lọt thì công soát thành công cốc.
+
+**Ba chỗ sửa:**
+
+- **Mặc định khoảng = một năm gần nhất, tính theo HÔM NAY** (`_khoang_mac_dinh()`), không ghi cứng
+  một mốc — ghi cứng thì sang năm người mới cài thấy một khoảng đã lỗi thời.
+- **Chặn khoảng rỗng ngay ở `_tai_neu_thieu`**, nói đúng bệnh: *"Chưa đặt khoảng thời gian để
+  chạy. Mở Cài đặt → Strategy Test và điền hai ô Từ / Đến."*
+- **Nút "Kiểm tra kết nối MT5" trong Cài đặt** (`nguon_nen.kiem_ket_noi`). Câu *"sao máy mới không
+  tải được?"* trước đây không có chỗ nào trả lời: người dùng chỉ gặp lỗi lúc bấm ▶, mà lúc đó đã
+  muộn. Giờ hỏi được TRƯỚC, và câu trả lời nói rõ: nối được chưa · terminal và tài khoản nào · sàn
+  có mã đó không — và nếu không có thì **liệt kê mã CÓ THẬT trên sàn đang nối**, bấm một cái là điền.
+  Thử tiền tố ngắn dần (6 → 4 → 3 ký tự) vì gõ nhầm một chữ ở giữa là lúc cần gợi ý nhất mà tìm
+  theo 6 ký tự lại hụt sạch. Hàm này **không bao giờ ném**: mọi hỏng hóc đều là một câu trả lời.
+
 ### 13.1 ✅ ĐÓNG GÓI — đã build và chạy thật
 
 ```bat

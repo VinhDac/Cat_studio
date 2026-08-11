@@ -17,12 +17,25 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 
 THU_MUC_GOC = "du_lieu"
 FILE_CAI_DAT = "cai_dat.json"
 THU_MUC_CHIEN_LUOC = "chien_luoc"
 THU_MUC_NEN = "nen"
 THU_MUC_NHAT_KY = "nhat_ky"
+
+def _khoang_mac_dinh():
+    """Một năm gần nhất, tính theo NGÀY HÔM NAY. Trả `("2025-08-11", "2026-08-11")`.
+
+    Tính lúc chạy chứ không ghi cứng: ghi cứng "2025-01-01 → 2026-01-01" thì sang năm
+    người dùng mới cài app sẽ thấy một khoảng mặc định đã lỗi thời, tải về một năm cũ và
+    không hiểu vì sao."""
+    hom_nay = datetime.now(timezone.utc).date()
+    return (hom_nay.replace(year=hom_nay.year - 1).isoformat(), hom_nay.isoformat())
+
+
+_KHOANG_MAC_DINH = _khoang_mac_dinh()
 
 CAI_DAT_MAC_DINH = {
     "symbol": "XAUUSD",
@@ -32,7 +45,12 @@ CAI_DAT_MAC_DINH = {
     # NGAY, không phải mở ra một bảng nữa rồi mới bấm tiếp. Cài đặt là thứ đặt một lần
     # rồi quên; nó thuộc về app, không thuộc về một lần chạy.
     "test": {
-        "symbol": "XAUUSD", "tu": "", "den": "",
+        # ⚠ KHÔNG để rỗng. Chuỗi rỗng làm `thoi_diem` trả None, `khoang_thieu` trả `[]`
+        # — mà `[]` nghĩa là "ĐÃ ĐỦ, khỏi tải" — nên máy mới bấm ▶ là KHÔNG tải gì hết
+        # rồi báo "Không có nến nào cho XAUUSD", đổ tội cho mã symbol trong khi lỗi thật
+        # là chưa ai đặt khoảng. Mặc định TÍNH THEO HÔM NAY (một năm gần nhất), không ghi
+        # cứng một mốc — ghi cứng thì sang năm là mặc định thành vô nghĩa.
+        "symbol": "XAUUSD", "tu": _KHOANG_MAC_DINH[0], "den": _KHOANG_MAC_DINH[1],
         "spread_diem": 20.0,      # nến là giá Bid; Ask = Bid + spread
         "deposit": 10000.0,
         "commission": 0.0,        # USD mỗi lot, ROUND-TURN

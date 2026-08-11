@@ -117,6 +117,11 @@ export const py = {
   nguon_tai: (symbol: string, tu: string, den: string) =>
     goi<{ chu: string; ds: BoNen[] }>('nguon_tai', symbol, tu, den),
   nguon_xoa: (symbol: string) => goi<{ ds: BoNen[] }>('nguon_xoa', symbol),
+  /** Nối thử MT5 ngay trong Cài đặt — trả lời "vì sao không tải được" trước khi bấm ▶. */
+  nguon_kiem_ket_noi: (symbol: string) => goi<{
+    noi_duoc: boolean; chu: string; terminal: string; tai_khoan: string
+    symbol: string; co_symbol: boolean; goi_y: string[]
+  }>('nguon_kiem_ket_noi', symbol),
 
   // --- ▶ Chạy → cửa sổ Strategy Tester ---
   mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),

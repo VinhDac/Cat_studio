@@ -1057,6 +1057,23 @@ select.o { cursor: pointer; }
 /* Thay chỗ nút "Tải thêm" cũ — nói ra cho biết thiếu nến thì ai lo, khỏi tìm nút. */
 .cd-tu-tai { font-size: 11.5px; color: var(--dim); font-style: italic; }
 
+/* Kết quả "Kiểm tra kết nối MT5" — nằm ngay dưới hàng Symbol/Từ/Đến, đúng chỗ người ta
+   vừa bấm, không đẩy xuống cuối hộp thoại. */
+.cd-ket-noi {
+  margin: 6px 0 10px; padding: 7px 10px; font-size: 12px;
+  border-left: 2px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--raised);
+}
+.cd-ket-noi.duoc { border-left-color: var(--ok); }
+.cd-ket-noi.hong { border-left-color: var(--warn); }
+.cd-ket-noi .phu { color: var(--dim); font-size: 11.5px; margin-top: 3px; }
+.cd-goi-y {
+  background: var(--chrome); border: 1px solid var(--border); color: var(--accent);
+  border-radius: var(--radius-sm); font: 11px var(--mono);
+  padding: 1px 6px; margin: 0 3px 3px 0; cursor: pointer;
+}
+.cd-goi-y:hover { border-color: var(--accent); }
+
 /* ---- cài đặt chạy ---- */
 .cd-test {
   padding: 8px 10px; background: var(--surface);

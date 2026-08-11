@@ -454,3 +454,53 @@ def tom_tat(symbol, tu=None, den=None):
         "digits": m.get("digits"), "point": m.get("point"),
         "contract_size": m.get("contract_size"), "spread_tb": m.get("spread_tb"),
     }
+
+
+def kiem_ket_noi(symbol=None):
+    """Nối thử tới MetaTrader 5 và trả về SỰ THẬT, không ném lỗi.
+
+    Sinh ra vì câu hỏi "sao máy mới không tự tải được?" hiện không có chỗ nào trả lời:
+    người dùng chỉ thấy một lỗi lúc bấm ▶, mà lúc đó đã muộn và câu lỗi thì nói về khoảng
+    thời gian chứ không nói về kết nối. Đây là chỗ hỏi TRƯỚC, ngay trong Cài đặt.
+
+    Không bao giờ ném: mọi hỏng hóc đều là một câu trả lời có ích chứ không phải sự cố.
+    """
+    ra = {"noi_duoc": False, "chu": "", "terminal": "", "tai_khoan": "",
+          "symbol": symbol, "co_symbol": False, "goi_y": []}
+    if not CO_MT5:
+        ra["chu"] = "Máy chưa cài thư viện MetaTrader5 (pip install MetaTrader5)."
+        return ra
+    try:
+        with _KetNoi():
+            ra["noi_duoc"] = True
+            tt = mt5.terminal_info()
+            tk = mt5.account_info()
+            if tt:
+                ra["terminal"] = f"{tt.name} · {tt.company}"
+            if tk:
+                ra["tai_khoan"] = f"{tk.login} · {tk.server}"
+            ra["chu"] = "Đã nối được MetaTrader 5."
+            if symbol:
+                try:
+                    ra["co_symbol"] = bool(_thong_tin(symbol))
+                    ra["chu"] += f' Sàn có symbol "{symbol}".'
+                except LoiNguon as e:
+                    ra["chu"] += f" {e}"
+                    # Nhiều sàn thêm hậu tố (XAUUSDm, XAUUSD.r…). Gợi ý những mã CÓ THẬT
+                    # trên sàn này thay vì để người dùng đoán mò.
+                    #
+                    # Thử tiền tố NGẮN DẦN: gõ nhầm một chữ ở giữa ("XAUUZSD") thì tìm
+                    # theo 6 ký tự đầu là hụt sạch, mà đúng lúc đó mới cần gợi ý nhất.
+                    for n in (6, 4, 3):
+                        try:
+                            ds = mt5.symbols_get(f"*{symbol[:n]}*") or ()
+                        except Exception:
+                            break
+                        if ds:
+                            ra["goi_y"] = sorted(s.name for s in ds)[:12]
+                            break
+    except LoiNguon as e:
+        ra["chu"] = str(e)
+    except Exception as e:                      # noqa: BLE001 - bao gì cũng phải trả lời
+        ra["chu"] = f"{type(e).__name__}: {e}"
+    return ra

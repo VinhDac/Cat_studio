@@ -30,6 +30,22 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
   const [delay, setDelay] = useState(Number(t.delay_ms ?? 60))
 
   const [nguon, setNguon] = useState<BoNen[]>(boot.nguon ?? [])
+  const [ketNoi, setKetNoi] = useState<{
+    noi_duoc: boolean; chu: string; terminal: string; tai_khoan: string
+    co_symbol: boolean; goi_y: string[]
+  } | null>(null)
+  const [dangKiem, setDangKiem] = useState(false)
+
+  async function kiemKetNoi() {
+    setDangKiem(true); setKetNoi(null)
+    const r = await py.nguon_kiem_ket_noi(tSymbol)
+    setDangKiem(false)
+    // Cả lỗi cầu nối cũng phải hiện ra ở đây: im lặng là đúng thứ nút này sinh ra để chữa.
+    setKetNoi(r.ok && r.value ? r.value : {
+      noi_duoc: false, chu: r.error ?? 'không gọi được sang Python',
+      terminal: '', tai_khoan: '', co_symbol: false, goi_y: [],
+    })
+  }
 
   const bo = nguon.find(n => n.symbol === tSymbol)
 
@@ -116,8 +132,34 @@ export default function SettingsDialog({ boot, doiMauNgay, onDong }: {
                onChange={e => setTu(e.target.value)} /></label>
         <label>Đến<input className="o nho" value={den} placeholder="2026-01-01"
                onChange={e => setDen(e.target.value)} /></label>
+        {/* Nút này trả lời câu "sao máy mới không tự tải được?" NGAY TẠI ĐÂY, chứ không
+            để người dùng bấm ▶ rồi gặp một lỗi nói về khoảng thời gian. */}
+        <button className="nut" onClick={kiemKetNoi} disabled={dangKiem}>
+          {dangKiem ? 'đang nối…' : 'Kiểm tra kết nối MT5'}
+        </button>
         <span className="cd-tu-tai">thiếu nến thì ▶ Chạy tự tải</span>
       </div>
+
+      {ketNoi && (
+        <div className={'cd-ket-noi' + (ketNoi.noi_duoc && ketNoi.co_symbol ? ' duoc' : ' hong')}>
+          <div>{ketNoi.noi_duoc && ketNoi.co_symbol ? '✓' : '⚠'} {ketNoi.chu}</div>
+          {ketNoi.terminal && (
+            <div className="phu">{ketNoi.terminal}
+              {ketNoi.tai_khoan && <> · tài khoản {ketNoi.tai_khoan}</>}
+            </div>
+          )}
+          {/* Nhiều sàn thêm hậu tố (XAUUSDm, XAUUSD.r…). Liệt kê mã CÓ THẬT trên sàn
+              đang nối, bấm một cái là điền — hơn hẳn để người dùng đoán. */}
+          {ketNoi.goi_y.length > 0 && (
+            <div className="phu">
+              sàn này có:{' '}
+              {ketNoi.goi_y.map(s => (
+                <button key={s} className="cd-goi-y" onClick={() => setTSymbol(s)}>{s}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="hang cd-hang">
         <label title="Nến là giá Bid; Ask = Bid + spread">

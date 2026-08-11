@@ -640,6 +640,15 @@ class Api(NenCuaSo):
         return _ok(dict(nguon_nen.uoc_tinh(k), du=not k))
 
     @_bat_loi
+    def nguon_kiem_ket_noi(self, symbol):
+        """Nối thử tới MT5 ngay trong Cài đặt, TRƯỚC khi bấm ▶.
+
+        Câu "sao máy mới không tự tải được?" trước đây không có chỗ nào trả lời: người
+        dùng chỉ gặp một lỗi lúc chạy, mà câu lỗi đó nói về khoảng thời gian chứ không
+        nói gì về kết nối. Nút này hỏi thẳng và trả lời thẳng."""
+        return _ok(nguon_nen.kiem_ket_noi(symbol))
+
+    @_bat_loi
     def nguon_tai(self, symbol, tu, den):
         r = nguon_nen.tai(symbol, tu, den,
                           tien_do=lambda i, n, c: self._ban(
@@ -753,6 +762,15 @@ class ApiTester(NenCuaSo):
 
         `khoang_thieu` vốn chỉ trả về những mẩu CÒN THIẾU nên đây là tải bổ sung, không
         phải tải lại từ đầu; đủ rồi thì không đụng tới MT5 một lần nào."""
+        # ⚠ Chặn khoảng RỖNG ngay đây. `khoang_thieu` trả `[]` cho cả hai trường hợp
+        # "đã đủ nến" LẪN "không đọc nổi mốc thời gian" — mà `[]` được hiểu là "khỏi
+        # tải". Nên máy mới, ô From/To chưa đặt, bấm ▶ là KHÔNG tải gì rồi báo "Không có
+        # nến nào cho XAUUSD", đổ tội cho mã symbol trong khi lỗi thật là chưa đặt khoảng.
+        if nguon_nen.thoi_diem(tu) is None or nguon_nen.thoi_diem(den) is None:
+            raise RuntimeError(
+                "Chưa đặt khoảng thời gian để chạy.\n\n"
+                "Mở Cài đặt → Strategy Test và điền hai ô Từ / Đến "
+                "(dạng 2025-01-01), rồi bấm ▶ lại.")
         thieu = nguon_nen.khoang_thieu(sym, tu, den)
         if not thieu:
             return
