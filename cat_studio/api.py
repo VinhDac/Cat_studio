@@ -1097,6 +1097,89 @@ class ApiTester(NenCuaSo):
                 return _ok({"j": int(r["j"]), "i": int(r["nen"])})
         return _ok({"j": -1, "i": -1})
 
+    # Thứ tự hiện các mốc RƠI VÀO CÙNG một nến M5. Trong nến thì không có thứ tự thật —
+    # đây là thứ tự KỂ CHUYỆN: đặt rồi mới khớp, khớp rồi Manage mới thấy nó đã khớp.
+    _HANG_RAY = {"dat": 0, "khop": 1, "so_do": 2, "dong": 3}
+
+    def _chi_muc_ray(self, kq):
+        """Nhật ký → {lenh_id: [lượt]}. Dựng MỘT LẦN cho mỗi lần chạy.
+
+        Quét thẳng 77.000 lượt cho từng lệnh thì rê chuột qua 300 lệnh là 23 triệu vòng.
+        Dựng chỉ mục một lần rồi dùng lại: một vòng quét, xong."""
+        cu = getattr(self, "_ray_cua", None)
+        if cu is not None and cu[0] is kq:
+            return cu[1]
+        cm = {}
+        for r in kq.nhat_ky:
+            ids = {r["lenh_id"]} if r.get("lenh_id") else set()
+            ids.update(v["lenh_id"] for v in r["viec"] if v.get("lenh_id"))
+            for i in ids:
+                cm.setdefault(i, []).append(r)
+        self._ray_cua = (kq, cm)
+        return cm
+
+    @_bat_loi
+    def test_duong_ray(self, lenh_id):
+        """ĐƯỜNG RAY của một lệnh: từ lúc đặt tới lúc đóng, nó đi qua những khối nào.
+
+        Đây là câu hỏi mà cả app sinh ra để trả lời — "vì sao lệnh này ra đời, và khối
+        nào đã động vào nó". Nhật ký đã ghi đủ (`duong` = dãy khối của mỗi lượt), việc ở
+        đây chỉ là GOM cho người đọc nổi.
+
+        Hai thứ được gom:
+          • các lượt LIỀN NHAU đi cùng một đường mà không làm gì → một chặng kèm `dem`.
+            Manage chạy mỗi nến, một lệnh sống 3 giờ là 36 lượt y hệt nhau;
+          • KHỚP và CHẠM SL/TP không có trong nhật ký — chúng là việc của thị trường,
+            không phải của sơ đồ. Chèn từ chính bản ghi lệnh, và để `tab = None` để
+            giao diện tách được "sơ đồ quyết" với "thị trường quyết". Đó thường là câu
+            cần phân biệt nhất lúc soi một lệnh thua.
+
+        Trả CẢ ĐỜI lệnh; cắt theo con trỏ là việc của giao diện (mỗi chặng có `t`) — nhờ
+        vậy rê chuột một lệnh chỉ tốn đúng một lời gọi, không phải mỗi nhịp một lời."""
+        kq = self._doi_kq()
+        lid = str(lenh_id)
+        l = next((x for x in kq.so.lenh if x.id == lid), None)
+        if l is None:
+            return _ok({"chang": []})
+
+        nhan = nhat_ky.nhan_khoi(kq.doc)
+        t5 = kq.nen5["t"]
+
+        # XẾP THỜI GIAN TRƯỚC, GỘP SAU. Làm ngược lại thì một cục "manage ×96" nuốt cả
+        # các lượt trước lẫn sau lúc khớp, đẩy "khớp" xuống dưới nó — kể sai thứ tự câu
+        # chuyện. Và vì cục đó mang dấu thời gian của lượt ĐẦU, con trỏ mới tới giữa
+        # chừng đã thấy đủ 96, tức lộ tương lai.
+        moc = []
+        for r in self._chi_muc_ray(kq).get(lid, []):
+            viec = [v["loai"] for v in r["viec"] if v.get("lenh_id") == lid]
+            moc.append({"tab": r["tab"], "khoi": [nhan.get(k, "?") for k in r["duong"]],
+                        "viec": viec, "t": int(t5[r["nen"]]),
+                        "hang": self._HANG_RAY["dat" if "lenh_dat" in viec else "so_do"]})
+        if l.nen_khop is not None:
+            moc.append({"tab": None, "moc": "khop", "khoi": [], "viec": [],
+                        "t": int(t5[l.nen_khop]), "hang": self._HANG_RAY["khop"]})
+        # Đóng do SƠ ĐỒ (`dong_tay`, `huy`) đã có chặng `viec` nói rồi — thêm nữa là kể
+        # hai lần cùng một chuyện. Chỉ chèn khi thị trường mới là bên hạ màn.
+        if l.nen_dong is not None and l.ly_do_dong not in ("dong_tay", "huy"):
+            moc.append({"tab": None, "moc": l.ly_do_dong or "dong", "khoi": [], "viec": [],
+                        "t": int(t5[l.nen_dong]), "hang": self._HANG_RAY["dong"]})
+        moc.sort(key=lambda c: (c["t"], c["hang"]))
+
+        chang = []
+        for m in moc:
+            cu = chang[-1] if chang else None
+            if (cu is not None and m["tab"] is not None and cu["tab"] == m["tab"]
+                    and cu["khoi"] == m["khoi"] and not m["viec"] and not cu["viec"]):
+                cu["dem"] += 1
+                cu["t_het"] = m["t"]
+                continue
+            m.pop("hang")
+            # `t` = chặng bắt đầu lúc nào, `t_het` = kết thúc lúc nào. Giao diện cần cả
+            # hai: hiện chặng theo `t`, nhưng `t_het` còn ở tương lai thì con số lặp
+            # chưa chốt, không được in ra như thể đã xong.
+            chang.append(dict(m, dem=1, t_het=m["t"]))
+        return _ok({"chang": chang})
+
     def _tom_tat_chay(self):
         """Tổng kết cả lượt chạy. DỰNG Ở ĐÚNG MỘT CHỖ.
 

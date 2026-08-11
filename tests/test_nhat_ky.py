@@ -234,5 +234,66 @@ kiem("trước sự kiện đầu tiên thì báo hết (-1) — giao diện l�
 kiem("sau sự kiện cuối cùng thì báo hết (-1)",
      at.test_luot_ke(moc_that[-1])["value"]["j"] == -1)
 
+# ================= 8. đường ray của một lệnh =================
+#
+# Đường ray trả lời "lệnh này đi qua những khối nào". Nó GỘP các lượt giống nhau lại,
+# và chính chỗ gộp là chỗ dễ kể sai chuyện:
+#   • gộp TRƯỚC rồi mới xếp thời gian → một cục "manage ×22" nuốt cả các lượt trước lẫn
+#     sau lúc khớp, đẩy mốc "khớp" xuống dưới nó;
+#   • và vì cục đó mang dấu thời gian của lượt ĐẦU, con trỏ mới tới giữa chừng đã thấy
+#     đủ 22 — lộ tương lai, đúng thứ cả chart đang cấm.
+print("\n▸ Đường ray — gộp mà không được kể sai thứ tự")
+
+# Cần một lệnh CHỜ thật (đặt xong còn treo mấy nến rồi mới khớp) thì pha "trước khi
+# khớp" mới tồn tại. Lệnh thị trường khớp ngay nên không soi được chỗ này.
+v8 = core.make_action_step({
+    "type": core.VAO_LENH, "name": "mua chờ", "huong": "mua", "loai": "stop",
+    "lot": 0.01, "dem": {"tinh": "theo_gia", "value": 5.0},
+    "sl": {"tinh": "theo_gia", "value": 1.0},
+    "tp": {"tinh": "theo_R", "value": 2.0}})
+v8["pos"] = [0.0, 0.0]
+bdm8 = core.make_start_step("theo dõi", "M1")
+bdm8["pos"] = [0.0, 0.0]
+d8 = core.normalize_process({
+    "name": "thử ray", "symbol": "X", "tham_so": d["tham_so"],
+    "entry": {"steps": [bd, g, v8],
+              "edges": [{"from": bd["id"], "to": g["id"], "port": "out"},
+                        {"from": g["id"], "to": v8["id"], "port": "out"}]},
+    "manage": {"steps": [bdm8], "edges": []}})
+kq8 = bc.chay(d8, nen_m1([90.0] * 20 + [110.0] * 12 + [116.0] * 15), cd)
+at8 = api.ApiTester(object())
+at8._kq = kq8
+
+l8 = kq8.so.lenh[0]
+ray = at8.test_duong_ray(l8.id)["value"]["chang"]
+kiem("lệnh mẫu có pha CHỜ thật (đặt xong còn treo rồi mới khớp)",
+     l8.nen_khop is not None and l8.nen_khop > l8.nen_dat,
+     f"— đặt nến {l8.nen_dat}, khớp nến {l8.nen_khop}")
+
+vi_khop = next((k for k, c in enumerate(ray) if c.get("moc") == "khop"), -1)
+truoc = [c for c in ray[:vi_khop] if c["tab"] == "manage"]
+sau = [c for c in ray[vi_khop + 1:] if c["tab"] == "manage"]
+kiem("mốc KHỚP nằm giữa — có chặng manage cả trước lẫn sau nó",
+     vi_khop > 0 and truoc and sau,
+     f"— {len(truoc)} chặng trước, {len(sau)} chặng sau")
+
+kiem("thời gian không lùi dọc đường ray",
+     all(ray[k]["t"] <= ray[k + 1]["t"] for k in range(len(ray) - 1)))
+
+# Đây là bài chặn chính: một chặng KHÔNG được kéo dài vắt qua chặng kế tiếp. Gộp trước
+# rồi xếp sau là vi phạm đúng chỗ này.
+vat = [k for k in range(len(ray) - 1) if ray[k]["t_het"] > ray[k + 1]["t"]]
+kiem("không chặng nào gộp VẮT QUA một mốc sau nó", not vat,
+     f"— {len(vat)} chỗ vắt")
+
+# Cắt theo con trỏ phải ra một TIỀN TỐ liền mạch, không lỗ chỗ.
+moc_cat = int(kq8.nen5["t"][l8.nen_khop]) - 1
+cat = [c for c in ray if c["t"] <= moc_cat]
+kiem("cắt ở ngay trước lúc khớp → đúng phần đã xảy ra, chưa thấy 'khớp'",
+     cat == ray[:len(cat)] and all(c.get("moc") != "khop" for c in cat),
+     f"— {len(cat)}/{len(ray)} chặng")
+kiem("chặng còn dở thì `t_het` vẫn ở tương lai — giao diện lấy đó để KHÔNG in số lặp",
+     any(c["t_het"] > moc_cat for c in ray) or len(cat) == len(ray))
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

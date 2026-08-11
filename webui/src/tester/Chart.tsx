@@ -3,24 +3,42 @@ import {
   CandlestickSeries, LineSeries, LineStyle, LineType, createChart, createSeriesMarkers,
   type IChartApi, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp,
 } from 'lightweight-charts'
-import type { LenhVe } from '../types'
+import { pyTester } from '../api'
+import type { ChangRay, LenhVe } from '../types'
 
-/** CHART — ba tầng, ba họ màu, mỗi họ MỘT nghĩa.
+/** CHART — ba họ màu, mỗi họ MỘT nghĩa.
  *
- *   nến        xám     — bối cảnh. Giá là thứ XẢY RA.
- *   mức lệnh   cam     — "chỗ ta đặt". Không gì khác trên chart màu cam.
- *   kết quả    xanh/đỏ — và CHỈ có nghĩa này.
+ *   xám              — nến. Bối cảnh, không phải nhân vật.
+ *   cam              — ĐÚNG MỘT thứ: giá lệnh chờ. Mức duy nhất chưa có tốt hay xấu.
+ *   xanh · đỏ · trắng — tốt · xấu · không bên nào. Dùng cho CẢ mức lẫn kết quả.
  *
- * ⚠ Vì sao nến phải xám: bản trước nến xanh/đỏ, mũi tên hướng xanh/đỏ, lãi lỗ cũng
- * xanh/đỏ — một cặp màu mang ba nghĩa thì chẳng còn nghĩa nào. Làm nến im đi không phải
- * để đẹp: để lúc không có lệnh thì chart lặng như tờ, lúc có lệnh thì mắt bị kéo tới ngay.
+ * ⚠ Luật cũ là "cam = mọi mức lệnh, xanh/đỏ = CHỈ kết quả", và TP/SL đều cam. Nghe thì
+ * chặt, nhưng bắt mắt phải đọc chữ mới biết đường nào là đích đường nào là tử huyệt.
+ * Giờ TP xanh / SL đỏ: cùng một trục nghĩa với thắng/thua, vì TP đúng là chỗ cái tốt
+ * nằm. Cam co lại còn một việc duy nhất nên nó lại càng rõ hơn trước.
  *
- * HƯỚNG mua/bán KHÔNG dùng màu nữa — dùng HÌNH: ▲ mua, ▼ bán.
+ * ⚠ HƯỚNG mua/bán không còn mũi tên. Nó không mất: **xanh nằm trên = Mua, xanh nằm
+ * dưới = Bán** — đọc hướng từ phía mình đang nhắm tới, thẳng hơn một cái ▲.
+ *
+ * ⚠ Mọi CHẤM đặt ở ĐÚNG MỨC GIÁ (`atPriceMiddle`), không lơ lửng trên/dưới nến. Bản
+ * trước mũi tên vào nằm dưới nến còn ô vuông ra nằm trên nến, nên hai đầu một lệnh
+ * trông như hai vật thể rời — mà chúng là hai đầu của cùng một đoạn.
  *
  * ⚠ Và mọi đường CHỈ CHẠY TRONG QUÃNG LỆNH SỐNG. Bản trước dùng `createPriceLine`, mà nó
  * luôn kéo suốt bề ngang chart — ba đường của một lệnh đặt lúc 09:00 cũng chạy ngược về
  * 06:00, quãng nó chưa tồn tại. Nhiễu, và nói dối. `LineSeries` hai điểm là hết.
  */
+
+/** Ngưỡng HOÀ. Nhãn in 2 chữ số, nên cái gì in ra `0.00R` thì không được xanh cũng
+ *  không được đỏ — màu mà cãi nhau với con số ngay cạnh nó thì tin cái nào? */
+const HOA = 0.005
+
+const VIEC_CHU: Record<string, string> = {
+  lenh_dat: 'đặt lệnh', lenh_sua: 'sửa', lenh_dong: 'đóng tay', lenh_huy: 'huỷ',
+}
+const MOC_CHU: Record<string, string> = {
+  khop: 'khớp', sl: 'chạm SL', tp: 'chạm TP', het_du_lieu: 'hết dữ liệu',
+}
 
 export interface NenM1 { t: number; o: number; h: number; l: number; c: number }
 
@@ -116,7 +134,9 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     const CAM = mau('--accent', '#ffa657')
     const LAI = mau('--ok', '#4ec96a')
     const LO = mau('--err', '#e5534b')
-    const XAM = mau('--dim', '#7a7a7a')
+    // "Không bên nào" — hoà và huỷ. Lấy `--text` chứ không cứng #fff: sang theme sáng
+    // nó tự thành gần-đen, vẫn đúng nghĩa "trung tính" trên nền lúc đó.
+    const TRUNG = mau('--text', '#e8e8e8')
     const con = new Set<string>()
 
     /** Một đoạn đường, giữ theo KHOÁ. Nhịp sau chỉ `setData` chứ không dựng lại series —
@@ -139,21 +159,38 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
 
     const mk: SeriesMarker<Time>[] = []
+
+    /** Một CHẤM, đặt đúng trên MỨC GIÁ — không lơ lửng trên/dưới nến. */
+    const cham = (t: number, gia: number, color: string, text?: string) =>
+      mk.push({ time: t as UTCTimestamp, position: 'atPriceMiddle', price: gia,
+                color, shape: 'circle', text })
+
     for (const l of lenh) {
       if (l.t_dat > tBayGio) continue
       const daKhop = l.t_khop != null && l.t_khop <= tBayGio
       const daDong = l.t_dong != null && l.t_dong <= tBayGio
       const daHuy = daDong && l.ly_do_dong === 'huy'
       const het = daDong ? l.t_dong! : tBayGio
+      /** Màu PHÁN QUYẾT — `null` nghĩa là lệnh chưa ngã ngũ, chưa được tô gì. */
+      const pq = daHuy ? TRUNG
+        : !daDong ? null
+        : Math.abs(l.lai_R ?? 0) < HOA ? TRUNG
+        : (l.lai_R ?? 0) > 0 ? LAI : LO
 
-      // --- mức VÀO: từ lúc đặt tới lúc khớp (hoặc tới bây giờ nếu còn chờ) ---
+      // --- mức VÀO: từ lúc đặt tới lúc khớp (hoặc tới bây giờ nếu còn chờ).
+      //     Huỷ thì cả đoạn chuyển trắng — nhưng VẪN gạch đứt. Màu nói "không thắng
+      //     không thua", HÌNH nói "có xảy ra hay không": hoà là đường liền dày có chữ,
+      //     huỷ là gạch đứt mảnh không chữ. Cho lệnh huỷ nổi bằng lệnh hoà là sai
+      //     trọng số — nó là chuyện KHÔNG xảy ra. ---
       if (l.gia_dat != null) {
         doan(`${l.id}:vao`, hai(l.t_dat, daKhop ? l.t_khop! : het, l.gia_dat),
-             { color: CAM, style: LineStyle.Dashed })
+             { color: daHuy ? TRUNG : CAM, style: LineStyle.Dashed })
+        cham(l.t_dat, l.gia_dat, daHuy ? TRUNG : CAM)
+        if (daHuy) cham(l.t_dong!, l.gia_dat, TRUNG)
       }
       // --- TP: sống suốt đời lệnh ---
       if (l.tp != null && !daHuy) {
-        doan(`${l.id}:tp`, hai(l.t_dat, het, l.tp), { color: CAM, style: LineStyle.Dotted })
+        doan(`${l.id}:tp`, hai(l.t_dat, het, l.tp), { color: LAI, style: LineStyle.Dotted })
       }
       // --- SL: vẽ theo LỊCH SỬ, nên lúc dời về hoà vốn nó nhảy BẬC ngay trên chart.
       //     Đây là khoảnh khắc đáng kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng
@@ -165,41 +202,24 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
         if (ds.length) {
           ds.push({ time: Math.max(het, ds[ds.length - 1].time as number + 1) as UTCTimestamp,
                     value: ds[ds.length - 1].value })
-          doan(`${l.id}:sl`, ds, { color: CAM, style: LineStyle.Dotted, bac: true })
+          doan(`${l.id}:sl`, ds, { color: LO, style: LineStyle.Dotted, bac: true })
         }
       }
 
-      if (!daKhop) {
-        if (daHuy) {
-          // Lệnh chờ bị huỷ: KHÔNG thắng không thua, nên không đụng tới màu kết quả.
-          mk.push({ time: l.t_dong as UTCTimestamp, position: 'aboveBar',
-                    color: XAM, shape: 'square', text: `✕ ${l.id} huỷ` })
-        }
-        continue
-      }
+      if (!daKhop) continue
 
-      // --- mũi tên VÀO: HÌNH cho hướng, màu CAM cho "đây là lệnh" ---
-      mk.push({
-        time: l.t_khop as UTCTimestamp,
-        position: l.huong === 'mua' ? 'belowBar' : 'aboveBar',
-        color: CAM, shape: l.huong === 'mua' ? 'arrowUp' : 'arrowDown',
-        text: l.id,
-      })
+      // --- CHẤM VÀO: đầu trái của đoạn vào→ra. Còn đang chạy thì cam (chưa có phán
+      //     quyết); đóng rồi thì nhuộm theo phán quyết cùng với đường. ---
+      if (l.gia_khop != null) cham(l.t_khop!, l.gia_khop, pq ?? CAM)
 
-      // --- VẠCH NỐI vào→ra: chỗ DUY NHẤT mang màu kết quả. Dốc lên xanh, dốc xuống đỏ,
-      //     nên nhìn ĐỘ DỐC là biết lãi lỗ mà không cần đọc số. ---
+      // --- ĐOẠN vào→ra + CHẤM RA. Dốc lên xanh, dốc xuống đỏ, nằm ngang trắng — nhìn
+      //     ĐỘ DỐC là biết lãi lỗ mà không cần đọc số. Chữ chỉ còn con R. ---
       if (daDong && l.gia_dong != null && l.gia_khop != null) {
-        const lai = (l.lai_R ?? 0) >= 0
         doan(`${l.id}:kq`, [
           { time: l.t_khop as UTCTimestamp, value: l.gia_khop },
           { time: Math.max(l.t_dong!, l.t_khop! + 1) as UTCTimestamp, value: l.gia_dong },
-        ], { color: lai ? LAI : LO, width: 2 })
-        mk.push({
-          time: l.t_dong as UTCTimestamp,
-          position: l.huong === 'mua' ? 'aboveBar' : 'belowBar',
-          color: lai ? LAI : LO, shape: 'square',
-          text: `${l.id} ${l.lai_R?.toFixed(2)}R`,
-        })
+        ], { color: pq!, width: 2 })
+        cham(l.t_dong!, l.gia_dong, pq!, `${(l.lai_R ?? 0).toFixed(2)}R`)
       }
     }
 
@@ -225,10 +245,53 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     return () => c.unsubscribeCrosshairMove(f)
   }, [lenh, tBayGio])
 
+  /* ĐƯỜNG RAY — nạp MỘT LẦN cho mỗi lệnh người dùng thật sự rê vào, rồi nhớ lại.
+   *
+   * ⚠ Không nhét vào lô phát: một lần chạy có ~300 lệnh mà hầu hết không ai soi, gói
+   * đường ray của tất cả vào mỗi lô là phình payload cho thứ không dùng.
+   * ⚠ Và không gọi theo mỗi lần chuột nhúc nhích: `subscribeCrosshairMove` bắn liên
+   * tục, gọi Python theo nó là đúng thứ cơ chế lô sinh ra để tránh. Khoá theo id lệnh
+   * nên quét ngang 10 lệnh là 10 lời gọi, không phải 500. */
+  const rayNho = useRef<Map<string, ChangRay[]>>(new Map())
+  const [ray, setRay] = useState<{ id: string; ds: ChangRay[] } | null>(null)
+
+  useEffect(() => {
+    const id = hien?.l.id
+    if (!id || ray?.id === id) return
+    const co = rayNho.current.get(id)
+    if (co) return setRay({ id, ds: co })
+    let bo = false
+    void pyTester.test_duong_ray(id).then(r => {
+      if (bo || !r.ok || !r.value) return
+      rayNho.current.set(id, r.value.chang)
+      setRay({ id, ds: r.value.chang })
+    })
+    return () => { bo = true }
+  }, [hien?.l.id, ray?.id])
+
+  // Chạy lại → id lệnh lặp lại nhưng nội dung khác hẳn. Dọn sạch, thà nạp lại (0,2 ms)
+  // còn hơn hiện đường ray của lượt chạy trước.
+  useEffect(() => { rayNho.current.clear(); setRay(null) }, [batDau])
+
+  // Đường ray CẮT THEO CON TRỎ. Đang xem tới 09:30 mà bảng đã ghi "chạm SL" của 12:05
+  // là lộ tương lai — đúng cái luật cả chart này đang giữ. Cắt ở đây chứ không gọi lại
+  // Python: mỗi chặng đã mang sẵn `t`.
+  const rayHien = ray && hien && ray.id === hien.l.id
+    ? ray.ds.filter(c => c.t <= tBayGio) : []
+
   return (
     <div className="chart-boc" ref={boc}>
       {hien && (
-        <div className="chart-goi-y" style={{ left: hien.x + 14, top: hien.y + 14 }}>
+        <div className="chart-goi-y"
+             style={{
+               left: hien.x + 14,
+               // Bảng cao hơn hẳn khi có đường ray, nên rê ở nửa dưới là nó tràn khỏi
+               // chart. Chạm nửa dưới thì lật lên trên con trỏ.
+               top: hien.y > (boc.current?.clientHeight ?? 400) / 2
+                 ? undefined : hien.y + 14,
+               bottom: hien.y > (boc.current?.clientHeight ?? 400) / 2
+                 ? (boc.current?.clientHeight ?? 400) - hien.y + 14 : undefined,
+             }}>
           <b>{hien.l.id}</b> {hien.l.huong === 'mua' ? '▲ Mua' : '▼ Bán'} {hien.l.lot}
           <div>đặt {hien.l.gia_dat?.toFixed(digits)} · {gio(hien.l.t_dat)}</div>
           {hien.l.t_khop != null && hien.l.t_khop <= tBayGio && (
@@ -237,11 +300,38 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
           {hien.l.t_dong != null && hien.l.t_dong <= tBayGio && (
             <>
               <div>ra {hien.l.gia_dong?.toFixed(digits) ?? '—'} · {gio(hien.l.t_dong)}</div>
-              <div className={(hien.l.lai_R ?? 0) >= 0 ? 'lai' : 'lo'}>
+              <div className={Math.abs(hien.l.lai_R ?? 0) < HOA ? ''
+                              : (hien.l.lai_R ?? 0) > 0 ? 'lai' : 'lo'}>
                 {hien.l.lai_R != null ? `${hien.l.lai_R.toFixed(2)} R · ` : ''}
                 {hien.l.ly_do_dong}
               </div>
             </>
+          )}
+
+          {/* ĐƯỜNG RAY — lệnh này đi qua những khối nào. Chặng THỤT VÀO, không có tên
+              tab, là chặng do THỊ TRƯỜNG quyết chứ không phải sơ đồ; phân biệt được
+              hai thứ đó thường là cả câu trả lời khi soi một lệnh thua. */}
+          {rayHien.length > 0 && (
+            <div className="ray">
+              {rayHien.map((c, k) => c.tab === null ? (
+                <div key={k} className="ray-d cho">{MOC_CHU[c.moc ?? ''] ?? c.moc}</div>
+              ) : (
+                <div key={k} className="ray-d">
+                  <span className="ray-tab">{c.tab === 'entry' ? 'Entry' : 'Manage'}</span>
+                  <span className="ray-khoi">{c.khoi.join(' → ')}</span>
+                  {c.dem > 1 && (
+                    <span className="ray-dem">
+                      ×{c.t_het > tBayGio ? '…' : c.dem}
+                    </span>
+                  )}
+                  {c.viec.length > 0 && (
+                    <span className="ray-viec">
+                      {c.viec.map(v => VIEC_CHU[v] ?? v).join(', ')}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

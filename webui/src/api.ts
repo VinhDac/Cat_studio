@@ -4,7 +4,7 @@
  * sau này đổi cách vận chuyển (hoặc giả lập khi test) chỉ phải sửa một file.
  */
 import type {
-  BoNen, Bootstrap, Card, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
+  BoNen, Bootstrap, Card, ChangRay, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
   LoNhatKy, ProcEdge, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
   DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
 } from './types'
@@ -162,6 +162,9 @@ export const pyTester = {
   test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
   /** Ngược lại: sự kiện gần nhất TRƯỚC `j`. `j = -1` nghĩa là phía trước không còn gì. */
   test_luot_truoc: (j: number) => goi<{ j: number; i: number }>('test_luot_truoc', j),
+  /** ĐƯỜNG RAY của một lệnh: nó đã đi qua những khối nào. Gọi MỘT lần cho mỗi lệnh
+   *  người dùng rê chuột vào — không nhét vào lô phát, vì 300 lệnh mà 99% không ai xem. */
+  test_duong_ray: (lenh_id: string) => goi<{ chang: ChangRay[] }>('test_duong_ray', lenh_id),
   /** Mốc thời gian (unix, giây) → nến M1 CÓ THẬT gần nhất về phía sau. */
   test_tim_moc: (t: number) => goi<{ j: number; t: number }>('test_tim_moc', t),
   /** Tổng kết cả lượt chạy + đường vốn. Gọi MỘT lần lúc mở tab Thống kê. */

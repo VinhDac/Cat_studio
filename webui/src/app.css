@@ -1111,7 +1111,24 @@ select.o { cursor: pointer; }
   background: var(--raised); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 5px 8px;
   font: 11px var(--font); color: var(--text); box-shadow: var(--shadow);
+  max-width: 340px;
 }
+
+/* ---- đường ray: lệnh này đi qua những khối nào ---- */
+.ray {
+  margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border-soft);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.ray-d { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+/* Chặng của THỊ TRƯỜNG: thụt vào, in nghiêng, không có tên tab — khác hẳn về hình
+   với chặng của sơ đồ, để không phải đọc mới biết ai là người quyết. */
+.ray-d.cho { padding-left: 46px; color: var(--muted); font-style: italic; }
+.ray-tab {
+  flex: none; width: 42px; color: var(--dim); font-size: 10px; text-transform: lowercase;
+}
+.ray-khoi { color: var(--text); font-family: var(--mono); }
+.ray-dem { color: var(--dim); }
+.ray-viec { color: var(--accent); }
 
 /* ---- lịch sử các lần chạy (nút cạnh logo) ---- */
 .ls { position: relative; }

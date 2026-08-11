@@ -314,6 +314,20 @@ export interface LenhVe {
   sl_lich_su?: [number, number][]
 }
 
+/** Một chặng trên ĐƯỜNG RAY của một lệnh — xem `api.test_duong_ray`.
+ *  `tab = null` nghĩa là chặng này do THỊ TRƯỜNG, không phải sơ đồ (khớp, chạm SL/TP). */
+export interface ChangRay {
+  tab: string | null
+  moc?: string
+  khoi: string[]
+  dem: number
+  viec: string[]
+  /** Chặng bắt đầu / kết thúc lúc nào. Cần cả hai: hiện theo `t`, nhưng `t_het` còn ở
+   *  tương lai thì con số lặp chưa chốt — in ra như đã xong là lộ tương lai. */
+  t: number
+  t_het: number
+}
+
 export interface DongBang { ten: string; gia_tri: number | string | boolean | null }
 
 export interface Khung {
