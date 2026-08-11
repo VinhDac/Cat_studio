@@ -4,6 +4,12 @@
  * trong lúc còn chạy song song.
  */
 :root {
+  /* ⭐ MỘT DÒNG NÀY chữa mọi widget GỐC của Chromium. Thiếu nó thì trình duyệt mặc định
+     vẽ theo chế độ SÁNG: thanh cuộn nền trắng, dropdown `<select>` trắng, bảng chọn ngày
+     trắng — chói hẳn giữa một app tối. Trước đây phải vá tay từng chỗ (ô `datetime-local`
+     ở thanh công cụ tester); khai ở gốc thì chỗ nào sau này cũng đúng sẵn. */
+  color-scheme: dark;
+
   --bg: #202020;
   /* Màu "khung app": ribbon, bảng dưới, thanh trạng thái.
      Đặt ĐÚNG BẰNG màu thanh tiêu đề Windows (#202020, đã lấy mẫu pixel để chắc),

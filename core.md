@@ -741,6 +741,7 @@ và `Ctrl+Z` thành vô dụng.
 | Cần thêm | `pywebview` — xem ghi chú ngay dưới bảng |
 | **Bỏ** so với Auto_Clicker | `pyautogui`, `keyboard`, `pyperclip`, `pillow`, toàn bộ `winrt-*` (OCR), `overlay_ui.py`, `overlays.py`, `update_mods.py`, `data/mods_*.txt` |
 | Máy | Windows 10 Pro 19045 — cần .NET ≥ 4.7.2 và WebView2 Runtime |
+| WebView2 (đo được) | **151.0.4129.72 → Chromium 151**. Đáng ghi vì nó quyết định dùng được tính năng CSS nào; đừng đoán là bản cũ rồi tự né. |
 
 **✅ `quantconnect-stubs` không còn giết pywebview nữa.** Gói đó ship một thư mục `Microsoft/` ở
 `site-packages`, mà pywebview (backend WinForms) cần `Microsoft.Win32.SystemEvents` — một

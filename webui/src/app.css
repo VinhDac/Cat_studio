@@ -10,6 +10,29 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---- THANH CUỘN (dùng chung cả app) ----
+   Dùng nhóm `::-webkit-*` chứ không dùng `scrollbar-color`/`scrollbar-width` chuẩn: bản
+   chuẩn chỉ cho ĐÚNG một màu thumb + một màu track, không có hover, không bo tròn, không
+   đặt được bề rộng chính xác — mà hễ đặt `scrollbar-color` là Chromium vô hiệu hoá luôn
+   nhóm `::-webkit-*`, chọn một chứ không dùng được cả hai. App ghim sẵn WebView2 (bản
+   đang chạy: Chromium 151) nên dùng API riêng của Chromium là hợp lý. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+/* TRONG SUỐT, không phải "tô xám đậm" — đó mới là cách bỏ được nền trắng mà vẫn đúng
+   trên MỌI nền: `--surface` của bảng số liệu, `--chrome` của bảng dưới, nền hộp thoại. */
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+/* Trắng MỜ, cùng lý do: nền nào cũng đúng, khỏi chỉnh theo từng panel.
+   `border` trong suốt + `background-clip` → nhìn mảnh 6px nhưng vùng bắt chuột vẫn đủ
+   10px, kéo không bị trượt. */
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .16);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .28); background-clip: padding-box; }
+/* Hai nút mũi tên: không ai bấm, mà chúng ăn 34px chiều cao. */
+::-webkit-scrollbar-button { display: none; }
+
 /* Bấm vào canvas mà quét xanh cả chữ trên hộp thì trông rất nghiệp dư.
    Chỗ nào cần bôi đen (ô nhập) thì bật lại riêng. */
 ::selection { background: var(--accent-soft); }
@@ -1021,10 +1044,9 @@ select.o { cursor: pointer; }
 .tb-o { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
 .tb-o input { width: 46px; }
 .tb-gio { font: 11px var(--mono); color: var(--muted); margin-right: 6px; }
-/* Ô nhảy tới mốc. `color-scheme: dark` là bắt buộc: thiếu nó thì Chromium vẽ biểu tượng
-   lịch và cả bảng chọn ngày theo giao diện SÁNG, chói hẳn giữa thanh công cụ tối. */
+/* Ô nhảy tới mốc. (`color-scheme: dark` từng phải khai riêng ở đây cho biểu tượng lịch
+   và bảng chọn ngày khỏi bị vẽ theo giao diện SÁNG — nay đã khai ở `:root` cho cả app.) */
 .tb-moc {
-  color-scheme: dark;
   /* Rộng 182px chứ không phải 152: Chromium theo định dạng vùng của MÁY, mà en-US là
      `MM/DD/YYYY hh:mm AM/PM` — hẹp hơn là "PM" bị chính cái biểu tượng lịch đè lên. */
   font: 11px var(--mono); padding: 3px 6px; width: 182px;
