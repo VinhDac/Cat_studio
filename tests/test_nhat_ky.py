@@ -172,5 +172,67 @@ kiem("sơ đồ đã đổi thì nói ra — số khác nhau vì lý do khác h�
      "sơ đồ ĐÃ ĐỔI" in nk.so_hai_lan(a, dict(b, van_tay="bbb")))
 kiem("chưa có lần trước thì không bịa ra gì", nk.so_hai_lan(None, b) == "")
 
+# ================= 7. hai nút nhảy sự kiện là NGHỊCH ĐẢO của nhau =================
+#
+# `test_luot_ke` và `test_luot_truoc` là hai nút ►► / ◄◄ trên thanh phát lại. Chúng chỉ
+# dùng được nếu là nghịch đảo thật của nhau: bấm tới rồi bấm lui phải về ĐÚNG chỗ cũ.
+# Hai cách hỏng, cả hai đều "trông có vẻ chạy":
+#   • điều kiện lỏng (`<=` thay vì `<`) → bấm ba lần vẫn đứng yên tại chỗ;
+#   • hai hàm hiểu "sự kiện" khác nhau → đi tới một đường, đi lui một đường khác.
+print("\n▸ Nhảy sự kiện — tới và lui phải là nghịch đảo")
+
+# Giá lên xuống nhiều lần để có NHIỀU lượt có việc, không phải một lượt duy nhất.
+song = []
+for _ in range(6):
+    song += [90.0] * 12 + [110.0] * 12
+kq7 = bc.chay(d, nen_m1(song), cd)
+
+at = api.ApiTester(object())
+at._kq = kq7
+
+moc_that = [int(r["j"]) for r in kq7.nhat_ky if r["viec"]]
+kiem("dựng được lượt chạy có nhiều sự kiện để soi", len(moc_that) >= 3,
+     f"— {len(moc_that)} sự kiện")
+
+# Đi XUÔI từ trước điểm đầu tiên, rồi đi NGƯỢC từ sau điểm cuối — gom lại cả hai.
+#
+# ⚠ PHẢI có chặn. Đúng cái lỗi bài này canh (điều kiện lỏng `<=`) làm hàm trả về CHÍNH
+# chỗ đang đứng, nên vòng `while True` không bao giờ thoát: bài test treo thay vì trượt,
+# mà treo thì không ai đọc được nó hỏng ở đâu. Chặn ở gấp đôi số sự kiện thật.
+def di(buoc, tu):
+    ra, cur = [], tu
+    for _ in range(len(moc_that) * 2 + 4):
+        v = buoc(cur)["value"]
+        if v["j"] < 0:
+            return ra
+        ra.append(v["j"])
+        cur = v["j"]
+    return ra + ["KHÔNG DỪNG"]
+
+
+xuoi = di(at.test_luot_ke, -1)
+nguoc = di(at.test_luot_truoc, len(kq7.nen1))
+
+kiem("đi xuôi ghé đúng mọi sự kiện", xuoi == moc_that, f"— {len(xuoi)} chặng")
+kiem("đi ngược ghé ĐÚNG BẤY NHIÊU chặng đó — cùng một định nghĩa 'sự kiện'",
+     nguoc == list(reversed(moc_that)), f"— {len(nguoc)} chặng")
+
+# Đây là bài chặn cái bẫy `<=`: đứng ĐÚNG TRÊN một sự kiện mà bấm lui thì phải nhích
+# được sang sự kiện trước nó, không được trả về chính nó.
+dung_yen = [x for x in moc_that[1:]
+            if at.test_luot_truoc(x)["value"]["j"] == x]
+kiem("đứng đúng trên một sự kiện, bấm lui thì NHÍCH — không trả về chính nó",
+     not dung_yen, f"— {len(dung_yen)} chỗ đứng yên")
+
+vong = [(e, at.test_luot_ke(e)["value"]["j"]) for e in moc_that[:-1]]
+kiem("tới rồi lui về đúng chỗ cũ",
+     all(at.test_luot_truoc(ke)["value"]["j"] == e for e, ke in vong),
+     f"— {len(vong)} vòng")
+
+kiem("trước sự kiện đầu tiên thì báo hết (-1) — giao diện lấy đó làm hiệu lệnh về đầu",
+     at.test_luot_truoc(moc_that[0])["value"]["j"] == -1)
+kiem("sau sự kiện cuối cùng thì báo hết (-1)",
+     at.test_luot_ke(moc_that[-1])["value"]["j"] == -1)
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

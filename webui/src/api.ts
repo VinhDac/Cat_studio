@@ -160,6 +160,8 @@ export const pyTester = {
     goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
       'test_nen_tf', tf, j),
   test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
+  /** Ngược lại: sự kiện gần nhất TRƯỚC `j`. `j = -1` nghĩa là phía trước không còn gì. */
+  test_luot_truoc: (j: number) => goi<{ j: number; i: number }>('test_luot_truoc', j),
   /** Mốc thời gian (unix, giây) → nến M1 CÓ THẬT gần nhất về phía sau. */
   test_tim_moc: (t: number) => goi<{ j: number; t: number }>('test_tim_moc', t),
   /** Tổng kết cả lượt chạy + đường vốn. Gọi MỘT lần lúc mở tab Thống kê. */

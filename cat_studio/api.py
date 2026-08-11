@@ -1080,6 +1080,23 @@ class ApiTester(NenCuaSo):
                 return _ok({"j": int(r["j"]), "i": int(r["nen"])})
         return _ok({"j": -1, "i": -1})
 
+    @_bat_loi
+    def test_luot_truoc(self, j):
+        """Bản soi gương của `test_luot_ke`: lượt CÓ VIỆC gần nhất TRƯỚC `j`.
+
+        Cùng MỘT định nghĩa "sự kiện" với hàm kia (`viec` khác rỗng) — khác đi thì hai
+        nút thôi là nghịch đảo của nhau, bấm tới rồi bấm lui sẽ không về chỗ cũ.
+
+        Duyệt ngược chứ không lọc rồi tìm: nhật ký một năm là ~135.000 lượt, dựng thêm
+        một danh sách chỉ để lấy một phần tử là phí. `j = -1` nghĩa là phía trước không
+        còn sự kiện nào — giao diện lấy đó làm hiệu lệnh về đầu."""
+        kq = self._doi_kq()
+        j = int(j)
+        for r in reversed(kq.nhat_ky):
+            if r["j"] < j and r["viec"]:
+                return _ok({"j": int(r["j"]), "i": int(r["nen"])})
+        return _ok({"j": -1, "i": -1})
+
     def _tom_tat_chay(self):
         """Tổng kết cả lượt chạy. DỰNG Ở ĐÚNG MỘT CHỖ.
 

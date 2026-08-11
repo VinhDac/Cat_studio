@@ -213,6 +213,33 @@ export default function Tester() {
     if (r.ok && r.value && r.value.j >= 0) await veDau(r.value.j)
   }
 
+  /* LÙI về sự kiện trước — bản soi gương của nút trên. Trước đây chỗ này là "về đầu",
+   * nhưng về đầu hẳn thì một lần bấm vứt sạch chỗ đang xem, mà `↻ Chạy lại` vốn đã
+   * làm đúng việc đó rồi.
+   *
+   * KHÔNG có đường tắt "tìm trong lô" như chiều tới. Lô chỉ mang theo `LUI` = 720 nhịp
+   * quá khứ, mà sự kiện trước thường xa hơn thế, nên đường tắt hầu như không bao giờ
+   * trúng — thêm một nhánh chỉ để tiết kiệm một lời gọi 1 ms là lỗ.
+   *
+   * Điều kiện `x.j < j` phải NGHIÊM NGẶT, và dừng ĐÚNG NGAY sự kiện — cùng cái bẫy mà
+   * nút tới đã dính rồi sửa, chỉ ngược chiều: nới ra là bấm ba lần vẫn đứng yên.
+   * Hết sự kiện thì mới về nến 0. */
+  const luiSuKien = async () => {
+    setPhat(false)
+    const r = await pyTester.test_luot_truoc(j)
+    if (!r.ok || !r.value) return
+    await veDau(r.value.j >= 0 ? r.value.j : 0)
+  }
+
+  /* Nhảy tới cuối lượt chạy. Dùng `test_tim_moc` chứ không thêm hàm mới: mốc cuối đã
+     nằm sẵn trong `kq`, và hàm đó vốn đã kẹp chỉ số vào cây nến CÓ THẬT cuối cùng. */
+  const veCuoi = async () => {
+    if (!kq) return
+    setPhat(false)
+    const r = await pyTester.test_tim_moc(kq.t_cuoi)
+    if (r.ok && r.value) await veDau(r.value.j)
+  }
+
   /** Giá trị ô "nhảy tới mốc". PHẢI là state, không được để ô tự giữ.
    *
    * ⚠ LỖI ĐÃ SỬA: để `defaultValue` (uncontrolled) thì gõ ngày → nhảy → gõ tiếp giờ là
@@ -277,8 +304,14 @@ export default function Tester() {
             sự kiện vào tham số `ma`, và nút này hoá ra đi mở lại một mục lịch sử. */}
         <button className="nut chinh" onClick={() => void chay()}
                 disabled={!!tt?.dang_chay}>↻ Chạy lại</button>
+        {/* Đứng cạnh "Chạy lại" chứ không nhét vào cụm phát lại: hai nút này nói về CẢ
+            LƯỢT CHẠY (đưa về đầu · đưa về cuối), còn năm nút kia đi từng bước quanh chỗ
+            đang đứng. Trộn vào nhau thì cụm phát lại có hai nút nhảy cóc nằm lẫn giữa
+            các nút đi bộ. */}
+        <button className="nut" onClick={() => void veCuoi()}
+                disabled={!kq} title="Nhảy tới cuối lượt chạy">⇥ Về cuối</button>
         <span className="tb-ngan" />
-        {nut('dau', 'Về đầu', () => { setPhat(false); void veDau(0) }, false, !kq)}
+        {nut('dau', 'Về SỰ KIỆN trước', () => void luiSuKien(), false, !kq)}
         {nut('undo', 'Lùi 1 nến',
              () => { setPhat(false); void veDau(Math.max(0, j - 1)) }, false, !kq)}
         <button className="tb-nut rong" disabled={!kq} onClick={() => setPhat(v => !v)}
