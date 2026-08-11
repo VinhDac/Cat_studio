@@ -967,7 +967,18 @@ function Ung() {
 
   /* Gắn số thứ tự vào node ngay trước khi vẽ. Không nhét vào state `nodes` để đừng làm
      bẩn dữ liệu khối — số thứ tự là thứ TÍNH RA, không phải thuộc tính. */
+  /* ⚠ Chỉ soi khi ĐANG Ở ĐÚNG TAB của lượt đó. Thiếu chốt này thì bấm sang tab kia
+   * (hoặc Ctrl+Z ra một ảnh chụp ở tab khác) là **cả sơ đồ bên đó bị làm mờ 100%** —
+   * không khối nào sáng vì id hai tab không bao giờ trùng — kèm dòng cảnh báo SAI
+   * "sơ đồ đã đổi từ lúc chạy" trên một sơ đồ chưa ai đụng vào.
+   *
+   * Kẹp ở NƠI TIÊU THỤ chứ không rải `setSoi(null)` vào `doiTab`/`nap`/`apDung`: rải
+   * thì sớm muộn có hàm thứ tư quên mất. Và cách này còn đúng hơn — quay lại đúng tab
+   * là soi sáng lại, thay vì mất luôn. */
+  const soiHopLe = soi && soi.tab === tab ? soi : null
+
   const nodesCoSo = useMemo(() => {
+    const soi = soiHopLe
     const tren = soi ? new Set(soi.duong) : null
     const cong = new Map((soi?.cong ?? []).map(c => [c.khoi, c]))
     return nodes.map(n => {
@@ -984,15 +995,15 @@ function Ung() {
       return { ...n, data: { ...(n.data as object), thuTu: thuTu[n.id],
                              soiKhoi, moSoi: !!soi && !soiKhoi } }
     })
-  }, [nodes, thuTu, soi])
+  }, [nodes, thuTu, soiHopLe])
 
   /** Có id nào trong lượt không còn trên sơ đồ nữa không — tức sơ đồ đã bị sửa sau khi
    *  chạy. Tô nửa vời mà không nói gì thì người đọc tin vào một đường không có thật. */
   const soiLech = useMemo(() => {
-    if (!soi) return false
+    if (!soiHopLe) return false
     const co = new Set(nodes.map(n => n.id))
-    return [...soi.duong, ...soi.cong.map(c => c.khoi)].some(k => !co.has(k))
-  }, [soi, nodes])
+    return [...soiHopLe.duong, ...soiHopLe.cong.map(c => c.khoi)].some(k => !co.has(k))
+  }, [soiHopLe, nodes])
 
   /* Cạnh quay lại vẽ NÉT ĐỨT màu khác: nhìn sơ đồ là thấy ngay chỗ nào lặp về đâu,
      không phải dò từng mũi tên. */
@@ -1124,10 +1135,10 @@ function Ung() {
         {/* Dải SOI — nổi trên canvas, ngay cạnh pill tab. Bắt buộc phải có: sơ đồ đang
             mờ đi một cách bất thường thì phải nói ra vì sao, và phải có đường thoát
             nhìn thấy được chứ không chỉ phím Esc. */}
-        {soi && (
+        {soiHopLe && (
           <div className="soi-dai">
             <span className="soi-nhan">Soi lượt</span>
-            <span className="soi-chu">{soi.chu}</span>
+            <span className="soi-chu">{soiHopLe.chu}</span>
             {soiLech && (
               <span className="soi-canh" title="Có khối trong lượt này không còn trên sơ đồ">
                 sơ đồ đã đổi từ lúc chạy

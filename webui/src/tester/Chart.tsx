@@ -38,6 +38,9 @@ const VIEC_CHU: Record<string, string> = {
 }
 const MOC_CHU: Record<string, string> = {
   khop: 'khớp', sl: 'chạm SL', tp: 'chạm TP', het_du_lieu: 'hết dữ liệu',
+  // Lệnh chờ còn treo lúc hết dữ liệu — khác hẳn "khối Huỷ chờ đã huỷ nó", mà bộ chạy
+  // lại dùng chung một chuỗi `ly_do_dong` cho cả hai. Nói rõ ra để không lẫn.
+  huy: 'còn treo lúc hết dữ liệu', dong: 'đóng',
 }
 
 export interface NenM1 { t: number; o: number; h: number; l: number; c: number }
@@ -68,8 +71,12 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
   const nen = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const bars = useRef<Bar[]>([])
   const lop = useRef<Map<string, ISeriesApi<'Line'>>>(new Map())
+  /** Vân tay dữ liệu ĐÃ VẼ của từng đường — xem chú thích trong `doan`. */
+  const veRoi = useRef<Map<string, string>>(new Map())
   const mark = useRef<ReturnType<typeof createSeriesMarkers<Time>> | null>(null)
   const daKeo = useRef(false)
+  /** `bars.current` đang là lưới của KHUNG NÀO. Xem chú thích ở nhịp phát. */
+  const tfCuaBars = useRef(0)
   const [hien, setHien] = useState<{ l: LenhVe; x: number; y: number } | null>(null)
 
   const mau = (t: string, dp = '#888') =>
@@ -101,7 +108,10 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     nen.current = s
     mark.current = createSeriesMarkers<Time>(s, [])
     c.timeScale().subscribeVisibleLogicalRangeChange(() => { daKeo.current = true })
-    return () => { c.remove(); chart.current = null; nen.current = null; lop.current.clear() }
+    return () => {
+      c.remove(); chart.current = null; nen.current = null
+      lop.current.clear(); veRoi.current.clear()
+    }
   }, [digits])
 
   // ---------------- dựng lại ----------------
@@ -109,19 +119,40 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     const s = nen.current
     if (!s) return
     bars.current = dat ? dat.slice() : []
+    tfCuaBars.current = tfPhut
     s.setData(bars.current)
     daKeo.current = false
     chart.current?.timeScale().scrollToRealTime()
+    // ⚠ KHÔNG cho `tfPhut` vào deps. Đổi khung là `tfPhut` đổi TRƯỚC, `dat` về sau —
+    // cho nó vào đây thì effect chạy ngay với `dat` CŨ và đóng dấu khung MỚI lên lưới
+    // cũ, tức tự tay mở lại đúng cái cổng mà `tfCuaBars` sinh ra để chặn.
+    // Không có nó, effect chỉ chạy khi `dat` thật sự về — lúc đó `tfPhut` đã đúng.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batDau, dat])
 
   // ---------------- một nhịp phát: nến lớn dần ----------------
   useEffect(() => {
     const s = nen.current
     if (!s || !them) return
+    /* ⚠ CHỐT SỐNG CÒN. `doiTf` đặt `tfVe` rồi mới `await veDau(...)`, nên có một khung
+     * hình mà `tfPhut` ĐÃ là khung mới trong khi `bars.current` vẫn là lưới khung CŨ và
+     * `them` vẫn là cây nến M1 cũ. Gộp chéo như thế sinh ra một mốc LÙI VỀ QUÁ KHỨ so
+     * với cây cuối (M5 09:10 → H1 09:00), và `s.update()` của lightweight-charts ném
+     * thẳng `Cannot update oldest data`. Lỗi ném trong useEffect mà app không có
+     * ErrorBoundary → React gỡ cả cây → CỬA SỔ TESTER TRẮNG BỐC, phải mở lại.
+     * Đã tái hiện: M5 → H1 sau khi phát một nhịp là dính.
+     * Bỏ qua nhịp này thôi: `veDau` đang trên đường về và sẽ dựng lại toàn bộ lưới. */
+    if (tfCuaBars.current !== tfPhut) return
     const truoc = bars.current.length
+    const moc = bars.current[bars.current.length - 1]?.time as number | undefined
     gop(bars.current, them, tfPhut)
     if (bars.current.length > TRAN) bars.current.splice(0, bars.current.length - TRAN)
-    s.update(bars.current[bars.current.length - 1])
+    const cuoi = bars.current[bars.current.length - 1]
+    // Chốt THỨ HAI, canh thẳng điều kiện bất hợp lệ thay vì canh cách nó xảy ra: mốc
+    // mới mà LÙI so với cây cuối thì `s.update` ném `Cannot update oldest data`, và lỗi
+    // ném trong effect làm React gỡ cả cây → cửa sổ trắng. Thà bỏ một nhịp vẽ.
+    if (moc !== undefined && (cuoi.time as number) < moc) return
+    s.update(cuoi)
     if (!daKeo.current && bars.current.length !== truoc) {
       chart.current?.timeScale().scrollToRealTime()
     }
@@ -154,7 +185,23 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
           priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
         })
         lop.current.set(khoa, s)
+        veRoi.current.set(khoa, '')
+      } else {
+        // ⚠ Màu là OPTION của series, chỉ đặt lúc TẠO. Không có dòng này thì một lệnh
+        // chờ bị huỷ giữa chừng giữ nguyên đường CAM mãi mãi, thay vì chuyển trắng như
+        // luật màu đã hứa — series đã tồn tại từ lúc nó còn đang chờ.
+        s.applyOptions({ color: o.color, lineStyle: o.style ?? LineStyle.Solid })
       }
+      /* ⚠ Effect này chạy lại MỖI KHUNG HÌNH (`tBayGio` đổi mỗi nhịp), mà `setData` của
+       * lightweight-charts quét và sắp lại TOÀN BỘ trục thời gian. Một lượt chạy một năm
+       * có ~500 lệnh × 3 đường = 1.500 lời gọi mỗi nhịp, phần lớn cho những lệnh đã đóng
+       * từ nửa năm trước với dữ liệu Y HỆT — phát lại đứng hình vì thế.
+       * Lệnh đã đóng thì `diem` BẤT BIẾN, nên nhớ vân tay rồi bỏ qua. Vân tay chỉ tính
+       * DỮ LIỆU, không tính màu — nên nó không che mất cú đổi màu ở ngay trên. */
+      const van = `${diem.length}|${diem[0].time},${diem[0].value}`
+                + `|${diem[diem.length - 1].time},${diem[diem.length - 1].value}`
+      if (veRoi.current.get(khoa) === van) return
+      veRoi.current.set(khoa, van)
       s.setData(diem)
     }
 
@@ -188,9 +235,16 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
         cham(l.t_dat, l.gia_dat, daHuy ? TRUNG : CAM)
         if (daHuy) cham(l.t_dong!, l.gia_dat, TRUNG)
       }
-      // --- TP: sống suốt đời lệnh ---
-      if (l.tp != null && !daHuy) {
-        doan(`${l.id}:tp`, hai(l.t_dat, het, l.tp), { color: LAI, style: LineStyle.Dotted })
+      // --- TP: vẽ theo LỊCH SỬ y hệt SL, không phải bằng mức cuối backtest ---
+      if (!daHuy) {
+        const dp: Diem[] = (l.tp_lich_su ?? [])
+          .filter(([t]) => t <= het)
+          .map(([t, v]) => ({ time: t as UTCTimestamp, value: v }))
+        if (dp.length) {
+          dp.push({ time: Math.max(het, dp[dp.length - 1].time as number + 1) as UTCTimestamp,
+                    value: dp[dp.length - 1].value })
+          doan(`${l.id}:tp`, dp, { color: LAI, style: LineStyle.Dotted, bac: true })
+        }
       }
       // --- SL: vẽ theo LỊCH SỬ, nên lúc dời về hoà vốn nó nhảy BẬC ngay trên chart.
       //     Đây là khoảnh khắc đáng kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng
@@ -224,7 +278,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
 
     for (const [k, s] of [...lop.current]) {
-      if (!con.has(k)) { c.removeSeries(s); lop.current.delete(k) }
+      if (!con.has(k)) { c.removeSeries(s); lop.current.delete(k); veRoi.current.delete(k) }
     }
     mk.sort((a, b) => (a.time as number) - (b.time as number))
     mark.current?.setMarkers(mk)

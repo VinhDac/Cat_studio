@@ -208,10 +208,14 @@ class SoLenh:
     def so_vi_the(self):
         return sum(1 for l in self.lenh if l.trang_thai == MO)
 
-    def khop(self, l, gia, nen):
+    def khop(self, l, gia, nen, j=None):
+        """`j` = chỉ số NHỊP M1 lúc khớp. `nen` chỉ là chỉ số nến TRỤC (M5), mà trong
+        một nến trục có tới 5 nhịp M1 — thiếu `j` thì không xếp nổi thứ tự giữa cú khớp
+        và các lượt Manage rơi cùng nến đó. Không đụng tới logic nào, chỉ là bản ghi."""
         l.trang_thai = MO
         l.gia_khop = gia
         l.nen_khop = nen
+        l.j_khop = j
         return l
 
     def dong(self, l, gia, nen, ly_do):

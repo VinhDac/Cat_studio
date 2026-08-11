@@ -506,7 +506,7 @@ def _vao_lenh(st, ctx):
     # này thì nó nằm treo như một lệnh chờ và có thể không bao giờ khớp — sai hẳn bản
     # chất, dù sơ đồ mẫu D_02 không dùng tới nên bài kiểm cũ không thấy.
     if loai == "market":
-        so_.khop(l, gia_dat, ctx.i)
+        so_.khop(l, gia_dat, ctx.i, ctx.j)
     return {"loai": "lenh_dat", "lenh_id": l.id, "huong": huong,
             "khop_ngay": loai == "market",
             "gia_dat": _js(gia_dat), "sl": _js(slg), "tp": _js(tpg), "R": _js(R)}
@@ -858,7 +858,7 @@ def chay(doc, nen1, cd=None, tien_do=None):
         for l in list(song):
             for e in khop_lenh.trong_nen(l, nen, cd.spread_gia):
                 if e["loai"] == "khop":
-                    so.khop(l, e["gia"], ctx.i)
+                    so.khop(l, e["gia"], ctx.i, ctx.j)
                 else:
                     so.dong(l, e["gia"], ctx.i, e["ly_do"])
                     ghi_tien(l)
@@ -995,21 +995,31 @@ def _moc_muc(kq):
     return kq._sl_theo_lenh
 
 
-def _sl_lich_su(kq, l):
-    """Đường đi của SL theo thời gian: `[[t, sl], …]`.
+def _muc_lich_su(kq, l, k, hien_tai):
+    """Đường đi của MỘT MỨC theo thời gian: `[[t, v], …]`. `k` = 1 cho SL, 2 cho TP.
 
     Nguồn là chính NHẬT KÝ, không phải suy đoán — nên chart vẽ ra đúng cái bậc thang mà
     `Dời SL về hoà vốn` tạo ra, đúng nến nó xảy ra. Đó là khoảnh khắc người dùng muốn
-    kiểm chứng nhất, mà bản trước chỉ vẽ SL cuối cùng nên nó tàng hình."""
-    if l.sl is None:
+    kiểm chứng nhất, mà bản trước chỉ vẽ mức cuối cùng nên nó tàng hình.
+
+    ⚠ TP phải đi qua đây y như SL. Trước đây chart vẽ TP bằng `l.tp` — tức mức TP lúc
+    BACKTEST ĐÃ XONG — rồi kéo ngược về tận lúc đặt lệnh: nếu chiến lược có `Dời Take
+    Profit` thì con trỏ đứng ở quá khứ vẫn thấy mức TP của tương lai. Đúng cái lỗi mà
+    `sl_lich_su` sinh ra để chữa, chỉ là bỏ sót một nửa."""
+    if hien_tai is None:
         return []
     ra, cuoi = [], None
-    for t, s, _ in _moc_muc(kq).get(l.id) or []:
-        if s is None or s == cuoi:
+    for moc in _moc_muc(kq).get(l.id) or []:
+        v = moc[k]
+        if v is None or v == cuoi:
             continue
-        ra.append([t, float(s)])
-        cuoi = s
-    return ra or [[int(kq.nen5["t"][l.nen_dat]), float(l.sl)]]
+        ra.append([int(moc[0]), float(v)])
+        cuoi = v
+    return ra or [[int(kq.nen5["t"][l.nen_dat]), float(hien_tai)]]
+
+
+def _sl_lich_su(kq, l):
+    return _muc_lich_su(kq, l, 1, l.sl)
 
 
 def lenh_tai_nen(kq, l, i, gia):
@@ -1055,6 +1065,7 @@ def _the_lenh(kq, l):
     """Một lệnh → thứ chart cần để vẽ. Chart KHÔNG được biết gì ngoài đây."""
     return {
         "sl_lich_su": _sl_lich_su(kq, l),
+        "tp_lich_su": _muc_lich_su(kq, l, 2, l.tp),
         "id": l.id, "huong": l.huong, "trang_thai": l.trang_thai,
         "t_dat": int(kq.nen5["t"][l.nen_dat]),
         "t_khop": int(kq.nen5["t"][l.nen_khop]) if l.nen_khop is not None else None,

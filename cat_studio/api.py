@@ -1187,17 +1187,29 @@ class ApiTester(NenCuaSo):
         for r in self._chi_muc_ray(kq).get(lid, []):
             viec = [v["loai"] for v in r["viec"] if v.get("lenh_id") == lid]
             moc.append({"tab": r["tab"], "khoi": [nhan.get(k, "?") for k in r["duong"]],
-                        "viec": viec, "t": int(t5[r["nen"]]),
+                        "viec": viec, "t": int(t5[r["nen"]]), "j": int(r["j"]),
                         "hang": self._HANG_RAY["dat" if "lenh_dat" in viec else "so_do"]})
         if l.nen_khop is not None:
+            # ⚠ Xếp theo NHỊP M1 (`j`), không chỉ theo nến trục. Một nến M5 chứa 5 nhịp
+            # M1 mà Manage chạy từng nhịp, nên nếu chỉ so nến trục thì mọi lượt Manage
+            # rơi cùng nến với cú khớp đều bị đẩy xuống DƯỚI mốc "khớp" — kể cả những
+            # lượt chạy TRƯỚC lúc khớp, lúc lệnh còn đang chờ. Đúng cái kể-sai-thứ-tự
+            # mà hàm này sinh ra để chặn, chỉ là ở thang đo nhỏ hơn một bậc.
             moc.append({"tab": None, "moc": "khop", "khoi": [], "viec": [],
-                        "t": int(t5[l.nen_khop]), "hang": self._HANG_RAY["khop"]})
-        # Đóng do SƠ ĐỒ (`dong_tay`, `huy`) đã có chặng `viec` nói rồi — thêm nữa là kể
-        # hai lần cùng một chuyện. Chỉ chèn khi thị trường mới là bên hạ màn.
-        if l.nen_dong is not None and l.ly_do_dong not in ("dong_tay", "huy"):
+                        "t": int(t5[l.nen_khop]),
+                        "j": getattr(l, "j_khop", None) if getattr(l, "j_khop", None) is not None else -1,
+                        "hang": self._HANG_RAY["khop"]})
+        # Sơ đồ TỰ TAY hạ màn thì đã có chặng `viec` kể rồi — thêm nữa là kể hai lần cùng
+        # một chuyện. Nhưng KHÔNG lọc theo `ly_do_dong`: chuỗi `"huy"` dùng chung cho hai
+        # đường khác hẳn nhau — khối "Huỷ chờ" (có ghi nhật ký) và lệnh chờ còn treo lúc
+        # HẾT DỮ LIỆU (đóng sau vòng lặp, không có bản ghi nào). Lọc theo chuỗi là loại
+        # nhầm cái thứ hai, và đường ray của nó không bao giờ có đoạn kết.
+        da_ke = any(("lenh_dong" in m["viec"] or "lenh_huy" in m["viec"]) for m in moc)
+        if l.nen_dong is not None and not da_ke:
             moc.append({"tab": None, "moc": l.ly_do_dong or "dong", "khoi": [], "viec": [],
-                        "t": int(t5[l.nen_dong]), "hang": self._HANG_RAY["dong"]})
-        moc.sort(key=lambda c: (c["t"], c["hang"]))
+                        "t": int(t5[l.nen_dong]), "j": float("inf"),
+                        "hang": self._HANG_RAY["dong"]})
+        moc.sort(key=lambda c: (c["t"], c["j"], c["hang"]))
 
         chang = []
         for m in moc:
@@ -1207,7 +1219,7 @@ class ApiTester(NenCuaSo):
                 cu["dem"] += 1
                 cu["t_het"] = m["t"]
                 continue
-            m.pop("hang")
+            m.pop("hang"); m.pop("j")
             # `t` = chặng bắt đầu lúc nào, `t_het` = kết thúc lúc nào. Giao diện cần cả
             # hai: hiện chặng theo `t`, nhưng `t_het` còn ở tương lai thì con số lặp
             # chưa chốt, không được in ra như thể đã xong.

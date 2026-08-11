@@ -335,23 +335,23 @@ k_truot = next(k for k, r in enumerate(kq8.nhat_ky) if r["ket"] == "het_luot" an
 at9.test_soi_luot(k_truot)
 kiem("bắn sang CỬA SỔ VẼ, không phải cửa sổ tester",
      len(cha.ban) == 1 and cha.ban[0][0] == "soi_luot")
-d = cha.ban[0][1]
+goi = cha.ban[0][1]   # ⚠ KHÔNG đặt tên `d`: `d` là sơ đồ gốc, các mục sau còn dùng
 kiem("mang đủ đường đi, cổng đã thử và nhãn để gọi tên khối",
-     d["duong"] and d["cong"] and d["chu"]
-     and all(k in d["nhan"] for k in d["duong"]))
+     goi["duong"] and goi["cong"] and goi["chu"]
+     and all(k in goi["nhan"] for k in goi["duong"]))
 
 # ĐÂY là hợp đồng: mỗi cổng có đúng một vết cho mỗi điều kiện, đúng thứ tự.
-lech = [c["khoi"] for c in d["cong"]
+lech = [c["khoi"] for c in goi["cong"]
         if len(c["ve"]) != len(khoi9[c["khoi"]].get("conditions") or [])]
 kiem("mỗi cổng: số VẾT khớp đúng số ĐIỀU KIỆN — giao diện tô theo chỉ số này",
      not lech, f"— {len(lech)} cổng lệch")
 
-xau = [c for c in d["cong"] if not c["khop"]]
+xau = [c for c in goi["cong"] if not c["khop"]]
 kiem("cổng trượt có ít nhất một điều kiện `dat = False` để tô đỏ",
      xau and all(any(not v["dat"] for v in c["ve"]) for c in xau),
      f"— {len(xau)} cổng trượt")
 kiem("cổng ĐỖ thì mọi điều kiện đều đạt — không có cái nào lọt",
-     all(all(v["dat"] for v in c["ve"]) for c in d["cong"] if c["khop"]))
+     all(all(v["dat"] for v in c["ve"]) for c in goi["cong"] if c["khop"]))
 
 # Lượt CÓ VIỆC: đường đi phải dài hơn một khối, và mọi cổng trên đường đều có nhãn.
 cha.ban.clear()
@@ -365,6 +365,51 @@ kiem("lượt có việc: đi qua nhiều khối, mọi cổng đã thử đều
 cha.ban.clear()
 at9.test_soi_luot(999999)
 kiem("chỉ số ngoài khoảng thì im lặng, không bắn gì", not cha.ban)
+
+# ============ 10. hai lỗi đường ray đã sửa — canh không cho quay lại ============
+print("\n▸ Đường ray — thứ tự trong CÙNG một nến, và đoạn kết của lệnh treo")
+
+# (a) Khớp GIỮA nến trục. Manage chạy nhịp M1 nên một nến M5 đẻ ra 5 lượt; những lượt
+#     chạy TRƯỚC lúc khớp phải nằm TRÊN mốc "khớp". Xếp theo nến trục thôi thì cả 5 lượt
+#     bị đẩy xuống dưới — vẫn là kể sai thứ tự, chỉ ở thang đo nhỏ hơn một bậc.
+ray_a = at9.test_duong_ray(l8.id)["value"]["chang"]
+vk = next(k for k, c in enumerate(ray_a) if c.get("moc") == "khop")
+kiem("khớp giữa nến: có lượt Manage nằm TRÊN mốc khớp",
+     any(c["tab"] == "manage" for c in ray_a[:vk]),
+     f"— {sum(1 for c in ray_a[:vk] if c['tab'] == 'manage')} chặng")
+kiem("bộ chạy ghi lại nhịp M1 lúc khớp — thứ duy nhất xếp nổi thứ tự TRONG một nến",
+     getattr(l8, "j_khop", None) is not None, f"— j_khop = {getattr(l8, 'j_khop', None)}")
+
+# (b) Lệnh chờ không bao giờ khớp, treo tới hết dữ liệu. Nó bị đóng SAU vòng lặp nên
+#     KHÔNG có bản ghi nhật ký nào. Lọc theo chuỗi `ly_do_dong == "huy"` là loại nhầm nó
+#     cùng với lệnh bị khối "Huỷ chờ" huỷ — và đường ray im lặng, không có đoạn kết.
+v10 = json.loads(json.dumps(v8))
+v10["id"] = v8["id"] + "x"
+v10["dem"] = {"tinh": "theo_gia", "value": 500.0}
+d10 = core.normalize_process({
+    "name": "treo", "symbol": "X", "tham_so": d["tham_so"],
+    "entry": {"steps": [bd, g8, v10],
+              "edges": [{"from": bd["id"], "to": g8["id"], "port": "out"},
+                        {"from": g8["id"], "to": v10["id"], "port": "out"}]},
+    "manage": {"steps": [bdm8], "edges": []}})
+kq10 = bc.chay(d10, nen_m1([90.0] * 10 + [110.0] * 20), cd)
+at10 = api.ApiTester(object())
+at10._kq = kq10
+l10 = kq10.so.lenh[0]
+ray_b = at10.test_duong_ray(l10.id)["value"]["chang"]
+kiem("lệnh mẫu treo tới hết dữ liệu, chưa khớp bao giờ",
+     l10.nen_khop is None and l10.ly_do_dong == "huy")
+kiem("đường ray của nó CÓ đoạn kết — không im lặng giữa chừng",
+     bool(ray_b) and ray_b[-1]["tab"] is None,
+     f"— chặng cuối {ray_b[-1].get('moc') if ray_b else None}")
+
+# Ngược lại: lệnh do chính SƠ ĐỒ huỷ đã có chặng `viec` kể rồi, không được kể thêm lần nữa.
+tu_huy = {v["lenh_id"] for r in kq8.nhat_ky for v in r["viec"] if v["loai"] == "lenh_huy"}
+thua = [i for i in tu_huy
+        if any(c["tab"] is None and c.get("moc") not in (None, "khop")
+               for c in at9.test_duong_ray(i)["value"]["chang"])]
+kiem("sơ đồ tự huỷ thì chỉ kể MỘT lần, không chèn thêm mốc trùng", not thua,
+     f"— {len(tu_huy)} lệnh tự huỷ, {len(thua)} cái bị kể hai lần")
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

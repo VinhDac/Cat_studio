@@ -312,6 +312,9 @@ export interface LenhVe {
    *  vẽ được cái BẬC THANG lúc `Dời SL về hoà vốn` chạy — bản trước chỉ có SL cuối cùng
    *  nên khoảnh khắc đó tàng hình. */
   sl_lich_su?: [number, number][]
+  /** Y hệt `sl_lich_su` nhưng cho TP. Cần riêng vì chế độ `Dời Take Profit` làm TP nhảy
+   *  bậc giữa đời lệnh — vẽ bằng mức cuối là lộ tương lai. */
+  tp_lich_su?: [number, number][]
 }
 
 /** SOI MỘT LƯỢT trên sơ đồ — do `api.test_soi_luot` bắn sang cửa sổ vẽ.
