@@ -5,7 +5,7 @@
  */
 import type {
   BoNen, Bootstrap, Card, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
-  LoNhatKy, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
+  LoNhatKy, ProcEdge, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
   DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
 } from './types'
 
@@ -64,6 +64,11 @@ export const py = {
   new_process: () => goi<ProcessDoc>('new_process'),
   demo_process: () => goi<ProcessDoc>('demo_process'),
   load_process: (ten: string) => goi<ProcessDoc>('load_process', ten),
+  /** Khối + nối của MỘT tab trong một chiến lược đã lưu, để THÊM CHỒNG lên sơ đồ đang
+   *  mở. Kèm những tham số đám khối đó thật sự đọc. */
+  import_steps: (ten: string, tab: Tab) =>
+    goi<{ steps: Step[]; edges: ProcEdge[]; tham_so: ThamSo[]
+          bo_start: boolean; ten: string }>('import_steps', ten, tab),
   save_process: (doc: ProcessDoc) =>
     goi<{ path: string; name: string }>('save_process', doc),
   open_process_file: () => goi<ProcessDoc>('open_process_file'),
@@ -76,8 +81,10 @@ export const py = {
   // --- khối ---
   new_step: (kind: string, actionType?: string) =>
     goi<{ step: Step; card: Card }>('new_step', kind, actionType ?? null),
-  clone_steps: (steps: Step[]) =>
-    goi<{ steps: Step[]; map: Record<string, string>; cards: Card[] }>('clone_steps', steps),
+  /** `tham_so` = bảng của sơ đồ ĐÍCH. Thiếu nó thì thẻ ghi `nguong_nen_bps = ?`. */
+  clone_steps: (steps: Step[], tham_so?: ThamSo[]) =>
+    goi<{ steps: Step[]; map: Record<string, string>; cards: Card[] }>(
+      'clone_steps', steps, tham_so ?? []),
   describe: (steps: Step[], thamSo: ThamSo[]) =>
     goi<Card[]>('describe', steps, thamSo),
 

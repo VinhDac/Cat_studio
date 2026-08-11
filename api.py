@@ -94,6 +94,22 @@ def _hanh_dong_mac_dinh(loai):
 # ---------------------------------------------------------------------------
 
 
+def _mau_khoi(st):
+    """Khoá MÀU của khối — ngữ nghĩa, không phải mã màu. Giao diện tự ánh xạ sang biến
+    CSS, nên đổi bảng màu là việc của CSS, không phải sửa Python.
+
+    Suy từ `type` + `huong` — đều là phạm trù của chính app (không phải khái niệm riêng
+    của một chiến lược), nên chiến lược nào sau này cũng ra màu đúng."""
+    if core.is_start_step(st):
+        return "start"
+    t = st.get("type")
+    if t == core.VAO_LENH:
+        return "ban" if st.get("huong") == "ban" else "mua"
+    if t == core.SUA_LENH:
+        return "sua"
+    return "hoi"
+
+
 def _the_buoc(st, ts=None, tab=None):
     """Một khối -> thẻ để giao diện vẽ.
 
@@ -105,7 +121,7 @@ def _the_buoc(st, ts=None, tab=None):
     mới cần biết đủ chi tiết."""
     the = {"id": st.get("id"), "kind": st.get("kind"), "title": core.step_title(st),
            "badges": [], "lines": [], "mo_ta": "", "ghim": bool(st.get("ghim")),
-           "la_cong": core.is_branch_gate(st)}
+           "la_cong": core.is_branch_gate(st), "mau": _mau_khoi(st)}
 
     the["lines"] = [{"text": x, "type": st.get("type")}
                     for x in core.dong_khoi(st, ts, tab)]
@@ -341,9 +357,16 @@ class Api(NenCuaSo):
         return _ok({"step": st, "card": _the_buoc(st)})
 
     @_bat_loi
-    def clone_steps(self, steps):
+    def clone_steps(self, steps, tham_so=None):
+        """Nhân bản khối: id mới + thẻ chữ.
+
+        ⚠ `tham_so` là bảng tham số của sơ đồ ĐÍCH. Thiếu nó thì thẻ dựng ra ghi
+        `nguong_nen_bps = ?` — khối vừa dán/vừa nhập trông như hỏng, trong khi tham số
+        vẫn có đủ; chỉ là chỗ dựng chữ không được đưa cho. Ctrl+V dính lỗi này từ đầu,
+        chỉ là ít ai để ý vì thường dán ngay trong cùng một sơ đồ."""
         moi, tra = core.clone_steps(steps)
-        return _ok({"steps": moi, "map": tra, "cards": [_the_buoc(s) for s in moi]})
+        ts = core.bang_tham_so({"tham_so": tham_so or []})
+        return _ok({"steps": moi, "map": tra, "cards": [_the_buoc(s, ts) for s in moi]})
 
     # ------------------------------------------------------------------ soát
     @_bat_loi
@@ -392,6 +415,39 @@ class Api(NenCuaSo):
     def load_process(self, name):
         return _ok(_kem_the(core.normalize_process(
             core.load_template("strategy", name))))
+
+    @_bat_loi
+    def import_steps(self, ten, tab):
+        """Khối + đường nối của MỘT tab trong một chiến lược đã lưu, để THÊM CHỒNG lên
+        sơ đồ đang mở. Không đụng gì tới sơ đồ hiện tại — việc ghép là của giao diện.
+
+        Hai thứ lọc ở đây, cả hai đều là luật chứ không phải cho gọn:
+
+        * **Bỏ khối Bắt đầu** — sơ đồ đang mở đã có một cái rồi, hai khối Bắt đầu là sơ
+          đồ hỏng.
+        * **Chỉ một tab** — toán hạng nhóm "Lệnh này" chỉ tồn tại ở Manage, nên bê một
+          khối Manage sang Entry là tạo ra khối không soát nổi.
+
+        Và trả kèm **những tham số đám khối đó THẬT SỰ đọc**: khối tham chiếu tham số
+        bằng TÊN, nên thiếu một cái là khối trông vẫn bình thường trên canvas nhưng bấm
+        ▶ mới ném `"Bảng tham số thiếu …"`. Ai nhập cũng không đoán ra vì sao."""
+        d = core.normalize_process(core.load_template("strategy", ten))
+        tab = tab if tab in core.TABS else core.TAB_ENTRY
+        g = d.get(tab) or {}
+        goc = g.get("steps") or []
+        buoc = [s for s in goc if not core.is_start_step(s)]
+        giu = {s["id"] for s in buoc}
+        canh = [e for e in (g.get("edges") or [])
+                if e.get("from") in giu and e.get("to") in giu]
+        # Dùng LẠI đúng bộ quét của validator, trên một `doc` giả chỉ có đám khối này —
+        # viết một bộ quét thứ hai là sớm muộn hai bên hiểu khác nhau.
+        dung = core._tham_so_dang_dung({tab: {"steps": buoc}})
+        return _ok({
+            "steps": buoc, "edges": canh,
+            "tham_so": [t for t in (d.get("tham_so") or []) if t["ten"] in dung],
+            "bo_start": len(goc) != len(buoc),
+            "ten": d.get("name") or ten,
+        })
 
     @_bat_loi
     def save_process(self, doc):
