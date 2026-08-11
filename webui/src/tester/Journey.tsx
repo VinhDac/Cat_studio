@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import ContextMenu from '../components/ContextMenu'
 
 export interface DongNk {
   i: number; j: number; co_viec: boolean; lenh_id: string | null; chu: string
@@ -6,7 +7,7 @@ export interface DongNk {
 
 /** Một DÃY dòng giống hệt nhau nằm liền nhau, gộp thành một. */
 interface Nhom {
-  i: number                 // lượt ĐẦU của dãy — bấm vào là nhảy tới đúng đó
+  i: number                 // lượt ĐẦU của dãy — chỗ con trỏ sẽ nhảy tới
   j0: number; j1: number    // nến M1 đầu và cuối của dãy
   co_viec: boolean
   chu: string
@@ -36,6 +37,11 @@ export default function Journey({ dong, jBayGio, nhay, chiViec }: {
   chiViec: boolean
 }) {
   const boc = useRef<HTMLDivElement>(null)
+
+  /** Dòng đang mở menu chuột phải. Giữ cả `i` chứ không chỉ toạ độ: mọi dòng trông
+   *  giống nhau, nên phải TÔ dòng đang bị tác động — mở menu mà không biết nó thuộc
+   *  dòng nào thì cái bấm nhầm chỉ dời đi một bước chứ không mất. */
+  const [menu, setMenu] = useState<{ x: number; y: number; i: number; chu: string } | null>(null)
 
   const nhom = useMemo(() => {
     const ra: Nhom[] = []
@@ -71,19 +77,45 @@ export default function Journey({ dong, jBayGio, nhay, chiViec }: {
     if (boc.current) boc.current.scrollTop = boc.current.scrollHeight
   }, [nhom])
 
+  /* ⚠ Bấm TRÁI không nhảy con trỏ nữa — phải chuột phải rồi chọn.
+   *
+   * Nhật ký là thứ để ĐỌC: cuộn, dò, quét mắt. Mà cả danh sách là một bức tường dòng
+   * cao 20px giống hệt nhau, nên chỉ cần trượt tay một chút là mất chỗ đang xem và
+   * phải tua lại — một cú lỡ tay xoá luôn ngữ cảnh vừa dựng. Nhảy con trỏ là việc
+   * NẶNG (dựng lại chart, nạp lô mới), việc nặng thì phải cố ý mới gọi được.
+   *
+   * Chuột phải không bao giờ bị bấm nhầm, và menu còn cho biết mình sắp làm gì. */
   return (
     <div className="nk-cuon" ref={boc}>
       {nhom.map((n, k) => (
         <div key={n.i}
              className={'nk-dong' + (n.co_viec ? ' co-viec' : '')
-                        + (k === sang ? ' bay-gio' : '')}
-             onClick={() => nhay(n.i)}>
+                        + (k === sang ? ' bay-gio' : '')
+                        + (menu?.i === n.i ? ' dang-menu' : '')}
+             onContextMenu={e => {
+               e.preventDefault()
+               setMenu({ x: e.clientX, y: e.clientY, i: n.i, chu: n.chu })
+             }}>
           <span className="chu">{n.chu}</span>
           {n.dem > 1 && <span className="lap" title={`${n.dem} lượt liền nhau giống hệt`}>
             ×{n.dem}
           </span>}
         </div>
       ))}
+
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} onDong={() => setMenu(null)}
+                     muc={[
+                       // KHÔNG dùng icon `dau`: trên thanh công cụ nó đang mang nghĩa
+                       // "về sự kiện trước". Một hình hai nghĩa là hỏng cả hai.
+                       { ten: 'Nhảy tới đây', icon: 'dat_co',
+                         onClick: () => nhay(menu.i) },
+                       // Nhật ký là thứ hay phải mang đi hỏi/đối chiếu. Không chép được
+                       // thì chỉ còn cách gõ tay lại một dòng mono dài.
+                       { ten: 'Chép dòng', icon: 'copy',
+                         onClick: () => void navigator.clipboard?.writeText(menu.chu) },
+                     ]} />
+      )}
     </div>
   )
 }

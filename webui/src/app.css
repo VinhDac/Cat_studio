@@ -1270,7 +1270,9 @@ select.o { cursor: pointer; }
 /* 12px — bằng bảng số liệu. 11px thì đọc mỏi, mà đây là thứ người dùng đọc lâu nhất. */
 .nk-dong {
   display: flex; align-items: baseline; gap: 8px;
-  padding: 0 10px; font: 12px/20px var(--mono); color: var(--dim); cursor: pointer;
+  /* `default` chứ KHÔNG phải `pointer`: bấm trái ở đây không làm gì nữa (nhảy con trỏ
+     phải qua chuột phải), mà bàn tay chỉ mời gọi bấm là lại đúng cái nhầm cần tránh. */
+  padding: 0 10px; font: 12px/20px var(--mono); color: var(--dim); cursor: default;
 }
 .nk-dong .chu {
   flex: 1; min-width: 0;
@@ -1291,6 +1293,12 @@ select.o { cursor: pointer; }
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .nk-dong.bay-gio .lap { background: var(--raised-hover); color: var(--muted); }
+/* Dòng đang mở menu chuột phải. Cần thấy rõ mình sắp tác động lên dòng NÀO — cả bảng
+   là những dòng cao 20px giống hệt nhau, đọc nhầm một dòng là nhảy sai chỗ. */
+.nk-dong.dang-menu {
+  background: var(--raised-hover); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 
 
 /* ---- Cài đặt → Strategy Test ---- */
