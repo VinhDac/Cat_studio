@@ -17,3 +17,5 @@ webui/dist/
 build/
 dist/
 *.spec.bak
+# Bản phát hành do tools\dong_goi.bat nén ra — thuộc về Releases, không vào repo
+Cat_Studio-windows.zip

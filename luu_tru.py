@@ -43,10 +43,25 @@ CAI_DAT_MAC_DINH = {
 
 
 def thu_muc_app():
-    """Cạnh file exe (bản đóng gói) hoặc cạnh mã nguồn (bản chạy thẳng)."""
+    """Nơi ĐẶT DỮ LIỆU NGƯỜI DÙNG: cạnh file exe (bản đóng gói) hoặc cạnh mã nguồn."""
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def thu_muc_goi():
+    """Nơi chứa TÀI NGUYÊN ĐI KÈM (giao diện đã build trong `webui/dist`).
+
+    ⚠ KHÁC HẲN `thu_muc_app`, và trộn hai cái là hỏng theo cả hai chiều. Bản đóng gói
+    một-file giải nén tài nguyên vào một thư mục TẠM (`sys._MEIPASS`) rồi xoá lúc thoát:
+    để dữ liệu người dùng ở đó là mất sạch sau mỗi lần chạy. Ngược lại, tìm `webui/dist`
+    cạnh .exe thì không thấy, vì nó nằm trong gói."""
+    return getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+
+
+def trang_giao_dien():
+    """Đường dẫn tới `index.html` đã build. Một chỗ duy nhất, hai cửa sổ cùng dùng."""
+    return os.path.join(thu_muc_goi(), "webui", "dist", "index.html")
 
 
 def goc():
@@ -95,12 +110,28 @@ def doc_cai_dat():
 
 
 def ghi_cai_dat(s):
-    try:
-        with open(os.path.join(goc(), FILE_CAI_DAT), "w", encoding="utf-8") as f:
-            json.dump(s, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    """Lưu cài đặt. NÉM LỖI nếu không ghi được — không nuốt.
+
+    Trước đây bọc `try/except: pass` rồi vẫn `return s`, nên đĩa đầy hoặc mất quyền ghi
+    thì nơi gọi tưởng đã lưu xong. Lần mở app sau, cài đặt Strategy Test lặng lẽ về mặc
+    định và không ai hiểu vì sao. `api` đã có `@_bat_loi` để đưa câu lỗi lên giao diện —
+    cứ để nó làm việc của nó."""
+    ghi_json_nguyen_tu(os.path.join(goc(), FILE_CAI_DAT), s)
     return s
+
+
+def ghi_json_nguyen_tu(duong, du_lieu):
+    """Ghi JSON qua file TẠM rồi `os.replace` — đổi tên trên NTFS là nguyên tử.
+
+    Ngắt giữa lúc ghi (bấm ✕, mất điện, antivirus xen vào) mà ghi thẳng lên file đích thì
+    để lại một file JSON CỤT: `doc_cai_dat` trả mặc định, còn một template cụt thì mất
+    hẳn chiến lược. Cách này cùng lắm để lại một `.tmp` rác, bản cũ nguyên vẹn."""
+    tam = duong + ".tmp"
+    with open(tam, "w", encoding="utf-8") as f:
+        json.dump(du_lieu, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tam, duong)
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +144,16 @@ def _ten_an_toan(ten):
     ghi được ra ngoài thư mục chiến lược."""
     s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (ten or "").strip())
     s = s.strip(". ")
+    # ⚠ Tên THIẾT BỊ của Windows: `NUL.json` bị ánh xạ vào hố đen ở BẤT KỲ thư mục nào.
+    # Đã chạy thử dưới pythonw.exe (đường app thật): lưu tên "NUL" báo THÀNH CÔNG,
+    # `os.path.exists` trả True, nhưng đĩa không có file và sơ đồ bốc hơi không một dòng
+    # lỗi; "AUX"/"COM1" còn TREO CỨNG lúc đọc lại. Đáng lo vì "con" là từ tiếng Việt rất
+    # hay gặp, mà app này mặc định người dùng đặt tên bằng tiếng Việt.
+    # Thêm gạch dưới thay vì đổi tên khác: hàm giữ được tính lũy đẳng
+    # (`_ten_an_toan("_con") == "_con"`), nên tên lấy từ `liet_ke` đưa ngược vào vẫn ra
+    # đúng file, không cộng dồn gạch qua mỗi vòng.
+    if re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", s):
+        s = "_" + s
     return s or "khong_ten"
 
 
@@ -129,9 +170,10 @@ def liet_ke_chien_luoc():
 
 
 def ghi_chien_luoc(ten, doc):
+    """Lưu một chiến lược. Ghi NGUYÊN TỬ: ngắt giữa chừng mà ghi thẳng lên file đích thì
+    còn lại một JSON cụt, tức mất hẳn chiến lược cũ chứ không phải mất bản mới."""
     p = duong_dan_chien_luoc(ten)
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=2)
+    ghi_json_nguyen_tu(p, doc)
     return p
 
 

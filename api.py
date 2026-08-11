@@ -529,8 +529,7 @@ class Api(NenCuaSo):
             return
 
         import webview
-        trang = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "webui", "dist", "index.html")
+        trang = luu_tru.trang_giao_dien()
         co_trang = os.path.exists(trang)
 
         # ⚠ KHÔNG được viết `file:///{trang}`. pywebview coi mọi url mở đầu `file://`
@@ -1225,14 +1224,26 @@ def _so_do_mau():
     Mọi khoảng cách là bội của ATR hoặc của R, không một pip hay đô nào — nên cùng một
     bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số."""
 
+    # ⚠ ID CỐ ĐỊNH, không phải id sinh ngẫu nhiên. Sơ đồ mẫu là một HẰNG SỐ, nên nó phải
+    # ra y hệt nhau mỗi lần mở. Trước đây mỗi lần mở lại sinh ids mới, mà `_van_tay` băm
+    # cả id — thành ra mở sơ đồ mẫu hai lần là hai "chiến lược khác nhau": lịch sử đẻ hai
+    # dòng trùng hệt, và "so với lần trước" lúc nào cũng nói "sơ đồ ĐÃ ĐỔI".
+    # Id chỉ cần duy nhất TRONG MỘT tài liệu, nên đặt cứng ở đây hoàn toàn an toàn — và
+    # nhập sơ đồ này vào một sơ đồ khác thì `clone_steps` vẫn cấp id mới như thường.
+    dem = [0]
+
+    def _ma():
+        dem[0] += 1
+        return f"mau{dem[0]:02d}"
+
     def dk(ten, conds, x, y):
-        s = core.make_action_step({"type": core.CHECK_COND, "name": ten,
+        s = core.make_action_step({"id": _ma(), "type": core.CHECK_COND, "name": ten,
                                    "conditions": conds})
         s["pos"] = [x, y]
         return s
 
     def hd(ten, act, x, y):
-        s = core.make_action_step(dict(act, name=ten))
+        s = core.make_action_step(dict(act, id=_ma(), name=ten))
         s["pos"] = [x, y]
         return s
 
@@ -1261,6 +1272,7 @@ def _so_do_mau():
 
     # ========================= ENTRY =========================
     e_bd = core.make_start_step("Tìm tín hiệu", core.NHIP_MAC_DINH[core.TAB_ENTRY])
+    e_bd["id"] = "mau-bd-entry"
     e_bd["pos"] = [40, 300]
 
     e_nen = dk("Vùng nén đã xác nhận?", [
@@ -1313,6 +1325,7 @@ def _so_do_mau():
     # Chạy lại từ đầu mỗi nến, CHO TỪNG LỆNH. Không giữ con trỏ — mọi câu hỏi đều tính
     # lại từ trạng thái quan sát được, y như D_02 làm mỗi tick.
     m_bd = core.make_start_step("Quản lý lệnh", core.NHIP_MAC_DINH[core.TAB_MANAGE])
+    m_bd["id"] = "mau-bd-manage"
     m_bd["pos"] = [40, 300]
 
     m_huy = dk("Chưa khớp mà nén đã tan?", [

@@ -295,6 +295,19 @@ class ChuongTrinh:
 # ---------------------------------------------------------------------------
 # Đánh giá toán hạng
 # ---------------------------------------------------------------------------
+def _gia_thoat(l, bid, cd):
+    """Giá ƯỚC nếu đóng lệnh này ngay bây giờ: Mua thoát ở Bid, Bán thoát ở **Ask**.
+
+    Đo lãi nổi của lệnh BÁN bằng Bid là báo lãi cao hơn thật đúng một spread — với XAUUSD
+    spread 37 điểm thì đủ để một cổng "lãi ≥ 1R" khớp sớm hơn một nhịp, và bảng số liệu
+    hiện một con số mà đóng lệnh ra không được.
+
+    `Lenh.lai_R` cố ý KHÔNG biết spread là gì (`so_lenh` là mô hình thuần), nên phép quy
+    đổi thuộc về chỗ gọi. Gom vào một hàm để ba chỗ gọi — toán hạng, bảng số liệu, hàng
+    lệnh sống — không thể nói ba con số khác nhau."""
+    return bid if l.huong == sl.MUA else bid + cd.spread_gia
+
+
 def _lay_toan_hang(o, ctx):
     """Một toán hạng → một con số (hoặc đúng/sai). Đây là cây cầu DUY NHẤT giữa sơ đồ và
     dữ liệu.
@@ -309,8 +322,17 @@ def _lay_toan_hang(o, ctx):
     if ten in kho.engine_d02.ENGINE_TRA_LOI:
         return ct.engine.doc(ten, ctx)
 
-    if ten in ("close", "open", "high", "low"):
-        return ctx.gia_nen(ten[0] if ten != "close" else "c", o.get("shift", 0))
+    # ⚠ LỖI ĐÃ SỬA (lần hai — lần đầu vá hụt). Trước đây chỗ này gọi `ctx.gia_nen`, mà
+    # `gia_nen` đọc THẲNG `ct.nen5` nên bỏ qua sạch khoá `tf`: `close(M15, nến[1])` trả
+    # về giá M5. Đợt vá trước đã dựng đúng cột theo khung (`_xin_cot_gia`) và đúng khoá
+    # (`khoa`) — nhưng QUÊN sửa chỗ đọc này, nên cột dựng ra không ai dùng. Đo lại trên
+    # một tháng thật: 66,5 % số nến trả sai số, lệch tối đa 11,37.
+    #
+    # Gọi Y HỆT đường chỉ báo ở trên, không phải chỉ "cũng dùng doc_cot": `gia_nen` hiểu
+    # `shift` là *lùi shift nến*, còn `doc_cot` hiểu `nến[1]` là *lệch 0* (quy ước MT5).
+    # Hai vế của một cổng đi hai đường thì lệch nhau thêm một nến nữa.
+    if ten in ct.COT_GIA:
+        return ct.doc_cot(o, ctx.i, o.get("shift", 0))
     if ten == "bid":
         return ctx.bid
     if ten == "ask":
@@ -343,7 +365,7 @@ def _lay_toan_hang(o, ctx):
     if ten == "lenh_sl_hoa_von":
         return bool(l.sl_o_hoa_von)
     if ten == "lenh_lai_R":
-        return float(l.lai_R(ctx.bid))
+        return float(l.lai_R(_gia_thoat(l, ctx.bid, ct.cd)))
     if ten == "lenh_so_nen_song":
         return float(l.so_nen_song(ctx.i))
     if ten == "lenh_gia_vao":
@@ -520,6 +542,8 @@ def _sua_lenh(st, ctx):
         l.sl = moi
     elif cd == "dong_han":
         so_.dong(l, ctx.bid if l.huong == sl.MUA else ctx.ask, ctx.i, "dong_tay")
+        # Ghi tiền NGAY, y như đường sàn đóng lệnh — xem chú thích ở `chay()`.
+        ctx.ct.ghi_tien(l)
         return {"loai": "lenh_dong", "lenh_id": l.id, "ly_do": "dong_tay",
                 "gia": _js(l.gia_dong)}
     elif cd == "huy_cho":
@@ -778,6 +802,11 @@ def chay(doc, nen1, cd=None, tien_do=None):
                         - cd.commission * l.lot)
         tien["dinh"] = max(tien["dinh"], tien["von"])
 
+    # ⚠ Phải gắn lên `ct`: `ghi_tien` là closure trong hàm này, mà `_sua_lenh` là hàm
+    # MODULE nên với không tới. Chế độ "Đóng hẳn" đóng lệnh xong không ghi tiền được là
+    # `drawdown_pt` bỏ sót sạch những lệnh đó — mà toán hạng đó chính là thứ người ta
+    # dùng làm cầu dao ("sụt giảm > 10 % thì ngừng vào lệnh"), nên cầu dao chết im lặng.
+    ct.ghi_tien = ghi_tien
     ct.drawdown_pt = lambda: (0.0 if not tien["dinh"] else
                               (tien["dinh"] - tien["von"]) / tien["dinh"] * 100.0)
 
@@ -940,7 +969,7 @@ def _bang(kq, i, j):
         ra["lenh"].append({
             "id": l.id, "huong": l.huong, "da_khop": bool(l.da_khop),
             "gia_vao": _js(l.gia_khop), "sl": _js(l.sl), "tp": _js(l.tp),
-            "lai_R": _js(l.lai_R(gia)) if l.da_khop else None,
+            "lai_R": _js(l.lai_R(_gia_thoat(l, gia, ct.cd))) if l.da_khop else None,
             "sl_hoa_von": bool(l.sl_o_hoa_von),
             "so_nen_song": int(l.so_nen_song(i)),
         })
@@ -1002,8 +1031,8 @@ def lenh_tai_nen(kq, l, i, gia):
         "gia_dat": _js(l.gia_dat),
         "gia_vao": _js(l.gia_khop) if khop else None,
         "sl": _js(s), "tp": _js(p),
-        "lai_R": _js((gia - l.gia_khop) * (1.0 if l.huong == sl.MUA else -1.0) / l.R)
-        if (khop and l.R) else None,
+        # Qua `_gia_thoat`: lệnh BÁN thoát ở Ask, không phải Bid — xem hàm đó.
+        "lai_R": _js(l.lai_R(_gia_thoat(l, gia, kq._ct.cd))) if (khop and l.R) else None,
         "sl_hoa_von": bool(hoa_von),
     }
 

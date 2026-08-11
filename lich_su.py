@@ -38,8 +38,21 @@ def _duong(ma):
 
 
 def _ma_moi():
-    """Mã mục = mốc thời gian, nên sắp theo tên file cũng là sắp theo thời gian."""
-    return time.strftime("%Y%m%d-%H%M%S")
+    """Mã mục = mốc thời gian, nên sắp theo tên file cũng là sắp theo thời gian.
+
+    Trùng thì thêm hậu tố. Không đoán độ phân giải đồng hồ cho đủ mịn — cứ HỎI ĐĨA: mốc
+    giây thôi thì hai lần chạy khép trong cùng một giây ghi đè nhau, mất im lặng một mục;
+    mà thêm phần trăm giây cũng chỉ đẩy xác suất xuống chứ không khử được. Đây thì khử
+    hẳn, và đọc ra vẫn hiểu ngay là lần chạy nào."""
+    goc = time.strftime("%Y%m%d-%H%M%S")
+    ma, n = goc, 1
+    while os.path.exists(_duong(ma)):
+        ma, n = f"{goc}-{n}", n + 1
+    return ma
+
+
+#: Bản GỌN của từng mục, theo `ma`. Xem `liet_ke`.
+_dem = {}
 
 
 def ghi(kq, cd, tom_tat):
@@ -91,8 +104,8 @@ def _cai_dat(cd):
 
 
 def _ghi_file(m):
-    with open(_duong(m["ma"]), "w", encoding="utf-8") as f:
-        json.dump(m, f, ensure_ascii=False)
+    _dem.pop(m["ma"], None)             # ghi đè thì bản nhớ tạm cũ hết đúng
+    luu_tru.ghi_json_nguyen_tu(_duong(m["ma"]), m)
 
 
 def doc(ma):
@@ -109,7 +122,10 @@ def _gon(m):
     danh sách thì không dùng tới."""
     tt = m.get("tom_tat") or {}
     return {
-        "ma": m["ma"], "t": m["t"], "ten": m.get("ten"),
+        # `.get` cho MỌI khoá: `liet_ke` chỉ canh `m.get("ma")` nên một mục thiếu `t`
+        # (sửa tay, hoặc đổi định dạng sau này) sẽ ném KeyError và kéo sập CẢ danh sách —
+        # mất luôn những mục lành.
+        "ma": m.get("ma"), "t": m.get("t", 0), "ten": m.get("ten"),
         "ten_chien_luoc": m.get("ten_chien_luoc"),
         "van_tay": m.get("van_tay"),
         "cai_dat": m.get("cai_dat") or {},
@@ -119,18 +135,36 @@ def _gon(m):
 
 
 def liet_ke():
-    """Mọi mục, MỚI NHẤT TRƯỚC. Mục hỏng bị bỏ qua chứ không làm sập cả danh sách."""
+    """Mọi mục, MỚI NHẤT TRƯỚC. Mục hỏng bị bỏ qua chứ không làm sập cả danh sách.
+
+    ⚠ NHỚ TẠM bản gọn theo `ma`. Không có nó thì mỗi lần gọi phải đọc và parse TOÀN BỘ
+    mọi mục — mà một mục nặng ~69 KB, trong đó riêng đường vốn đã 62 KB, còn danh sách
+    thì không dùng tới nó. Mỗi lần bấm ▶ gọi hàm này 2-3 lượt: đo được 300 mục = 0,38 s
+    mỗi lượt, cộng vào một lần chạy vốn chỉ 2,9 s. Chưa đau vì mục chưa đặt tên bị cuốn
+    chiếu, nhưng mục ĐÃ ĐẶT TÊN miễn nhiễm cuốn chiếu (§12.21) nên nó sẽ phình theo thời
+    gian dùng.
+
+    An toàn vì `lich_su` là nơi DUY NHẤT ghi/xoá file lịch sử, và cả hai chỗ đó đều dọn
+    bộ nhớ tạm — không có đường nào sửa file sau lưng nó."""
     ra = []
     try:
         ten_file = os.listdir(_thu_muc())
     except OSError:
         return ra
+    con = set()
     for f in ten_file:
         if not f.endswith(".json"):
             continue
-        m = doc(f[:-5])
-        if m and m.get("ma"):
-            ra.append(_gon(m))
+        ma = f[:-5]
+        con.add(ma)
+        if ma not in _dem:
+            m = doc(ma)
+            if not (m and m.get("ma")):
+                continue
+            _dem[ma] = _gon(m)
+        ra.append(_dem[ma])
+    for ma in [x for x in _dem if x not in con]:      # file bị xoá ngoài app
+        _dem.pop(ma, None)
     ra.sort(key=lambda x: x["t"], reverse=True)
     return ra
 
@@ -147,6 +181,7 @@ def dat_ten(ma, ten):
 
 
 def xoa(ma):
+    _dem.pop(str(ma), None)
     try:
         os.remove(_duong(str(ma)))
         return True

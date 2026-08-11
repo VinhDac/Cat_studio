@@ -109,8 +109,11 @@ def bao_loi(tieu_de, noi_dung):
 
 def duong_dan_giao_dien():
     """Trang giao diện đã build. Chưa build thì báo rõ phải chạy npm chứ không mở một
-    cửa sổ trắng rồi để người dùng tự đoán."""
-    return os.path.join(HERE, "webui", "dist", "index.html")
+    cửa sổ trắng rồi để người dùng tự đoán.
+
+    Qua `luu_tru.trang_giao_dien` chứ không ghép từ `HERE`: bản đóng gói giải nén tài
+    nguyên vào `sys._MEIPASS`, không nằm cạnh .exe."""
+    return luu_tru.trang_giao_dien()
 
 
 def tim_cua_so(chua_chuoi=TIEU_DE_GOC):

@@ -243,7 +243,15 @@ NHIP_MAC_DINH = {TAB_ENTRY: "M5", TAB_MANAGE: "M1"}
 
 
 HUONG = {"mua": "Mua", "ban": "Bán"}
-LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop", "limit": "Chờ Limit"}
+# ⚠ KHÔNG có "limit". Giao diện từng cho chọn "Chờ Limit", nhưng `khop_lenh.trong_nen`
+# không đọc trường `loai` một lần nào — `_muc_vao` viết cứng hành vi lệnh STOP — và
+# `bo_chay._vao_lenh` chỉ neo lệnh `stop` vào mép vùng nén, còn `limit` neo vào giá hiện
+# tại rồi CỘNG đệm theo chiều Mua, tức Buy Limit nằm CAO HƠN giá thị trường: một mức sàn
+# thật từ chối thẳng. Một ô chọn lặng lẽ làm việc khác mới là thứ nguy hiểm, nên bỏ chứ
+# không cài thêm — D_02 vốn chỉ dùng lệnh chờ stop (`khop_lenh.py` đã ghi rõ). Sơ đồ cũ
+# nào còn `limit` sẽ bị validator báo lỗi rõ ràng, đúng chứ không sai: chúng vốn đang cho
+# số sai.
+LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop"}
 
 # ---- Chế độ của "Sửa lệnh" -------------------------------------------------
 # Một hành động, nhiều chế độ — thay vì bảy hành động gần giống nhau. Tất cả đều tác
@@ -1223,7 +1231,26 @@ def validate_process(doc):
     Cố ý soát cả hai chứ không chỉ tab đang mở: giấu lỗi của tab kia đi thì người dùng
     bấm ▶ Chạy mới biết, và không hiểu vì sao."""
     ra = []
-    ten_ts = {t["ten"] for t in (doc or {}).get("tham_so") or []}
+    ds_ts = (doc or {}).get("tham_so") or []
+    ten_ts = {t["ten"] for t in ds_ts}
+    # ⚠ TÊN TRÙNG: `bang_tham_so` là dict comprehension nên khoá sau đè khoá trước, tức
+    # bộ chạy lấy dòng CUỐI; còn `normalize_tham_so` giữ dòng ĐẦU và âm thầm vứt phần
+    # sau. Hai chỗ đọc cùng một bảng ra hai con số khác nhau — canvas ghi một đằng,
+    # backtest chạy một nẻo, ngay trong CÙNG một lần chạy. Phép `set` ở trên nuốt mất
+    # chuyện đó nên trước đây validator không hề hay biết.
+    #
+    # Mức "error" là cố ý: `api` đã chặn ▶ Chạy khi còn error, nên không ai backtest được
+    # một sơ đồ mà chính canvas đang nói dối.
+    dem = {}
+    for t in ds_ts:
+        dem[t["ten"]] = dem.get(t["ten"], 0) + 1
+    for ten, n in dem.items():
+        if n > 1:
+            ra.append({
+                "severity": "error", "step": None, "index": None, "tab": TAB_ENTRY,
+                "message": f'Tham số "{ten}" bị khai {n} lần. Bộ chạy lấy dòng ĐẦU, chữ '
+                           f"trên khối lấy dòng CUỐI — hai nơi nói hai số khác nhau. "
+                           f"Lưu lại còn xoá mất những dòng sau. Hãy xoá bớt cho còn một."})
     for tab in TABS:
         g = (doc or {}).get(tab) or {}
         ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab, ten_ts)
@@ -1493,6 +1520,18 @@ def _chuan_so_do(g, nhip="M5"):
 
 def normalize_process(doc):
     doc = doc or {}
+    # ⚠ CHẶN file của bản MỚI HƠN. `normalize_action` trả None cho mọi `type` lạ và
+    # `_chuan_so_do` lọc `if x`, nên khối BIẾN MẤT — kéo theo cả hai đường nối bám vào
+    # nó, tức chuỗi bị CẮT ĐÔI. Rồi Ctrl+S ghi đè bản đã mất khối: hỏng vĩnh viễn, im
+    # lặng. `validate_actions` có sẵn câu 'Loại hành động "…" không còn được hỗ trợ'
+    # nhưng nó không bao giờ hiện được, vì mọi doc tới tay validator đều đã qua đây và
+    # khối đã bị xoá trước. Chặn, đừng cố cứu — `@_bat_loi` bên `api` sẽ đưa câu này lên
+    # giao diện.
+    v = doc.get("schema")
+    if isinstance(v, int) and not isinstance(v, bool) and v > SCHEMA:
+        raise ValueError(
+            f"File này thuộc bản mới hơn (schema {v}, app đang hiểu {SCHEMA}). "
+            f"Cập nhật app rồi mở lại — mở bằng bản cũ sẽ MẤT những khối nó chưa biết.")
     # File schema 1 chỉ có MỘT sơ đồ ở gốc — nhận nó làm Entry. Rẻ, và mở lại được
     # mọi thứ đã lưu trước khi tách hai tab.
     if "steps" in doc and TAB_ENTRY not in doc:

@@ -1437,6 +1437,9 @@ so "giống hệt tới từng con số" của tối ưu `dang_song` được đ
 ưu không đổi hành vi, cái đổi số là lỗi dưới đây.)*
 
 #### 12.13e-bis ⚠ LỖI THẬT: toán hạng GIÁ bỏ quên khung thời gian
+> **⚠ MỤC NÀY GHI "ĐÃ SỬA" NHƯNG VÁ HỤT — xem §13.0a.** Đợt vá dưới đây mới làm 2/3 bước: dựng
+> đúng cột và đúng khoá, nhưng quên sửa chỗ ĐỌC, nên cột dựng ra không ai dùng. Con số 3,48 % và
+> bảng §12.13e đều đo trên mã còn lỗi.
 
 Tìm ra lúc dựng bảng số liệu tổng quát, không phải lúc tìm lỗi.
 
@@ -1738,6 +1741,179 @@ Sửa: `_LOC` thành một chuỗi. Nhân tiện đổi `webview.OPEN_DIALOG`/`S
 version"* ngay trên stderr, cùng giá trị 10/30.
 
 Đã bấm thật cả hai: hộp `Open` và hộp `Save As` đều hiện ra, Esc huỷ xong app vẫn chạy.
+
+### 13.0 ✅ ĐỢT SOÁT TRƯỚC ĐÓNG GÓI — 7 chỗ đã sửa
+
+Soát 5 hướng song song (logic sơ đồ · đúng số · dữ liệu · cầu nối · phòng thủ & đóng gói), mỗi
+phát hiện nặng qua một vòng phản biện. 25 phát hiện thô → 8 cái nặng nhất đưa đi phản biện → 8
+sống sót. Hai cái nặng nhất tự tái hiện lại bằng tay trước khi sửa.
+
+#### ⚠ 13.0a Toán hạng giá — VÁ HỤT LẦN ĐẦU, nay mới xong
+
+§12.13e-bis ghi là "ĐÃ SỬA". **Sai: mới làm 2 trong 3 bước.** Đã dựng đúng cột theo khung
+(`_xin_cot_gia`) và đúng khoá (`khoa`) — nhưng **quên sửa chỗ ĐỌC**: `_lay_toan_hang` vẫn gọi
+`ctx.gia_nen`, mà `gia_nen` đọc thẳng `ct.nen5`. Cột dựng ra không ai dùng. Thuốc pha xong không
+ai uống.
+
+Đo lại trên một tháng thật: **66,5 % số nến trả sai số**, lệch tối đa 11,37 — chứ không phải
+3,48 % như §12.13e-bis ghi, vì lần đó tôi đo *chênh lệch giữa hai cột*, không đo *thứ cổng thật sự
+đọc*. Và có **hai lỗi chồng nhau**: sai mảng, cộng thêm sai quy ước `shift` (`gia_nen` hiểu là lùi
+`shift` nến, `doc_cot` hiểu `nến[1]` là lệch 0).
+
+Sửa: gọi **y hệt đường chỉ báo** — `ct.doc_cot(o, ctx.i, o.get("shift", 0))`. Cùng một dạng gọi thì
+hai vế của một cổng mới cùng quy ước. KHÔNG đụng `ctx.gia_nen`: `kho/engine_d02` dùng nó nuôi vùng
+nén, mà vùng nén sống trên trục quyết định nên đọc `nen5` ở đó là ĐÚNG.
+
+**Số thật đổi theo:** 548 lệnh · −7,50 R · DD 0,79 % → **547 lệnh · −10,50 R · DD 0,91 %**. Bảng
+§12.13e là đo trên mã còn lỗi.
+
+**Vì sao 9/9 vẫn xanh suốt:** không bài nào soát GIÁ TRỊ LÚC CHẠY của một toán hạng giá —
+`test_doi_chieu_d02` cố ý chỉ soát *tờ khai* (docstring của nó ghi rõ), còn `test_bo_chay` chưa
+chạm tới. Đã thêm mục 7 vào `test_bo_chay`: tự gộp M15 từ mảng M1 thô rồi tra tay nến M15 **đã
+đóng** gần nhất — một sự thật ĐỘC LẬP, không mượn gì của bộ chạy. Kèm một phép chốt "giá trị phải
+KHÁC close M5 ở phần lớn nến", vì nếu ai đó lại làm cả hai đường cùng đọc `nen5` thì phép so đầu
+vẫn khớp.
+
+#### ⚠ 13.0b drawdown_pt bỏ sót lệnh do khối "Đóng hẳn" đóng
+
+`ghi_tien` là closure trong `chay()`, `_sua_lenh` là hàm MODULE nên với không tới. Nhánh `dong_han`
+đóng lệnh xong không ghi tiền → `drawdown_pt` **lúc chạy** đọc 0 % trong khi sụt giảm thật đã mấy
+chục phần trăm. Toán hạng đó chính là thứ người ta dùng làm **cầu dao** ("sụt giảm > 10 % thì ngừng
+vào lệnh") — cầu dao chết im lặng. Bảng thống kê cuối vẫn đúng (`_thong_ke` tự duyệt lại sổ lệnh),
+nên hai nơi nói hai con số khác nhau.
+
+Sửa: gắn `ct.ghi_tien = ghi_tien`, gọi trong nhánh `dong_han`. Sơ đồ mẫu dùng `hoa_von`/`huy_cho`
+nên bộ số của nó không bị mục này ảnh hưởng.
+
+⚠ Bài kiểm đầu tiên tôi viết **BỎ LỌT** con bọ này: nó dùng lại kịch bản giá phẳng 110, nên cả hai
+đường cùng ra 0 % và phép so khớp một cách vô nghĩa. Kịch bản phải **có lỗ thật** (vốn nhỏ, lot
+lớn, giá rơi đều) thì hai đường mới buộc phải nói cùng một con số khác 0.
+
+#### 13.0c Ghi nến NGUYÊN TỬ + chốt chặn file cụt
+
+`np.save` ghi thẳng lên file đích, tức **cắt cụt bộ cũ rồi mới ghi lại**. Ngắt giữa chừng để lại
+`.npy` cụt còn `.json` meta vẫn mô tả bộ đã mất — rồi `doc()` lặng lẽ trả mảng rỗng trong khi
+`khoang_thieu()` (chỉ nhìn meta) khẳng định "đủ rồi", nên app **không bao giờ tải lại**. Tự khoá vào
+trạng thái chết; đo được 20/20 lần khi kill đúng lúc `np.save`.
+
+Hai miếng vá, cùng một file, không đổi định dạng:
+`_ghi_nguyen_tu` (ghi `.tmp` → `fsync` → `os.replace`, đổi tên trên NTFS là nguyên tử) và
+`file_du(symbol, m)` — một lệnh `stat` so kích thước với `so_nen × itemsize`, thiếu thì coi như
+chưa có gì và tải lại. Cái thứ hai còn tự chữa những file ĐÃ hỏng sẵn từ trước.
+
+Tách `file_du` ra thành hàm riêng thay vì viết thẳng trong `khoang_thieu`: bộ kiểm mục 2 cố ý thay
+tạm `doc_meta` để soát riêng phần số học khoảng, không đụng đĩa — có hàm riêng thì nó thay tạm được
+y như vậy.
+
+#### 13.0d Bốn chỗ còn lại
+
+- **Tên thiết bị Windows** (`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`) — `NUL.json` bị ánh xạ vào hố
+  đen ở BẤT KỲ thư mục nào: lưu báo THÀNH CÔNG, `os.path.exists` trả True, mà đĩa không có file;
+  `AUX` còn treo cứng lúc đọc lại. Thêm gạch dưới. Giữ tính lũy đẳng để tên lấy từ `liet_ke` đưa
+  ngược vào không cộng dồn gạch. Đáng lo vì **"con" là từ tiếng Việt rất hay gặp**.
+- **Bỏ `limit` khỏi `LOAI_LENH`** — giao diện cho chọn "Chờ Limit" mà `khop_lenh` không đọc trường
+  `loai` một lần nào, và `_vao_lenh` đặt Buy Limit CAO HƠN giá thị trường. Bỏ chứ không cài thêm:
+  cài là thêm tính năng, mà một ô chọn lặng lẽ làm việc khác mới là thứ phải dọn.
+- **Chặn file schema mới hơn** — `normalize_action` trả None cho `type` lạ và `_chuan_so_do` lọc
+  `if x`, nên khối BIẾN MẤT kéo theo cả dây, chuỗi bị cắt đôi, rồi Ctrl+S ghi đè vĩnh viễn.
+  `validate_actions` có sẵn câu cảnh báo cho tình huống này nhưng không bao giờ hiện được, vì
+  normalize đã xoá khối trước khi validator nhìn thấy. Chặn ở đầu `normalize_process`.
+- **Tham số trùng tên** — `bang_tham_so` (dict comprehension) lấy dòng CUỐI, `normalize_tham_so`
+  giữ dòng ĐẦU: canvas ghi một đằng, bộ chạy chạy một nẻo, **ngay trong cùng một lần chạy**.
+  `validate_process` trước đây gom tên vào một `set` nên nuốt mất chuyện đó. Nay báo mức **error**
+  (đủ để chặn ▶ Chạy) và nút Lưu của hộp Tham số bị khoá khi còn trùng.
+
+#### 13.0e Dọn nốt — 6 mục "để sau", làm luôn
+
+- **`lich_su.liet_ke()` nhớ tạm bản gọn theo `ma`.** Trước đây mỗi lần gọi phải đọc và parse TOÀN
+  BỘ mọi mục (~69 KB/mục, riêng đường vốn 62 KB) mà danh sách không dùng tới, trong khi mỗi lần
+  bấm ▶ gọi 2-3 lượt. Đo được **40 mục: 233 ms → 0,5 ms** (nhanh hơn ~450×). An toàn vì `lich_su`
+  là nơi DUY NHẤT ghi/xoá file lịch sử, và cả `_ghi_file` lẫn `xoa` đều dọn bộ nhớ tạm; `liet_ke`
+  còn tự bỏ mục nào file đã biến mất ngoài app.
+- **Mã mục lịch sử không đè nhau nữa.** Mốc GIÂY thì hai lần chạy khép trong cùng một giây ghi đè
+  nhau. ⚠ Bản vá đầu của tôi (thêm phần trăm giây) **không sửa được gì** — 20 lần gọi liên tiếp
+  vẫn ra 1 mã, vì cả 20 rơi vào cùng một phần trăm giây. Đừng đoán độ phân giải đồng hồ cho đủ
+  mịn: cứ HỎI ĐĨA, trùng thì thêm hậu tố. Khử hẳn, không phải giảm xác suất.
+- **`lich_su._gon` dùng `.get` cho mọi khoá.** `liet_ke` chỉ canh `m.get("ma")`, nên một mục thiếu
+  `t` ném KeyError và kéo sập CẢ danh sách — mất luôn những mục lành.
+- **Lãi nổi của lệnh BÁN đo bằng Ask, không phải Bid** (`_gia_thoat`). Đo bằng Bid là báo lãi cao
+  hơn thật đúng một spread; với XAUUSD spread 37 điểm thì đủ để một cổng "lãi ≥ 1R" khớp sớm hơn
+  một nhịp, và bảng số liệu hiện một con số mà đóng lệnh ra không được. Gom vào MỘT hàm cho ba chỗ
+  gọi (toán hạng · bảng số liệu · hàng lệnh sống) khỏi nói ba con số khác nhau. `Lenh.lai_R` vẫn cố
+  ý không biết spread là gì — `so_lenh` là mô hình thuần, quy đổi thuộc về chỗ gọi.
+- **`ghi_cai_dat` NÉM lỗi thay vì nuốt.** Trước đây `try/except: pass` rồi vẫn `return s`, nên đĩa
+  đầy hoặc mất quyền thì nơi gọi tưởng đã lưu; lần mở sau cài đặt lặng lẽ về mặc định.
+- **Ghi JSON nguyên tử cho cài đặt · template · lịch sử** (`luu_tru.ghi_json_nguyen_tu`), cùng cách
+  với nến ở 13.0c. Ngắt giữa lúc ghi thì mất bản MỚI, không mất bản CŨ.
+
+#### ✅ 13.0f Sơ đồ mẫu phải có ID CỐ ĐỊNH
+
+Phát hiện lúc kiểm bản dọn, không nằm trong danh sách soát: mở "Sơ đồ mẫu Compress" ba lần thì lịch
+sử đẻ **ba dòng trùng hệt nhau**, và `so_hai_lan` lần nào cũng nói *"sơ đồ ĐÃ ĐỔI"*.
+
+`_van_tay` băm cả `id` khối, mà `_so_do_mau()` sinh id ngẫu nhiên mỗi lần gọi → cùng một logic ra
+ba vân tay khác nhau.
+
+⚠ **Suýt sửa nhầm chỗ.** Tôi định đi chuẩn hoá đồ thị để bỏ `id` khỏi vân tay — việc lớn, và chạm
+vào chuyện "thế nào là cùng một chiến lược". Nhìn lại thì lỗi không nằm ở vân tay: **sơ đồ mẫu là
+một HẰNG SỐ, nên nó phải ra y hệt nhau mỗi lần mở.** Sinh id ngẫu nhiên cho một hằng số mới là chỗ
+bất thường. Sửa đúng chỗ đó: 4 dòng trong `_so_do_mau`, không đụng `_van_tay`.
+
+Id chỉ cần duy nhất TRONG MỘT tài liệu nên đặt cứng hoàn toàn an toàn, và nhập sơ đồ mẫu vào một sơ
+đồ khác thì `clone_steps` vẫn cấp id mới như thường.
+
+Kiểm: 3 lần mở lại và chạy → **1 mục lịch sử**, `so_hai_lan` trả *"y hệt"*. Luồng lưu/mở file vốn
+đã đúng từ trước (ids nằm trong file), đã kiểm lại luôn.
+
+### 13.1 ✅ ĐÓNG GÓI — đã build và chạy thật
+
+```bat
+tools\dong_goi.bat
+```
+
+**MỘT lệnh, sáu bước** — theo đúng nếp `tools/build.bat` của Auto_Clicker, vì nếp đó đã trả lời sẵn
+mấy câu hỏi mà làm tay hay quên:
+
+1. đóng app nếu đang chạy (không thì PyInstaller không ghi đè được `.exe`);
+2. build giao diện web — quên bước này là gói ra một cửa sổ trắng;
+3. **chạy bộ kiểm; đỏ thì DỪNG, không đóng gói** — thêm so với Auto_Clicker;
+4. PyInstaller theo `Cat_Studio.spec`;
+5. kèm `DOC-TRUOC-KHI-CHAY.txt` vào trong gói;
+6. nén `Cat_Studio-windows.zip` rồi **xoá `build/`** — thư mục đó chỉ là chỗ làm việc trung gian
+   của PyInstaller, để lại chỉ tổ rác thư mục gốc.
+
+Dùng `.venv\Scripts\python.exe` chứ không Python global — cùng lý do Auto_Clicker ghi: gói
+`quantconnect-stubs` ở global chiếm namespace `Microsoft`. Mã nguồn đã tự chữa được
+(`_uu_tien_namespace_dotnet`, §10), nhưng đóng gói bằng môi trường sạch thì gói nhẹ hơn và không
+kéo theo rác.
+
+Ra `dist/Cat_Studio/` — **66 MB · 211 file** — và `Cat_Studio-windows.zip` để đưa sang máy khác.
+
+**Chọn `onedir` chứ không `onefile`** — quyết định, không phải mặc định. `onefile` giải nén TOÀN BỘ
+gói (numpy + cây DLL .NET của pythonnet + MetaTrader5) vào thư mục tạm ở MỖI lần mở: vài giây chờ
+trước khi thấy cửa sổ, lần nào cũng vậy, mà chẳng đổi lại được gì. `onedir` mở gần như tức thì.
+
+**Hai thư mục, không được trộn** — đây là chỗ dễ hỏng nhất và đã tách hẳn thành hai hàm có tên:
+
+| | hàm | khi đóng gói |
+|---|---|---|
+| Dữ liệu người dùng | `luu_tru.thu_muc_app()` | cạnh `.exe`, sống lâu hơn tiến trình |
+| Tài nguyên đi kèm | `luu_tru.thu_muc_goi()` | `sys._MEIPASS`, xoá lúc thoát |
+
+Trộn hai cái là hỏng theo cả hai chiều: để `du_lieu/` trong `_MEIPASS` thì mất sạch sau mỗi lần
+chạy; tìm `webui/dist` cạnh `.exe` thì không thấy vì nó nằm trong gói. Trước đây hai chỗ tự ghép
+đường dẫn từ `__file__` — nay cùng gọi `luu_tru.trang_giao_dien()`.
+
+**Đã kiểm bằng cách chạy bản đóng gói thật**, không suy luận:
+
+- mở từ thư mục trắng → cửa sổ hiện đủ giao diện, và `du_lieu/` được tạo **cạnh .exe**;
+- chép nến vào rồi bấm ▶ → chạy trọn một backtest một năm, ra **547 lệnh · −10,50 R · DD 0,91 % ·
+  vốn cuối 9955,04** — **trùng từng con số** với bản chạy từ mã nguồn. Đó mới là bằng chứng gói
+  không làm lệch gì, chứ không phải "mở lên thấy cửa sổ là xong".
+
+`console=False` nên mọi lỗi khởi động phải đi qua MessageBox — `app_web` đã làm thế từ trước cho
+thiếu .NET / thiếu WebView2 / xung đột namespace. `upx=False`: nén UPX hay bị antivirus báo nhầm,
+không đáng đổi lấy vài MB.
 
 ### 12.22 ✅ Ba lối vào tester, một hàm
 

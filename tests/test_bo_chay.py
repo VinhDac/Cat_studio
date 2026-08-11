@@ -197,6 +197,38 @@ kiem("lệnh vừa sinh KHÔNG bị quản lý trong CÙNG lượt đẻ ra nó"
      all(x["seq"] > sinh[x["lenh_id"]] for x in kq.nhat_ky
          if x["tab"] == "manage" and x["lenh_id"] in sinh))
 
+# --- sụt giảm phải đếm cả lệnh do khối "Đóng hẳn" đóng ---
+#
+# `ghi_tien` là closure trong `chay()`, còn `_sua_lenh` là hàm MODULE nên với không tới.
+# Trước đây nhánh "Đóng hẳn" đóng lệnh xong KHÔNG ghi tiền, nên `drawdown_pt` lúc chạy
+# đọc 0 % trong khi sụt giảm thật đã mấy chục phần trăm. Toán hạng đó chính là thứ người
+# ta dùng làm cầu dao ("sụt giảm > 10 % thì ngừng vào lệnh") — cầu dao chết mà không ai hay.
+#
+# ⚠ Kịch bản phải CÓ LỖ THẬT. Dùng lại d7 (giá phẳng 110) thì cả hai đường cùng ra 0 %
+# và phép so khớp một cách vô nghĩa — đã thử, nó BỎ LỌT đúng con bọ này. Giá rơi đều thì
+# mọi lệnh mua đều lỗ, và hai đường buộc phải nói cùng một con số khác 0.
+#
+# Phép so bắt được vì hai vế ra từ HAI đường khác nhau: vế trái cộng dồn LÚC CHẠY, vế
+# phải `_thong_ke` duyệt lại sổ lệnh SAU khi chạy xong.
+# Kịch bản TỰ CHỨA: vốn nhỏ + lot lớn + giá rơi đều, để lỗ đủ to mà `round(…, 2)` không
+# nuốt mất. Không mượn `CD`/`vao()` ở trên vì chúng chỉnh cho bài khác (lot 0,01 trên vốn
+# 10.000 ra sụt giảm 0,0001 % → làm tròn thành 0,00 và phép so lại khớp vô nghĩa).
+CD9 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=1000.0)
+bd9 = core.make_start_step("bắt đầu", "M5")
+v9 = core.make_action_step({
+    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "lot": 1.0,
+    "sl": {"tinh": "theo_pt", "value": 50}, "tp": {"tinh": "theo_pt", "value": 5000}})
+m_bd9 = core.make_start_step("quản lý", "M1")
+huy9 = core.make_action_step({"type": core.SUA_LENH, "name": "đóng",
+                              "che_do": "dong_han"})
+d9 = so_do([bd9, v9], [day(bd9, v9)], [m_bd9, huy9], [day(m_bd9, huy9)])
+kq9 = bc.chay(d9, nen_m1([100.0 - k * 0.5 for k in range(120)]), CD9)
+kiem("sụt giảm LÚC CHẠY khớp sụt giảm BÁO CÁO khi khối Sửa lệnh đóng lệnh",
+     kq9.thong_ke["drawdown_pt"] > 0
+     and abs(kq9._ct.drawdown_pt() - kq9.thong_ke["drawdown_pt"]) < 0.01,
+     f"— lúc chạy {kq9._ct.drawdown_pt():.2f} % · báo cáo "
+     f"{kq9.thong_ke['drawdown_pt']:.2f} %")
+
 # ================= 6. thống kê & lệnh còn sống lúc hết dữ liệu =================
 print("\n▸ Kết thúc backtest")
 kiem("không còn lệnh nào SỐNG sau khi hết dữ liệu", not kq.so.dang_song())
@@ -207,6 +239,56 @@ kiem("thống kê có đủ số lệnh, thắng/thua, tổng R, drawdown",
      <= set(kq.thong_ke))
 kiem("`lenh_tai(i)` lọc theo nến, không cần ảnh chụp nào",
      len(kq.lenh_tai(0)) == 0 and isinstance(kq.lenh_tai(len(kq.nen5) - 1), list))
+
+
+# ============= 7. toán hạng GIÁ đọc ĐÚNG KHUNG của chính nó =============
+#
+# Bài này sinh ra vì một lỗi đã lọt HAI LẦN: `close(M15, nến[1])` trả về giá M5, tức cổng
+# xu hướng so Close M5 với MA M15. Lần vá đầu dựng đúng cột theo khung nhưng quên sửa chỗ
+# ĐỌC, nên cột dựng ra không ai dùng — và cả 6 bài kiểm khi đó vẫn xanh, vì không bài nào
+# soát GIÁ TRỊ LÚC CHẠY của một toán hạng giá.
+#
+# Cách kiểm cố ý KHÔNG so với `doc_cot`: so hai đường trong cùng một cài đặt thì cả hai
+# cùng sai vẫn "khớp". Ở đây tự gộp M15 từ mảng M1 thô rồi tra tay nến M15 ĐÃ ĐÓNG gần
+# nhất — một sự thật độc lập, không mượn gì của bộ chạy.
+print("\n▸ Toán hạng giá đọc đúng khung của chính nó")
+import tinh_toan as tt  # noqa: E402
+
+# Giá TĂNG ĐỀU: mỗi nến M1 một giá khác nhau, nên close M5 và close M15 không bao giờ
+# tình cờ bằng nhau — đọc nhầm khung là lộ ra ngay.
+nen_g = nen_m1([100.0 + k * 0.1 for k in range(600)])
+d8 = so_do([bc_start := core.make_start_step(nhip="M5")], [])
+ct_g = bc.ChuongTrinh(d8, nen_g, CD)
+ctx_g = bc.Ctx(ct_g, None, ct_g.ts)
+o_g = {"ten": "close", "tf": "M15", "shift": 1}
+ct_g._xin_cot_gia(o_g, None)                    # như lúc biên dịch một sơ đồ thật
+
+n15 = tt.gop(nen_g, "M15")
+d15, d5 = tt.moc_dong(n15, "M15"), tt.moc_dong(ct_g.nen5, ct_g.tf5)
+sai_khung = lo_truoc = so_sanh = khac_m5 = 0
+for i_ in range(len(ct_g.nen5)):
+    ctx_g.i = i_
+    v = bc._lay_toan_hang(o_g, ctx_g)
+    if v != v:
+        continue
+    so_sanh += 1
+    j_ = int(np.searchsorted(d15, d5[i_], side="right")) - 1
+    if j_ < 0 or abs(float(n15["c"][j_]) - v) > 1e-9:
+        sai_khung += 1
+    if j_ >= 0 and d15[j_] > d5[i_]:            # nến M15 đó phải ĐÃ đóng
+        lo_truoc += 1
+    if abs(v - float(ct_g.nen5["c"][i_])) > 1e-9:
+        khac_m5 += 1
+
+kiem("close(M15) trả đúng giá đóng nến M15, không phải nến M5",
+     so_sanh > 0 and sai_khung == 0, f"— {so_sanh} nến so, {sai_khung} sai")
+kiem("và nến M15 đó đã ĐÓNG rồi (không nhìn trước tương lai)", lo_truoc == 0)
+# Chốt chặn cuối: nếu ai đó lại làm CẢ HAI đường cùng đọc `nen5` thì hai phép trên vẫn
+# khớp. Giá trị phải THẬT SỰ khác close M5 ở PHẦN LỚN số nến mới chứng minh nó đọc khung
+# kia. Không đòi khác ở MỌI nến: cứ 3 nến M5 lại có một nến đóng cùng lúc với nến M15,
+# lúc đó hai giá bằng nhau là ĐÚNG.
+kiem("giá trị khác close M5 ở phần lớn nến — bằng chứng đang đọc đúng khung M15",
+     khac_m5 > so_sanh * 0.5, f"— khác ở {khac_m5}/{so_sanh} nến")
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

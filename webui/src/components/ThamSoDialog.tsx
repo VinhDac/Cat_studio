@@ -36,7 +36,15 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
                  {ds.length} tham số · sửa ở đây là mọi khối dùng nó đổi theo
                </div>
                <button className="nut" onClick={onDong}>Huỷ</button>
-               <button className="nut chinh" onClick={() => onLuu(ds)}>Lưu</button>
+               {/* Ô trùng tên đã tô đỏ từ trước, nhưng vẫn LƯU được — mà lưu là mất
+                   thật: `normalize_tham_so` giữ dòng ĐẦU và vứt phần sau, trong khi bộ
+                   chạy lại đọc dòng CUỐI. Chặn ngay ở nút thì không ai đi tới chỗ đó. */}
+               <button className="nut chinh"
+                       disabled={ds.some((_, i) => trung(i))}
+                       title={ds.some((_, i) => trung(i))
+                         ? 'Còn tham số trùng tên — sửa cho mỗi tên chỉ xuất hiện một lần'
+                         : undefined}
+                       onClick={() => onLuu(ds)}>Lưu</button>
              </>
            }>
       <div className="chu-dan">

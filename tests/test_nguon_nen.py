@@ -63,6 +63,11 @@ GIO = 3600
 DA_CO = {"symbol": "T", "tu": 1000 * GIO, "den": 2000 * GIO, "so_nen": 5}
 that = nn.doc_meta
 nn.doc_meta = lambda s: DA_CO                       # thay tạm, khỏi đụng đĩa
+# Mục này soát riêng phần SỐ HỌC KHOẢNG, nên cũng phải thay luôn phép kiểm file: bản thật
+# đọc kích thước `.npy` trên đĩa để bắt file cụt (xem `nguon_nen.file_du`), mà ở đây làm
+# gì có file nào. Phép kiểm đó có bài riêng ở mục 5.
+that_file_du = nn.file_du
+nn.file_du = lambda s, m: True
 
 kiem("chưa có gì → tải trọn khoảng xin",
      (lambda: (nn.__dict__.update(doc_meta=lambda s: None),
@@ -90,6 +95,7 @@ kiem("khoảng RỜI bên trái → cũng vá liền",
 kiem("khoảng ngược đời (đến < từ) → không tải gì, không nổ",
      nn.khoang_thieu("T", 2000 * GIO, 1000 * GIO) == [])
 nn.doc_meta = that
+nn.file_du = that_file_du
 
 print("\n▸ Ước tính trước khi tải")
 u = nn.uoc_tinh([(0, 30 * 86400)])
@@ -134,6 +140,56 @@ kiem("KHÔNG lưu spread từng nến (mô hình đã chốt là một con số 
 kiem("chưa tải gì → trả mảng RỖNG đúng dtype, không phải None",
      isinstance(nn.doc("__khong_ton_tai__"), np.ndarray)
      and nn.doc("__khong_ton_tai__").dtype == nn.DTYPE)
+
+
+# ================= 6. ghi nguyên tử & file cụt =================
+#
+# Meta và mảng nến là HAI file. Trước đây `np.save` ghi thẳng lên file đích, nên ngắt
+# giữa chừng để lại `.npy` cụt + meta nguyên vẹn → `doc()` trả rỗng, `khoang_thieu()` chỉ
+# nhìn meta nên bảo "đủ rồi", và app KHÔNG BAO GIỜ tải lại. Tự khoá vào trạng thái chết.
+print("\n▸ Ghi nguyên tử và chốt chặn file cụt")
+import json as _json  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+import luu_tru  # noqa: E402
+
+_tam = tempfile.mkdtemp(prefix="catstudio_test_")
+_that_goc = luu_tru.goc
+luu_tru.goc = lambda: _tam
+try:
+    _n = 300
+    _a = np.zeros(_n, dtype=nn.DTYPE)
+    _a["t"] = np.arange(0, _n * 60, 60, dtype=np.int64)
+    _mn, _mj = nn._duong("ZZ")
+    nn._ghi_nguyen_tu(_mn, lambda f: np.save(f, _a, allow_pickle=False))
+    nn._ghi_nguyen_tu(_mj, lambda f: f.write(_json.dumps(
+        {"symbol": "ZZ", "tu": 0, "den": (_n - 1) * 60, "so_nen": _n}).encode("utf-8")))
+
+    kiem("ghi rồi đọc lại được nguyên vẹn", len(nn.doc("ZZ")) == _n)
+    kiem("dữ liệu đủ → khoang_thieu trả rỗng",
+         nn.khoang_thieu("ZZ", 0, (_n - 1) * 60) == [])
+
+    with open(_mn, "r+b") as _f:                     # cắt cụt như một lần ghi dở
+        _f.truncate(os.path.getsize(_mn) - 500)
+    kiem("file .npy CỤT → khoang_thieu đòi tải lại, không kẹt ở 'đã đủ'",
+         nn.khoang_thieu("ZZ", 0, (_n - 1) * 60) == [(0, (_n - 1) * 60)])
+
+    _truoc = os.path.getsize(_mn)
+
+    def _no(f):
+        f.write(b"x" * 64)
+        raise RuntimeError("giả lập mất điện")
+
+    try:
+        nn._ghi_nguyen_tu(_mn, _no)
+    except RuntimeError:
+        pass
+    kiem("ngắt giữa lúc ghi → bản CŨ còn nguyên, không cụt thêm",
+         os.path.getsize(_mn) == _truoc)
+finally:
+    luu_tru.goc = _that_goc
+    shutil.rmtree(_tam, ignore_errors=True)
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

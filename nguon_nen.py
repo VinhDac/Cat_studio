@@ -187,6 +187,21 @@ def xoa(symbol):
 # ---------------------------------------------------------------------------
 # Còn thiếu những khoảng nào
 # ---------------------------------------------------------------------------
+def file_du(symbol, m):
+    """File `.npy` có thật sự chứa đủ số nến mà meta khai không?
+
+    Meta và mảng nến là HAI file. Một `.npy` cụt (hỏng từ trước bản vá ghi nguyên tử, hay
+    do antivirus/đồng bộ đám mây xén) vẫn để meta nguyên vẹn — mà `doc()` bắt mọi lỗi rồi
+    lặng lẽ trả mảng RỖNG, còn `khoang_thieu()` chỉ nhìn meta nên khẳng định "đủ rồi".
+    App tự khoá mình vào trạng thái chết: không đọc được nến, cũng không bao giờ tải lại.
+
+    Chỉ một lệnh `stat`, không đọc file, nên gọi mỗi lần bấm ▶ cũng không tốn gì."""
+    try:
+        return os.path.getsize(_duong(symbol)[0]) >= int(m["so_nen"]) * DTYPE.itemsize
+    except (OSError, KeyError, TypeError, ValueError):
+        return False
+
+
 def khoang_thieu(symbol, tu, den):
     """Muốn có [tu, den] thì còn phải tải những khoảng nào.
 
@@ -200,6 +215,8 @@ def khoang_thieu(symbol, tu, den):
         return []
     m = doc_meta(symbol)
     if not m or not m.get("so_nen"):
+        return [(t0, t1)]
+    if not file_du(symbol, m):
         return [(t0, t1)]
     a, b = int(m["tu"]), int(m["den"])
     ra = []
@@ -375,9 +392,9 @@ def tai(symbol, tu, den, tien_do=None):
         "tai_luc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
     }
     mn, mj = _duong(symbol)
-    np.save(mn, a, allow_pickle=False)
-    with open(mj, "w", encoding="utf-8") as f:
-        json.dump(m, f, ensure_ascii=False, indent=2)
+    _ghi_nguyen_tu(mn, lambda f: np.save(f, a, allow_pickle=False))
+    _ghi_nguyen_tu(mj, lambda f: f.write(
+        json.dumps(m, ensure_ascii=False, indent=2).encode("utf-8")))
 
     return {"da_tai": int(len(moi)), "bo_qua": False, "meta": m,
             "chu": f"Đã tải {len(moi):,} nến · giữ tổng {len(a):,} nến "
@@ -387,6 +404,25 @@ def tai(symbol, tu, den, tien_do=None):
 # ---------------------------------------------------------------------------
 # Soát chất lượng — thứ bộ chạy PHẢI biết trước khi tin vào dữ liệu
 # ---------------------------------------------------------------------------
+def _ghi_nguyen_tu(duong, ghi):
+    """Ghi ra file TẠM rồi đổi tên đè lên — đổi tên trên NTFS là một thao tác nguyên tử.
+
+    Vì sao bắt buộc riêng ở đây: `np.save` ghi thẳng lên file đích, tức nó CẮT CỤT bộ nến
+    cũ rồi mới ghi lại. Ngắt giữa chừng (bấm ✕, mất điện, antivirus xen vào) thì `.npy`
+    cụt còn `.json` meta vẫn mô tả bộ dữ liệu không còn tồn tại nữa — và từ đó `doc()`
+    lặng lẽ trả mảng rỗng trong khi `khoang_thieu()` (chỉ nhìn meta) khẳng định không
+    thiếu gì, nên app KHÔNG BAO GIỜ tải lại. Tự khoá mình vào trạng thái chết. Đo được:
+    ngắt tiến trình đúng lúc `np.save` thì 20/20 lần khoá chết.
+
+    Cách này ngắt ở đâu cũng chỉ để lại một file `.tmp` rác, còn bản cũ nguyên vẹn."""
+    tam = duong + ".tmp"
+    with open(tam, "wb") as f:
+        ghi(f)
+        f.flush()
+        os.fsync(f.fileno())        # ép xuống đĩa TRƯỚC khi đổi tên, không chỉ vào cache
+    os.replace(tam, duong)
+
+
 def lo_hong(symbol, tu=None, den=None, nguong_phut=2):
     """Những chỗ THỦNG trong chuỗi nến M1: (bắt đầu, kết thúc, số phút).
 
