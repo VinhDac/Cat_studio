@@ -3,11 +3,14 @@ import { cho_cau_noi, pyTester } from '../api'
 import IconNet from '../components/Icon'
 import TitleBar from '../components/TitleBar'
 import { useKhungCuaSo } from '../useKhungCuaSo'
-import type { DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay } from '../types'
+import type {
+  DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay, XemLichSu,
+} from '../types'
 import BangSoLieu, { type BangCat } from './BangSoLieu'
 import Chart, { type Bar, type NenM1 } from './Chart'
 import BangDuoi from './BangDuoi'
 import type { DongNk } from './Journey'
+import LichSu from './LichSu'
 
 const TF = [['M1', 1], ['M5', 5], ['M15', 15], ['M30', 30], ['H1', 60],
             ['H4', 240], ['D1', 1440]] as const
@@ -46,6 +49,11 @@ export default function Tester() {
   const [toc, setToc] = useState(1)
   const [tfVe, setTfVe] = useState(5)
   const [hienBang, setHienBang] = useState(true)
+  /** Đang XEM một mục lịch sử (chỉ tóm tắt, không phát lại). `null` = lần chạy hiện tại.
+   *  Xem là tức thì vì Python cất sẵn bảng số và đường vốn; muốn phát lại thì phải
+   *  MỞ LẠI, tức chạy lại thật. */
+  const [xemLS, setXemLS] = useState<XemLichSu | null>(null)
+  const [maLS, setMaLS] = useState<string | null>(null)
 
   // --- lô đang phát ---
   const lo = useRef<DoanPhat | null>(null)
@@ -83,10 +91,12 @@ export default function Tester() {
 
   /* Bấm ▶ → chạy nền + hỏi tiến trình 200 ms một lần. Ba giây im lặng không phân biệt
      được với treo, nên phải THẤY nó đang chạy tới đâu. */
-  const chay = async () => {
-    setLoi(''); setPhat(false); setKq(null)
+  const chay = async (ma?: string) => {
+    setLoi(''); setPhat(false); setKq(null); setXemLS(null)
     setTt({ dang_chay: true, da: 0, tong: 0, chu: 'đang nạp nến…', xong: null, loi: null })
-    const r = await pyTester.test_chay({})
+    // `ma` = MỞ LẠI một mục lịch sử: Python lấy sơ đồ và cài đặt từ chính mục đó, không
+    // phải từ cửa sổ chính — nếu không thì "mở lại" ra một lần chạy khác hẳn.
+    const r = ma ? await pyTester.test_lich_su_chay(ma) : await pyTester.test_chay({})
     if (!r.ok) { setTt(null); return setLoi(r.error ?? 'chạy hỏng') }
     for (;;) {
       await new Promise(k => setTimeout(k, 200))
@@ -254,10 +264,19 @@ export default function Tester() {
   return (
     <div className="khung">
       <TitleBar tieuDe={doc ? `${doc.name} — Strategy Tester` : 'Strategy Tester'}
-                menus={[]} />
+                menus={[]}
+                them={<LichSu dangXem={maLS}
+                              onXem={async ma => {
+                                const r = await pyTester.test_lich_su_xem(ma)
+                                if (r.ok && r.value) { setXemLS(r.value); setMaLS(ma) }
+                              }}
+                              onMoLai={ma => { setMaLS(ma); void chay(ma) }} />} />
 
       <div className="tb">
-        <button className="nut chinh" onClick={chay} disabled={!!tt?.dang_chay}>↻ Chạy lại</button>
+        {/* `() => chay()` chứ KHÔNG phải `chay`: truyền thẳng thì React đưa cả đối tượng
+            sự kiện vào tham số `ma`, và nút này hoá ra đi mở lại một mục lịch sử. */}
+        <button className="nut chinh" onClick={() => void chay()}
+                disabled={!!tt?.dang_chay}>↻ Chạy lại</button>
         <span className="tb-ngan" />
         {nut('dau', 'Về đầu', () => { setPhat(false); void veDau(0) }, false, !kq)}
         {nut('undo', 'Lùi 1 nến',
@@ -322,6 +341,7 @@ export default function Tester() {
           công cụ: tay đang ở đâu thì nút ở đó. */}
       {kq && (
         <BangDuoi dong={dong} jBayGio={j}
+                 xemLS={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }}
                  ghiFile={async () => {
                    const r = await pyTester.test_ghi_nhat_ky()
                    if (r.ok && r.value) alert(`Đã ghi:\n${r.value.duong_dan}`)

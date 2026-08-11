@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Journey, { type DongNk } from './Journey'
+import type { XemLichSu } from '../types'
 import ThongKe from './ThongKe'
 
 /** Bảng dưới cao tối thiểu lúc kéo, và cao khi đã gập (vừa đủ hàng tab). */
@@ -15,16 +16,25 @@ const CAO_GAP = 33
  * Tách khỏi `Journey` vì giờ có hai tab: vỏ là chuyện của bảng, danh sách dòng là
  * chuyện của nhật ký. Gộp lại thì thêm tab thứ ba là phải sửa cả hai.
  */
-export default function BangDuoi({ dong, jBayGio, nhay, ghiFile }: {
+export default function BangDuoi({ dong, jBayGio, nhay, ghiFile, xemLS, thoiXem }: {
   dong: DongNk[]
   jBayGio: number
   nhay: (i: number) => void
   ghiFile: () => void
+  /** Đang xem tóm tắt của một mục LỊCH SỬ thay vì lần chạy hiện tại. */
+  xemLS: XemLichSu | null
+  thoiXem: () => void
 }) {
   const [tab, setTab] = useState<'nhat-ky' | 'thong-ke'>('nhat-ky')
   const [cao, setCao] = useState(210)
   const [gap, setGap] = useState(false)
   const [chiViec, setChiViec] = useState(false)
+
+  /* Chọn một mục lịch sử = nhảy thẳng sang tab Thống kê và mở bảng ra. Bắt người dùng
+     tự bấm thêm hai nhát nữa mới thấy thứ vừa chọn thì cái danh sách kia thành vô dụng. */
+  useEffect(() => {
+    if (xemLS) { setTab('thong-ke'); setGap(false) }
+  }, [xemLS])
 
   /** Kéo mép trên để chỉnh chiều cao. Bám theo con trỏ cho tới khi thả, kể cả khi chuột
    *  đi ra ngoài cửa sổ — chỉ nghe trên chính thanh kéo thì kéo nhanh một cái là mất
@@ -83,7 +93,7 @@ export default function BangDuoi({ dong, jBayGio, nhay, ghiFile }: {
 
       {!gap && (tab === 'nhat-ky'
         ? <Journey dong={dong} jBayGio={jBayGio} nhay={nhay} chiViec={chiViec} />
-        : <ThongKe />)}
+        : <ThongKe nguon={xemLS} thoiXem={thoiXem} />)}
     </div>
   )
 }

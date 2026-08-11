@@ -25,6 +25,7 @@ import core
 import kho
 import khung_cua_so
 import bo_chay
+import lich_su
 import luu_tru
 import nguon_nen
 import nhat_ky
@@ -57,6 +58,12 @@ def _ok(v=None, **them):
     ra = {"ok": True, "value": v}
     ra.update(them)
     return ra
+
+
+def _loi(chu):
+    """Thất bại CÓ LÝ DO ĐỌC ĐƯỢC — khác với ngoại lệ. Cùng hình dạng với `_bat_loi` trả
+    về, nên phía JS chỉ có một chỗ để kiểm tra."""
+    return {"ok": False, "error": chu}
 
 
 # ---------------------------------------------------------------------------
@@ -653,6 +660,7 @@ class ApiTester(NenCuaSo):
         giây, và ba giây im lặng thì không phân biệt được với treo. Luồng nền ở đây an
         toàn vì nó KHÔNG chia sẻ trạng thái nào — nó dựng một `KetQua` mới rồi mới gán
         vào `self._kq` bằng một phép gán duy nhất."""
+        self._ma_lich_su = None      # ▶ thường = lần chạy MỚI, không phải mở lại mục cũ
         self._tt = {"dang_chay": True, "da": 0, "tong": 0, "chu": "đang nạp nến…",
                     "xong": None, "loi": None}
         threading.Thread(target=self._chay_nen, args=(ci or {},), daemon=True).start()
@@ -663,23 +671,27 @@ class ApiTester(NenCuaSo):
         """Tiến trình lần chạy đang diễn ra. Giao diện hỏi ~200 ms một lần."""
         return _ok(getattr(self, "_tt", {"dang_chay": False}))
 
-    def _chay_nen(self, ci):
+    def _chay_nen(self, ci, doc=None):
         try:
-            self._tt.update(self._chay_that(ci))
+            self._tt.update(self._chay_that(ci, doc))
         except Exception as e:
             self._tt.update({"loi": f"{type(e).__name__}: {e}"})
         finally:
             self._tt["dang_chay"] = False
 
-    def _chay_that(self, ci):
+    def _chay_that(self, ci, doc=None):
         # ĐỌC LẠI cài đặt từ cửa sổ chính mỗi lần chạy, không dùng bản JS nhớ từ lúc mở
         # cửa sổ: người dùng sửa Cài đặt rồi bấm ▶ lại thì phải ăn ngay. Cửa sổ tester
         # sống lâu hơn một lần chạy, nên mọi thứ nó "nhớ" đều có nguy cơ cũ.
+        #
+        # `doc` truyền vào = đang MỞ LẠI một mục lịch sử: sơ đồ và cài đặt lấy từ mục đó
+        # chứ không phải từ cửa sổ chính, nếu không thì "mở lại" chạy ra một lần chạy
+        # khác hẳn và cái tên lịch sử thành nói dối.
         luu = dict(luu_tru.CAI_DAT_MAC_DINH["test"])
         luu.update((self._cha._cai_dat or {}).get("test") or {})
         luu.update(ci or {})
         ci = luu
-        doc = self._cha._doc_tester
+        doc = doc or self._cha._doc_tester
         if not doc:
             raise RuntimeError("Chưa có sơ đồ nào để chạy.")
         m = nguon_nen.doc_meta(ci.get("symbol") or "XAUUSD") or {}
@@ -706,6 +718,13 @@ class ApiTester(NenCuaSo):
         kq = bo_chay.chay(doc, nen, cd, tien_do=tien_do)
         self._kq, self._cd = kq, cd          # gán MỘT lần, sau khi đã tính xong
         self._chi_co_viec = True
+        # Vào lịch sử NGAY, không đợi người dùng bấm gì: lưới an toàn chỉ có tác dụng
+        # khi nó tự giăng. Bản tóm tắt dùng ĐÚNG payload của `test_thong_ke` nên mở một
+        # mục cũ và xem lần chạy hiện tại đi qua cùng một đường vẽ.
+        try:
+            lich_su.ghi(kq, cd, self._tom_tat_chay())
+        except Exception:
+            pass                             # hỏng lịch sử KHÔNG được làm hỏng lần chạy
         return {"xong": {
             "so_nen_m1": int(len(self._kq.nen1)),
             "so_nen_truc": int(len(self._kq.nen5)),
@@ -722,10 +741,18 @@ class ApiTester(NenCuaSo):
         }}
 
     def _tom_tat_lan_truoc(self):
-        if getattr(self, "_kq", None) is None:
+        """Lần chạy trước — để trả lời "so với lần trước thì sao".
+
+        Chưa chạy lần nào TRONG PHIÊN NÀY thì lấy mục mới nhất trong lịch sử: trước đây
+        đóng cửa sổ tester là câu trả lời đó mất sạch, mà vòng lặp nâng cấp model thì
+        chẳng ai làm gọn trong một phiên."""
+        if getattr(self, "_kq", None) is not None:
+            return {"thong_ke": self._kq.thong_ke,
+                    "van_tay": nhat_ky._van_tay(self._kq.doc)}
+        ds = lich_su.liet_ke()
+        if not ds:
             return None
-        return {"thong_ke": self._kq.thong_ke,
-                "van_tay": nhat_ky._van_tay(self._kq.doc)}
+        return {"thong_ke": ds[0]["thong_ke"], "van_tay": ds[0]["van_tay"]}
 
     # ------------------------------------------------- đọc dòng thời gian
     @_bat_loi
@@ -922,23 +949,95 @@ class ApiTester(NenCuaSo):
                 return _ok({"j": int(r["j"]), "i": int(r["nen"])})
         return _ok({"j": -1, "i": -1})
 
-    @_bat_loi
-    def test_thong_ke(self):
-        """Toàn bộ số + đường vốn cho tab Thống kê. Gọi MỘT lần lúc mở tab.
+    def _tom_tat_chay(self):
+        """Tổng kết cả lượt chạy. DỰNG Ở ĐÚNG MỘT CHỖ.
 
-        CỐ ĐỊNH, không theo con trỏ: đây là tổng kết cả lượt chạy, không phải thứ tua
-        được. Kèm cả khoảng ĐÃ YÊU CẦU lẫn khoảng THẬT SỰ có nến — hai cái này lệch nhau
-        là chuyện thường (thiếu dữ liệu đầu/cuối), mà đọc số mà không biết nó tính trên
-        quãng nào thì con số vô nghĩa."""
+        Vừa là thứ tab Thống kê vẽ, vừa là thứ lịch sử cất đi — nên mở một mục cũ và xem
+        lần chạy hiện tại đi qua cùng một đường vẽ, không có hai hình dạng để lệch nhau.
+
+        Kèm cả khoảng ĐÃ YÊU CẦU lẫn khoảng THẬT SỰ có nến: hai cái lệch nhau là chuyện
+        thường (thiếu dữ liệu đầu/cuối), mà đọc số không biết nó tính trên quãng nào thì
+        con số vô nghĩa."""
         kq = self._doi_kq()
-        return _ok({
+        return {
             "tk": kq.thong_ke,
             "duong_von": kq.duong_von,
             "t_dau": int(kq.nen1["t"][0]), "t_cuoi": int(kq.nen1["t"][-1]),
             "yc_tu": self._cd.tu, "yc_den": self._cd.den,
             "symbol": self._cd.symbol,
             "nhip": dict(kq._ct.nhip),
-        })
+        }
+
+    @_bat_loi
+    def test_thong_ke(self):
+        """Tab Thống kê của lần chạy ĐANG XEM. Gọi một lần lúc mở tab."""
+        return _ok(self._tom_tat_chay())
+
+    # ------------------------------------------------------------- lịch sử
+    @_bat_loi
+    def test_lich_su(self):
+        """Danh sách mục lịch sử, mới nhất trước. Bản GỌN — không kèm sơ đồ, không kèm
+        đường vốn; hai thứ đó chiếm gần hết dung lượng mà danh sách không dùng tới."""
+        return _ok({"ds": lich_su.liet_ke(),
+                    "dang_xem": getattr(self, "_ma_lich_su", None)})
+
+    @_bat_loi
+    def test_lich_su_xem(self, ma):
+        """Bản tóm tắt của một mục — hiện NGAY, không phải chạy lại gì.
+
+        Kèm `chay_lai_duoc`: nến nguồn còn khớp thì mới mở lại xem phát lại được."""
+        m = lich_su.doc(ma)
+        if not m:
+            return _loi("Không đọc được mục lịch sử này.")
+        return _ok({"tom_tat": m.get("tom_tat"), "nguon": m.get("nguon"),
+                    "ten": m.get("ten"), "t": m.get("t"),
+                    **self._soat_nguon(m)})
+
+    def _soat_nguon(self, m):
+        """Nến nguồn còn y nguyên như lúc chạy không?
+
+        `Mở lại` chỉ ra đúng bộ số cũ nếu dữ liệu chưa đổi. Không soát thì ba tháng nữa
+        nó lặng lẽ chạy ra một kết quả khác mà vẫn mang cái tên cũ — đúng loại nói dối
+        khó phát hiện nhất."""
+        ng = m.get("nguon") or {}
+        ci = m.get("cai_dat") or {}
+        nen = nguon_nen.doc(ng.get("symbol") or ci.get("symbol") or "XAUUSD",
+                            ci.get("tu"), ci.get("den"))
+        if not len(nen):
+            return {"chay_lai_duoc": False, "vi_sao": "không còn nến nào cho khoảng này"}
+        if (int(len(nen)) != int(ng.get("so_nen") or -1)
+                or int(nen["t"][0]) != int(ng.get("t_dau") or -1)
+                or int(nen["t"][-1]) != int(ng.get("t_cuoi") or -1)):
+            return {"chay_lai_duoc": False,
+                    "vi_sao": f"dữ liệu nguồn đã đổi ({ng.get('so_nen'):,} → "
+                              f"{len(nen):,} nến)".replace(",", ".")}
+        return {"chay_lai_duoc": True, "vi_sao": ""}
+
+    @_bat_loi
+    def test_lich_su_chay(self, ma):
+        """MỞ LẠI một mục: chạy lại đúng sơ đồ và cài đặt đã cất, trên luồng nền."""
+        m = lich_su.doc(ma)
+        if not m:
+            return _loi("Không đọc được mục lịch sử này.")
+        s = self._soat_nguon(m)
+        if not s["chay_lai_duoc"]:
+            return _loi(f"Không mở lại được — {s['vi_sao']}.")
+        self._ma_lich_su = str(ma)
+        self._tt = {"dang_chay": True, "da": 0, "tong": 0, "chu": "đang nạp nến…",
+                    "xong": None, "loi": None}
+        threading.Thread(target=self._chay_nen,
+                         args=(m.get("cai_dat") or {}, m.get("doc")), daemon=True).start()
+        return _ok(True)
+
+    @_bat_loi
+    def test_lich_su_ten(self, ma, ten):
+        """Đặt tên = chuyển mục mềm thành ĐÃ LƯU (không bao giờ bị cuốn chiếu). Tên rỗng
+        thì trả nó về mục mềm."""
+        return _ok(lich_su.dat_ten(ma, ten))
+
+    @_bat_loi
+    def test_lich_su_xoa(self, ma):
+        return _ok(lich_su.xoa(ma))
 
     @_bat_loi
     def test_tim_moc(self, t):

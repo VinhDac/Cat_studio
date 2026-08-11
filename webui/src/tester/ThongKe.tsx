@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { pyTester } from '../api'
-import type { ThongKeChay } from '../types'
+import type { ThongKeChay, XemLichSu } from '../types'
 
 /** TAB THỐNG KÊ — tổng kết cả lượt chạy. CỐ ĐỊNH, không tua theo con trỏ.
  *
@@ -15,20 +15,27 @@ import type { ThongKeChay } from '../types'
  * KHÔNG có `số vùng nén` dù `thong_ke` đang mang sẵn: đó là khái niệm riêng của một
  * chiến lược, đúng cái bẫy đã gỡ ở bảng số liệu bên phải (core.md §12.9c).
  */
-export default function ThongKe() {
-  const [d, setD] = useState<ThongKeChay | null>(null)
+export default function ThongKe({ nguon, thoiXem }: {
+  /** Có thì vẽ mục LỊCH SỬ này; `null` thì hỏi lần chạy hiện tại. Cùng một hình dạng dữ
+   *  liệu (`_tom_tat_chay` bên Python dựng cả hai), nên không có nhánh vẽ thứ hai. */
+  nguon: XemLichSu | null
+  thoiXem: () => void
+}) {
+  const [hienTai, setHienTai] = useState<ThongKeChay | null>(null)
   const [loi, setLoi] = useState('')
 
   useEffect(() => {
+    if (nguon) return                 // đang xem lịch sử, không cần hỏi lần chạy hiện tại
     let song = true
     void pyTester.test_thong_ke().then(r => {
       if (!song) return
-      if (r.ok && r.value) setD(r.value)
+      if (r.ok && r.value) setHienTai(r.value)
       else setLoi(r.error || 'không đọc được thống kê')
     })
     return () => { song = false }
-  }, [])
+  }, [nguon])
 
+  const d = nguon ? nguon.tom_tat : hienTai
   if (loi) return <div className="tk-trong">{loi}</div>
   if (!d) return <div className="tk-trong">đang tính…</div>
 
@@ -40,6 +47,18 @@ export default function ThongKe() {
 
   return (
     <div className="tk">
+      {/* Dải này bắt buộc: không có nó thì người dùng đang nhìn số của một lần chạy CŨ mà
+          tưởng là lần đang mở — kiểu nhầm tốn cả buổi. */}
+      {nguon && (
+        <div className="tk-bao-cu">
+          Đang xem lần chạy cũ
+          <b>{nguon.ten || gio(nguon.t)}</b>
+          {nguon.chay_lai_duoc
+            ? <span className="tk-phu">bấm ▶ trong Lịch sử để mở lại xem phát lại</span>
+            : <span className="tk-canh">⚠ {nguon.vi_sao} — không mở lại phát lại được</span>}
+          <button className="nut-nho" onClick={thoiXem}>Về lần chạy hiện tại</button>
+        </div>
+      )}
       <div className="tk-khoang">
         <b>{gio(d.t_dau)}</b> → <b>{gio(d.t_cuoi)}</b>
         <span className="tk-phu">

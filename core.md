@@ -1597,6 +1597,67 @@ cuối cùng nên nó tàng hình. ⚠ Điểm đầu KHÔNG được lấy `Len
 dời ghi đè — lấy nó làm điểm đầu là ra một đường phẳng và cái bậc biến mất. Nay điểm đầu lấy thẳng
 từ bản ghi `lenh_dat` trong nhật ký (§12.9d), chính xác và dùng được cho cả TP.
 
+### 12.22 ✅ Ba lối vào tester, một hàm
+
+`▶ Chạy` trên ribbon · `File → Mở Strategy Tester` · phím `Ctrl+R`. Cả ba trỏ về **đúng một hàm**
+`chay()` — cùng luật với 4 menu tiêu đề (§8): không tạo hành động mới nào cho một lối vào mới, nếu
+không hai nơi sớm muộn cũng lệch nhau.
+
+`ContextMenu` nhận thêm trường `phim` để hiện nhãn phím tắt mờ, dạt phải. Nó CHỈ là nhãn — phím
+thật vẫn do chỗ nghe bàn phím lo, menu không tự gắn phím nào.
+
+⚠ **`Ctrl+R` bắt buộc `preventDefault()`**: mặc định của Chromium là **nạp lại trang**, tức mất
+trắng sơ đồ đang vẽ dở. Chặn nó lại còn là một cái lợi kèm theo. Đã bấm thật để kiểm chứ không
+tin suông — cửa sổ tester mở ra và cửa sổ chính vẫn nguyên, không nạp lại.
+
+### 12.21 ✅ LỊCH SỬ CÁC LẦN CHẠY — không lưu kết quả, lưu thứ ĐẺ RA nó
+
+Nút `⏱ Lịch sử` cạnh logo trên thanh tiêu đề tester (`TitleBar` nhận thêm ô cắm `them`).
+
+**Ý chính.** Bộ chạy tất định và một năm mất 2,9 giây, nên một mục lịch sử chỉ cần chứa **đầu vào**
+— sơ đồ đã đóng băng + cài đặt + dấu vết dữ liệu nguồn — kèm một **bản tóm tắt** nhỏ để mở ra là
+thấy ngay:
+
+| | |
+|---|---|
+| Lưu cả `KetQua` | riêng nhật ký đã **3,3 MB** một lần chạy |
+| Lưu đầu vào + tóm tắt | **~40 KB** |
+
+Mở một mục → tóm tắt hiện **tức thì**. Bấm `▶` → chạy lại 3 giây và ra **nguyên bộ phát lại**
+(chart · nhật ký · bảng số liệu · tua đi tua lại), không phải một tấm ảnh chụp chết. Chỉ làm được
+thế vì `so_lenh.py` hứa *"chạy lại cùng dữ liệu ra cùng id"* và có bài kiểm cho lời hứa đó. Đã đo:
+mở lại mục đã lưu ra đúng **548 lệnh · −7,50 R**, khớp bản gốc từng con số.
+
+**MỀM và ĐÃ LƯU khác nhau ở ĐÚNG MỘT chỗ: có `ten` hay không.**
+
+- `ten = None` → mục mềm, tự ghi mỗi lần bấm ▶, cuốn chiếu khi quá **20**.
+- `ten = "…"` → đã lưu, **miễn nhiễm cuốn chiếu**. Cái tên mới là thứ làm nó tìm lại được sau ba
+  tháng — `hôm qua 22:41` thì tháng sau chẳng nói lên gì.
+
+Một thư mục, một định dạng, nên `Mở lại` chạy **y hệt nhau** ở cả hai danh sách — không có hai
+đường code để lệch nhau. "Lưu" chỉ là ghi một cái tên vào file đã có.
+
+**Chạy lại mà không đổi gì thì KHÔNG đẻ dòng mới.** Cùng vân tay sơ đồ + cùng cài đặt = kết quả
+giống hệt (tất định), một dòng nữa mang đúng 0 thông tin. Chỉ dập lại mốc thời gian. `delay_ms` cố
+ý **không** nằm trong bộ cài đặt đem so — nó chỉ là tốc độ phát lại, tính nó vào thì lịch sử đầy rác.
+
+**Chỗ cơ chế này có thể nói dối, đã chặn.** `Mở lại` chỉ ra đúng số cũ nếu nến nguồn còn y nguyên.
+Mỗi mục ghi `symbol · số nến · nến đầu · nến cuối`; lúc mở, `_soat_nguon` so lại và nếu lệch thì
+**từ chối chạy** kèm câu *"dữ liệu nguồn đã đổi (353.129 → 401.664 nến)"* — chứ không lặng lẽ chạy
+ra bộ số khác rồi vẫn mang cái tên cũ. Bản tóm tắt thì vẫn còn vĩnh viễn.
+
+**Hai thứ được thêm mà không phải viết mới:**
+
+1. `_tom_tat_chay()` dựng ở **một chỗ** — vừa là thứ tab Thống kê vẽ, vừa là thứ lịch sử cất đi.
+   Nên mở mục cũ và xem lần chạy hiện tại đi qua **cùng một đường vẽ**, không có hình dạng thứ hai.
+2. `so_hai_lan` giờ **sống qua các phiên**: chưa chạy lần nào trong phiên thì `_tom_tat_lan_truoc`
+   lấy mục mới nhất trong lịch sử. Trước đây đóng cửa sổ tester là câu *"so với lần trước thì
+   sao"* mất sạch, mà vòng lặp nâng cấp model thì chẳng ai làm gọn trong một phiên.
+
+**Một lỗi `tsc` bắt được, đáng ghi.** `onClick={chay}` — sau khi `chay` nhận thêm tham số `ma` thì
+React truyền cả **đối tượng sự kiện** vào đó, và nút `↻ Chạy lại` hoá ra đi *mở lại một mục lịch
+sử* với mã là một `MouseEvent`. Phải viết `onClick={() => void chay()}`.
+
 ### 12.20 ✅ Tab Thống kê — tổng kết cố định, không tua
 
 Tab thứ hai của **bảng dưới**, cạnh `Nhật ký`, dùng chung thanh kéo và nút gập đã có. Nội dung xếp

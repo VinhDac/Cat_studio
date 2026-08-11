@@ -837,12 +837,15 @@ function Ung() {
       else if (ctrl && ev.key.toLowerCase() === 'v') { ev.preventDefault(); danKhoi() }
       else if (ctrl && ev.key.toLowerCase() === 's') { ev.preventDefault(); luu() }
       else if (ctrl && ev.key.toLowerCase() === 'g') { ev.preventDefault(); doiGhim() }
+      // Ctrl+R: `preventDefault` BẮT BUỘC — mặc định của Chromium là nạp lại trang, tức
+      // mất trắng sơ đồ đang vẽ dở. Chặn nó cũng là một cái lợi kèm theo.
+      else if (ctrl && ev.key.toLowerCase() === 'r') { ev.preventDefault(); void chay() }
       else if (ev.key === 'Delete') { ev.preventDefault(); xoa() }
       else if (ev.key === 'F2') { ev.preventDefault(); doiTen() }
     }
     window.addEventListener('keydown', f)
     return () => window.removeEventListener('keydown', f)
-  }, [hoanTac, lamLai, nhanBan, luu, xoa, doiTen, chepKhoi, danKhoi, doiGhim])
+  }, [hoanTac, lamLai, nhanBan, luu, xoa, doiTen, chepKhoi, danKhoi, doiGhim, chay])
 
   /* Kéo hộp: chụp ảnh MỘT lần lúc bắt đầu kéo, không phải mỗi frame — nếu không thì một
      cú kéo tạo ra 60 bước undo và Ctrl+Z thành vô dụng. */
@@ -894,6 +897,10 @@ function Ung() {
       { ten: 'Mở từ file…', onClick: moFile },
       { ten: 'Sơ đồ mẫu Compress (xem thử)', onClick: moMau },
       { ngan: true },
+      // Trỏ thẳng về `chay` — đúng hàm mà nút ▶ trên ribbon gọi, nên hai lối vào không
+      // thể lệch nhau (cùng luật với 4 menu còn lại).
+      { ten: 'Mở Strategy Tester', icon: 'chay', phim: 'Ctrl+R', onClick: chay },
+      { ngan: true },
       { ten: 'Lưu thành template…', icon: 'save', onClick: luu },
       { ten: 'Lưu ra file khác…', onClick: luuRaFile },
       { ngan: true },
@@ -936,7 +943,7 @@ function Ung() {
     ] },
   ], [soDoMoi, moFile, moMau, luu, luuRaFile, moChienLuoc, hoanTac, lamLai, coLui, coToi,
       chepKhoi, danKhoi, nhanBan, doiGhim, xoa, dangChon, zoomIn, zoomOut, fitView,
-      panelGap, boot, setMoKho, setMoThamSo])
+      panelGap, boot, setMoKho, setMoThamSo, chay])
 
   const soLoi = vanDe.filter(v => v.severity === 'error').length
   const soCanhBao = vanDe.length - soLoi

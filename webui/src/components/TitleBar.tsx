@@ -15,7 +15,13 @@ export interface NhomMenu { ten: string; muc: MucPhai[] }
  *  ra menu hệ thống. Việc duy nhất của component này là nói cho Python biết CHỖ NÀO
  *  không phải caption — logo, 4 menu, 3 nút — để chúng vẫn bấm được.
  */
-export default function TitleBar({ tieuDe, menus }: { tieuDe: string; menus: NhomMenu[] }) {
+export default function TitleBar({ tieuDe, menus, them }: {
+  tieuDe: string
+  menus: NhomMenu[]
+  /** Chèn thêm ngay sau logo. Phần tử bấm được PHẢI mang `data-khong-keo`, nếu không
+   *  Windows coi dải đó là caption và cú bấm hoá ra kéo cửa sổ. */
+  them?: React.ReactNode
+}) {
   const [mo, setMo] = useState<{ i: number; x: number; y: number } | null>(null)
   const [phongTo, setPhongTo] = useState(false)
   const thanh = useRef<HTMLDivElement>(null)
@@ -42,7 +48,7 @@ export default function TitleBar({ tieuDe, menus }: { tieuDe: string; menus: Nho
     return () => window.removeEventListener('resize', f)
   }, [baoVung])
   // Chữ menu do người dùng đổi (tên Process) làm cụm trái rộng hẹp khác đi -> báo lại.
-  useEffect(() => { baoVung() }, [menus, tieuDe, baoVung])
+  useEffect(() => { baoVung() }, [menus, tieuDe, them, baoVung])
 
   const bamMenu = (i: number, e: React.MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -53,6 +59,7 @@ export default function TitleBar({ tieuDe, menus }: { tieuDe: string; menus: Nho
     <>
       <div className="thanh-tieu-de" ref={thanh}>
         <img className="logo-app" src="./favicon.ico" alt="" data-khong-keo />
+        {them}
         {menus.map((m, i) => (
           <button key={m.ten} data-khong-keo
                   className={'menu-tren' + (mo?.i === i ? ' dang-mo' : '')}

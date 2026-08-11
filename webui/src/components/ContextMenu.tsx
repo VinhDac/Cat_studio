@@ -16,6 +16,9 @@ export interface MucPhai {
   /** Lý do bị mờ — hiện thành tooltip. Mờ mà không nói vì sao là bực nhất. */
   viSao?: string
   onClick?: () => void
+  /** Phím tắt, hiện mờ bên phải (`Ctrl+R`). Chỉ là NHÃN — phím thật vẫn do chỗ nghe
+   *  bàn phím lo; menu không tự gắn phím nào. */
+  phim?: string
   con?: MucPhai[]
 }
 
@@ -78,6 +81,7 @@ export default function ContextMenu({ x, y, muc, onDong }: {
       >
         <span className="hinh-muc">{m.icon ? <Icon name={m.icon} size={13} /> : null}</span>
         <span className="chu-muc">{m.ten}</span>
+        {m.phim && <span className="phim-muc">{m.phim}</span>}
         {coCon && <span className="mui-con">▸</span>}
         {coCon && moCon === i && (
           <div className="menu-con">

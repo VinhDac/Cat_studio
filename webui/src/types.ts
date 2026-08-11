@@ -260,6 +260,29 @@ export interface ThongKeChay {
   nhip: { entry: string; manage: string }
 }
 
+/** Một mục lịch sử, bản GỌN cho danh sách. `ten === null` = mục mềm (bị cuốn chiếu);
+ *  có tên = đã lưu, không bao giờ bị cuốn. */
+export interface MucLichSu {
+  ma: string
+  t: number
+  ten: string | null
+  ten_chien_luoc: string
+  van_tay: string
+  cai_dat: { symbol?: string; tu?: string; den?: string } & Record<string, unknown>
+  nguon: { symbol: string; so_nen: number; t_dau: number; t_cuoi: number }
+  thong_ke: ThongKe
+}
+
+export interface XemLichSu {
+  tom_tat: ThongKeChay
+  nguon: { symbol: string; so_nen: number; t_dau: number; t_cuoi: number }
+  ten: string | null
+  t: number
+  /** Nến nguồn còn khớp lúc chạy không — không khớp thì KHÔNG mở lại phát lại được. */
+  chay_lai_duoc: boolean
+  vi_sao: string
+}
+
 export interface KetQuaChay {
   so_nen_m1: number; so_nen_truc: number; tf: string
   t_dau: number; t_cuoi: number

@@ -6,7 +6,7 @@
 import type {
   BoNen, Bootstrap, Card, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
   LoNhatKy, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
-  DoanPhat, ThongKeChay, TrangThaiChay,
+  DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -152,6 +152,15 @@ export const pyTester = {
   test_tim_moc: (t: number) => goi<{ j: number; t: number }>('test_tim_moc', t),
   /** Tổng kết cả lượt chạy + đường vốn. Gọi MỘT lần lúc mở tab Thống kê. */
   test_thong_ke: () => goi<ThongKeChay>('test_thong_ke'),
+
+  // --- lịch sử các lần chạy ---
+  test_lich_su: () =>
+    goi<{ ds: MucLichSu[]; dang_xem: string | null }>('test_lich_su'),
+  test_lich_su_xem: (ma: string) => goi<XemLichSu>('test_lich_su_xem', ma),
+  test_lich_su_chay: (ma: string) => goi<boolean>('test_lich_su_chay', ma),
+  test_lich_su_ten: (ma: string, ten: string) =>
+    goi<MucLichSu>('test_lich_su_ten', ma, ten),
+  test_lich_su_xoa: (ma: string) => goi<boolean>('test_lich_su_xoa', ma),
 
   // --- đọc dòng thời gian ---
   test_nen: (j: number, so: number) => goi<CuaSoNen>('test_nen', j, so),
