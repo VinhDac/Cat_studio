@@ -99,6 +99,11 @@ class Lenh:
         self.trang_thai = MO if loai == "market" else CHO
         self.nen_dat = nen
         self.nen_khop = nen if loai == "market" else None
+        # Nhịp M1 lúc khớp. `nen_khop` chỉ là nến TRỤC, mà một nến trục chứa nhiều nhịp
+        # M1 — thiếu ô này thì không xếp nổi thứ tự giữa cú khớp và các lượt Manage rơi
+        # cùng nến đó. Khai ở đây chứ không chỉ gán trong `khop()`: lệnh chưa khớp bao
+        # giờ cũng phải ĐỌC được thuộc tính này, không thì mỗi chỗ đọc phải `getattr`.
+        self.j_khop = None
         self.nen_dong = None
         self.gia_khop = gia_dat if loai == "market" else None
         self.gia_dong = None

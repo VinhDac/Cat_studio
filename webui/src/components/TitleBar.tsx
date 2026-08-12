@@ -25,6 +25,8 @@ export default function TitleBar({ tieuDe, menus, them }: {
   const [mo, setMo] = useState<{ i: number; x: number; y: number } | null>(null)
   const [phongTo, setPhongTo] = useState(false)
   const thanh = useRef<HTMLDivElement>(null)
+  /** Vùng cấm ĐÃ gửi sang Python — để không gửi lại cùng một thứ. Xem `baoVung`. */
+  const daGui = useRef('')
 
   /** Báo Python các khoảng x KHÔNG được coi là caption.
    *
@@ -37,7 +39,19 @@ export default function TitleBar({ tieuDe, menus, them }: {
       const r = k.getBoundingClientRect()
       return [Math.round(r.left), Math.round(r.right)]
     })
-    py.vung_khong_keo(vung, Math.round(e.getBoundingClientRect().height))
+    const cao = Math.round(e.getBoundingClientRect().height)
+    /* ⚠ CHỈ GỌI KHI THẬT SỰ ĐỔI.
+     *
+     * Effect dưới phụ thuộc vào `menus`/`them`, mà cả hai là phần tử React MỚI ở mỗi
+     * lần vẽ — nên hàm này chạy MỖI LẦN VẼ, và mỗi lần là một vòng qua cầu nối
+     * pywebview (đồng bộ). Cửa sổ Live vẽ lại ít nhất một lần mỗi giây vì đèn kết nối
+     * nhấp nháy, tức nó nạp thêm một lời gọi/giây vào đúng chỗ đang tắc. Đo vẫn cứ đo
+     * (rẻ, và cần thiết vì chữ trên dải đổi thì bề rộng đổi) — nhưng so trước rồi mới
+     * gửi. */
+    const van = vung.map(v => v.join('-')).join(',') + '|' + cao
+    if (van === daGui.current) return
+    daGui.current = van
+    py.vung_khong_keo(vung, cao)
   }, [])
 
   useEffect(() => {

@@ -1469,3 +1469,188 @@ select.o { cursor: pointer; }
   background: none; color: var(--muted); cursor: pointer; font-size: 12px;
 }
 .soi-tat:hover { background: var(--raised-hover); color: var(--text); }
+
+/* ================= CỬA SỔ LIVE =================
+   Cố ý KHÔNG giống Strategy Tester về màu: hai cửa sổ trông giống nhau mà một cái tiêu
+   vài giây CPU còn một cái tiêu tiền thật là công thức để bấm nhầm. */
+.nut.do {
+  background: var(--err); border-color: var(--err); color: #fff; font-weight: 600;
+}
+.nut.do:hover:not(:disabled) { filter: brightness(1.12); }
+.nut.do:disabled { opacity: .45; }
+
+.lv-den { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.lv-den.song { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.lv-den.chet { background: var(--err); box-shadow: 0 0 8px var(--err); }
+
+/* Badge DEMO/THẬT — dòng to nhất cửa sổ. Đọc từ `trade_mode` của tài khoản. */
+.lv-badge {
+  padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  letter-spacing: .3px;
+}
+.lv-badge.demo { background: rgba(78, 201, 106, .16); color: var(--ok); }
+.lv-badge.that { background: var(--err); color: #fff; }
+.lv-che-do { color: var(--muted); font-size: 12px; font-style: italic; }
+
+.lv-than { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.lv-bang { flex: 1; overflow-y: auto; padding: 8px 14px 14px; }
+.lv-dau {
+  margin: 12px 0 5px; padding-top: 9px; font-size: 12px; font-weight: 600;
+  color: var(--accent); border-top: 1px solid var(--border);
+}
+.lv-dau:first-child { margin-top: 2px; border-top: none; padding-top: 0; }
+.lv-hang {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 3px 0; font-size: 12px; border-bottom: 1px solid var(--border-soft);
+}
+.lv-ten { flex: 0 0 190px; color: var(--muted); }
+.lv-ten.hong { color: var(--err); }
+.lv-gt { flex: 0 0 150px; font-family: var(--mono); color: var(--text); }
+.lv-gt.dat { color: var(--ok); }
+.lv-gt.hong { color: var(--err); font-weight: 600; }
+/* Ghi chú NÓI VÌ SAO con số đó đáng quan tâm. Một bảng số mà không nói vì sao thì
+   người đọc phải tự nhớ, và lúc 2 giờ sáng thì không ai nhớ. */
+.lv-phu { color: var(--dim); font-size: 11px; font-style: italic; }
+.lv-ket { padding: 4px 0; font-size: 12px; color: var(--text); }
+
+.lv-duoi {
+  flex: 0 0 190px; display: flex; flex-direction: column; min-height: 0;
+  border-top: 1px solid var(--border);
+}
+.lv-vd {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 4px 12px; font-size: 12px; border-bottom: 1px solid var(--border-soft);
+}
+.lv-vd-muc { flex: none; font-size: 10px; font-weight: 700; letter-spacing: .4px; }
+.lv-vd.error { color: var(--text); background: rgba(229, 83, 75, .10); }
+.lv-vd.error .lv-vd-muc { color: var(--err); }
+.lv-vd.warning .lv-vd-muc { color: var(--warn); }
+
+/* Vùng giữa cửa sổ Live — chỗ của chart + bảng chỉ số, giữ đúng khung tester. */
+.lv-chart {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 20px; text-align: center;
+}
+.lv-duoi { flex: 0 0 240px; display: flex; flex-direction: column; min-height: 0;
+            border-top: 1px solid var(--border); }
+
+/* Đèn kết nối + badge tài khoản nằm cạnh logo. Đây là TRẠNG THÁI của cửa sổ, không
+   phải công cụ — để lẫn trong thanh công cụ thì mắt phải phân loại lại mỗi lần liếc. */
+.lv-trang-thai { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+/* Khung hình SỐ 0 của phiên live — ghim đầu nhật ký, không trộn vào danh sách lượt. */
+.nk-boc { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.nk-moc {
+  flex: none; padding: 5px 10px; font-size: 12px; color: var(--text);
+  background: var(--accent-soft); border-bottom: 1px solid var(--border);
+}
+
+/* Tiêu đề nhóm có nút đi kèm — nút nằm cạnh chính mấy con số nó sinh ra. */
+.lv-dau-nut { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* Tab Kết nối xếp NGANG. Bảng dưới rộng cả cửa sổ mà nội dung chỉ chiếm một cột trái —
+   phần còn lại bỏ không, còn người đọc thì phải cuộn. Chia cột bằng `column-count`
+   thay vì dựng lại JSX: nội dung vốn là một dòng chảy phẳng, cứ để nó tự rót. */
+.lv-bang { column-count: 3; column-gap: 26px; padding: 8px 14px 14px; }
+.lv-bang .lv-dau { break-after: avoid; margin-top: 10px; }
+.lv-bang .lv-dau:first-child { margin-top: 0; }
+.lv-bang .lv-hang { break-inside: avoid; }
+/* Cột hẹp hơn nên nhãn phải co lại, và ghi chú xuống dòng riêng thay vì tranh chỗ. */
+.lv-bang .lv-ten { flex: 0 0 128px; }
+.lv-bang .lv-gt { flex: 0 0 auto; }
+.lv-bang .lv-phu { display: block; flex: 1 0 100%; padding-left: 128px; }
+@media (max-width: 900px) { .lv-bang { column-count: 2; } }
+
+/* Tab Kết nối: mỗi NHÓM là một khối, lưới không bao giờ cắt đôi nó.
+   `column-count` trước đây rót theo dòng chảy nên tiêu đề nằm một cột còn mấy dòng của
+   nó rơi cột khác — chữ chồng lên nhau, đọc không ra. Sai công cụ. */
+.lv-bang { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+           gap: 4px 26px; align-content: start; column-count: initial; }
+.lv-nhom { break-inside: avoid; min-width: 0; }
+/* Bài kiểm dài nên chiếm cả bề ngang, xuống dưới ba khối kia. */
+.lv-nhom-rong { grid-column: 1 / -1; }
+/* Ghi chú xuống dòng RIÊNG trong hàng. Không có `flex-wrap` thì `flex:1 0 100%` không
+   xuống được, nó tràn sang cột bên và chữ chồng lên nhau. */
+.lv-bang .lv-hang { flex-wrap: wrap; }
+
+/* ⚠ BỎ chia cột. Đã thử `column-count` (cắt đôi nhóm) rồi `grid` (ghi chú tràn sang cột
+   bên, chữ chồng nhau) — cả hai đều đánh đổi tính đọc được lấy chỗ trống. Bảng dưới kéo
+   cao được, nên trải dọc là đủ và không bao giờ hỏng. Đơn giản thắng. */
+.lv-bang { display: block; column-count: initial; }
+.lv-bang .lv-ten { flex: 0 0 200px; }
+.lv-bang .lv-gt { flex: 0 0 160px; }
+.lv-bang .lv-phu { display: inline; flex: 0 1 auto; padding-left: 0; }
+.lv-bang .lv-hang { flex-wrap: nowrap; }
+.lv-nhom-rong { margin-top: 4px; }
+/* Đề nghị sau bài kiểm — nút Áp dụng nằm ngay cạnh con số, không phải đi tìm ở Cài đặt. */
+.lv-de-nghi {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 6px 0; padding: 6px 10px; font-size: 12px;
+  background: var(--accent-soft); border-radius: var(--radius-sm);
+}
+.lv-de-nghi.canh { background: rgba(217, 164, 65, .14); color: var(--text); }
+
+/* ── BỐN MỨC CHẤM ───────────────────────────────────────────────────────────────
+   Màu ở đây mang nghĩa, không trang trí: `dat` và `xac` cùng gam XANH vì cả hai đều
+   là ĐẠT — `xac` chỉ mạnh hơn (phòng vệ chặn trước, sàn không kịp từ chối). `do` màu
+   hổ phách: có chuyện xảy ra, đã xử lý xong, đọc thì tốt mà không phải làm gì. Chỉ
+   `hong` mới đỏ. Tô đỏ ba mức đầu là đúng cái sai bản trước mắc. */
+.lv-ten.dat   { color: var(--ok); }
+.lv-ten.xac   { color: var(--accent); }
+.lv-ten.do    { color: var(--warn, #d9a441); }
+.lv-ten.chinh { color: var(--accent); }
+
+.lv-chu-giai { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 4px;
+               font-size: 11px; color: var(--dim); }
+.lv-cg b { font-family: var(--mono); margin-right: 3px; }
+.lv-cg.dat b  { color: var(--ok); }
+.lv-cg.xac b  { color: var(--accent); }
+.lv-cg.do b   { color: var(--warn, #d9a441); }
+.lv-cg.hong b { color: var(--err); }
+
+/* Trạng thái KẾT THÚC — ba khả năng, và nó là câu trả lời của cả bài kiểm nên phải
+   to hơn mọi dòng bước bên dưới. */
+.lv-tt { margin: 6px 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.5;
+         border-radius: var(--radius-sm); border-left: 3px solid transparent; }
+.lv-tt-xong        { background: rgba(63, 185, 80, .12);  border-left-color: var(--ok); }
+.lv-tt-nguoi       { background: rgba(248, 81, 73, .12);  border-left-color: var(--err); }
+.lv-tt-chua_hoi_tu { background: rgba(217, 164, 65, .14); border-left-color: #d9a441; }
+
+/* Lịch sử chỉnh giả thuyết — vì sao con số trong Đề phòng vừa đổi. */
+.lv-chinh { margin: 6px 0; padding: 6px 10px; background: var(--accent-soft);
+            border-radius: var(--radius-sm); }
+.lv-chinh-dau { font-size: 11.5px; color: var(--text); margin-bottom: 3px; }
+.lv-chinh-dau span { color: var(--dim); font-style: italic; }
+.lv-chinh-dong { font-family: var(--mono); font-size: 11px; color: var(--muted);
+                 padding: 1px 0; }
+
+/* Đèn TẠM DỪNG ĐO — không xanh (đang tốt) cũng không đỏ (đang hỏng): máy đã
+   NGỪNG NHÌN. Ba trạng thái khác nhau thì phải ba màu khác nhau. */
+.lv-den.nghi { background: #d9a441; box-shadow: 0 0 6px rgba(217,164,65,.7); }
+
+/* ── XUẤT XỨ CON SỐ ĐỀ PHÒNG ───────────────────────────────────────────────────
+   Ba nhãn nhỏ trả lời một câu: số này mang từ demo sang tài khoản thật được không.
+   `khop` màu hổ phách vì nó là dòng DUY NHẤT không được chép nguyên si. */
+.lv-loai {
+  display: inline-block; margin-left: 6px; padding: 0 5px;
+  font-size: 9.5px; line-height: 15px; letter-spacing: .02em;
+  border-radius: 3px; vertical-align: 1px; font-style: normal;
+}
+.lv-loai.san  { background: rgba(63, 185, 80, .16);  color: var(--ok); }
+.lv-loai.khop { background: rgba(217, 164, 65, .18); color: #d9a441; }
+.lv-loai.ta   { background: var(--accent-soft);      color: var(--accent); }
+.lv-chu-giai .lv-loai { margin-left: 0; margin-right: 4px; }
+
+/* Dòng `khop` khi đang chạy TÀI KHOẢN THẬT trên số đo ở demo — đúng chỗ chép nguyên
+   si sẽ mất tiền, nên nó phải nhìn khác hẳn tám dòng còn lại. */
+.lv-ngo { background: rgba(217, 164, 65, .09); border-radius: var(--radius-sm); }
+.lv-ngo .lv-phu { color: #d9a441; font-style: normal; }
+
+/* Cây cầu demo → thật: chọn hồ sơ của sàn khác cho sàn đang chạy. */
+.lv-chep { flex-direction: column; align-items: stretch; gap: 6px; }
+.lv-chep-ds { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Mốc "── lượt 2/4" giữa các lượt lặp. */
+.lv-moc-lap { margin: 10px 0 2px; font-size: 11px; color: var(--dim);
+              letter-spacing: .04em; border-top: 1px dashed var(--line);
+              padding-top: 6px; }

@@ -770,8 +770,24 @@ def _thong_ke(so, cd, ct):
 # ---------------------------------------------------------------------------
 # VÒNG LẶP
 # ---------------------------------------------------------------------------
-def chay(doc, nen1, cd=None, tien_do=None):
-    """Chạy trọn một backtest. Trả `KetQua` bất biến.
+class PhienChay:
+    """MỘT lần chạy đang diễn ra — trạng thái sống, đi từng nhịp một.
+
+    ⚠ VÌ SAO PHẢI CÓ LỚP NÀY. Trước đây toàn bộ chuyện này là thân của `chay()`: một
+    vòng lặp quét trọn mảng nến, với mười mấy biến trạng thái nằm trong lòng hàm. Backtest
+    thì hợp, nhưng LIVE thì ngược hẳn — mỗi phút về đúng MỘT nến.
+
+    Nếu viết một bộ chạy thứ hai cho live thì hai bộ sẽ trôi xa nhau, và lời hứa "test
+    như nào thì live như thế" chết ngay ngày đầu. Nên trạng thái ra khỏi thân hàm, thân
+    vòng lặp thành `mot_nhip(j)`, và:
+
+        backtest = vòng lặp gọi `mot_nhip`
+        live     = gọi `mot_nhip` mỗi khi sàn đóng một nến
+
+    ĐÚNG MỘT ĐOẠN CODE, không phải hai bản song song.
+
+    Việc tách này KHÔNG được đổi một con số nào — `tests/test_bo_chay.py` giữ đúng điều
+    đó bằng vân tay phủ mọi trường của mọi lệnh và mọi lượt.
 
     Thứ tự trong MỘT nến M1 — chốt ở core.md §12.1 và §6.0, không được đổi:
 
@@ -782,116 +798,129 @@ def chay(doc, nen1, cd=None, tien_do=None):
 
     Sàn đi TRƯỚC sơ đồ vì đó là sự thật vật lý: giá chạm SL lúc 09:03 thì tới 09:05 khi
     chiến lược thức dậy, lệnh đã đóng rồi. Đảo lại là cho chiến lược sửa một lệnh mà thị
-    trường đã đóng từ hai phút trước."""
-    cd = cd or CaiDat()
-    doc = core.normalize_process(doc)
-    ct = ChuongTrinh(doc, nen1, cd)
-    so = sl.SoLenh()
-    ctx = Ctx(ct, so, ct.ts)
+    trường đã đóng từ hai phút trước.
+    """
 
-    # Vốn ĐÃ CHỐT (chỉ tính lệnh đã đóng) — đủ để `drawdown_pt` có nguồn thật thay vì
-    # trả 0. Lãi nổi cố tình KHÔNG tính vào: drawdown theo lãi nổi đổi từng nến M1 và
-    # biến một toán hạng đáng ra ổn định thành thứ giật liên tục.
-    tien = {"von": cd.deposit, "dinh": cd.deposit}
+    def __init__(self, doc, nen1, cd=None, tien_do=None):
+        cd = cd or CaiDat()
+        doc = core.normalize_process(doc)
+        self.cd = cd
+        self.doc = doc
+        self.tien_do = tien_do
+        self.ct = ct = ChuongTrinh(doc, nen1, cd)
+        self.so = so = sl.SoLenh()
+        self.ctx = Ctx(ct, so, ct.ts)
 
-    def ghi_tien(l):
+        # Vốn ĐÃ CHỐT (chỉ tính lệnh đã đóng) — đủ để `drawdown_pt` có nguồn thật thay vì
+        # trả 0. Lãi nổi cố tình KHÔNG tính vào: drawdown theo lãi nổi đổi từng nến M1 và
+        # biến một toán hạng đáng ra ổn định thành thứ giật liên tục.
+        self.tien = {"von": cd.deposit, "dinh": cd.deposit}
+
+        # ⚠ Phải gắn lên `ct`: `_sua_lenh` là hàm MODULE nên nó không với tới phương thức
+        # của lớp này. Chế độ "Đóng hẳn" đóng lệnh xong không ghi tiền được là
+        # `drawdown_pt` bỏ sót sạch những lệnh đó — mà toán hạng đó chính là thứ người ta
+        # dùng làm cầu dao ("sụt giảm > 10 % thì ngừng vào lệnh"), nên cầu dao chết im lặng.
+        ct.ghi_tien = self.ghi_tien
+        ct.drawdown_pt = lambda: (0.0 if not self.tien["dinh"] else
+                                  (self.tien["dinh"] - self.tien["von"])
+                                  / self.tien["dinh"] * 100.0)
+
+        self.nhat_ky = []
+        nhip_m = core.TF_PHUT[ct.nhip[core.TAB_MANAGE]]
+        dong1 = tt.moc_dong(ct.nen1, "M1")
+        self.la_nhip_m = (np.mod(dong1, nhip_m * 60) == 0) if nhip_m > 1 else \
+            np.ones(len(dong1), dtype=bool)
+        self.mo_ho = 0
+        self.i5_truoc = -1
+        self.i5 = -1
+
+        # DANH SÁCH LỆNH SỐNG, tự nuôi. `so.dang_song()` quét TOÀN SỔ mỗi lần gọi; gọi nó
+        # trên mỗi nến M1 là 354.000 × 550 lệnh = 195 triệu phép kiểm, và đo được nó ăn 57 %
+        # thời gian một lần chạy. Nuôi danh sách ở đây là O(số lệnh ĐANG SỐNG) — thường 1–3.
+        # Cố ý nuôi ở BỘ CHẠY chứ không sửa `so_lenh`: đó là chuyện tốc độ của vòng lặp,
+        # không phải chuyện mô hình sổ lệnh.
+        self.song, self.n_lenh = [], 0
+
+        # ⚠ VÙNG NÉN PHẢI THÀNH CỘT. `VungNen` mutate liên tục (đếm nến, nới đỉnh/đáy), nên
+        # trạng thái vùng tại nến i KHÔNG suy ra được từ đối tượng cuối cùng. Bảng số liệu
+        # mà hỏi lại `so.vung_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
+        # BACKTEST — bảng nói một đằng, nhật ký nói một nẻo, đúng lúc đang debug.
+        # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
+        # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
+        self.CV = CV = tuple(dict.fromkeys(
+            x["ten"] for x in core.toan_hang_dung(doc)
+            if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
+        self.cot_vung = {k: np.full(len(ct.nen5), NAN) for k in CV}
+        self.dung_sai = {k for k in CV if k in core.TOAN_HANG_DUNG_SAI}
+        self.vung_id = [None] * len(ct.nen5)
+        self.so_vung = np.zeros(len(ct.nen5), dtype=np.int32)
+
+    def ghi_tien(self, l):
+        cd = self.cd
         if l.gia_dong is None or l.gia_khop is None:
             return
         chieu = 1.0 if l.huong == sl.MUA else -1.0
-        tien["von"] += ((l.gia_dong - l.gia_khop) * chieu * l.lot * cd.contract_size
-                        - cd.commission * l.lot)
-        tien["dinh"] = max(tien["dinh"], tien["von"])
+        self.tien["von"] += ((l.gia_dong - l.gia_khop) * chieu * l.lot * cd.contract_size
+                             - cd.commission * l.lot)
+        self.tien["dinh"] = max(self.tien["dinh"], self.tien["von"])
 
-    # ⚠ Phải gắn lên `ct`: `ghi_tien` là closure trong hàm này, mà `_sua_lenh` là hàm
-    # MODULE nên với không tới. Chế độ "Đóng hẳn" đóng lệnh xong không ghi tiền được là
-    # `drawdown_pt` bỏ sót sạch những lệnh đó — mà toán hạng đó chính là thứ người ta
-    # dùng làm cầu dao ("sụt giảm > 10 % thì ngừng vào lệnh"), nên cầu dao chết im lặng.
-    ct.ghi_tien = ghi_tien
-    ct.drawdown_pt = lambda: (0.0 if not tien["dinh"] else
-                              (tien["dinh"] - tien["von"]) / tien["dinh"] * 100.0)
+    # ----------------------------------------------------------------- một nhịp
+    def mot_nhip(self, j):
+        """Xử lý ĐÚNG một nến M1. Đây là toàn bộ bộ máy — backtest gọi nó trong vòng
+        lặp, live gọi nó mỗi khi sàn đóng một nến."""
+        ct, so, ctx, cd = self.ct, self.so, self.ctx, self.cd
 
-    nhat_ky = []
-    nhip_m = core.TF_PHUT[ct.nhip[core.TAB_MANAGE]]
-    dong1 = tt.moc_dong(ct.nen1, "M1")
-    la_nhip_m = (np.mod(dong1, nhip_m * 60) == 0) if nhip_m > 1 else \
-        np.ones(len(dong1), dtype=bool)
-    mo_ho = 0
-    i5_truoc = -1
-
-    # DANH SÁCH LỆNH SỐNG, tự nuôi. `so.dang_song()` quét TOÀN SỔ mỗi lần gọi; gọi nó
-    # trên mỗi nến M1 là 354.000 × 550 lệnh = 195 triệu phép kiểm, và đo được nó ăn 57 %
-    # thời gian một lần chạy. Nuôi danh sách ở đây là O(số lệnh ĐANG SỐNG) — thường 1–3.
-    # Cố ý nuôi ở BỘ CHẠY chứ không sửa `so_lenh`: đó là chuyện tốc độ của vòng lặp,
-    # không phải chuyện mô hình sổ lệnh.
-    song, n_lenh = [], 0
-
-    # ⚠ VÙNG NÉN PHẢI THÀNH CỘT. `VungNen` mutate liên tục (đếm nến, nới đỉnh/đáy), nên
-    # trạng thái vùng tại nến i KHÔNG suy ra được từ đối tượng cuối cùng. Bảng số liệu
-    # mà hỏi lại `so.vung_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
-    # BACKTEST — bảng nói một đằng, nhật ký nói một nẻo, đúng lúc đang debug.
-    # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
-    # Toán hạng nào do ENGINE trả lời thì phải GHI THÀNH CỘT — đối tượng vùng nén mutate
-    # liên tục, hỏi lại nó sau khi chạy xong là ở con trỏ nào cũng ra trạng thái cuối.
-    # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
-    CV = tuple(dict.fromkeys(
-        x["ten"] for x in core.toan_hang_dung(doc)
-        if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
-    cot_vung = {k: np.full(len(ct.nen5), NAN) for k in CV}
-    dung_sai = {k for k in CV if k in core.TOAN_HANG_DUNG_SAI}
-    vung_id = [None] * len(ct.nen5)
-    so_vung = np.zeros(len(ct.nen5), dtype=np.int32)
-
-    for j in range(len(ct.nen1)):
         # Đồng bộ đầu nến: lệnh mới sinh ở lượt Entry nến TRƯỚC giờ mới được xét khớp —
         # đúng bản chất, giá của nến trước đã là quá khứ.
-        if len(so.lenh) != n_lenh:
-            song.extend(so.lenh[n_lenh:])
-            n_lenh = len(so.lenh)
-        if song:
-            song[:] = [l for l in song if l.con_song]
+        if len(so.lenh) != self.n_lenh:
+            self.song.extend(so.lenh[self.n_lenh:])
+            self.n_lenh = len(so.lenh)
+        if self.song:
+            self.song[:] = [l for l in self.song if l.con_song]
 
         i5 = int(ct.m1_to_5[j])
+        self.i5 = i5
         ctx.j, ctx.i = j, max(i5, 0)
         nen = ct.nen1[j]
 
         # ---- 1. SÀN ----
-        for l in list(song):
+        for l in list(self.song):
             for e in khop_lenh.trong_nen(l, nen, cd.spread_gia):
                 if e["loai"] == "khop":
                     so.khop(l, e["gia"], ctx.i, ctx.j)
                 else:
                     so.dong(l, e["gia"], ctx.i, e["ly_do"])
-                    ghi_tien(l)
+                    self.ghi_tien(l)
                     if e.get("mo_ho"):
-                        mo_ho += 1
+                        self.mo_ho += 1
 
         if i5 < 0:
-            continue                        # chưa có nến trục nào đóng — chưa quyết gì
+            return                          # chưa có nến trục nào đóng — chưa quyết gì
 
         # ---- 2. ENGINE (một lần mỗi nến trục) ----
-        if i5 != i5_truoc:
+        if i5 != self.i5_truoc:
             ctx.co_lo_hong = bool(ct.lo_hong5[i5])
             ctx.lenh = None
             ct.engine.moi_nen(ctx)
-            for k in CV:
+            for k in self.CV:
                 v = ct.engine.doc(k, ctx)
-                cot_vung[k][i5] = float(v) if k in dung_sai else v
+                self.cot_vung[k][i5] = float(v) if k in self.dung_sai else v
             v_ht = so.vung_hien_hanh()
-            vung_id[i5] = v_ht.id if v_ht else None
-            so_vung[i5] = len(so.vung)
-            i5_truoc = i5
+            self.vung_id[i5] = v_ht.id if v_ht else None
+            self.so_vung[i5] = len(so.vung)
+            self.i5_truoc = i5
 
         # ---- 3. MANAGE — một lượt cho MỖI lệnh đang sống ----
-        if la_nhip_m[j]:
+        if self.la_nhip_m[j]:
             ctx.tab = core.TAB_MANAGE
-            for l in list(song):
+            for l in list(self.song):
                 if not l.con_song:
                     continue        # vừa bị chính lượt Manage trước đó đóng
                 ctx.lenh = l
                 r = _chay_so_do(core.TAB_MANAGE, ctx)
                 if r:
-                    r["seq"] = len(nhat_ky)
-                    nhat_ky.append(r)
+                    r["seq"] = len(self.nhat_ky)
+                    self.nhat_ky.append(r)
             ctx.lenh = None
 
         # ---- 4. ENTRY — đúng một lượt ----
@@ -899,28 +928,65 @@ def chay(doc, nen1, cd=None, tien_do=None):
             ctx.tab = core.TAB_ENTRY
             r = _chay_so_do(core.TAB_ENTRY, ctx)
             if r:
-                r["seq"] = len(nhat_ky)
-                nhat_ky.append(r)
-            if tien_do and i5 % 2000 == 0:
-                tien_do(i5, len(ct.nen5))
+                r["seq"] = len(self.nhat_ky)
+                self.nhat_ky.append(r)
+            if self.tien_do and i5 % 2000 == 0:
+                self.tien_do(i5, len(ct.nen5))
 
-    # Lệnh còn sống lúc hết dữ liệu: đóng theo giá đóng nến cuối, ghi rõ lý do, và tách
-    # riêng trong thống kê (core.md §12.13).
-    cuoi = float(ct.nen1["c"][-1])
-    for l in list(so.dang_song()):
-        so.dong(l, cuoi if l.da_khop else None, ctx.i,
-                "het_du_lieu" if l.da_khop else "huy")
-        ghi_tien(l)
+    # ------------------------------------------------------------------ ảnh chụp
+    def anh_chup(self):
+        """`KetQua` đọc được TẠI ĐÂY, mà KHÔNG chốt sổ.
 
-    tk, duong_von = _thong_ke(so, cd, ct)
-    tk["nen_mo_ho"] = mo_ho
-    tk["so_luot"] = len(nhat_ky)
-    kq = KetQua(ct, so, nhat_ky, ct._cot, tk)
-    kq.duong_von = duong_von
-    kq.cot_vung = cot_vung
-    kq.vung_id = vung_id
-    kq.so_vung = so_vung
-    return kq
+        ⚠ Live phải có cái này. `ket_thuc()` đóng sạch lệnh còn sống — gọi nó lúc đang
+        chạy live là tự tay đóng lệnh thật. Ảnh chụp thì không đụng vào gì cả: nó chỉ
+        gói `ct`/`so`/`nhat_ky` lại cho mấy hàm đọc (`bang`, `the_lenh`, `lenh_tai`)
+        dùng — đúng những hàm mà cửa sổ tester đang ăn.
+
+        Nhờ vậy `Chart`, `BangSoLieu`, `Journey` chạy ở Live mà không sửa một dòng: hai
+        cửa sổ đọc CÙNG một hình dạng dữ liệu, từ cùng một đoạn code."""
+        kq = KetQua(self.ct, self.so, self.nhat_ky, self.ct._cot,
+                    {"so_luot": len(self.nhat_ky), "nen_mo_ho": self.mo_ho})
+        kq.duong_von = []
+        kq.cot_vung = self.cot_vung
+        kq.vung_id = self.vung_id
+        kq.so_vung = self.so_vung
+        return kq
+
+    # ------------------------------------------------------------------- kết sổ
+    def ket_thuc(self):
+        """Hết dữ liệu → chốt sổ, trả `KetQua` bất biến.
+
+        ⚠ CHỈ backtest gọi hàm này. Live thì không bao giờ "hết dữ liệu" nên không được
+        chốt sổ — gọi nhầm nó lúc đang live là đóng sạch lệnh thật."""
+        ct, so, ctx = self.ct, self.so, self.ctx
+        # Lệnh còn sống lúc hết dữ liệu: đóng theo giá đóng nến cuối, ghi rõ lý do, và
+        # tách riêng trong thống kê (core.md §12.13).
+        cuoi = float(ct.nen1["c"][-1])
+        for l in list(so.dang_song()):
+            so.dong(l, cuoi if l.da_khop else None, ctx.i,
+                    "het_du_lieu" if l.da_khop else "huy")
+            self.ghi_tien(l)
+
+        tk, duong_von = _thong_ke(so, self.cd, ct)
+        tk["nen_mo_ho"] = self.mo_ho
+        tk["so_luot"] = len(self.nhat_ky)
+        kq = KetQua(ct, so, self.nhat_ky, ct._cot, tk)
+        kq.duong_von = duong_von
+        kq.cot_vung = self.cot_vung
+        kq.vung_id = self.vung_id
+        kq.so_vung = self.so_vung
+        return kq
+
+
+def chay(doc, nen1, cd=None, tien_do=None):
+    """Chạy trọn một backtest. Trả `KetQua` bất biến.
+
+    Chỉ là vòng lặp quanh `PhienChay.mot_nhip` — mọi luật nằm ở đó, xem docstring của
+    lớp. Giữ hàm này vì nó là cửa mà cả app lẫn bộ test gọi vào."""
+    phien = PhienChay(doc, nen1, cd, tien_do)
+    for j in range(len(phien.ct.nen1)):
+        phien.mot_nhip(j)
+    return phien.ket_thuc()
 
 
 # ---------------------------------------------------------------------------
