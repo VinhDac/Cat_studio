@@ -782,6 +782,20 @@ function Ung() {
     setTrangThai('đã mở Strategy Tester')
   }, [layDoc, ghi])
 
+  /* -------------------------------- ● Live --------------------------------
+   *
+   * ⚠ LUÔN đi qua hộp thoại chốt, kể cả khi vào bằng Ctrl+L. Đây là cửa duy nhất giữa
+   * một sơ đồ đang vẽ dở và một kết nối tiêu tiền thật — không có đường tắt nào, vì
+   * đường tắt là thứ người ta dùng đúng lúc vội, mà vội là lúc dễ sai nhất. */
+  const moLive = useCallback(async () => {
+    // Mở THẲNG cửa sổ Live. Cổng chốt (chọn chiến lược · symbol · kiểm kết nối) nằm
+    // trong chính cửa sổ đó — cửa sổ vẽ không gánh hộp thoại nào cả.
+    const r = await py.mo_live(layDoc())
+    if (!r.ok) { window.alert(r.error ?? 'không mở được Live'); return }
+    ghi('● mở cửa sổ Live', 'ok')
+    setTrangThai('đã mở Live')
+  }, [layDoc, ghi])
+
   /** Đổi bảng tham số — vẽ lại thẻ CẢ HAI sơ đồ, vì một tham số có thể được dùng ở
    *  bất cứ đâu và chữ trên hộp phải đổi theo ngay. */
   const luuThamSo = useCallback(async (ds: ThamSo[]) => {
@@ -950,6 +964,7 @@ function Ung() {
       // Ctrl+R: `preventDefault` BẮT BUỘC — mặc định của Chromium là nạp lại trang, tức
       // mất trắng sơ đồ đang vẽ dở. Chặn nó cũng là một cái lợi kèm theo.
       else if (ctrl && ev.key.toLowerCase() === 'r') { ev.preventDefault(); void chay() }
+      else if (ctrl && ev.key.toLowerCase() === 'l') { ev.preventDefault(); void moLive() }
       else if (ev.key === 'Delete') { ev.preventDefault(); xoa() }
       else if (ev.key === 'F2') { ev.preventDefault(); doiTen() }
     }
@@ -1052,6 +1067,8 @@ function Ung() {
       // Trỏ thẳng về `chay` — đúng hàm mà nút ▶ trên ribbon gọi, nên hai lối vào không
       // thể lệch nhau (cùng luật với 4 menu còn lại).
       { ten: 'Mở Strategy Tester', icon: 'chay', phim: 'Ctrl+R', onClick: chay },
+      { ten: 'Mở Live…', icon: 'chay', phim: 'Ctrl+L',
+        onClick: moLive },
       { ngan: true },
       { ten: 'Lưu thành template…', icon: 'save', onClick: luu },
       { ten: 'Lưu ra file khác…', onClick: luuRaFile },
@@ -1121,6 +1138,7 @@ function Ung() {
         ten={ten} datTen={setTen}
         symbol={symbol} datSymbol={setSymbol}
         chay={chay}
+        live={moLive}
         coChon={dangChon.length > 0}
         chonDaGhim={dangChon.length > 0
           && dangChon.every(n => (n.data as { step: Step }).step.ghim)}

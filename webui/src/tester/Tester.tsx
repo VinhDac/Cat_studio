@@ -7,8 +7,11 @@ import type {
   DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay, XemLichSu,
 } from '../types'
 import BangSoLieu, { type BangCat } from './BangSoLieu'
-import Chart, { type Bar, type NenM1 } from './Chart'
+import Chart, { type Bar, type KieuChart, type NenM1 } from './Chart'
 import BangDuoi from './BangDuoi'
+import NutChart from './NutChart'
+import Journey from './Journey'
+import ThongKe from './ThongKe'
 import type { DongNk } from './Journey'
 import LichSu from './LichSu'
 
@@ -54,6 +57,8 @@ export default function Tester() {
    *  MỞ LẠI, tức chạy lại thật. */
   const [xemLS, setXemLS] = useState<XemLichSu | null>(null)
   const [maLS, setMaLS] = useState<string | null>(null)
+  /** Đếm số lần chọn một mục lịch sử — xem `epLan` ở `BangDuoi`. */
+  const [lanXem, setLanXem] = useState(0)
 
   // --- lô đang phát ---
   const lo = useRef<DoanPhat | null>(null)
@@ -249,6 +254,11 @@ export default function Tester() {
    * nhảy gọi `veDau` → dựng lại chart + đặt 6 state, và qua lần re-render lớn đó bộ theo
    * dõi giá trị của React lệch pha với DOM. Ô có state riêng thì React luôn nắm giá trị,
    * không còn chỗ cho lệch. */
+  const [chiViec, setChiViec] = useState(false)
+  const [kieu, setKieu] = useState<KieuChart>('nen')
+  const [mauThuong, setMauThuong] = useState(false)
+  const [hienLenh, setHienLenh] = useState(true)
+  const [veNay, setVeNay] = useState(0)
   const [moc, setMoc] = useState('')
   useEffect(() => { if (kq) setMoc(chuoiMoc(kq.t_dau)) }, [kq])
 
@@ -295,7 +305,11 @@ export default function Tester() {
                 them={<LichSu dangXem={maLS}
                               onXem={async ma => {
                                 const r = await pyTester.test_lich_su_xem(ma)
-                                if (r.ok && r.value) { setXemLS(r.value); setMaLS(ma) }
+                                if (r.ok && r.value) {
+                                  setXemLS(r.value); setMaLS(ma)
+                                  // Mỗi lần chọn là một lần ép MỚI — xem `epLan`.
+                                  setLanXem(x => x + 1)
+                                }
                               }}
                               onMoLai={ma => { setMaLS(ma); void chay(ma) }} />} />
 
@@ -325,10 +339,11 @@ export default function Tester() {
           {TOC.map(x => <option key={x} value={x}>{x}×</option>)}
         </select>
         <span className="tb-ngan" />
-        <select className="o nho" value={tfVe} onChange={e => doiTf(+e.target.value)}
-                title="Chỉ đổi CÁCH VẼ — không đụng kết quả">
-          {TF.map(([t, p]) => <option key={t} value={p}>{t}</option>)}
-        </select>
+        <NutChart tf={tfVe} dsTf={TF} datTf={doiTf}
+                  kieu={kieu} datKieu={setKieu}
+                  mauThuong={mauThuong} datMau={setMauThuong}
+                  hienLenh={hienLenh} datHienLenh={setHienLenh}
+                  veHienTai={() => setVeNay(x => x + 1)} />
         <span className="tb-ngan" />
         {/* Ô nhảy tới mốc. TÁCH khỏi đồng hồ bên phải chứ không gộp làm một: đồng hồ đổi
             8 lần/giây lúc phát, mà một ô nhập tự đổi giá trị dưới tay người đang gõ thì
@@ -365,7 +380,9 @@ export default function Tester() {
 
       <div className="tt-giua">
         <Chart tfPhut={tfVe} digits={kq?.digits ?? 2} lenh={lenh} tBayGio={tBayGio}
-               batDau={batDau} dat={datNen} them={themNen} />
+               batDau={batDau} dat={datNen} them={themNen}
+               kieu={kieu} mauThuong={mauThuong} hienLenh={hienLenh}
+               veHienTai={veNay} />
         {hienBang && <BangSoLieu k={khungBang} digits={kq?.digits ?? 2} />}
       </div>
 
@@ -373,18 +390,31 @@ export default function Tester() {
           chính. Nút gập nằm ngay trên hàng tab của chính nó chứ không phải ở góc thanh
           công cụ: tay đang ở đâu thì nút ở đó. */}
       {kq && (
-        <BangDuoi dong={dong} jBayGio={j}
-                 xemLS={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }}
-                 ghiFile={async () => {
-                   const r = await pyTester.test_ghi_nhat_ky()
-                   if (r.ok && r.value) alert(`Đã ghi:\n${r.value.duong_dan}`)
-                 }}
-                 soi={i => void pyTester.test_soi_luot(i)}
-                 nhay={async i => {
-                   setPhat(false)
-                   const r = await pyTester.test_luot(i)
-                   if (r.ok && r.value) await veDau(Math.max(0, r.value.j - 40))
-                 }} />
+        <BangDuoi epTab={xemLS ? 'thong-ke' : undefined} epLan={lanXem} tabs={[
+          { khoa: 'nhat-ky', nhan: 'Nhật ký', dem: dong.length,
+            ve: () => <Journey dong={dong} jBayGio={j} nhay={async i => {
+                                 setPhat(false)
+                                 const r = await pyTester.test_luot(i)
+                                 if (r.ok && r.value) await veDau(Math.max(0, r.value.j - 40))
+                               }}
+                               soi={i => void pyTester.test_soi_luot(i)}
+                               chiViec={chiViec} />,
+            nut: <>
+              <label className="nk-loc">
+                <input type="checkbox" checked={chiViec}
+                       onChange={e => setChiViec(e.target.checked)} />
+                chỉ dòng có việc
+              </label>
+              <button className="nut-nho" onClick={async () => {
+                        const r = await pyTester.test_ghi_nhat_ky()
+                        if (r.ok && r.value) alert(`Đã ghi:
+${r.value.duong_dan}`)
+                      }}
+                      title="Ghi TOÀN BỘ nhật ký ra .jsonl">Ghi ra file</button>
+            </> },
+          { khoa: 'thong-ke', nhan: 'Thống kê',
+            ve: () => <ThongKe nguon={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }} /> },
+        ]} />
       )}
     </div>
   )
@@ -397,7 +427,9 @@ function nenTai(L: DoanPhat, k: number): NenM1 {
 
 /** Bảng số liệu tại khung hình thứ k của lô. Chỉ CẮT LÁT, không tính gì —
  *  mọi con số đã do Python tính lúc chạy. */
-function dungBang(L: DoanPhat, k: number): BangCat {
+/** Cắt bảng số liệu tại khung `k`. EXPORT để cửa sổ Live dùng CHUNG —
+ *  copy sang bản thứ hai là hai bên sẽ trôi xa nhau. */
+export function dungBang(L: DoanPhat, k: number): BangCat {
   return {
     nhom: L.bang.map(g => ({
       nhom: g.nhom,

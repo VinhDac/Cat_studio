@@ -22,6 +22,10 @@ BAI = [
     ("test_khop_lenh.py", "Khớp lệnh — đường đi 4 điểm, spread quy về Bid, gap"),
     ("test_bo_chay.py", "Bộ chạy — thứ tự trong nhịp, luật lùi, tính xác định"),
     ("test_nhat_ky.py", "Nhật ký — bản ghi rỗng chữ, nhãn dựng lại, ghi/đọc ngược"),
+    # ⚠ Ba module chạm TIỀN THẬT. Trước bài này cổng kiểm vẫn báo "9/9 qua" kể cả
+    #    khi bảng xử lý retcode bị bẻ hỏng — tức bản phát hành biết đặt lệnh sai
+    #    vẫn ra khỏi cửa. Chạy trên SÀN GIẢ nên không cần MT5.
+    ("test_gui_lenh.py", "Tầng phòng vệ + vòng hiệu chuẩn — trên sàn giả"),
 ]
 
 hong = []

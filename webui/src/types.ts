@@ -311,6 +311,8 @@ export interface LenhVe {
   /** Đường đi của SL theo thời gian `[[t, sl], …]`, dựng từ chính nhật ký. Nhờ nó chart
    *  vẽ được cái BẬC THANG lúc `Dời SL về hoà vốn` chạy — bản trước chỉ có SL cuối cùng
    *  nên khoảnh khắc đó tàng hình. */
+  /** Lệnh do BÀI KIỂM đặt, không phải chiến lược — chart vẽ mờ, không nhãn. */
+  la_kiem?: boolean
   sl_lich_su?: [number, number][]
   /** Y hệt `sl_lich_su` nhưng cho TP. Cần riêng vì chế độ `Dời Take Profit` làm TP nhảy
    *  bậc giữa đời lệnh — vẽ bằng mức cuối là lộ tương lai. */
@@ -420,4 +422,105 @@ export interface DoanPhat {
   tai_khoan: { cho: number; mo: number; gia: number }[]
   lenh: LenhVe[]
   nhat_ky: { i: number; j: number; co_viec: boolean; lenh_id: string | null; chu: string }[]
+}
+
+/* ======================= LIVE =======================
+ * Cửa sổ Live trả lời một câu khác hẳn tester: có TIN được cái đang chạy không.
+ */
+
+export interface TinKetNoi {
+  noi_duoc: boolean
+  nen_song: boolean
+  chu: string
+  tai_khoan: number | null
+  server: string
+  /** Tên sàn. Khoá tiếng Việt có dấu — do Python đặt, giữ nguyên để không lệch hợp đồng. */
+  'sàn': string
+  /** `null` = chưa đọc được. Đọc từ `trade_mode`, KHÔNG hỏi người dùng. */
+  la_that: boolean | null
+  cho_giao_dich: boolean
+  symbol_giao_dich_duoc: boolean
+  tuoi_tick: number | null
+  spread_diem: number | null
+  /** spread thật ÷ spread đã backtest. ≥ 2 là chiến lược đang chạy ở thế giới khác. */
+  spread_lech: number | null
+  lech_gio: number | null
+  /** Cây nến ĐANG hình thành — chỉ để CHART sống theo giây. Chiến lược không bao giờ
+   *  đọc nó: quyết định chỉ ở biên nến đã đóng. */
+  nen_dang: { t: number; o: number; h: number; l: number; c: number } | null
+  tre_ms: number
+  tre_p50: number | null
+  tre_p95: number | null
+  so_lan_rot: number
+  giay_rot: number
+  phien_giay: number
+}
+
+export interface VanDeLive {
+  severity: 'error' | 'warning' | string
+  message: string
+  tab: string
+}
+
+export interface DeNghi { spread_diem: number | null; vi_sao: string
+                          stops_level_that: number | null }
+
+/** BỐN MỨC, không phải đạt/hỏng — xem `ket_noi._cham`.
+ *    `tron`  chạy trơn        `xac`   phòng vệ sửa TRƯỚC khi gửi (giả thuyết đúng sẵn)
+ *    `do`    sàn từ chối, phòng vệ chữa được → VẪN ĐẠT
+ *    `hong`  phòng vệ bó tay → phải chỉnh con số
+ *    `nguoi` máy không chữa được → cần người ra tay
+ *  Cộng hai mức KHÔNG phải bước chạm sàn, chỉ để đọc nhật ký:
+ *    `moc`   mốc "── lượt 2/4"      `chinh` một dòng chỉnh giả thuyết
+ */
+export type MucBuoc = 'tron' | 'xac' | 'do' | 'hong' | 'nguoi' | 'moc' | 'chinh'
+
+export interface BuocTest {
+  ten: string; dat: boolean; chu: string; ms: number | null
+  muc?: MucBuoc; ma?: number | null
+}
+
+/** Con số Đề phòng thuộc loại gì — quyết định nó có mang từ DEMO sang THẬT được không.
+ *    `san`  luật của sàn        → demo và thật giống nhau, chép sang vô tư
+ *    `khop` chất lượng khớp     → demo KHÔNG có thanh khoản thật, số đo là CHẶN DƯỚI
+ *    `ta`   cách app tự xử      → không phụ thuộc tài khoản nào
+ *  Xem `gui_lenh.LOAI`. */
+export type LoaiSo = 'san' | 'khop' | 'ta'
+
+export interface DongDePhong { ten: string; gia: string; chu: string; loai: LoaiSo }
+
+/** Hồ sơ đã đo cho CÙNG symbol nhưng dưới tên sàn khác — ứng viên để chép sang. */
+export interface HoSoKhac {
+  khoa: string; san: string; server: string
+  do_luc: string | null; so_vong: number | null; trang_thai: string | null
+}
+
+export interface DePhong {
+  da_hieu_chuan: boolean
+  trang_thai: string | null
+  /** Đang chạy trên tài khoản thật hay không — đổi cách đọc mấy dòng `khop`. */
+  la_that: boolean | null
+  /** Hồ sơ này chép từ sàn khác sang, không phải đo tại chỗ. */
+  chep_tu: string | null
+  do_o_server: string
+  ho_so_khac: HoSoKhac[]
+  dong: DongDePhong[]
+}
+
+/** Kết quả VÒNG LẶP hiệu chuẩn. `trang_thai` là câu trả lời, `buoc` chỉ là dấu vết. */
+export interface KetQuaHieuChuan {
+  trang_thai: 'xong' | 'nguoi' | 'chua_hoi_tu'
+  chay_duoc: boolean
+  chu: string
+  buoc: BuocTest[]
+  /** Lịch sử chỉnh giả thuyết — mỗi dòng "khoá: cũ → mới — vì sao". */
+  da_chinh: string[]
+  can_nguoi: string[]
+  /** Mã sàn trả về mà ta chưa có luật xử. Đây là chỗ cái chưa biết lộ mặt. */
+  ma_la: number[]
+  luat: Record<string, number | null>
+  lan: { luat: Record<string, number | null>; chu: string
+         dem: Record<string, number> }[]
+  de_nghi: DeNghi | null
+  stops_level_that: number | null
 }

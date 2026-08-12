@@ -7,6 +7,7 @@ import '@xyflow/react/dist/style.css'
 import './theme.css'
 import './app.css'
 import App from './App'
+import Live from './live/Live'
 import Tester from './tester/Tester'
 
 /** Rẽ trang bằng `?tester=1` — KHÔNG thêm entry thứ hai cho Vite.
@@ -18,9 +19,10 @@ import Tester from './tester/Tester'
  * Một dòng `if` ở đây rẻ hơn hẳn `build.rollupOptions.input`: một bundle, một `app.css`
  * toàn cục, dùng chung được `TitleBar` / `Modal` / `Icon` mà không phải tách gì. */
 const laTester = new URLSearchParams(location.search).get('tester') === '1'
+const laLive = new URLSearchParams(location.search).get('live') === '1'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {laTester ? <Tester /> : <App />}
+    {laLive ? <Live /> : laTester ? <Tester /> : <App />}
   </React.StrictMode>,
 )

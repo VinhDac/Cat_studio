@@ -7,10 +7,14 @@ import { useEffect, type ReactNode } from 'react'
  * niệm grab, và nội dung đã dựng xong trước khi trình duyệt vẽ — hai lớp lỗi đó
  * không tồn tại nữa.
  */
-export default function Modal({ title, width = 560, onClose, footer, children, khoaEsc }: {
+export default function Modal({ title, width = 560, onClose, footer, children, khoaEsc,
+                               khoaNen }: {
   title: string
   width?: number
   onClose: () => void
+  /** Bấm ra NỀN không đóng. Cho hộp thoại mà bỏ qua là hỏng việc — ví dụ cổng chốt
+   *  của Live: bấm truột một cái là còn lại cửa sổ không biết mình chạy gì. */
+  khoaNen?: boolean
   footer?: ReactNode
   children: ReactNode
   /** Tạm khoá phím Esc.
@@ -33,7 +37,8 @@ export default function Modal({ title, width = 560, onClose, footer, children, k
   }, [onClose, khoaEsc])
 
   return (
-    <div className="lop-phu" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="lop-phu"
+         onMouseDown={e => { if (!khoaNen && e.target === e.currentTarget) onClose() }}>
       <div className="hop-thoai" style={{ width }} onMouseDown={e => e.stopPropagation()}>
         <div className="ht-dau">
           <span>{title}</span>

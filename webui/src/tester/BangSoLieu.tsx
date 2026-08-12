@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 export interface BangCat {
   /** Nhóm do `kho/` khai, hàng do SƠ ĐỒ quyết. `nhom` KHÔNG được in ra — xem dưới. */
   nhom: { nhom: string; dong: { ten: string; phu: string; gia_tri: unknown }[] }[]
@@ -37,7 +39,9 @@ export interface BangCat {
  * Mọi con số ở đây do Python đọc từ CỘT đã ghi lúc chạy, không phải hỏi lại sổ lệnh — sổ
  * đang ở trạng thái cuối backtest, hỏi lại thì con trỏ nào cũng ra một đáp án.
  */
-export default function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
+/** ⚠ BỌC `memo` ở cuối file — `k` chỉ đổi mỗi lần làm mới (một phút một lần ở Live),
+ *  còn cửa sổ thì vẽ lại mỗi giây. */
+function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
   if (!k) return <div className="bang-trong">chưa chạy</div>
 
   const so = (v: unknown) => {
@@ -97,3 +101,5 @@ export default function BangSoLieu({ k, digits }: { k: BangCat | null; digits: n
     </div>
   )
 }
+
+export default memo(BangSoLieu)

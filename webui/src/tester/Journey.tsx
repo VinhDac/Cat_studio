@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import ContextMenu from '../components/ContextMenu'
 
 export interface DongNk {
@@ -29,11 +29,17 @@ interface Nhom {
  * 5 lần, vừa TRẢ LỜI THÊM được câu "cổng đó chặn mấy lượt liền" — thứ mà đếm tay không
  * ra. Chỉ gộp dãy LIỀN KỀ, không gộp cách quãng: gộp cách quãng là xáo trộn thứ tự thật.
  */
-export default function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
+/** ⚠ BỌC `memo` — xem cuối file.
+ *  Ở Live, cửa sổ vẽ lại ít nhất mỗi giây (đèn kết nối, tuổi tick, giá đang chạy),
+ *  mà nhật ký thì hàng trăm dòng và chỉ đổi mỗi phút một lần. Không chặn ở đây thì
+ *  60 lần vẽ thừa cho mỗi lần vẽ thật. */
+function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
   dong: DongNk[]
   /** Nến M1 con trỏ đang đứng — quyết định dòng nào được tô sáng. */
   jBayGio: number
-  nhay: (i: number) => void
+  /** Nhảy con trỏ tới lượt đó. KHÔNG truyền = ẩn luôn mục menu — cửa sổ Live không có
+   *  quá khứ để nhảy về, con trỏ của nó luôn là bây giờ. */
+  nhay?: (i: number) => void
   /** Kéo cửa sổ vẽ lên trước và tô đường lượt này đã đi. */
   soi: (i: number) => void
   chiViec: boolean
@@ -110,8 +116,8 @@ export default function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
                      muc={[
                        // KHÔNG dùng icon `dau`: trên thanh công cụ nó đang mang nghĩa
                        // "về sự kiện trước". Một hình hai nghĩa là hỏng cả hai.
-                       { ten: 'Nhảy tới đây', icon: 'dat-co',
-                         onClick: () => nhay(menu.i) },
+                       ...(nhay ? [{ ten: 'Nhảy tới đây', icon: 'dat-co',
+                                     onClick: () => nhay(menu.i) }] : []),
                        // Câu hỏi ngay sau "chuyện gì đã xảy ra" luôn là "chỗ nào trên
                        // sơ đồ". Dò tay 20 hộp mất cả phút; cái này nối thẳng hai đầu.
                        { ten: 'Xem trên sơ đồ', icon: 'branch',
@@ -126,3 +132,7 @@ export default function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
     </div>
   )
 }
+
+/** ⚠ `soi`/`nhay` PHẢI là hàm ổn định ở phía cha (`useCallback`), không thì `memo`
+ *  vô hiệu — prop hàm mới mỗi lần vẽ là đủ để React vẽ lại. */
+export default memo(Journey)

@@ -135,6 +135,7 @@ export interface RibbonProps {
   symbol: string
   datSymbol: (v: string) => void
   chay: () => void
+  live: () => void
   coChon: boolean
   chonDaGhim: boolean
   coTheHoanTac: boolean
@@ -229,8 +230,13 @@ export default function Ribbon(p: RibbonProps) {
           <input className="o nho o-symbol" value={p.symbol} spellCheck={false}
                  title="Mã giao dịch" placeholder="XAUUSD"
                  onChange={e => p.datSymbol(e.target.value.toUpperCase())} />
+          {/* LIVE đứng TRÁI và màu đỏ. Đỏ không phải để đẹp: hai nút cạnh nhau, một
+              cái tiêu vài giây CPU, một cái tiêu tiền thật — chúng không được trông
+              giống nhau. Trái/phải cũng cố ý: tay quen bấm cái bên phải. */}
+          <button className="nut do" onClick={p.live}
+                  title="Mở cửa sổ Live — chạy trên kết nối thật (Ctrl+L)">● Live</button>
           <button className="nut chinh" onClick={p.chay}
-                  title="Mở cửa sổ Strategy Tester để chạy sơ đồ này">▶ Chạy</button>
+                  title="Mở Strategy Tester để chạy thử sơ đồ này (Ctrl+R)">▶ Test</button>
         </div>
       </div>
     </div>

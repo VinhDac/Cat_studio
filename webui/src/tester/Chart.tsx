@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  CandlestickSeries, LineSeries, LineStyle, LineType, createChart, createSeriesMarkers,
+  BarSeries, CandlestickSeries, LineSeries, LineStyle, LineType, createChart,
+  createSeriesMarkers,
   type IChartApi, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp,
 } from 'lightweight-charts'
 import { pyTester } from '../api'
@@ -52,7 +53,12 @@ const TRAN = 60000
 export type Bar = { time: UTCTimestamp; open: number; high: number; low: number; close: number }
 type Diem = { time: UTCTimestamp; value: number }
 
-export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat }: {
+export type KieuChart = 'nen' | 'bar' | 'line'
+
+export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat,
+                                duoi = null,
+                                kieu = 'nen', mauThuong = false, hienLenh = true,
+                                veHienTai = 0, tranNen = TRAN }: {
   tfPhut: number
   digits: number
   lenh: LenhVe[]
@@ -65,10 +71,38 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
   /** TOÀN BỘ nến khung hiển thị từ đầu dữ liệu tới con trỏ, Python đã gộp sẵn.
    *  Nạp lại mỗi lần NHẢY hoặc đổi khung — 60.000 nến mất 15 ms, 3 MB. */
   dat: Bar[] | null
+  /** ĐUÔI — vài cây cuối vừa chốt lại, áp bằng `update()` chứ không dựng lại series.
+   *
+   *  ⚠ Vì sao cần một cửa riêng thay vì cứ nạp lại `dat`: nạp lại chạy `setData` cả
+   *  2.000 cây, `scrollToRealTime()` và xoá cờ `daKeo` — tức mỗi phút lại GIẬT người
+   *  dùng về mép phải trong khi họ đang xem chỗ khác. Mà tốn nhất là 134 KB qua cầu
+   *  nối chỉ để thêm một cây. Đuôi thì áp tại chỗ, không đụng vào tầm nhìn. */
+  duoi?: Bar[] | null
+  /** Vẽ giá bằng gì. Đổi kiểu phải DỰNG LẠI series — lightweight-charts không đổi tại
+   *  chỗ được. Chớp một cái, chấp nhận được vì đây là thao tác cố ý. */
+  kieu?: KieuChart
+  /** `true` = nến xanh/đỏ như mọi nơi khác. Mặc định XÁM.
+   *  ⚠ Bật lên là một cặp màu mang HAI nghĩa trên cùng màn hình (nến tăng/giảm và
+   *  lệnh thắng/thua), nên lúc đó đường kết quả được vẽ DÀY hơn để còn tách được. */
+  mauThuong?: boolean
+  /** Ẩn toàn bộ visual vào lệnh / sửa lệnh — để nhìn giá trần. */
+  hienLenh?: boolean
+  /** Tăng số này = kéo chart về nến đang chạy. Dùng số chứ không dùng hàm: prop hàm
+   *  đổi mỗi lần render cha, mà việc này chỉ được xảy ra khi người dùng BẤM. */
+  veHienTai?: number
+  /** Trần số nến giữ trong bộ nhớ chart.
+   *
+   *  ⚠ Hai cửa sổ dùng hai giá trị khác hẳn nhau, và đó là chủ ý:
+   *    • **Test** = cuộn phim đã quay xong → phải giữ TOÀN BỘ, kéo về tháng trước vẫn có.
+   *    • **Live** = chart quan sát như chart trading → chỉ cần cửa sổ gần đây.
+   *  Live mà giữ 60.000 nến là tải cả lịch sử về chỉ để hiện một màn hình. */
+  tranNen?: number
 }) {
   const boc = useRef<HTMLDivElement>(null)
   const chart = useRef<IChartApi | null>(null)
-  const nen = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  // Kiểu series đổi theo , nên giữ ở dạng chung — mọi thứ ta gọi trên nó
+  // (, ) đều có ở cả ba kiểu.
+  const nen = useRef<ISeriesApi<'Candlestick' | 'Bar' | 'Line'> | null>(null)
   const bars = useRef<Bar[]>([])
   const lop = useRef<Map<string, ISeriesApi<'Line'>>>(new Map())
   /** Vân tay dữ liệu ĐÃ VẼ của từng đường — xem chú thích trong `doan`. */
@@ -95,18 +129,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
       crosshair: { mode: 0 },
       autoSize: true,
     })
-    // NẾN XÁM: tăng thì RỖNG (chỉ viền), giảm thì ĐẶC tối. Vẫn phân biệt được chiều mà
-    // không tranh màu với lệnh.
-    const s = c.addSeries(CandlestickSeries, {
-      upColor: 'rgba(0,0,0,0)', borderUpColor: mau('--nen-len', '#9aa0a6'),
-      wickUpColor: mau('--nen-len', '#9aa0a6'),
-      downColor: mau('--nen-xuong', '#5c6166'), borderDownColor: mau('--nen-xuong', '#5c6166'),
-      wickDownColor: mau('--nen-xuong', '#5c6166'),
-      priceFormat: { type: 'price', precision: digits, minMove: Math.pow(10, -digits) },
-    })
     chart.current = c
-    nen.current = s
-    mark.current = createSeriesMarkers<Time>(s, [])
     c.timeScale().subscribeVisibleLogicalRangeChange(() => { daKeo.current = true })
     return () => {
       c.remove(); chart.current = null; nen.current = null
@@ -114,13 +137,67 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
   }, [digits])
 
+  /* ---------------- SERIES GIÁ — dựng lại khi đổi KIỂU, không đổi màu ----------------
+   *
+   * ⚠ Bản trước gộp `kieu` và `mauThuong` vào effect dựng CHART, nên bấm một nút màu là
+   * huỷ cả chart rồi dựng lại — mà effect nạp dữ liệu chỉ chạy theo `[batDau, dat]`, hai
+   * cái đó không đổi, nên chart mới dựng xong KHÔNG AI ĐỔ NẾN VÀO: trắng bốc. Và kèm
+   * theo là mất luôn vị trí đang xem, mất mức thu phóng.
+   *
+   * Giờ: đổi màu KHÔNG dựng lại gì (xem effect dưới). Đổi kiểu chỉ thay đúng series giá
+   * — trục thời gian, zoom và mọi đường lệnh giữ nguyên — rồi đổ lại `bars.current`
+   * NGAY TẠI ĐÂY chứ không chờ effect khác. */
+  const [doiSeries, setDoiSeries] = useState(0)
+  useEffect(() => {
+    const c = chart.current
+    if (!c) return
+    if (nen.current) { try { c.removeSeries(nen.current) } catch { /* đã gỡ */ } }
+    const gia = { type: 'price' as const, precision: digits,
+                  minMove: Math.pow(10, -digits) }
+    const s = kieu === 'line'
+      ? c.addSeries(LineSeries, { color: mau('--nen-len', '#9aa0a6'), lineWidth: 2,
+                                  priceLineVisible: false, priceFormat: gia })
+      : kieu === 'bar' ? c.addSeries(BarSeries, { priceFormat: gia })
+                       : c.addSeries(CandlestickSeries, { priceFormat: gia })
+    nen.current = s
+    mark.current = createSeriesMarkers<Time>(s, [])
+    if (bars.current.length) {
+      s.setData(kieu === 'line'
+        ? bars.current.map(b => ({ time: b.time, value: b.close })) as never
+        : bars.current)
+    }
+    setDoiSeries(x => x + 1)        // ép vẽ lại marker: chúng bám vào series vừa thay
+  }, [kieu, digits])
+
+  /* MÀU đổi TẠI CHỖ. Đây là một `applyOptions`, không phải một lần dựng lại — bấm là
+     thấy ngay, không nháy, không mất chỗ đang xem. */
+  useEffect(() => {
+    const s = nen.current
+    if (!s || kieu === 'line') return
+    const len = mauThuong ? mau('--ok', '#4ec96a') : mau('--nen-len', '#9aa0a6')
+    const xuong = mauThuong ? mau('--err', '#e5534b') : mau('--nen-xuong', '#5c6166')
+    s.applyOptions(kieu === 'bar'
+      ? { upColor: len, downColor: xuong }
+      // Nến tăng RỖNG (chỉ viền) ở chế độ xám — vẫn phân biệt được chiều mà không
+      // tranh màu với lệnh.
+      : { upColor: mauThuong ? len : 'rgba(0,0,0,0)',
+          borderUpColor: len, wickUpColor: len,
+          downColor: xuong, borderDownColor: xuong, wickDownColor: xuong })
+  }, [mauThuong, kieu, doiSeries])
+
   // ---------------- dựng lại ----------------
   useEffect(() => {
     const s = nen.current
     if (!s) return
-    bars.current = dat ? dat.slice() : []
+    // Cắt theo trần NGAY khi nhận: Live chỉ cần cửa sổ gần đây, giữ cả lịch sử là
+    // tải về rồi vứt đi.
+    const nguon = dat ?? []
+    bars.current = nguon.length > tranNen ? nguon.slice(nguon.length - tranNen) : nguon.slice()
     tfCuaBars.current = tfPhut
-    s.setData(bars.current)
+    // Line series ăn `{time, value}`, hai kiểu kia ăn OHLC — cùng một mảng nguồn.
+    s.setData(kieu === 'line'
+      ? bars.current.map(b => ({ time: b.time, value: b.close })) as never
+      : bars.current)
     daKeo.current = false
     chart.current?.timeScale().scrollToRealTime()
     // ⚠ KHÔNG cho `tfPhut` vào deps. Đổi khung là `tfPhut` đổi TRƯỚC, `dat` về sau —
@@ -128,7 +205,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     // cũ, tức tự tay mở lại đúng cái cổng mà `tfCuaBars` sinh ra để chặn.
     // Không có nó, effect chỉ chạy khi `dat` thật sự về — lúc đó `tfPhut` đã đúng.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batDau, dat])
+  }, [batDau, dat, tranNen])
 
   // ---------------- một nhịp phát: nến lớn dần ----------------
   useEffect(() => {
@@ -146,17 +223,74 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     const truoc = bars.current.length
     const moc = bars.current[bars.current.length - 1]?.time as number | undefined
     gop(bars.current, them, tfPhut)
-    if (bars.current.length > TRAN) bars.current.splice(0, bars.current.length - TRAN)
+    if (bars.current.length > tranNen)
+      bars.current.splice(0, bars.current.length - tranNen)
     const cuoi = bars.current[bars.current.length - 1]
     // Chốt THỨ HAI, canh thẳng điều kiện bất hợp lệ thay vì canh cách nó xảy ra: mốc
     // mới mà LÙI so với cây cuối thì `s.update` ném `Cannot update oldest data`, và lỗi
     // ném trong effect làm React gỡ cả cây → cửa sổ trắng. Thà bỏ một nhịp vẽ.
     if (moc !== undefined && (cuoi.time as number) < moc) return
-    s.update(cuoi)
+    s.update(kieu === 'line'
+      ? { time: cuoi.time, value: cuoi.close } as never : cuoi)
     if (!daKeo.current && bars.current.length !== truoc) {
       chart.current?.timeScale().scrollToRealTime()
     }
   }, [them, tfPhut])
+
+  /* ---------------- ĐUÔI: vài cây vừa chốt ----------------
+     Cùng hai chốt an toàn với nhịp phát ở trên: sai lưới khung thì bỏ qua (đang đổi
+     khung, `dat` mới đang trên đường về), và mốc LÙI thì bỏ qua (`s.update` ném
+     `Cannot update oldest data`, mà lỗi ném trong effect làm React gỡ cả cây → cửa
+     sổ trắng bốc). */
+  useEffect(() => {
+    const s = nen.current
+    if (!s || !duoi || !duoi.length) return
+    if (tfCuaBars.current !== tfPhut) return
+    for (const b of duoi) {
+      const cuoi = bars.current[bars.current.length - 1]
+      const t = b.time as number
+      const gt = kieu === 'line' ? { time: b.time, value: b.close } as never : b
+      if (!cuoi || t > (cuoi.time as number)) {
+        bars.current.push(b)
+        s.update(gt)
+        continue
+      }
+      if (t === (cuoi.time as number)) {
+        bars.current[bars.current.length - 1] = b
+        s.update(gt)
+        continue
+      }
+      /* ⚠ MỐC LÙI — và đây KHÔNG phải rác cần vứt.
+       *
+       * Nhịp 1 giây đẩy cây M1 đang hình thành vào trước, nên `bars.current` đã có cây
+       * MỚI HƠN khi đuôi tới. Cây trong đuôi là BẢN CHỐT CHÍNH THỨC từ sàn — chính xác
+       * hơn cây ta tự gộp từ tick. Bản trước `continue` ở đây tức là vứt đúng con số
+       * đáng tin nhất và để chart sống bằng nến tự dựng, lệch dần mãi.
+       * Vá tại chỗ: tìm theo mốc (đuôi luôn rất ngắn nên quét ngược vài cây là tới). */
+      let i = bars.current.length - 1
+      while (i >= 0 && (bars.current[i].time as number) > t) i--
+      if (i < 0 || (bars.current[i].time as number) !== t) continue   // ngoài tầm giữ
+      bars.current[i] = b
+      try {
+        // Tham số thứ hai `historicalUpdate` của lightweight-charts 5.2 — sửa một cây
+        // KHÔNG phải cây cuối. Bọc try vì nếu bản chart đổi thì cùng lắm chart hiển thị
+        // cây cũ tới lần nạp đầy sau, còn MÔ HÌNH `bars.current` thì đã đúng.
+        ;(s.update as (b: unknown, h?: boolean) => void)(gt, true)
+      } catch { /* mô hình đã đúng, để lần nạp đầy sau vẽ lại */ }
+    }
+    if (bars.current.length > tranNen)
+      bars.current.splice(0, bars.current.length - tranNen)
+    // KHÔNG `scrollToRealTime()` ở đây: người dùng có thể đang kéo xem chỗ khác, và
+    // giật họ về mép phải mỗi phút là đúng thứ làm chart trading khó dùng.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duoi])
+
+  // Kéo chart về nến đang chạy. Bỏ qua lần đầu (`veHienTai = 0`).
+  useEffect(() => {
+    if (!veHienTai) return
+    daKeo.current = false
+    chart.current?.timeScale().scrollToRealTime()
+  }, [veHienTai])
 
   // ---------------- LỆNH ----------------
   useEffect(() => {
@@ -212,8 +346,20 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
       mk.push({ time: t as UTCTimestamp, position: 'atPriceMiddle', price: gia,
                 color, shape: 'circle', text })
 
-    for (const l of lenh) {
+    for (const l of hienLenh ? lenh : []) {
       if (l.t_dat > tBayGio) continue
+      /* ⚠ Lệnh của BÀI KIỂM vẽ khác hẳn. Chúng sống có mấy giây nên đoạn vào→ra co
+       * thành một chấm, và ba nhãn `R` chồng lên nhau — đúng cái rối bạn thấy.
+       * Chúng là DỤNG CỤ ĐO, không phải kết quả chiến lược: một chấm mờ, không nhãn,
+       * không đường TP/SL. Trộn chung một ngôn ngữ hình là tự làm rối. */
+      if ((l as { la_kiem?: boolean }).la_kiem) {
+        if (l.gia_khop != null && l.t_khop != null) {
+          mk.push({ time: l.t_khop as UTCTimestamp, position: 'atPriceMiddle',
+                    price: l.gia_khop, color: mau('--dim', '#7a7a7a'),
+                    shape: 'circle', size: 0.6 })
+        }
+        continue
+      }
       const daKhop = l.t_khop != null && l.t_khop <= tBayGio
       const daDong = l.t_dong != null && l.t_dong <= tBayGio
       const daHuy = daDong && l.ly_do_dong === 'huy'
@@ -272,7 +418,9 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
         doan(`${l.id}:kq`, [
           { time: l.t_khop as UTCTimestamp, value: l.gia_khop },
           { time: Math.max(l.t_dong!, l.t_khop! + 1) as UTCTimestamp, value: l.gia_dong },
-        ], { color: pq!, width: 2 })
+          // Nến đang xanh/đỏ thì đường kết quả phải DÀY hơn, không thì nhìn một cái
+          // không biết vạch xanh kia là nến tăng hay lệnh thắng.
+        ], { color: pq!, width: mauThuong ? 3 : 2 })
         cham(l.t_dong!, l.gia_dong, pq!, `${(l.lai_R ?? 0).toFixed(2)}R`)
       }
     }
@@ -282,7 +430,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
     mk.sort((a, b) => (a.time as number) - (b.time as number))
     mark.current?.setMarkers(mk)
-  }, [lenh, tBayGio])
+  }, [lenh, tBayGio, hienLenh, mauThuong, doiSeries])
 
   // ---------------- bảng nhỏ khi rê chuột ----------------
   useEffect(() => {
@@ -297,7 +445,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
     c.subscribeCrosshairMove(f)
     return () => c.unsubscribeCrosshairMove(f)
-  }, [lenh, tBayGio])
+  }, [lenh, tBayGio, hienLenh, mauThuong, doiSeries])
 
   /* ĐƯỜNG RAY — nạp MỘT LẦN cho mỗi lệnh người dùng thật sự rê vào, rồi nhớ lại.
    *

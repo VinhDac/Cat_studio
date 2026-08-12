@@ -7,6 +7,7 @@ import type {
   BoNen, Bootstrap, Card, ChangRay, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
   LoNhatKy, ProcEdge, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
   DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
+  TinKetNoi, VanDeLive, KetQuaHieuChuan, DePhong,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -125,6 +126,8 @@ export const py = {
 
   // --- ▶ Chạy → cửa sổ Strategy Tester ---
   mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),
+  /** Mở cửa sổ Live. Python CHẶN nếu sơ đồ còn lỗi — chốt thứ hai sau hộp thoại. */
+  mo_live: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_live', doc),
 
   // --- cửa sổ (thanh tiêu đề tự vẽ) ---
   vung_khong_keo: (vung: number[][], cao: number) => goi<null>('vung_khong_keo', vung, cao),
@@ -188,4 +191,64 @@ export const pyTester = {
     goi<LoNhatKy>('test_nhat_ky', tu, so, chiCoViec),
   test_luot: (i: number) => goi<{ j: number; nen: number; tab: string }>('test_luot', i),
   test_ghi_nhat_ky: () => goi<{ duong_dan: string }>('test_ghi_nhat_ky'),
+}
+
+/** Bề mặt của CỬA SỔ LIVE — `ApiLive` bên Python. Hẹp hơn cả tester: không lưu, không
+ *  chạy backtest, không đổi cài đặt. Nó chỉ đo và báo. */
+export const pyLive = {
+  live_boot: () => goi<{ phien_ban: string; accent?: string; san_sang: boolean
+                         ten: string; symbol: string; bat_dau_luc: number | null
+                         goi_y: string; ds_luu: string[]
+                         symbol_mac_dinh: string
+                         /** Số lẻ THẬT của symbol — Live từng viết cứng 2. */
+                         digits: number
+                         cai_dat: Record<string, unknown> }>('live_boot'),
+  // --- DÙNG CHUNG với tester: `ApiLive` kế thừa bề mặt đọc của `ApiTester`, nên đây
+  //     là ĐÚNG những hàm kia, chỉ khác nguồn dữ liệu. `j0 = -1` = lấy đoạn cuối.
+  test_doan: (j0: number, n: number) => goi<DoanPhat>('test_doan', j0, n),
+  /** `tran` = số nến TỐI ĐA xin về. Live truyền 2.000; không truyền thì lấy cả lịch sử.
+   *  `tuT > 0` = xin ĐUÔI, chỉ những cây từ mốc đó — gói còn khoảng trăm byte thay vì
+   *  134 KB, xem chú thích ở `test_nen_tf` phía Python. */
+  test_nen_tf: (tf: string, j: number, tran?: number, tuT?: number) =>
+    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+      'test_nen_tf', tf, j, tran ?? 60000, tuT ?? 0),
+  test_soi_luot: (i: number) => goi<{ da_ban: boolean }>('test_soi_luot', i),
+
+  /** Khối ĐỀ PHÒNG — hệ thống đang tự bảo vệ bằng gì, và mỗi con số từ đâu ra. */
+  live_de_phong: () => goi<DePhong>('live_de_phong'),
+  /** Dùng hồ sơ đã đo ở sàn khác cho sàn đang chạy — cây cầu DEMO → THẬT. */
+  live_chep_ho_so: (tuKhoa: string) =>
+    goi<{ san: string; tu: string; do_luc: string | null }>('live_chep_ho_so', tuKhoa),
+  /** Kéo cửa sổ VẼ lên trước — Live chạy ngầm hàng giờ, cửa sổ kia hay bị lấp. */
+  live_ve_so_do: () => goi<{ da_keo: boolean }>('live_ve_so_do'),
+  live_rac: () => goi<{ vi_the: number[]; lenh_cho: number[]; chu: string }>('live_rac'),
+  live_don_rac: () =>
+    goi<{ da_dong: number; da_huy: number; chu: string }>('live_don_rac'),
+  live_kiem_ket_noi: (symbol: string) => goi<{
+    noi_duoc: boolean; chu: string; terminal: string; tai_khoan: string
+    symbol: string; co_symbol: boolean; goi_y: string[]
+  }>('live_kiem_ket_noi', symbol),
+  /** Sơ đồ định chạy có lỗi gì không — hỏi TRƯỚC khi bấm, không phải sau. */
+  live_soat_so_do: (ten: string) =>
+    goi<{ ten: string; loi: string[]; canh_bao: string[] }>('live_soat_so_do', ten),
+  /** Qua CỔNG CHỐT: chốt chiến lược + symbol. `ten` rỗng = dùng sơ đồ đang mở ở cửa sổ vẽ. */
+  live_chon: (ten: string, symbol: string) =>
+    goi<{ ten: string; symbol: string }>('live_chon', ten, symbol),
+  /** Một nhịp đo + danh sách vấn đề trong CÙNG một lời gọi — tách ra thì dải kết nối và
+   *  bảng vấn đề đọc hai lần đo khác nhau và sẽ có lúc nói ngược nhau. */
+  /** `daCo` = số bước bài kiểm đã nhận; Python chỉ gửi phần MỚI. */
+  live_tin: (daCo = 0) => goi<{ tin: TinKetNoi | null; van_de: VanDeLive[] }>(
+    'live_tin', daCo),
+  /** HIỆU CHUẨN — VÒNG LẶP TỰ CHỈNH, không phải một bài test rồi báo lỗi.
+   *  `soVong` vòng lệnh thật mỗi lượt, giãn `nghiGiay` cho giá chạy, lặp tối đa
+   *  `lapToiDa` lượt hoặc tới khi không còn gì để chỉnh. */
+  live_test_ket_noi: (soVong: number, nghiGiay: number, lapToiDa: number) =>
+    goi<KetQuaHieuChuan>('live_test_ket_noi', soVong, nghiGiay, lapToiDa),
+
+  cua_so_thu_nho: () => goi<null>('cua_so_thu_nho'),
+  cua_so_phong_to: () => goi<boolean>('cua_so_phong_to'),
+  cua_so_dang_phong_to: () => goi<boolean>('cua_so_dang_phong_to'),
+  cua_so_dong: () => goi<null>('cua_so_dong'),
+  vung_khong_keo: (vung: number[][], cao: number) => goi<null>('vung_khong_keo', vung, cao),
+  keo_cua_so: (ht: number) => goi<boolean>('keo_cua_so', ht),
 }

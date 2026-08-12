@@ -258,22 +258,43 @@ class _KetNoi:
     treo tới terminal suốt thời gian đó chỉ để thỉnh thoảng tải nến là chuốc rắc rối
     (người dùng đóng MT5, đổi tài khoản, mất mạng…)."""
 
+    #: ĐẾM LỒNG NHAU. `mt5` giữ MỘT kết nối toàn cục cho cả tiến trình, nên `shutdown()`
+    #: của bất kỳ ai cũng giết kết nối của tất cả. Đo được: cửa sổ Live poll sức khoẻ mỗi
+    #: giây, mỗi lần vào/ra một `_KetNoi` — trong khi bài hiệu chuẩn đang chạy dở thì cú
+    #: `shutdown()` của nó cắt ngang, và mọi lệnh từ vòng 2 trở đi trả `10031 mất kết nối`.
+    #: Chỉ NGƯỜI CUỐI CÙNG rời mới được đóng.
+    _sau = 0
+
+    #: Khoá. `_sau` bị đọc/ghi từ NHIỀU LUỒNG (giao diện, vòi cấp nến, bài kiểm) —
+    #: không khoá thì hai luồng cùng thấy 0, cùng `initialize`, rồi luồng ra trước
+    #: `shutdown()` cắt ngang luồng kia.
+    _khoa = __import__("threading").Lock()
+
     def __enter__(self):
         if not CO_MT5:
             raise LoiNguon("Máy chưa cài thư viện MetaTrader5 (pip install MetaTrader5).")
-        if not mt5.initialize():
-            ma, mo_ta = mt5.last_error()
-            raise LoiNguon(
-                f"Không nối được MetaTrader 5 ({ma}: {mo_ta}).\n"
-                "Hãy MỞ MT5 và đăng nhập, rồi thử lại. Tải xong thì đóng MT5 vẫn "
-                "backtest bình thường.")
-        return self
+        with _KetNoi._khoa:
+            if _KetNoi._sau > 0:
+                _KetNoi._sau += 1
+                return self
+            if not mt5.initialize():
+                ma, mo_ta = mt5.last_error()
+                raise LoiNguon(
+                    f"Không nối được MetaTrader 5 ({ma}: {mo_ta}).\n"
+                    "Hãy MỞ MT5 và đăng nhập, rồi thử lại. Tải xong thì đóng MT5 vẫn "
+                    "backtest bình thường.")
+            _KetNoi._sau = 1        # ⚠ DÒNG NÀY. Thiếu nó thì mọi `__exit__` đều
+            return self             # `shutdown()`, kể cả khi khối ngoài đang dùng.
 
     def __exit__(self, *a):
-        try:
-            mt5.shutdown()
-        except Exception:
-            pass
+        with _KetNoi._khoa:
+            _KetNoi._sau = max(0, _KetNoi._sau - 1)
+            if _KetNoi._sau > 0:
+                return
+            try:
+                mt5.shutdown()
+            except Exception:               # noqa: BLE001
+                pass
         return False
 
 

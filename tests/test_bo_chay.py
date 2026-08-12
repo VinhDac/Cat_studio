@@ -16,6 +16,7 @@ Năm thứ được canh:
 Chạy:  python tests\\test_bo_chay.py
 """
 import io
+import json
 import os
 import sys
 
@@ -289,6 +290,65 @@ kiem("và nến M15 đó đã ĐÓNG rồi (không nhìn trước tương lai)",
 # lúc đó hai giá bằng nhau là ĐÚNG.
 kiem("giá trị khác close M5 ở phần lớn nến — bằng chứng đang đọc đúng khung M15",
      khac_m5 > so_sanh * 0.5, f"— khác ở {khac_m5}/{so_sanh} nến")
+
+# ============ ĐI TỪNG NHỊP phải ra ĐÚNG cái mà chạy trọn ra ============
+#
+# `chay()` giờ chỉ là vòng lặp quanh `PhienChay.mot_nhip`. Cửa sổ Live sẽ gọi thẳng
+# `mot_nhip` mỗi khi sàn đóng một nến — nghĩa là hai đường đó BẮT BUỘC phải cho ra cùng
+# một thứ, nếu không thì lời hứa "test như nào thì live như thế" là nói dối.
+#
+# Bài này lái tay `PhienChay` và so với `chay()` bằng vân tay phủ MỌI trường của MỌI
+# lệnh và MỌI lượt — không phải vài con số tổng hợp, vì tổng hợp che được sai lệch.
+print("\n▸ Đi từng nhịp == chạy trọn")
+
+
+def _van_tay(kq):
+    import hashlib
+    hl = hashlib.sha256()
+    for l in kq.so.lenh:
+        hl.update(json.dumps(
+            [l.id, l.huong, l.loai, l.lot, l.nen_dat, l.nen_khop, l.nen_dong, l.j_khop,
+             l.gia_dat, l.gia_khop, l.gia_dong, l.sl, l.tp, l.R, l.ly_do_dong,
+             l.trang_thai, l.vung_id], default=str).encode())
+    hn = hashlib.sha256()
+    for r in kq.nhat_ky:
+        hn.update(json.dumps(
+            [r["j"], r["nen"], r["tab"], r["ket"], r["duong"], r["lenh_id"],
+             r["viec"], r["cong"], r["khoi"]], default=str).encode())
+    return hl.hexdigest(), hn.hexdigest()
+
+
+nen_dai = nen_m1([100.0 + (k % 37) * 0.1 for k in range(4000)])
+kq_tron = bc.chay(d9, nen_dai, CD9)
+
+# Lái tay: đúng những gì `chay()` làm, nhưng gọi từng nhịp một.
+phien = bc.PhienChay(d9, nen_dai, CD9)
+for jj in range(len(phien.ct.nen1)):
+    phien.mot_nhip(jj)
+kq_nhip = phien.ket_thuc()
+
+vt_tron, vt_nhip = _van_tay(kq_tron), _van_tay(kq_nhip)
+kiem("cùng số lệnh", len(kq_tron.so.lenh) == len(kq_nhip.so.lenh),
+     f"— {len(kq_tron.so.lenh)} lệnh")
+kiem("cùng số lượt nhật ký", len(kq_tron.nhat_ky) == len(kq_nhip.nhat_ky),
+     f"— {len(kq_tron.nhat_ky)} lượt")
+kiem("vân tay MỌI TRƯỜNG của MỌI LỆNH khớp", vt_tron[0] == vt_nhip[0])
+kiem("vân tay MỌI LƯỢT nhật ký khớp", vt_tron[1] == vt_nhip[1])
+kiem("thống kê khớp từng con số",
+     all(str(kq_tron.thong_ke[k]) == str(kq_nhip.thong_ke.get(k))
+         for k in kq_tron.thong_ke),
+     f"— {len(kq_tron.thong_ke)} chỉ số")
+
+# Và `mot_nhip` phải CHỊU ĐƯỢC việc bị gọi rời rạc — live gọi nó theo nhịp thật, có thể
+# trễ, có thể ngắt quãng. Chạy nửa chừng rồi mới chạy tiếp phải ra đúng như chạy liền.
+p2 = bc.PhienChay(d9, nen_dai, CD9)
+for jj in range(0, 1500):
+    p2.mot_nhip(jj)
+giua = len(p2.so.lenh)
+for jj in range(1500, len(p2.ct.nen1)):
+    p2.mot_nhip(jj)
+kiem("dừng giữa chừng rồi chạy tiếp — vẫn ra đúng cái đó",
+     _van_tay(p2.ket_thuc())[0] == vt_tron[0], f"— giữa chừng có {giua} lệnh")
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)
