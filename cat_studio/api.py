@@ -552,7 +552,19 @@ class Api(NenCuaSo):
             frameless=True, easy_drag=False)
         self._api_live._gan_window(self._live)
 
+        al0 = self._api_live
+
         def quen_di():
+            # ⚠ PHẢI DỪNG LUỒNG MÁY. Đo được: không có `_dung = True` thì `_vong()`
+            # chạy mãi sau khi cửa sổ đóng — điều kiện `self._window is not None` không
+            # bao giờ đổi vì không ai gán lại. Mở Live lần hai là có HAI luồng cùng kéo
+            # nến và cùng giành cầu nối MT5.
+            #
+            # Chọn nghĩa: ĐÓNG CỬA SỔ = DỪNG PHIÊN. Chưa có luồng đặt lệnh nên không có
+            # gì phải giữ chạy ngầm; ngày thêm nó thì đây là chỗ phải bàn lại, và chú
+            # thích này là lời nhắc.
+            al0._dung = True
+            al0._window = None
             self._live = None
             self._api_live = None
 
@@ -1517,6 +1529,12 @@ class ApiLive(ApiTester):
             "goi_y": (self.doc_goi_y or {}).get("name") or "",
             "ds_luu": core.list_templates("strategy"),
             "symbol_mac_dinh": self.symbol or cd.get("symbol") or "XAUUSD",
+            # ⚠ SỐ LẺ CỦA SYMBOL. Cửa sổ Live viết cứng `digits=2` — đúng cho XAUUSD
+            # nhưng ô Symbol ở cổng chốt là ô gõ tự do: chọn EURUSD (5 số) thì bước giá
+            # 0.01 gộp 1.08501 và 1.08528 vào một mức, nến dẹp thành một vạch, và mọi
+            # con số in ra `.toFixed(2)` thành "1.09". Lấy từ chính engine đang chạy.
+            "digits": int(getattr(getattr(self.phien, "cd", None), "digits", 0) or 0)
+                      or int((nguon_nen.doc_meta(self.symbol) or {}).get("digits") or 2),
             "cai_dat": cd,
         })
 
@@ -1682,7 +1700,7 @@ class ApiLive(ApiTester):
     def _tin_hien(self):
         """Bản đo mới nhất. Chưa có thì đo MỘT lần rồi cất — chỉ lần đầu mới chờ.
 
-        Cần vì `live_de_phong` / `live_ho_so` chạy ngay lúc mở cửa sổ, trước khi luồng
+        Cần vì `live_de_phong` chạy ngay lúc mở cửa sổ, trước khi luồng
         máy kịp đo nhịp đầu. Không có nhánh này thì tên sàn rỗng → tra hồ sơ trượt →
         khối Đề phòng báo "chưa hiệu chuẩn" trong khi hồ sơ nằm sẵn đó."""
         if self._tin is None and self.suc_khoe is not None and not self._dang_kiem:
@@ -1727,12 +1745,6 @@ class ApiLive(ApiTester):
             "kiem_tong": n,
             "kiem_dong": self._kiem_dong[max(0, int(da_co or 0)):],
         })
-
-    @_bat_loi
-    def live_ho_so(self):
-        """Hồ sơ đã đo cho sàn+symbol đang chạy, hoặc None."""
-        tin = self._tin_hien()
-        return _ok(ket_noi.doc_ho_so(tin.get("sàn") or "", self.symbol))
 
     @_bat_loi
     def live_de_phong(self):

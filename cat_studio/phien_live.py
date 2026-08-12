@@ -112,16 +112,21 @@ class PhienLive:
         # Nối vào mảng cũ rồi DỰNG LẠI `ChuongTrinh` trên mảng dài hơn: chỉ báo tính lại
         # bằng ĐÚNG phép của backtest, không có bản "tính dần" thứ hai để lệch.
         import numpy as np
-        self.nen1 = np.concatenate([self.nen1, moi])
-        cu = self.phien
+        nen_moi = np.concatenate([self.nen1, moi])
         # Dựng lại `ChuongTrinh` trên mảng dài hơn để chỉ báo tính bằng ĐÚNG phép của
         # backtest, rồi chạy lại TỪ KHUNG HÌNH SỐ 0 — không phải từ đầu mảng. Trạng thái
         # live là hàm thuần của (sơ đồ, nến từ lúc bấm Live), nên dựng lại ra đúng cái cũ.
-        self.phien = bo_chay.PhienChay(self.doc, self.nen1, self.cd)
-        for j in range(self.j_bat_dau, len(self.nen1)):
-            self.phien.mot_nhip(j)
-        del cu
-        self.t_cuoi = int(self.nen1["t"][-1])
+        #
+        # ⚠ DỰNG VÀO BIẾN CỤC BỘ RỒI MỚI CÔNG BỐ. Bản trước gán thẳng `self.phien` rồi
+        # mới phát lại — tức trong suốt lúc phát lại, `self.phien` là một phiên RỖNG.
+        # Luồng cầu nối gọi `anh_chup()` đúng lúc đó thì đọc được nhật ký 0 dòng, lệnh
+        # 0 cái, và cửa sổ chớp trắng một nhịp. Đo được: giữa `nhip()` thấy 0/0 trong
+        # khi trước và sau đều là 19/17. Gán MỘT PHÁT ở cuối thì không có khe nào.
+        phien_moi = bo_chay.PhienChay(self.doc, nen_moi, self.cd)
+        for j in range(self.j_bat_dau, len(nen_moi)):
+            phien_moi.mot_nhip(j)
+        self.nen1, self.phien = nen_moi, phien_moi
+        self.t_cuoi = int(nen_moi["t"][-1])
         return len(moi)
 
     def anh_chup(self):

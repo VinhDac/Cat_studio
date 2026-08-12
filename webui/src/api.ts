@@ -200,6 +200,8 @@ export const pyLive = {
                          ten: string; symbol: string; bat_dau_luc: number | null
                          goi_y: string; ds_luu: string[]
                          symbol_mac_dinh: string
+                         /** Số lẻ THẬT của symbol — Live từng viết cứng 2. */
+                         digits: number
                          cai_dat: Record<string, unknown> }>('live_boot'),
   // --- DÙNG CHUNG với tester: `ApiLive` kế thừa bề mặt đọc của `ApiTester`, nên đây
   //     là ĐÚNG những hàm kia, chỉ khác nguồn dữ liệu. `j0 = -1` = lấy đoạn cuối.

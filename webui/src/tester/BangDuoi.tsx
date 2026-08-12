@@ -24,10 +24,12 @@ export interface TabDuoi {
   /** Nút riêng của tab, hiện ở góc phải khi tab đang mở. */
   nut?: ReactNode
 }
-export default function BangDuoi({ tabs, epTab }: {
+export default function BangDuoi({ tabs, epTab, epLan = 0 }: {
   tabs: TabDuoi[]
   /** Ép mở một tab từ ngoài (chọn một mục lịch sử → nhảy sang Thống kê). */
   epTab?: string
+  /** ĐẾM SỐ LẦN ÉP. Tăng lên là ép lại, kể cả khi `epTab` không đổi giá trị. */
+  epLan?: number
 }) {
   const [tab, setTab] = useState(tabs[0]?.khoa ?? '')
   const [cao, setCao] = useState(210)
@@ -35,8 +37,13 @@ export default function BangDuoi({ tabs, epTab }: {
 
   /* Ép tab từ ngoài: chọn một mục lịch sử = nhảy thẳng sang Thống kê và mở bảng ra.
      Bắt người dùng bấm thêm hai nhát mới thấy thứ vừa chọn thì danh sách kia vô dụng. */
-  const [epCu, setEpCu] = useState(epTab)
-  if (epTab && epTab !== epCu) { setEpCu(epTab); setTab(epTab); setGap(false) }
+  /* ⚠ Chốt theo LẦN ép, không theo GIÁ TRỊ. Bản trước so `epTab !== epCu`: chọn mục
+     lịch sử thứ nhất thì nhảy sang Thống kê (đúng), người dùng bấm sang tab Nhật ký,
+     rồi chọn mục lịch sử THỨ HAI — `epTab` vẫn là 'thong-ke' nên không nhảy nữa, trông
+     y như bấm hụt. Cùng một đích vẫn là một lần ép mới. */
+  const [epCu, setEpCu] = useState(`${epLan}|${epTab ?? ''}`)
+  const epNay = `${epLan}|${epTab ?? ''}`
+  if (epTab && epNay !== epCu) { setEpCu(epNay); setTab(epTab); setGap(false) }
 
   /** Kéo mép trên để chỉnh chiều cao. Bám theo con trỏ cho tới khi thả, kể cả khi chuột
    *  đi ra ngoài cửa sổ — chỉ nghe trên chính thanh kéo thì kéo nhanh một cái là mất

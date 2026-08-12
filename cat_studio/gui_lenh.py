@@ -95,7 +95,17 @@ LOAI = {
 #:   nguoi    — máy không chữa được. Dừng và NÓI RÕ người phải làm gì.
 XU_LY = {
     10004: "noi",       # requote
+    10005: "dung",      # giá đặt cũ, sàn không nhận
     10006: "dung",      # sàn từ chối thẳng
+    10007: "dung",      # người dùng huỷ — không tự đặt lại
+    # ⚠ BA MÃ THÀNH CÔNG. Thiếu chúng là chỗ NGUY NHẤT của cả file, đo được: sàn khớp
+    # MỘT PHẦN (10010) thì lệnh ĐÃ VÀO, nhưng vòng thử đọc thành "chưa xong" rồi GỬI
+    # LẠI — xin 5 lot mà bắn ra 3 lệnh, thành 15 lot thật, và hai ticket đầu biến mất
+    # khỏi sổ nên không ai thấy. Một "thành công" bị đọc thành "thất bại" tốn tiền
+    # gấp bội một thất bại bị đọc thành thành công.
+    10008: "xong",      # lệnh chờ ĐÃ ĐẶT
+    10009: "xong",      # xong hẳn (nhánh chính đã bắt, để đây cho đủ bảng)
+    10010: "xong",      # khớp MỘT PHẦN — vẫn là đã vào sàn
     10011: "thu",       # lỗi xử lý phía sàn
     10012: "thu",       # hết giờ chờ
     10013: "?",         # ⚠ MÃ HAI NGHĨA — xem `LUONG_LU`, phải hỏi terminal mới biết
@@ -305,8 +315,18 @@ def _chay(L, bg, tt, dung_yc):
             CHUA_BIET[m] = CHUA_BIET.get(m, 0) + 1
             if m not in bg["la"]:
                 bg["la"].append(m)
-            _them(bg, "da_sua", f"mã {m} CHƯA CÓ LUẬT — thử lại tạm")
-            xu = "thu"
+            # ⚠ MÃ LẠ TRÊN LỆNH THỊ TRƯỜNG THÌ DỪNG, KHÔNG THỬ LẠI.
+            #
+            # Không biết mã nghĩa gì tức là KHÔNG BIẾT lệnh đã vào sàn hay chưa. Gửi
+            # lại một lệnh `DEAL` trong tình trạng đó là đánh cược bằng tiền thật: nếu
+            # nó đã vào thì ta vừa nhân đôi vị thế. Còn gửi lại một lệnh sửa SL/TP hay
+            # huỷ lệnh chờ thì vô hại — cùng lắm là "không có gì thay đổi".
+            # Bất đối xứng này phải nằm trong luật, không để mặc định nuốt.
+            la_deal = yc.get("action") == mt5.TRADE_ACTION_DEAL
+            xu = "dung" if la_deal else "thu"
+            _them(bg, "da_sua", f"mã {m} CHƯA CÓ LUẬT — "
+                                + ("DỪNG, không dám gửi lại lệnh thị trường"
+                                   if la_deal else "thử lại tạm"))
 
         if xu == "xong":
             # Không phải lỗi: thứ ta muốn vốn đã đúng rồi (vị thế đã đóng, SL vốn ở đó).
@@ -465,11 +485,21 @@ def sua_stops(symbol, pos, sl=None, tp=None, luat=None):
             bg["ket"], bg["chu"] = "ok", "vị thế không còn — không có gì để sửa"
             return
         mua = int(p.type) == 0
-        g = float(p.price_open)
         bg["ticket"] = int(p.ticket)
         tt = _tt_dau(L, si)
 
         def dung_yc(tt):
+            # ⚠ KẸP THEO GIÁ HIỆN TẠI, KHÔNG THEO GIÁ MỞ.
+            #
+            # `stops_level` là khoảng cách tối thiểu tới GIÁ ĐANG CHẠY — sàn đo từ đó,
+            # không đo từ chỗ ta vào lệnh. Kẹp theo giá mở thì khi giá đã chạy xa, việc
+            # kéo SL lên khoá lời bị đẩy ngược về sát giá vào: mua ở 4400, giá 4500,
+            # xin SL 4495 (khoá +95 điểm) mà lại gửi đi SL 4397 — xoá sạch phần lời đã
+            # khoá, và sổ vẫn ghi "ok". Đo được, đúng bằng con số 215 điểm của sàn này.
+            tick = mt5.symbol_info_tick(symbol)
+            if tick is None:
+                return None
+            g = float(tick.bid if mua else tick.ask)
             s2, t2, sua = _kep(g, sl, tp, mua, tt["kep"], diem)
             if sua:
                 _them(bg, "sua_truoc" if bg["so_lan"] <= 1 else "da_sua", sua)

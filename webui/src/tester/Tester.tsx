@@ -57,6 +57,8 @@ export default function Tester() {
    *  MỞ LẠI, tức chạy lại thật. */
   const [xemLS, setXemLS] = useState<XemLichSu | null>(null)
   const [maLS, setMaLS] = useState<string | null>(null)
+  /** Đếm số lần chọn một mục lịch sử — xem `epLan` ở `BangDuoi`. */
+  const [lanXem, setLanXem] = useState(0)
 
   // --- lô đang phát ---
   const lo = useRef<DoanPhat | null>(null)
@@ -303,7 +305,11 @@ export default function Tester() {
                 them={<LichSu dangXem={maLS}
                               onXem={async ma => {
                                 const r = await pyTester.test_lich_su_xem(ma)
-                                if (r.ok && r.value) { setXemLS(r.value); setMaLS(ma) }
+                                if (r.ok && r.value) {
+                                  setXemLS(r.value); setMaLS(ma)
+                                  // Mỗi lần chọn là một lần ép MỚI — xem `epLan`.
+                                  setLanXem(x => x + 1)
+                                }
                               }}
                               onMoLai={ma => { setMaLS(ma); void chay(ma) }} />} />
 
@@ -384,7 +390,7 @@ export default function Tester() {
           chính. Nút gập nằm ngay trên hàng tab của chính nó chứ không phải ở góc thanh
           công cụ: tay đang ở đâu thì nút ở đó. */}
       {kq && (
-        <BangDuoi epTab={xemLS ? 'thong-ke' : undefined} tabs={[
+        <BangDuoi epTab={xemLS ? 'thong-ke' : undefined} epLan={lanXem} tabs={[
           { khoa: 'nhat-ky', nhan: 'Nhật ký', dem: dong.length,
             ve: () => <Journey dong={dong} jBayGio={j} nhay={async i => {
                                  setPhat(false)

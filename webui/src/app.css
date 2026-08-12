@@ -1624,6 +1624,11 @@ select.o { cursor: pointer; }
 .lv-chinh-dong { font-family: var(--mono); font-size: 11px; color: var(--muted);
                  padding: 1px 0; }
 
+/* Nhật ký MÁY — dòng chảy thô của cửa sổ Live (bước bài kiểm, mất/nối lại kết
+   nối, lô nến về). Chữ đều để mốc giờ thẳng cột. */
+.lv-may { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+          padding: 1px 0; white-space: pre-wrap; }
+
 /* Đèn TẠM DỪNG ĐO — không xanh (đang tốt) cũng không đỏ (đang hỏng): máy đã
    NGỪNG NHÌN. Ba trạng thái khác nhau thì phải ba màu khác nhau. */
 .lv-den.nghi { background: #d9a441; box-shadow: 0 0 6px rgba(217,164,65,.7); }

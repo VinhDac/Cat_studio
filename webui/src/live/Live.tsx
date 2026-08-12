@@ -78,7 +78,9 @@ function o(x: number | null | undefined, don = '', so = 0) {
 }
 
 type Boot = { san_sang: boolean; ten: string; symbol: string; bat_dau_luc: number | null
-              goi_y: string; ds_luu: string[]; symbol_mac_dinh: string }
+              goi_y: string; ds_luu: string[]; symbol_mac_dinh: string
+              /** Số lẻ THẬT của symbol. Viết cứng 2 thì EURUSD (5 số) vẽ ra một vạch. */
+              digits: number }
 
 export default function Live() {
   /* ⚠ KÉO + GIÃN CỬA SỔ. Thiếu đúng dòng này là cửa sổ Live không kéo được, không giãn
@@ -138,6 +140,8 @@ export default function Live() {
 
   /** Mốc cây nến CUỐI mà chart đang giữ — để xin đuôi thay vì xin lại cả mảng. */
   const tCuoi = useRef(0)
+  /** Số thứ tự lượt làm mới — xem chốt chống chồng lượt trong `lamMoi`. */
+  const luot = useRef(0)
 
   /** Làm mới. `dayDu = false` (mặc định, mỗi lần nến đóng) chỉ xin phần ĐUÔI.
    *
@@ -148,7 +152,17 @@ export default function Live() {
    *
    *  Nạp đầy chỉ khi thật sự cần dựng lại lưới: lúc mở, và lúc đổi khung. */
   const lamMoi = useCallback(async (dayDu = false) => {
+    /* ⚠ CHỐNG CHỒNG LƯỢT. `lamMoi` có hai `await`, mà nó bị gọi từ HAI nguồn không
+     * hẹn nhau: sự kiện nến đóng, và cú đổi khung. Đổi khung giữa lúc một lượt cũ đang
+     * chờ `test_doan` thì lượt cũ tỉnh dậy với `tfVe` MỚI nhưng ý định CŨ, xin nến
+     * khung cũ rồi `setDuoiNen` một mảng sai lưới — chart gãy, nặng thì `s.update` ném
+     * `Cannot update oldest data` và React gỡ cả cây (cửa sổ trắng).
+     * Đánh số lượt, chụp tham số NGAY trước await đầu, và bỏ lượt đã cũ sau mỗi await. */
+    const lan = ++luot.current
+    const tf = tfVe
+    const tu = dayDu ? 0 : tCuoi.current
     const d = await pyLive.test_doan(-1, LO)   // -1 = "lấy đoạn cuối", Python tự kẹp
+    if (lan !== luot.current) return
     if (!d.ok || !d.value) return
     const L = d.value
     const k = L.n - 1
@@ -158,8 +172,8 @@ export default function Live() {
     setTBayGio(L.t[k])
     setJ(L.j0 + k)
     const TEN: Record<number, string> = { 1: 'M1', 5: 'M5', 15: 'M15', 60: 'H1', 240: 'H4' }
-    const n = await pyLive.test_nen_tf(TEN[tfVe] ?? 'M5', L.j0 + k, TRAN_NEN,
-                                       dayDu ? 0 : tCuoi.current)
+    const n = await pyLive.test_nen_tf(TEN[tf] ?? 'M5', L.j0 + k, TRAN_NEN, tu)
+    if (lan !== luot.current) return
     if (n.ok && n.value) {
       const v = n.value
       const bar = (x: number) => ({ time: v.t[x] as never, open: v.o[x],
@@ -291,6 +305,9 @@ export default function Live() {
     ] },
   ], [dangTest, ghi])
 
+  /** Số lẻ của symbol đang chạy. XAUUSD may mắn đúng 2; EURUSD thì 5. */
+  const soLe = boot?.digits ?? 2
+
   const song = !!tin?.nen_song
   const that = tin?.la_that === true
   /* ⚠ CHỈ mức `hong` và `nguoi` mới thành Vấn đề.
@@ -374,11 +391,11 @@ export default function Live() {
 
       {/* ---- ĐÚNG khung tester: chart trái, bảng chỉ số phải ---- */}
       <div className="tt-giua">
-        <Chart tfPhut={tfVe} digits={2} lenh={lenh} tBayGio={tBayGio}
+        <Chart tfPhut={tfVe} digits={soLe} lenh={lenh} tBayGio={tBayGio}
                batDau={batDau} dat={datNen} them={themNen} duoi={duoiNen}
                kieu={kieu} mauThuong={mauThuong} hienLenh={hienLenh}
                veHienTai={veNay} tranNen={TRAN_NEN} />
-        {hienBang && <BangSoLieu k={khungBang} digits={2} />}
+        {hienBang && <BangSoLieu k={khungBang} digits={soLe} />}
       </div>
 
       {/* VỎ BẢNG DƯỚI DÙNG CHUNG với Strategy Tester — thanh kéo, nút gập, số đếm,
@@ -628,6 +645,18 @@ export default function Live() {
                   })}
                 </div>
               )}
+            </div>
+          ) },
+        /* ⚠ TAB NÀY LÀ CHỖ `dong` CHẢY RA. Trước đây mọi lời gọi `ghi(...)` — từng
+           bước bài hiệu chuẩn đặt lệnh THẬT, mỗi lần mất/nối lại kết nối, mỗi lô nến
+           về — đều đổ vào một state không ai vẽ. Tức bấm Hiệu chuẩn xong nhìn màn hình
+           không thấy gì, đúng thứ nhật ký sinh ra để chống. */
+        { khoa: 'may', nhan: 'Máy', dem: dong.length,
+          ve: () => (
+            <div className="nk-cuon">
+              {dong.length === 0
+                ? <div className="cd-rong">Chưa có gì.</div>
+                : dong.map((d, k) => <div key={k} className="lv-may">{d}</div>)}
             </div>
           ) },
         { khoa: 'nhat-ky', nhan: 'Nhật ký', dem: nhatKy.length,

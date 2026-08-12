@@ -483,7 +483,7 @@ def don_rac(symbol):
 
     Đi qua `gui_lenh` như mọi thứ khác — dọn rác cũng là chạm sàn, và đây đúng là lúc
     hay đứt nhất (bài kiểm vừa hỏng vì mất kết nối thì dọn cũng gặp mất kết nối)."""
-    ra = {"da_dong": 0, "da_huy": 0, "chu": ""}
+    ra = {"da_dong": 0, "da_huy": 0, "chu": "", "khong_don_duoc": []}
     if mt5 is None or not nn.CO_MT5:
         return ra
     try:
@@ -491,13 +491,31 @@ def don_rac(symbol):
             for pos in (mt5.positions_get(symbol=symbol) or ()):
                 if pos.magic != MAGIC_KIEM:
                     continue
-                if gui_lenh.dong(symbol, pos)["ket"] == "ok":
+                bg = gui_lenh.dong(symbol, pos)
+                if bg["ket"] == "ok":
                     ra["da_dong"] += 1
+                else:
+                    ra["khong_don_duoc"].append(
+                        {"loai": "vị thế", "ticket": int(pos.ticket),
+                         "ma": bg["ma"], "chu": bg["chu"] or _giai_ma(bg["ma"])})
             for o in (mt5.orders_get(symbol=symbol) or ()):
                 if o.magic != MAGIC_KIEM:
                     continue
-                if gui_lenh.huy_cho(symbol, int(o.ticket))["ket"] == "ok":
+                bg = gui_lenh.huy_cho(symbol, int(o.ticket))
+                if bg["ket"] == "ok":
                     ra["da_huy"] += 1
+                else:
+                    ra["khong_don_duoc"].append(
+                        {"loai": "lệnh chờ", "ticket": int(o.ticket),
+                         "ma": bg["ma"], "chu": bg["chu"] or _giai_ma(bg["ma"])})
+        # ⚠ DỌN HỎNG THÌ PHẢI KÊU. Bản trước `if ok: đếm` — thất bại rơi vào im lặng,
+        # và `{"da_dong": 0}` không phân biệt được với "không có gì để dọn". Rác ở đây
+        # là VỊ THẾ THẬT đang ăn/lỗ trên tài khoản, đúng thứ nguy nhất khi để âm thầm.
+        if ra["khong_don_duoc"]:
+            ra["chu"] = ("CÒN SÓT %d thứ chưa dọn được — phải xử tay trên MT5: "
+                         % len(ra["khong_don_duoc"])
+                         + " · ".join("%s #%s (%s)" % (x["loai"], x["ticket"], x["chu"])
+                                      for x in ra["khong_don_duoc"][:4]))
     except Exception as e:                      # noqa: BLE001
         ra["chu"] = f"{type(e).__name__}: {e}"
     return ra
@@ -683,7 +701,13 @@ def _mot_luot(symbol, so_vong, nghi_giay, lot, luat, tien_do, ghi_ra,
                     # ⚠ Có cả LƯỢT chứ không chỉ vòng. Bản trước chỉ đẩy `vòng k/3` và
                     # nó reset mỗi lượt, nên bốn lượt trông y hệt một vòng lặp vô tận —
                     # người dùng không có cách nào biết nó đang tiến hay đang treo.
-                    tien_do(vong, int(so_vong), int(lap), int(lap_toi_da))
+                    # BỌC try như `ghi_ra`: hàm này do cửa sổ truyền vào, cửa sổ đóng
+                    # giữa chừng là nó ném, và một lượt đặt lệnh thật không được phép
+                    # chết vì cái thanh tiến độ.
+                    try:
+                        tien_do(vong, int(so_vong), int(lap), int(lap_toi_da))
+                    except Exception:           # noqa: BLE001
+                        pass
                 mua = vong % 2 == 0
                 nhan = "MUA" if mua else "BÁN"
 
@@ -804,6 +828,15 @@ def _mot_luot(symbol, so_vong, nghi_giay, lot, luat, tien_do, ghi_ra,
                          % (d.get("tron", 0), d.get("xac", 0),
                             d.get("do", 0), d.get("hong", 0)))
     except Exception as e:                      # noqa: BLE001
+        # ⚠ LƯỢT VỠ GIỮA CHỪNG PHẢI ĐẾM ĐƯỢC.
+        #
+        # Bản trước chỉ gán `ra["chu"]` rồi trả về. `chay_duoc` đã bật từ đầu, `dem`
+        # không có mục `hong` nào (lượt chỉ NGỪNG chứ không có bước nào thất bại), nên
+        # `hieu_chuan` thấy đủ ba dấu hiệu tốt và tuyên bố **"xong"** — trong khi 6/7
+        # thao tác chạm sàn chưa bao giờ được thử. Đúng loại nói dối trấn an mà cả
+        # tầng này sinh ra để chống, và nó lọt qua chính cái chốt tôi dựng cho nó.
+        ra["vo_giua"] = True
+        ghi("lượt vỡ giữa chừng", "hong", "%s: %s" % (type(e).__name__, e))
         ra["chu"] = "%s: %s" % (type(e).__name__, e)
     finally:
         # ⚠ DỌN BẰNG MỌI GIÁ. Lần chạy thật vừa rồi đứt giữa chừng vì mất cầu nối và để
@@ -811,10 +844,12 @@ def _mot_luot(symbol, so_vong, nghi_giay, lot, luat, tien_do, ghi_ra,
         try:
             d = don_rac(symbol)
             if d["da_dong"] or d["da_huy"]:
-                ra["buoc"].append({"ten": "dọn rác sau lượt kiểm", "muc": "tron",
-                                   "dat": True, "ma": None,
-                                   "chu": "đóng %d vị thế · huỷ %d lệnh chờ"
-                                          % (d["da_dong"], d["da_huy"]), "ms": None})
+                ghi("dọn rác sau lượt kiểm", "tron",
+                    "đóng %d vị thế · huỷ %d lệnh chờ" % (d["da_dong"], d["da_huy"]))
+            # Dọn KHÔNG XONG là chuyện phải hiện lên, không phải chuyện nuốt: còn một
+            # vị thế thật đang mở trên tài khoản mà bảng báo sạch là tệ nhất.
+            if d.get("khong_don_duoc"):
+                ghi("dọn rác sau lượt kiểm", "hong", d["chu"])
         except Exception:                       # noqa: BLE001
             pass
     return ra
@@ -849,8 +884,14 @@ def _suy_chinh(kq, L):
             dat("kep_stops", can, "đo được ngưỡng thật %d điểm × biên %.1f" % (ng, BIEN_KEP))
     # Phòng vệ vẫn để lọt 10016 → con số đang dùng CÒN THIẾU, bất kể đo được bao nhiêu.
     if 10016 in hong:
-        cu = L.get("kep_stops") or ng or 100
-        dat("kep_stops", int(cu * 1.5), "vẫn lọt 10016 — kẹp đang thiếu")
+        # ⚠ Lấy điểm xuất phát từ giá trị VỪA SUY RA ở luật 1, không từ `L` cũ — và
+        # không bao giờ để nó tụt xuống dưới chính con số đã đo được. Bản trước tính
+        # `kep_stops(cũ) × 1.5` rồi GHI ĐÈ lên kết quả của luật 1: đo được ngưỡng thật
+        # 300 mà vẫn cài 150, nên lượt sau chắc chắn lại `10016`, và vòng lặp bò lên
+        # 100→150→225→337 mất ba lượt cho một con số đã biết ngay từ lượt đầu.
+        cu = moi.get("kep_stops") or L.get("kep_stops") or ng or 100
+        dat("kep_stops", max(int(cu * 1.5), int(round((ng or 0) * BIEN_KEP))),
+            "vẫn lọt 10016 — kẹp đang thiếu")
 
     # 2. KIỂU KHỚP — học luôn cái sàn thật sự nhận. Đo được: lệnh nào cũng phải đổi
     #    filling ở lần thử đầu, tức mỗi lệnh live đang trả một vòng gửi thừa. Mãi mãi.
@@ -955,6 +996,14 @@ def hieu_chuan(symbol, so_vong=3, nghi_giay=15, lot=None, tien_do=None, ghi_ra=N
             return _chot(ra, symbol, L)
 
         chinh, vi_sao, bo_tay = _suy_chinh(kq, L)
+        if kq.get("vo_giua"):
+            # Lượt chưa chạy hết thì mọi kết luận rút ra từ nó đều không có cơ sở —
+            # kể cả kết luận "không còn gì để chỉnh".
+            ra["trang_thai"] = "chua_hoi_tu"
+            ra["chu"] = ("Lượt %d VỠ GIỮA CHỪNG (%s) — chưa chạy hết nên không kết "
+                         "luận được gì. Chạy lại khi máy rảnh."
+                         % (lap + 1, kq.get("chu") or "không rõ"))
+            return _chot(ra, symbol, L)
         if not chinh and kq.get("dem", {}).get("hong"):
             # ⚠ CÒN HỎNG mà không con số nào chỉnh được → DỪNG NGAY, đừng lặp tiếp.
             # Bản trước rơi thẳng vào nhánh "xong" ở đây, tức báo ĐẠT trong khi vẫn

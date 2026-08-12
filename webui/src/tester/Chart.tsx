@@ -249,10 +249,34 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     for (const b of duoi) {
       const cuoi = bars.current[bars.current.length - 1]
       const t = b.time as number
-      if (cuoi && t < (cuoi.time as number)) continue
-      if (cuoi && t === (cuoi.time as number)) bars.current[bars.current.length - 1] = b
-      else bars.current.push(b)
-      s.update(kieu === 'line' ? { time: b.time, value: b.close } as never : b)
+      const gt = kieu === 'line' ? { time: b.time, value: b.close } as never : b
+      if (!cuoi || t > (cuoi.time as number)) {
+        bars.current.push(b)
+        s.update(gt)
+        continue
+      }
+      if (t === (cuoi.time as number)) {
+        bars.current[bars.current.length - 1] = b
+        s.update(gt)
+        continue
+      }
+      /* ⚠ MỐC LÙI — và đây KHÔNG phải rác cần vứt.
+       *
+       * Nhịp 1 giây đẩy cây M1 đang hình thành vào trước, nên `bars.current` đã có cây
+       * MỚI HƠN khi đuôi tới. Cây trong đuôi là BẢN CHỐT CHÍNH THỨC từ sàn — chính xác
+       * hơn cây ta tự gộp từ tick. Bản trước `continue` ở đây tức là vứt đúng con số
+       * đáng tin nhất và để chart sống bằng nến tự dựng, lệch dần mãi.
+       * Vá tại chỗ: tìm theo mốc (đuôi luôn rất ngắn nên quét ngược vài cây là tới). */
+      let i = bars.current.length - 1
+      while (i >= 0 && (bars.current[i].time as number) > t) i--
+      if (i < 0 || (bars.current[i].time as number) !== t) continue   // ngoài tầm giữ
+      bars.current[i] = b
+      try {
+        // Tham số thứ hai `historicalUpdate` của lightweight-charts 5.2 — sửa một cây
+        // KHÔNG phải cây cuối. Bọc try vì nếu bản chart đổi thì cùng lắm chart hiển thị
+        // cây cũ tới lần nạp đầy sau, còn MÔ HÌNH `bars.current` thì đã đúng.
+        ;(s.update as (b: unknown, h?: boolean) => void)(gt, true)
+      } catch { /* mô hình đã đúng, để lần nạp đầy sau vẽ lại */ }
     }
     if (bars.current.length > tranNen)
       bars.current.splice(0, bars.current.length - tranNen)
