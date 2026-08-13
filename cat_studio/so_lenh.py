@@ -33,8 +33,11 @@ MUA = "mua"
 BAN = "ban"
 
 
-class VungNen:
-    """Một đợt nén. Sinh khi atr_bps tụt dưới ngưỡng, chết khi bung lên lại."""
+class Zone:
+    """Một đợt nén. Sống chừng nào CỔNG ZONE còn qua, chết ngay nhịp cổng trượt.
+
+    ⚠ Không còn dính cứng vào "atr dưới ngưỡng" nữa: điều kiện đếm là chính cái cổng
+    mang cờ `cong_zone` trong sơ đồ — xem `bo_chay._nuoi_zone`."""
 
     def __init__(self, id, nen):
         self.id = id
@@ -84,10 +87,10 @@ class Lenh:
     `R` chốt cứng LÚC VÀO và không bao giờ tính lại. Nếu tính lại theo ATR hiện tại thì
     "lãi 1R" đổi nghĩa giữa chừng, và mốc dời SL về hoà vốn trôi theo thị trường."""
 
-    def __init__(self, id, vung_id, sinh_tai, huong, loai, lot,
+    def __init__(self, id, zone_id, sinh_tai, huong, loai, lot,
                  gia_dat, sl, tp, R, nen):
         self.id = id
-        self.vung_id = vung_id          # vùng nén đẻ ra nó — thay cho COMP_CONSUMED
+        self.zone_id = zone_id          # vùng nén đẻ ra nó — thay cho COMP_CONSUMED
         self.sinh_tai = sinh_tai        # id khối "Vào lệnh"
         self.huong = huong
         self.loai = loai                # market | stop | limit
@@ -140,7 +143,7 @@ class Lenh:
         return max(0, nen - self.nen_dat)
 
     def tom_tat(self):
-        return {"id": self.id, "vung_id": self.vung_id, "sinh_tai": self.sinh_tai,
+        return {"id": self.id, "zone_id": self.zone_id, "sinh_tai": self.sinh_tai,
                 "huong": self.huong, "loai": self.loai, "lot": self.lot,
                 "gia_dat": self.gia_dat, "gia_khop": self.gia_khop,
                 "sl": self.sl, "tp": self.tp, "R": self.R,
@@ -158,42 +161,42 @@ class SoLenh:
 
     def __init__(self):
         self.lenh = []
-        self.vung = []
+        self.zone = []
         self._dem_lenh = 0
         self._dem_vung = 0
 
     # ---- vùng nén ----
-    def mo_vung(self, nen):
+    def mo_zone(self, nen):
         self._dem_vung += 1
-        v = VungNen(f"V-{self._dem_vung:04d}", nen)
-        self.vung.append(v)
+        v = Zone(f"V-{self._dem_vung:04d}", nen)
+        self.zone.append(v)
         return v
 
-    def vung_hien_hanh(self):
-        return self.vung[-1] if self.vung and self.vung[-1].song else None
+    def zone_hien_hanh(self):
+        return self.zone[-1] if self.zone and self.zone[-1].song else None
 
-    def dong_vung(self):
-        v = self.vung_hien_hanh()
+    def dong_zone(self):
+        v = self.zone_hien_hanh()
         if v:
             v.song = False
         return v
 
-    def vung_da_sinh_lenh(self, vung_id=None):
+    def zone_da_sinh_lenh(self, zone_id=None):
         """Có lệnh nào mang id vùng này không — thay cho `COMP_CONSUMED`.
 
         Là phép TRA BẢNG, không phải cờ ẩn. Và tính cả lệnh đã chết: một cú nén một
         lệnh, kể cả khi lệnh đó đã đóng từ lâu."""
-        if vung_id is None:
-            v = self.vung_hien_hanh()
+        if zone_id is None:
+            v = self.zone_hien_hanh()
             if not v:
                 return False
-            vung_id = v.id
-        return any(l.vung_id == vung_id for l in self.lenh)
+            zone_id = v.id
+        return any(l.zone_id == zone_id for l in self.lenh)
 
     # ---- lệnh ----
-    def mo_lenh(self, vung_id, sinh_tai, huong, loai, lot, gia_dat, sl, tp, R, nen):
+    def mo_lenh(self, zone_id, sinh_tai, huong, loai, lot, gia_dat, sl, tp, R, nen):
         self._dem_lenh += 1
-        l = Lenh(f"L-{self._dem_lenh:04d}", vung_id, sinh_tai, huong, loai, lot,
+        l = Lenh(f"L-{self._dem_lenh:04d}", zone_id, sinh_tai, huong, loai, lot,
                  gia_dat, sl, tp, R, nen)
         self.lenh.append(l)
         return l
@@ -232,5 +235,5 @@ class SoLenh:
 
     def tom_tat(self):
         return {"lenh": [l.tom_tat() for l in self.lenh],
-                "vung": [v.tom_tat() for v in self.vung],
+                "zone": [v.tom_tat() for v in self.zone],
                 "so_lenh_cho": self.so_lenh_cho(), "so_vi_the": self.so_vi_the()}

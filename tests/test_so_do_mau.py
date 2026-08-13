@@ -62,7 +62,7 @@ kiem("phép so dùng KÝ HIỆU",
      f"— {[bv['phep_so'][k] for k in ('<', '<=', '>', '>=')]}")
 print(f"    {len(bv['toan_hang'])} toán hạng / "
       f"{len(set(t['nhom'] for t in bv['toan_hang']))} nhóm, "
-      f"{len(bv['cach_tinh'])} cách tính khoảng cách")
+      f"{len(bv['don_vi'])} cách tính khoảng cách")
 
 # ================= 2. sơ đồ mẫu =================
 print("\n▸ Sơ đồ mẫu Compress")
@@ -97,17 +97,42 @@ for tab in core.TABS:
 
 # ================= 3. Entry — ba cổng, đúng thứ tự OnTick =================
 print("\n▸ Entry")
-kiem("Entry 7 khối", len(doc["entry"]["steps"]) == 7)
+kiem("Entry 8 khối", len(doc["entry"]["steps"]) == 8)
 kiem("không khối Sửa lệnh nào lọt vào Entry",
      not any(s.get("type") == core.SUA_LENH for s in doc["entry"]["steps"]))
 
 keys = lambda st: [c["trai"]["ten"] for c in st["conditions"]]  # noqa: E731
-g_nen = next(s for s in doc["entry"]["steps"] if "nén" in core.step_title(s).lower())
-kiem("cổng nén: ngưỡng + đủ K nến + vùng vừa khổ + VÙNG CHƯA SINH LỆNH",
-     keys(g_nen) == ["atr_bps", "so_nen_nen", "rong_vung_atr", "vung_da_sinh_lenh"],
-     f"— {keys(g_nen)}")
-kiem("\"vùng đã sinh lệnh\" là điều kiện ĐẢO — thay cho COMP_CONSUMED",
-     g_nen["conditions"][-1].get("dao") is True)
+# ⭐ CỔNG ZONE và cổng HỎI VỀ ZONE là HAI khối, và thứ tự nói lên nhân quả:
+# cổng đầu ĐỊNH NGHĨA zone (qua thì zone lớn thêm một nến, trượt thì zone chết),
+# cổng sau mới được hỏi về nó. Gộp lại một khối là hỏi `zone_dem` trước khi có ai
+# nói "nến thế nào thì tính là nén".
+g_nen = next(s for s in doc["entry"]["steps"] if s.get("cong_zone"))
+kiem("cổng ZONE chỉ mang ĐIỀU KIỆN ĐẾM — một mình nó",
+     keys(g_nen) == ["atr"], f"— {keys(g_nen)}")
+# Chuẩn hoá theo giá giờ là một ĐƠN VỊ của `atr`, không phải toán hạng `atr_bps` riêng.
+kiem("điều kiện đếm so bằng đơn vị bps — cùng nghĩa trên mọi symbol",
+     g_nen["conditions"][0]["phai"].get("tinh") == "bps",
+     f"— {g_nen['conditions'][0]['phai']}")
+
+g_zone = next(s for s in doc["entry"]["steps"]
+              if "zone" in core.step_title(s).lower() and not s.get("cong_zone"))
+kiem("cổng sau hỏi: đủ K nến + zone vừa khổ + ZONE CHƯA SINH LỆNH",
+     keys(g_zone) == ["zone_dem", "zone_range", "zone_da_sinh_lenh"],
+     f"— {keys(g_zone)}")
+kiem("\"zone đã sinh lệnh\" là điều kiện ĐẢO — thay cho COMP_CONSUMED",
+     g_zone["conditions"][-1]["phep"] == "la_sai")
+kiem("chỉ có ĐÚNG MỘT cổng zone",
+     sum(1 for s in doc["entry"]["steps"] if s.get("cong_zone")) == 1)
+
+# MỐC NEO là một TRƯỜNG, không suy ra từ hướng lệnh nữa — xem `core.MOC_ENTRY`.
+mua = next(s for s in doc["entry"]["steps"]
+           if s.get("type") == core.VAO_LENH and s.get("huong") == "mua")
+ban = next(s for s in doc["entry"]["steps"]
+           if s.get("type") == core.VAO_LENH and s.get("huong") == "ban")
+kiem("lệnh MUA neo vào ĐỈNH zone", (mua.get("entry") or {}).get("moc") == "zone_HH",
+     f"— {mua.get('entry')}")
+kiem("lệnh BÁN neo vào ĐÁY zone", (ban.get("entry") or {}).get("moc") == "zone_LL",
+     f"— {ban.get('entry')}")
 
 g_cho = next(s for s in doc["entry"]["steps"] if "chỗ" in core.step_title(s))
 kiem("cổng hạn mức: đúng MỘT lệnh chờ + số vị thế < Max_Positions",
@@ -129,13 +154,13 @@ TS = {t["ten"]: t["gia_tri"] for t in doc["tham_so"]}
 for ten in ("Buy Stop trên đỉnh vùng", "Sell Stop dưới đáy vùng"):
     st = next(s for s in doc["entry"]["steps"] if core.step_title(s) == ten)
     kiem(f"{ten}: đệm = ATR HIỆN TẠI",
-         st["dem"]["tinh"] == "theo_ATR" and TS[st["dem"]["value"]] == 0.10,
+         st["dem"]["tinh"] == "atr" and TS[st["dem"]["value"]] == 0.10,
          f"— {st.get('dem')}")
     kiem(f"{ten}: rủi ro = ATR TRUNG BÌNH VÙNG",
-         st["sl"]["tinh"] == "theo_ATR_vung" and TS[st["sl"]["value"]] == 1.5,
+         st["sl"]["tinh"] == "atr_zone" and TS[st["sl"]["value"]] == 1.5,
          f"— {st.get('sl')}")
     kiem(f"{ten}: TP = 2R",
-         st["tp"]["tinh"] == "theo_R" and TS[st["tp"]["value"]] == 2.0)
+         st["tp"]["tinh"] == "R" and TS[st["tp"]["value"]] == 2.0)
 
 # ================= 5. Manage =================
 print("\n▸ Manage")
@@ -148,7 +173,7 @@ kiem("cổng hoà vốn gói ĐỦ BA dòng guard của ManageBreakEven",
      keys(g_be) == ["lenh_da_khop", "lenh_sl_hoa_von", "lenh_lai_R"],
      f"— {keys(g_be)}")
 kiem("\"SL chưa ở hoà vốn\" là điều kiện ĐẢO — thiếu nó là sửa SL mỗi nến",
-     g_be["conditions"][1].get("dao") is True)
+     g_be["conditions"][1]["phep"] == "la_sai")
 
 be_hd = next(s for s in doc["manage"]["steps"] if s.get("che_do") == "hoa_von")
 kiem("hành động hoà vốn KHÔNG mang tham số — mốc kích hoạt đã dời lên cổng",
@@ -156,9 +181,11 @@ kiem("hành động hoà vốn KHÔNG mang tham số — mốc kích hoạt đã
 
 g_huy = next(s for s in doc["manage"]["steps"] if "tan" in core.step_title(s))
 kiem("cổng huỷ: lệnh này CHƯA khớp ∧ nén đã tan",
-     keys(g_huy) == ["lenh_da_khop", "atr_bps"]
-     and g_huy["conditions"][0].get("dao") is True
-     and g_huy["conditions"][1]["phep"] == ">=")
+     keys(g_huy) == ["lenh_da_khop", "atr"]
+     and g_huy["conditions"][0]["phep"] == "la_sai"
+     and g_huy["conditions"][1]["phep"] == ">="
+     # CÙNG đơn vị với cổng vào — hai nơi hỏi một câu thì phải cùng thước.
+     and g_huy["conditions"][1]["phai"].get("tinh") == "bps")
 
 # ================= 6. Ranh giới bị phá thì phải BÁO =================
 print("\n▸ Ranh giới Entry / Manage được canh")
@@ -179,20 +206,26 @@ print("\n▸ Thẻ vẽ lên hộp")
 cards = {c["id"]: c for c in doc["entry"]["cards"]}
 kiem("mọi khối Entry đều có thẻ", len(cards) == len(doc["entry"]["steps"]))
 kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
-     len(cards[g_nen["id"]]["lines"]) == 4, f"— {len(cards[g_nen['id']]['lines'])}")
+     len(cards[g_zone["id"]]["lines"]) == 3,
+     f"— {len(cards[g_zone['id']]['lines'])}")
 # Chữ trên hộp hiện CẢ TÊN LẪN GIÁ TRỊ của tham số: tên nói ý nghĩa, số nói thực tế.
 # Thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ.
 # Dấu `=` kẹp giữa hai KHOẢNG TRẮNG KHÔNG NGẮT ( ): chữ trên hộp xuống dòng được,
 # mà `nguong_nen_bps =` nằm cuối dòng còn `7` rơi xuống dòng sau thì đọc mất nghĩa.
-kiem("chữ trên hộp dùng ký hiệu, và tham số hiện cả tên lẫn giá trị",
-     cards[g_nen["id"]]["lines"][0]["text"]
-     == "ATR chuẩn hoá (bps)(M5, 14) < nguong_nen_bps = 7",
+# Dòng 0 của cổng zone là BĂNG RÔN "⬗ CỔNG ZONE" — nó nói khối này định nghĩa zone,
+# chuyện lớn nhất một cổng làm được, nên nó phải đứng trên cùng. Điều kiện bắt đầu từ 1.
+kiem("cổng zone có băng rôn nói nó ĐỊNH NGHĨA zone",
+     cards[g_nen["id"]]["lines"][0]["text"].startswith("⬗ CỔNG ZONE"),
      f"— \"{cards[g_nen['id']]['lines'][0]['text']}\"")
+kiem("chữ trên hộp dùng ký hiệu, và tham số hiện cả tên lẫn giá trị",
+     cards[g_nen["id"]]["lines"][1]["text"]
+     == "ATR(M5, 14) < nguong_nen_bps = 7 bps của giá",
+     f"— \"{cards[g_nen['id']]['lines'][1]['text']}\"")
 kiem("tên tham số KHÔNG bị tách khỏi giá trị khi hộp xuống dòng",
-     " = " not in cards[g_nen["id"]]["lines"][0]["text"])
+     " = " not in cards[g_nen["id"]]["lines"][1]["text"])
 kiem("tham số của toán hạng thì hiện GIÁ TRỊ (14), không hiện tên — nó là "
      "\"đọc chuỗi nào\", không phải núm vặn",
-     "(M5, 14)" in cards[g_nen["id"]]["lines"][0]["text"])
+     "(M5, 14)" in cards[g_nen["id"]]["lines"][1]["text"])
 
 # Chữ trên hộp phải NGẮN, mỗi trường một dòng. Một câu chạy dài "Vào lệnh Mua Chờ Stop ·
 # lot = 0.01 lot · đệm dem_vao_lenh = 0.1 × ATR hiện tại ngoài mép vùng · SL …" nhét lên
@@ -203,8 +236,10 @@ tv = cards[v_mua["id"]]
 kiem("khối Vào lệnh tách mỗi trường một dòng",
      [d["text"] for d in tv["lines"]] == [
          "Mua · Chờ Stop · 0.01 lot",
+         # MỐC NEO đứng TRƯỚC đệm: nó quyết định lệnh nằm ở đâu, đệm chỉ là tấm khiên.
+         "tại Đỉnh zone (HH)",
          "đệm dem_vao_lenh = 0.1 × ATR",
-         "SL sl_theo_atr_vung = 1.5 × ATR vùng",
+         "SL sl_theo_atr_vung = 1.5 × ATR zone",
          "TP ty_le_RR = 2 × R"],
      f"— {[d['text'] for d in tv['lines']]}")
 dong_lenh = [d["text"] for t in core.TABS for c in doc[t]["cards"] for d in c["lines"]
@@ -213,7 +248,7 @@ kiem("dòng vào/sửa lệnh đều ngắn (≤ 40 ký tự) — vừa một h�
      all(len(x) <= 40 for x in dong_lenh),
      f"— dài nhất: \"{max(dong_lenh, key=len)}\"")
 kiem("câu ĐẦY ĐỦ vẫn còn, để làm tooltip",
-     "ngoài mép vùng" in tv["mo_ta"] and "trung bình của vùng nén" in tv["mo_ta"],
+     "ngoài mép vùng" in tv["mo_ta"] and "× ATR zone" in tv["mo_ta"],
      f"— \"{tv['mo_ta']}\"")
 
 # ================= 7b. NHỊP nằm trên khối Bắt đầu =================
@@ -296,6 +331,56 @@ if r2["ok"]:
          all(v2["luong"][t]["order"] == v["luong"][t]["order"] for t in core.TABS))
     kiem("mở lại vẫn sạch", not v2["value"])
 core.delete_template("strategy", "__test_mau__")
+
+# ====== MỌI DOC TỚI TAY GIAO DIỆN ĐỀU PHẢI ĐÃ CHUẨN HOÁ ======
+#
+# Ca thật: `demo_process` gọi `_kem_the(_so_do_mau())` — thiếu đúng một lời gọi
+# `normalize_process`. Sơ đồ mẫu vì thế thiếu cờ `so_dai_luong` (cờ này CHỈ chuẩn hoá
+# mới sinh được), nên mở cổng "Xu hướng LÊN?" ra thì hộp thoại tưởng là cơ chế "so với
+# giá trị": ô số trắng trơn, cột đơn vị in "giá tuyệt đối".
+#
+# Mà CHỮ TRÊN THẺ vẫn đúng — `cond_display` tự suy từ `phai.ten` chứ không đọc cờ. Hai
+# nguồn cho một sự thật, và cái lệch thì im lặng. Đúng loại lỗi không ai thấy cho tới
+# khi mở đúng cái hộp thoại đó ra.
+#
+# Bài này canh CẢ LỚP chứ không riêng ca ấy: chuẩn hoá lại thứ endpoint vừa trả về, phải
+# ra y hệt. Lệch nghĩa là có chỗ nào đó lại quên chuẩn hoá.
+print("\n▸ Mọi endpoint trả doc đều phải trả doc ĐÃ chuẩn hoá")
+
+
+def _tran(doc):
+    """Bỏ `cards` — nó do `_kem_the` gắn thêm, không thuộc doc."""
+    return {k: ({kk: vv for kk, vv in v.items() if kk != "cards"}
+                if isinstance(v, dict) else v)
+            for k, v in doc.items()}
+
+
+core.save_template("strategy", "__test_chuan__", api._so_do_mau())
+for ten, goi in (("new_process", a.new_process),
+                 ("demo_process", a.demo_process),
+                 ("load_process", lambda: a.load_process("__test_chuan__"))):
+    r = goi()
+    d = _tran(r["value"])
+    kiem(f"`{ten}` trả doc đã chuẩn hoá",
+         json.dumps(d, sort_keys=True, ensure_ascii=False)
+         == json.dumps(_tran(core.normalize_process(d)), sort_keys=True,
+                       ensure_ascii=False))
+core.delete_template("strategy", "__test_chuan__")
+
+# Chốt riêng cho đúng cái trường đã lộ ra lỗ: nó phải tới được giao diện.
+_mau = a.demo_process()["value"]
+_xu_huong = [st for st in _mau["entry"]["steps"]
+             if "Xu hướng" in (st.get("name") or "")]
+kiem("cổng xu hướng mang cờ `so_dai_luong` khi tới tay giao diện",
+     len(_xu_huong) == 2 and all(st.get("so_dai_luong") for st in _xu_huong),
+     f"— {[st.get('so_dai_luong') for st in _xu_huong]}")
+
+# Bất biến của `normalize_process` là thứ cho phép `_kem_the` tự chuẩn hoá mà không sợ
+# chồng lên mấy chỗ đã chuẩn hoá sẵn.
+_n1 = core.normalize_process(api._so_do_mau())
+kiem("chuẩn hoá HAI lần bằng đúng MỘT lần",
+     json.dumps(_n1, sort_keys=True, ensure_ascii=False)
+     == json.dumps(core.normalize_process(_n1), sort_keys=True, ensure_ascii=False))
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

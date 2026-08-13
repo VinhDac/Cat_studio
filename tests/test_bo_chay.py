@@ -65,11 +65,13 @@ def so_do(entry_steps, entry_edges, manage_steps=(), manage_edges=(), ts=None):
     })
 
 
-def cong(ten, toan_hang, phep, gia_tri, y=0.0):
+def cong(ten, toan_hang, phep, gia_tri, y=0.0, don_vi=None):
+    c = {"trai": {"ten": toan_hang}, "phep": phep,
+         "phai": {"value": gia_tri}}
+    if don_vi:
+        c["don_vi"] = don_vi
     st = core.make_action_step({
-        "type": core.CHECK_COND, "name": ten,
-        "conditions": [{"trai": {"ten": toan_hang}, "phep": phep,
-                        "phai_loai": "so", "phai": gia_tri}]})
+        "type": core.CHECK_COND, "name": ten, "conditions": [c]})
     st["pos"] = [0.0, y]
     return st
 
@@ -77,8 +79,8 @@ def cong(ten, toan_hang, phep, gia_tri, y=0.0):
 def vao(ten, y=0.0):
     st = core.make_action_step({
         "type": core.VAO_LENH, "name": ten, "huong": "mua", "loai": "market",
-        "lot": 0.01, "sl": {"tinh": "theo_gia", "value": 1.0},
-        "tp": {"tinh": "theo_R", "value": 2.0}})
+        "lot": 0.01, "sl": {"tinh": "gia", "value": 1.0},
+        "tp": {"tinh": "R", "value": 2.0}})
     st["pos"] = [0.0, y]
     return st
 
@@ -168,18 +170,20 @@ kiem("và nhật ký ghi vế trái là None (chưa có), không phải 0",
      dau[0]["cong"][0]["ve"][0]["trai"] is None,
      f"— {dau[0]['cong'][0]['ve'][0]}")
 
-g_vung = cong("bề rộng vùng ÷ ATR ≤ 4", "rong_vung_atr", "<=", 4.0)
+# `zone_range_atr` đã rời kho — giờ là `zone_range` so bằng ĐƠN VỊ `× ATR`.
+g_vung = cong("bề rộng zone ≤ 4 × ATR", "zone_range", "<=", 4.0, don_vi="atr")
 d6 = so_do([bd, g_vung, v], [day(bd, g_vung), day(g_vung, v)],
            ts=[{"ten": "khong_dung", "nhan": "", "gia_tri": 0, "don_vi": "bps"}])
 d6["tham_so"] = [dict(t, gia_tri=0.0) if t["ten"] == "nguong_nen_bps" else t
                  for t in d6["tham_so"]]          # ngưỡng 0 → không nến nào là nến nén
 kq = bc.chay(d6, nen_m1([100.0] * 20), CD)
-kiem("KHÔNG có vùng nén nào được sinh ra", len(kq.so.vung) == 0)
+kiem("KHÔNG có vùng nén nào được sinh ra", len(kq.so.zone) == 0)
 kiem("toán hạng vùng là NaN → cổng TRƯỢT → KHÔNG vào lệnh", len(kq.so.lenh) == 0)
 
 # ================= 5. thứ tự trong một nhịp =================
 print("\n▸ Thứ tự trong một nhịp: MANAGE trước ENTRY")
-huy = core.make_action_step({"type": core.SUA_LENH, "name": "huỷ", "che_do": "dong_han"})
+huy = core.make_action_step({"type": core.SUA_LENH, "name": "huỷ",
+                             "che_do": "ket_thuc"})
 huy["pos"] = [0.0, 10.0]
 m_bd = core.make_start_step("quản lý", "M1")
 m_bd["pos"] = [0.0, 0.0]
@@ -218,10 +222,12 @@ CD9 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=1000.0)
 bd9 = core.make_start_step("bắt đầu", "M5")
 v9 = core.make_action_step({
     "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "lot": 1.0,
-    "sl": {"tinh": "theo_pt", "value": 50}, "tp": {"tinh": "theo_pt", "value": 5000}})
+    # `pt` (% của giá) đã bỏ — nó là `bps` chia 100, hai tên cho một phép. Cùng khoảng
+    # cách y hệt: 50 % = 5.000 bps · 5.000 % = 500.000 bps.
+    "sl": {"tinh": "bps", "value": 5000}, "tp": {"tinh": "bps", "value": 500000}})
 m_bd9 = core.make_start_step("quản lý", "M1")
 huy9 = core.make_action_step({"type": core.SUA_LENH, "name": "đóng",
-                              "che_do": "dong_han"})
+                              "che_do": "ket_thuc"})
 d9 = so_do([bd9, v9], [day(bd9, v9)], [m_bd9, huy9], [day(m_bd9, huy9)])
 kq9 = bc.chay(d9, nen_m1([100.0 - k * 0.5 for k in range(120)]), CD9)
 kiem("sụt giảm LÚC CHẠY khớp sụt giảm BÁO CÁO khi khối Sửa lệnh đóng lệnh",
@@ -309,7 +315,7 @@ def _van_tay(kq):
         hl.update(json.dumps(
             [l.id, l.huong, l.loai, l.lot, l.nen_dat, l.nen_khop, l.nen_dong, l.j_khop,
              l.gia_dat, l.gia_khop, l.gia_dong, l.sl, l.tp, l.R, l.ly_do_dong,
-             l.trang_thai, l.vung_id], default=str).encode())
+             l.trang_thai, l.zone_id], default=str).encode())
     hn = hashlib.sha256()
     for r in kq.nhat_ky:
         hn.update(json.dumps(
@@ -349,6 +355,54 @@ for jj in range(1500, len(p2.ct.nen1)):
     p2.mot_nhip(jj)
 kiem("dừng giữa chừng rồi chạy tiếp — vẫn ra đúng cái đó",
      _van_tay(p2.ket_thuc())[0] == vt_tron[0], f"— giữa chừng có {giua} lệnh")
+
+# ============ Bỏ `shift` khỏi toán hạng giá KHÔNG đổi hành vi ============
+#
+# `shift` là ô số THỨ BA trên hàng điều kiện — cùng hình dạng với ô "chu kỳ" của ATR
+# nhưng nghĩa khác hẳn, nên đã bỏ (xem `kho/nen_tang.py`). Bỏ được là vì `doc_cot` hiểu
+# "thiếu shift" ĐÚNG BẰNG `shift = 1`: `i -= max(0, shift - 1)` cho ra cùng một cây nến.
+#
+# Đây là chỗ canh lời hứa đó — canh bằng HÀNH VI chứ không bằng đọc lại công thức. Sai
+# ở đây nghĩa là mọi file đã lưu (đều ghi `shift: 1`) âm thầm đọc lệch một cây nến.
+print("\n▸ Bỏ `shift` — file cũ phải chạy y hệt")
+_gia_soc = [90.0] * 15 + [110.0] * 15 + [90.0] * 15
+
+
+def _chay_shift(co_shift):
+    b = core.make_start_step("bắt đầu", "M5")
+    b["pos"] = [0.0, 0.0]
+    b["id"] = "bd_shift"        # `make_start_step` tự sinh id — xem chú thích dưới
+    tr = {"ten": "close", "tf": "M5"}
+    if co_shift:
+        tr["shift"] = 1              # đúng cách mọi file đã lưu đang ghi
+    # ID ĐẶT TAY cho MỌI khối, kể cả khối Bắt đầu. `make_*_step` tự sinh id, nên hai lần
+    # dựng ra hai bộ id khác nhau — nhật ký ghi `duong`/`khoi` theo id, và vân tay lệch
+    # vì một lý do CHẲNG LIÊN QUAN gì tới `shift`. (Gỡ mất một lượt: lệnh khớp từng ký
+    # tự, chỉ nhật ký lệch, và chỗ lệch là id khối Bắt đầu.)
+    gg = core.make_action_step({"id": "g_shift", "type": core.CHECK_COND,
+                                "name": "giá > 100",
+                                "conditions": [{"trai": tr, "phep": ">",
+                                                "phai": {"value": 100.0}}]})
+    gg["pos"] = [1.0, 0.0]
+    vv = core.make_action_step({"id": "v_shift", "type": core.VAO_LENH, "name": "mua",
+                                "huong": "mua", "loai": "market", "lot": 0.01,
+                                "entry": {"moc": "gia_hien_tai"},
+                                "sl": {"tinh": "gia", "value": 5.0}})
+    vv["pos"] = [2.0, 0.0]
+    return bc.chay(so_do([b, gg, vv], [day(b, gg), day(gg, vv)]),
+                   nen_m1(_gia_soc), CD)
+
+
+_cu, _moi = _chay_shift(True), _chay_shift(False)
+kiem("file GHI `shift: 1` và file KHÔNG ghi ra cùng một kết quả",
+     _van_tay(_cu) == _van_tay(_moi) and len(_moi.so.lenh) > 0,
+     f"— {len(_cu.so.lenh)} lệnh / {len(_moi.so.lenh)} lệnh")
+kiem("chuẩn hoá VỨT `shift` đi, không để lại trong file",
+     "shift" not in core.normalize_action({
+         "type": core.CHECK_COND,
+         "conditions": [{"trai": {"ten": "close", "tf": "M5", "shift": 1},
+                         "phep": ">", "phai": {"value": 1}}],
+     })["conditions"][0]["trai"])
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

@@ -57,6 +57,13 @@ async function goi<T>(ten: string, ...args: unknown[]): Promise<Reply<T>> {
   }
 }
 
+/** Gói nến. `zone` là HỘP phông nền — `[t_đầu, t_cuối, đáy, đỉnh]`, mốc THỜI GIAN nên
+ *  đổi khung hiển thị vẫn nằm đúng chỗ. Python đã cắt ở con trỏ, không lộ tương lai. */
+export interface GoiNen {
+  t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number
+  zone?: [number, number, number, number][]
+}
+
 export const py = {
   bootstrap: () => goi<Bootstrap>('bootstrap'),
   set_title: (ten: string) => goi<null>('set_title', ten),
@@ -160,7 +167,7 @@ export const pyTester = {
   test_doan: (j0: number, n: number) => goi<DoanPhat>('test_doan', j0, n),
   /** TOÀN BỘ nến khung `tf` từ đầu dữ liệu tới con trỏ — chart kéo đi đâu cũng đủ. */
   test_nen_tf: (tf: string, j: number) =>
-    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+    goi<GoiNen>(
       'test_nen_tf', tf, j),
   test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
   /** Ngược lại: sự kiện gần nhất TRƯỚC `j`. `j = -1` nghĩa là phía trước không còn gì. */
@@ -210,7 +217,7 @@ export const pyLive = {
    *  `tuT > 0` = xin ĐUÔI, chỉ những cây từ mốc đó — gói còn khoảng trăm byte thay vì
    *  134 KB, xem chú thích ở `test_nen_tf` phía Python. */
   test_nen_tf: (tf: string, j: number, tran?: number, tuT?: number) =>
-    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+    goi<GoiNen>(
       'test_nen_tf', tf, j, tran ?? 60000, tuT ?? 0),
   test_soi_luot: (i: number) => goi<{ da_ban: boolean }>('test_soi_luot', i),
 

@@ -55,14 +55,16 @@ kiem("`close` là NỀN TẢNG — không chiến lược nào sở hữu nó",
      nguon["close"] == "nen_tang")
 kiem("`atr` là CHỈ BÁO CHUẨN — D_02 dùng chứ không phát minh",
      nguon["atr"] == "chi_bao")
-kiem("`atr_bps` và vùng nén thuộc ENGINE D_02 — ý tưởng riêng của nó",
-     nguon["atr_bps"] == "d02" and nguon["so_nen_nen"] == "d02"
-     and nguon["vung_da_sinh_lenh"] == "d02")
+# `atr_bps` ĐÃ RỜI KHO: nó là `atr` nhìn bằng thước `bps`, tức một ĐƠN VỊ, không
+# phải một đại lượng. Ý tưởng riêng của D_02 giờ chỉ còn đúng cái ZONE.
+kiem("zone thuộc ENGINE D_02 — ý tưởng riêng của nó",
+     "atr_bps" not in nguon and nguon["zone_dem"] == "d02"
+     and nguon["zone_da_sinh_lenh"] == "d02")
 kiem("`lệnh này` là nền tảng, và chỉ dùng được ở Manage",
      nguon["lenh_da_khop"] == "nen_tang"
      and kho.tabs_cho_phep("lenh_da_khop") == ["manage"])
 kiem("bảng trạng thái `vùng nén` do engine D_02 khai",
-     [b["key"] for b in d["bang_trang_thai"]] == ["vung_nen"])
+     [b["key"] for b in d["bang_trang_thai"]] == ["zone"])
 kiem("mọi khoá toán hạng là DUY NHẤT giữa các module",
      len(kho.TOAN_HANG_KEYS) == len(set(kho.TOAN_HANG_KEYS)))
 print(f"    {len(kho.TOAN_HANG)} toán hạng · {len(kho.CHI_BAO)} chỉ báo · "
@@ -86,7 +88,7 @@ except RuntimeError as e:
 # ================= 2. SỔ LỆNH =================
 print("\n▸ Sổ lệnh — id của ta")
 so = so_lenh.SoLenh()
-v1 = so.mo_vung(nen=10)
+v1 = so.mo_zone(nen=10)
 for i in range(10):
     v1.them_nen(cao=2410 + i * 0.1, thap=2408, atr=1.2)
 
@@ -94,18 +96,18 @@ kiem("id đếm tăng, đọc log là biết thứ tự", v1.id == "V-0001")
 kiem("ATR trung bình vùng ≠ ATR nến mới nhất — hai thứ khác nhau, cố ý",
      abs(v1.atr_tb - 1.2) < 1e-9 and v1.so_nen == 10)
 kiem("đỉnh/đáy vùng lấy từ chính các nến nén", v1.dinh > v1.day)
-kiem("chưa có lệnh nào → vùng CHƯA sinh lệnh", so.vung_da_sinh_lenh() is False)
+kiem("chưa có lệnh nào → vùng CHƯA sinh lệnh", so.zone_da_sinh_lenh() is False)
 
 R = 1.5 * v1.atr_tb
 l1 = so.mo_lenh(v1.id, "s_mua", so_lenh.MUA, "stop", 0.01,
                 gia_dat=v1.dinh + 0.1 * v1.atr_hien_tai,
                 sl=v1.dinh - R, tp=v1.dinh + 2 * R, R=R, nen=20)
 kiem("lệnh mang id riêng và NHỚ vùng đẻ ra nó",
-     l1.id == "L-0001" and l1.vung_id == "V-0001")
+     l1.id == "L-0001" and l1.zone_id == "V-0001")
 kiem("backtest không có ticket MT5", l1.ticket is None)
 kiem("lệnh chờ chưa khớp", l1.trang_thai == so_lenh.CHO and not l1.da_khop)
 kiem("→ \"vùng này đã sinh lệnh\" giờ ĐÚNG — thay cho COMP_CONSUMED",
-     so.vung_da_sinh_lenh() is True)
+     so.zone_da_sinh_lenh() is True)
 kiem("đếm được: 1 chờ, 0 vị thế",
      so.so_lenh_cho() == 1 and so.so_vi_the() == 0)
 
@@ -125,13 +127,13 @@ kiem("dời SL về giá vào → sl_o_hoa_von thành ĐÚNG, suy ra từ vị t
 # đóng rồi vẫn phải nhớ vùng — nếu không, cùng cú nén lại đẻ lệnh lần nữa
 so.dong(l1, gia=l1.tp, nen=40, ly_do="tp")
 kiem("đóng rồi vẫn tính là vùng ĐÃ sinh lệnh — một cú nén, một lệnh",
-     so.vung_da_sinh_lenh() is True)
+     so.zone_da_sinh_lenh() is True)
 kiem("lệnh đã đóng không còn trong danh sách Manage phải chạy", not so.dang_song())
 
-so.dong_vung()
-v2 = so.mo_vung(nen=60)
+so.dong_zone()
+v2 = so.mo_zone(nen=60)
 kiem("vùng mới có id mới và CHƯA sinh lệnh",
-     v2.id == "V-0002" and so.vung_da_sinh_lenh() is False)
+     v2.id == "V-0002" and so.zone_da_sinh_lenh() is False)
 
 l2 = so.mo_lenh(v2.id, "s_ban", so_lenh.BAN, "market", 0.01, 100, 102, 96, 2, 61)
 kiem("lệnh market khớp ngay", l2.trang_thai == so_lenh.MO and l2.da_khop)
@@ -174,7 +176,9 @@ ai_dung_nguong = []
 for tab in core.TABS:
     for st in doc[tab]["steps"]:
         for c in st.get("conditions") or []:
-            if c.get("phai_loai") == "tham_so" and c["phai"] == "nguong_nen_bps":
+            # Vế phải là một LƯỢNG `{value, tinh}`; `value` là số HOẶC tên tham số.
+            # Không còn `phai_loai` — kiểu suy ra được, xem `normalize_action`.
+            if (c.get("phai") or {}).get("value") == "nguong_nen_bps":
                 ai_dung_nguong.append(tab)
 kiem("`nguong_nen_bps` được hỏi ở CẢ HAI sơ đồ nhưng chỉ khai MỘT lần",
      sorted(ai_dung_nguong) == ["entry", "manage"], f"— {ai_dung_nguong}")
@@ -187,8 +191,9 @@ def hang_so_go_tay(d):
         for st in d[tab]["steps"]:
             noi = f"{tab}/{core.step_title(st)}"
             for c in st.get("conditions") or []:
-                if c.get("phai_loai") == "so":
-                    ra.setdefault(c["phai"], []).append(noi)
+                v = (c.get("phai") or {}).get("value")
+                if v is not None and not isinstance(v, str):
+                    ra.setdefault(v, []).append(noi)
             for k in ("dem", "sl", "tp", "khoang"):
                 v = (st.get(k) or {}).get("value") if isinstance(st.get(k), dict) else None
                 if v is not None and not isinstance(v, str):

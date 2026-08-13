@@ -91,14 +91,12 @@ for i in range(15, 31):
 kiem("và Wilder cho số KHÁC hẳn — nên chép nhầm là lệch thật",
      not gan(a[30], w, 1e-6), f"— SMA {a[30]:.4f} vs Wilder {w:.4f}")
 
-print("\n▸ ATR chuẩn hoá (bps)")
-b = tt.atr_bps(hh, ll, cc, 14)
-kiem("= ATR / Close × 10000", gan(b[20], a[20] / cc[20] * 10000, 1e-9))
-kiem("cùng vùng NaN với ATR — không tự bịa ra số ở chỗ chưa có dữ liệu",
-     bool(np.all(np.isnan(b[:14]))))
-# Đây là lý do luật "NaN chứ không 0" quan trọng: cổng nén hỏi `atr_bps < 7`.
-kiem("NaN làm phép so trả FALSE → cổng TRƯỢT (0 thì cổng KHỚP, sai chết người)",
-     not bool(b[0] < 7.0) and bool(0.0 < 7.0))
+# ⚠ Phép chuẩn hoá theo giá (`ATR / Close × 10⁴`) ĐÃ DỌN NHÀ: nó không còn là một chỉ
+# báo `atr_bps` mà là ĐƠN VỊ `bps` của dòng điều kiện. Bài kiểm cho nó chuyển sang
+# `test_zone.py` — chỗ chạy sơ đồ thật, vì giờ nó là hành vi chứ không phải một hàm.
+kiem("ATR chưa đủ dữ liệu thì NaN, và NaN làm cổng TRƯỢT "
+     "(trả 0 thì cổng KHỚP giữa lúc chưa biết gì)",
+     not bool(a[0] < 7.0) and bool(0.0 < 7.0))
 
 # ================= 3. MA =================
 print("\n▸ MA — bốn kiểu, đều khởi động bằng SMA")
@@ -121,11 +119,8 @@ kiem("EMA đuổi giá nhanh hơn SMMA (alpha 2/(n+1) > 1/n)",
 kiem("chuỗi ngắn hơn chu kỳ → toàn NaN, không nổ",
      bool(np.all(np.isnan(tt.ma([1, 2], 5, "SMA")))))
 
-# ================= 4. Donchian & volume =================
-print("\n▸ Donchian · Volume MA")
-kiem("biên trên = max(High) N nến", gan(tt.donchian_tren([1, 5, 3, 2], 3)[2], 5))
-kiem("biên dưới = min(Low) N nến", gan(tt.donchian_duoi([4, 1, 3, 2], 3)[3], 1))
-kiem("volume MA = trung bình N nến", gan(tt.volume_ma([10, 20, 30], 3)[2], 20))
+# Donchian và Volume MA đã bỏ khỏi kho — chưa sơ đồ nào dùng tới. Thêm lại kèm bài
+# kiểm khi có chiến lược thật cần.
 
 # ================= 5. Gộp khung =================
 print("\n▸ Gộp khung — theo BIÊN THỜI GIAN, không phải đếm nến")

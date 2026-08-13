@@ -459,41 +459,235 @@ Compress EA (§7.1):
 
 | `tinh` | Nghĩa |
 |---|---|
-| `theo_ATR` | × **ATR hiện tại** |
-| `theo_ATR_vung` | × **ATR trung bình của vùng nén** |
-| `theo_R` | × R (rủi ro) |
-| `theo_bien_vung` | mép vùng đối diện |
-| `theo_pt` / `theo_gia` | % giá vào / giá tuyệt đối |
+| `atr` | × **ATR hiện tại** |
+| `atr_zone` | × **ATR trung bình của zone** |
+| `R` | × R (rủi ro) |
+| `bien_zone` | mép zone đối diện |
+| `bps` | bps của giá (1 bps = 1/10 000) |
+| `gia` | giá tuyệt đối |
 
-> ⚠ **`theo_ATR` và `theo_ATR_vung` là HAI THỨ KHÁC NHAU, tách ra là có chủ ý.**
-> Đệm vào lệnh đo bằng ATR *hiện tại* — tấm khiên mỏng ngoài mép vùng, đủ lọc một nhịp
+⚠ **`pt` ("% của giá") đã bỏ.** Nó là `bps` chia 100 — hai cái tên cho đúng một phép
+chuẩn hoá, nên người dùng phải đoán xem chúng khác nhau chỗ nào (không khác). Không có
+phép chuyển tự động: đổi sang `bps` phải **nhân giá trị với 100**, mà giá trị có thể là
+một *tên tham số* — lúc đó không nhân được. Một phép đổi đúng-một-nửa là loại hỏng tệ
+nhất (file vẫn chạy, chỉ sai 100 lần), nên gặp `pt` thì soát tĩnh nói to.
+
+⚠ **`bps` từng được bày ra cho SL/TP/đệm mà `bo_chay._khoang` CHƯA CÀI** — chọn vào là
+ném `LoiChay` giữa lúc backtest. Nay đã cài (`v / 10⁴ × neo`), và `tests/test_zone.py`
+canh đúng chỗ đó.
+
+⚠ **`bien_zone` KHÔNG dùng con số bạn gõ.** `_khoang` tính `v` rồi vứt — nó trả thẳng
+khoảng cách tới mép zone đối diện, nên `SL = 1 [mép zone đối diện]` và `SL = 99 […]` ra y
+hệt. Hộp thoại **khoá ô số** khi chọn đơn vị đó, thay vì để một con số vô nghĩa nằm đó.
+
+#### CHỈ BÀY RA THỨ DÙNG ĐƯỢC
+
+Luật chung, đã ghi sẵn trong `core.DON_VI_CHO`: *"bày ra một lựa chọn vô nghĩa rồi soát
+tĩnh mắng là tệ hơn không bày — nên lọc ngay tại nguồn."* Bốn nhát cắt:
+
+| Cắt gì | Vì sao | Bảng |
+|---|---|---|
+| Theo **chỗ dùng** | `R` ở SL là vòng tròn (đo rủi ro bằng chính rủi ro); `bien_zone` ở đệm không có mốc để đo tới | `DON_VI_CHO` |
+| Theo **loại đại lượng** | chỉ **bề rộng** giá mới chuẩn hoá được; `close / close × 10⁴` luôn ra 10000 | `TOAN_HANG_LOAI` |
+| **Không đo bằng chính nó** | `zone_atr_tb` với `× ATR zone` ⇒ luôn = 1 | `DON_VI_CHINH_NO` |
+| Theo **zone** | trước cổng zone thì `× ATR zone` không có mẫu số ⇒ NaN ⇒ cổng luôn trượt | `khoi_sau_cong_zone` |
+
+Nhát cuối cũng lọc **danh sách toán hạng**: khối chưa đi qua cổng zone thì không thấy
+`Zone — số nến / đỉnh / đáy / bề rộng / ATR trung bình / đã sinh lệnh` — thay vì thấy rồi
+bị `_soat_cong_zone` báo lỗi đỏ. Cùng một luật mà dropdown toán hạng vốn đã áp cho nhóm
+*"Lệnh này"* ở Entry; đây là áp nốt cho zone.
+
+`core.khoi_sau_cong_zone()` là **một** phép duyệt, dùng chung cho cả soát tĩnh lẫn giao
+diện (gửi kèm `validate.luong[tab].sau_cong_zone`). TypeScript **không** tự đi lại đồ
+thị — hai đoạn mã duyệt cùng một sơ đồ là hai luật, và chúng sẽ lệch nhau.
+
+> ⚠ **`atr` và `atr_zone` là HAI THỨ KHÁC NHAU, tách ra là có chủ ý.**
+> Đệm vào lệnh đo bằng ATR *hiện tại* — tấm khiên mỏng ngoài mép zone, đủ lọc một nhịp
 > phá giả. Rủi ro đo bằng ATR *trung bình cả cú nén* — lấy mức nhiễu thật suốt đợt nén,
-> nên mỗi lệnh rủi ro một R tương đương bất kể vùng rộng hẹp. Gộp làm một là mất đúng
+> nên mỗi lệnh rủi ro một R tương đương bất kể zone rộng hẹp. Gộp làm một là mất đúng
 > cái làm cho 1R nhất quán giữa các tín hiệu.
+
+**Toán hạng giá không còn `shift`.** Nó là ô số **thứ ba** trên hàng điều kiện — cùng
+chỗ, cùng hình dạng với ô *chu kỳ* của ATR/MA, nhưng nghĩa khác hẳn; một ô trắng không
+nhãn mang hai nghĩa tuỳ toán hạng thì không ai đọc ra. Bỏ được vì nó chưa từng khác 1
+(mẫu, cả 10 file đã lưu), và `doc_cot` hiểu *thiếu shift* **đúng bằng** `shift = 1`
+(`i -= max(0, shift - 1)`) — `tests/test_bo_chay.py` canh chuyện đó bằng backtest, không
+bằng đọc lại công thức. Giờ ô thứ ba chỉ còn **một** nghĩa (chu kỳ) và nghĩa đó được viết
+ra thành chữ. Với D_02 thì đây là bám sát **hơn**: EA luôn dùng `iClose(tf, 1)` và không
+có tuỳ chọn nào khác.
 
 **Neo lệnh chờ:** lệnh Stop **luôn** neo vào mép vùng nén thuận chiều (đỉnh cho Mua,
 đáy cho Bán) — đó là chỗ duy nhất Compress EA đặt lệnh. Nên **không có tham số "neo
 vào đâu"**; `dem` chỉ là khoảng đẩy ra ngoài mép đó.
 
-### 6.4 ⭐ BẢNG THAM SỐ — hằng số CÓ TÊN
+### 6.4 ⭐ BẢNG THAM SỐ — **bản ghi**, không phải bước setup
 
-> **LUẬT DUY NHẤT: ở đâu chờ một con số, một CHUỖI nghĩa là tên tham số.**
+> **LÕI: ở đâu chờ một con số, một CHUỖI nghĩa là tên tham số.**
 > Áp đều cho chu kỳ chỉ báo, khối lượng, ngưỡng so sánh, khoảng cách SL/TP.
+>
+> **GIAO DIỆN: gõ = số · chọn = tham số. Tên không bao giờ gõ được.**
+>
+> **ĐƠN VỊ THUỘC VỀ CÁI Ô. Ai điền vào ô đó cũng phải mang đúng đơn vị ấy.**
 
-Vì sao phải có, đo được bằng con số: sơ đồ mẫu trước khi có bảng tham số có **4 hằng
-số bị viết cứng hai lần**, trong đó `7.0` nằm ở **cả hai sơ đồ** — Entry hỏi *"còn nén
-không"*, Manage hỏi *"nén tan chưa"*. Sửa một chỗ là chiến lược **vào lệnh theo một
-ngưỡng và huỷ lệnh theo ngưỡng khác**, âm thầm.
+#### Vì sao giao diện hẹp hơn lõi
+
+Lõi nhận cả hai. Giao diện thì cố ý **chỉ cho gõ chữ số**, và đây là lý do.
+
+Trước đây năm ô số trong app chạy **hai luật trái nhau**: chỉ ô "vế phải điều kiện" thật
+sự nhận được một cái tên (nó có `<datalist>` và placeholder *"số hoặc tên tham số"*).
+Bốn ô còn lại — chu kỳ, chỉ số nến, SL/TP/đệm, lot — chạy `parseInt`/`parseFloat`, nên
+**hiện ra một cái tên mà gõ vào là nuốt mất**: `chu_ky_atr` → `0`. Tức app dạy *"chỗ này
+gõ tên được"* ở một ô rồi phá lời dạy đó ở bốn ô kia. Nhìn ô chu kỳ đang hiện
+`chu_ky_atr`, người dùng tưởng đó là chỗ **đặt tên**. Không trách được.
+
+Nên `ActionDialog.OSo` là **một** ô dùng cho **cả năm chỗ**, và nó bỏ hẳn khả năng gõ
+chữ — không phải dán nhãn giải thích, mà làm cho việc gõ tên **bất khả thi**. Khi ô đang
+giữ một cái tên, nó vẽ thành **chip** (không sửa được, có `✕` để về số, đỏ + gạch ngang
+nếu cái tên đó không còn trong bảng).
+
+Tên vào ô bằng **hai** đường, và cả hai đều là CHỌN, không phải gõ:
+
+1. nút *"Đặt tên cho số này"* ở bảng Vấn đề — đường chính, xuất hiện khi một số lặp;
+2. nút `▾` ngay trong ô số — mời những tham số **đã có**.
+
+> ⚠ Bản đầu **không có** nút `▾`, và đó là một cửa một chiều: bấm `✕` trên một chip là
+> tham số biến mất khỏi ô, mà cảnh báo đặt tên chỉ đếm **số gõ tay** — còn đúng một số
+> thì không đủ hai, không có cảnh báo, không có nút, **không đường nào lấy lại**.
+
+Hệ quả: cả app còn **đúng một** ô để gõ chữ đặt tên — cột **Tên** của bảng Tham số.
+
+#### Đơn vị thuộc về cái ô
+
+Mỗi ô số có một đơn vị (`core.don_vi_cua_o`) — hoặc **chọn được** (khoảng cách: bps ·
+× ATR · × ATR zone…), hoặc **cố định** (chu kỳ luôn `nến`, lot luôn `lot`, `zone_dem`
+luôn `nến`, `so_vi_the` luôn `lệnh`). Mỗi tham số khai một đơn vị bằng **khoá** trong
+cùng bảng đó. Từ đó:
+
+- nút `▾` **chỉ mời tham số đúng đơn vị của ô** — `chu_ky_atr` (nến) không bao giờ hiện
+  ra ở ô Stop Loss;
+- chọn tham số xong thì **ô đơn vị khoá** (vẫn hiện, có 🔒): một cái tên chỉ mang một
+  nghĩa. Cần `7 bps` và `7 × ATR` thì đặt **hai** tham số;
+- soát tĩnh so đơn vị khai với đơn vị ở chỗ dùng: dùng hai đơn vị → **lỗi**; khai một
+  đằng dùng một nẻo → **cảnh báo**.
+
+⚠ `loai = "dem"` **không đủ** để suy ra đơn vị: `zone_dem` đếm **nến** còn `so_vi_the`
+đếm **lệnh**. Gộp chung thì nút `▾` mời `so_vi_the_toi_da = 3 lệnh` vào ô *"zone cần bao
+nhiêu nến"*. Nên toán hạng tự khai `don_vi` (`kho/*.py`) — bài kiểm bắt đúng chỗ này ngay
+lần chạy đầu.
+
+⚠ Cột `don_vi` của bảng tham số **từng là chữ tự do**, và nó âm thầm mục: sơ đồ mẫu mang
+`"× ATR vùng"` — một chuỗi không tồn tại ở đâu, rác từ lần đổi tên vùng→zone, không ai
+bắt được vì chưa có gì đọc nó. File cũ đi qua `DON_VI_THAM_SO_CU`; chữ lạ thì **để trống
+rồi suy từ chỗ dùng**, chứ không đoán.
+
+#### Cơ chế so sánh — MỘT cờ cho cả khối
+
+Một ô tích cạnh ô **Tên**: `☑ So hai đại lượng`. Nó quyết hình dạng **mọi dòng** trong
+khối đó:
+
+| Cờ | Mỗi dòng | Lưới |
+|---|---|---|
+| tắt | `[đại lượng ⚙] [phép] [số ▾] [đơn vị]` — kèm cả dòng đúng/sai | 6 cột |
+| bật | `[đại lượng ⚙] [phép] [đại lượng ⚙]` | 5 cột — **bỏ hẳn** cột đơn vị |
+
+Cột đơn vị bị **bỏ**, không phải làm mờ: hai vế cùng chia một mẫu số nên nó triệt tiêu,
+giữ một cột rỗng là chiếm 118px mà chẳng nói gì, trong khi hai ô chọn toán hạng đang
+chật. Cả khối cùng một cơ chế nên mọi dòng vẫn thẳng cột.
+
+⚠ Ô **⚙ luôn chiếm chỗ**, kể cả khi toán hạng chưa chọn hoặc không có tham số nào — mà
+11/17 toán hạng đúng là không có. Chỉ *vẽ* bánh răng khi thật sự có tham số; còn lại để
+trống. Bản đầu ẩn hẳn ô đó, nên ngay trong một khối, dòng `ATR` có ⚙ mà dòng `Zone — số
+nến` không → hai ô chọn rộng khác nhau → cột lệch.
+
+⚠ Trước đây lựa chọn này là một **chip trên từng dòng** (`số` / `đ.lượng`). Chip ấy chỉ
+tồn tại vì **một hàng phải gánh hai hình dạng** — hậu quả là hai dòng cùng khối trông
+khác nhau, cột lệch, và mắt phải đọc lại hình dạng ở mỗi dòng. Nâng lựa chọn lên mức
+KHỐI thì mọi dòng trong đó giống hệt nhau, và cái chip tự thừa.
+
+Cùng lý lẽ app đã viết cho phép HOẶC: *"tách ra thành hai nhánh riêng trên sơ đồ — nhìn
+sơ đồ là thấy được, còn chữ hoặc giấu trong hộp thoại thì không."* Muốn một cổng vừa so
+số vừa so đại lượng thì **nối hai cổng** — nối tiếp chính là VÀ.
+
+**Là CƠ CHẾ, không phải LOẠI KHỐI.** Hai kiểu dùng chung bộ soát, chung phép chuẩn hoá,
+chung hàm dựng chữ trên thẻ — chỉ khác đúng cái vế phải. Tách thành loại khối riêng là
+chẻ ba đoạn mã đáng lẽ chỉ có một.
+
+Ba luật đi kèm:
+
+- **Cờ được LƯU trên khối**, không suy ra được: khối vừa tạo chưa có điều kiện nào để
+  suy, mà vẫn phải biết thêm dòng kiểu nào. File cũ (không có cờ) thì suy từ chính các
+  điều kiện — đã đo, không sơ đồ nào từng trộn hai kiểu trong một khối, nên phép suy này
+  không có ca mập mờ.
+- **Đổi cờ viết lại vế phải của mọi dòng**, giữ vế trái và phép so. Có mất dữ liệu, và
+  đó là chủ ý: hình dạng do cờ quyết. Hộp thoại là bản nháp — Huỷ là xong, lưu rồi vẫn
+  còn Hoàn tác.
+- **Toán hạng đúng/sai + cờ bật → LỖI, không sửa lén.** `lệnh này đã khớp > zone_HH`
+  không phải một câu; nhưng đổi hộ toán hạng là vứt mất thứ người dùng đã chọn mà họ
+  không hề biết. Chuẩn hoá ép HÌNH DẠNG, soát tĩnh nói về NGHĨA.
+
+⚠ `đúng/sai` ở lại cùng `số`, không tách ra cơ chế thứ ba — đo sơ đồ mẫu thì ba cổng
+(`Zone đã đủ điều kiện`, hai cổng Manage) **thật sự trộn** `số` với `đúng/sai`. Tách là
+gãy ba cổng có thật.
+
+#### ⚙ Tham số của toán hạng nằm trong menu riêng
+
+Khung thời gian · chu kỳ · kiểu trung bình **không** nằm trên hàng điều kiện nữa. Trước
+đây chúng nằm inline nên vế trái phình từ **1 ô** (`zone_dem`) tới **4 ô** (MA) tuỳ toán
+hạng — hàng nào cũng lệch hàng nào, và thêm một chỉ báo 4 tham số là hỏng bố cục.
+
+Gom vào menu `⚙` thì hàng **luôn bốn cột**: `[đại lượng ⚙] [phép] [lượng] [đơn vị]`.
+
+Không mất thông tin: **thẻ trên canvas vẫn ghi đủ** `ATR(M5, 14) < nguong_nen_bps = 7 bps
+của giá` mà không phải bấm gì. Sơ đồ được **đọc** ở canvas, hộp thoại chỉ để **sửa**. Và
+`method` (SMA/EMA) là chuyện riêng của MA — để mỗi chỉ báo giữ núm vặn của chính nó thì
+hàng ở ngoài mới generic được.
+
+**Bảng này KHÔNG bắt buộc.** Gõ thẳng `7` vào ô là hợp lệ, và với một con số dùng đúng
+một chỗ thì gõ thẳng còn **rõ hơn** — bắt khai `nguong = 7` trước rồi mới được dùng chỉ
+là một vòng thừa. Hai màn hình "gõ số 7" và "chọn tham số bằng 7" trông y hệt nhau; nếu
+đó là toàn bộ lợi ích thì bảng tham số không đáng tồn tại.
+
+Nó đáng tồn tại vì **một** lý do: khi cùng một con số nằm ở **hai nơi**. Sửa một chỗ
+quên chỗ kia thì chiến lược lệch **âm thầm** — không lỗi, không báo, chỉ là kết quả
+backtest khác đi mà không ai biết vì sao. Sơ đồ mẫu trước đây có **4 hằng số viết cứng
+hai lần**, trong đó `7.0` nằm ở **cả hai sơ đồ**: Entry hỏi *"còn nén không"*, Manage
+hỏi *"nén tan chưa"*.
+
+Nên chỗ duy nhất ép người dùng nghĩ tới bảng tham số là **dòng cảnh báo** —
+`core._soat_so_lap`:
+
+> ▲ Số 7 được gõ tay ở 2 chỗ, cùng là ngưỡng so với ATR (bps của giá). Sửa một chỗ mà
+> quên chỗ kia thì chiến lược lệch âm thầm. **[ Đặt tên cho số này ]**
+
+Nút thay số bằng tên ở **cả hai chỗ** cùng lúc và thêm dòng vào bảng. Để lại một chỗ gõ
+tay thì cảnh báo biến mất mà cái bẫy vẫn còn — và lần này còn khó thấy hơn.
+
+**Gom nhóm theo `(VAI, ĐƠN VỊ, GIÁ TRỊ)`, không chỉ theo giá trị.** `chu_ky_atr = 14`
+và `chu_ky_ma = 14` bằng nhau chỉ vì **trùng hợp**; gộp lại là đặt tên sai, và sau này
+đổi một cái sẽ kéo theo cái kia. Tương tự `SL = 1.5 × ATR zone` và `TP = 1.5 R`. Trùng
+số không phải là quan hệ.
+
+Python trả kèm `dat_ten.cho` — **đường dẫn tới đúng từng ô số**. Giao diện chỉ đi theo
+đường dẫn mà thay, cố ý **không quét lại sơ đồ**: hai đoạn mã quét cùng một thứ là hai
+luật, và sớm muộn chúng sẽ lệch nhau. `tests/test_dat_ten.py` chứng minh đường dẫn đúng
+bằng cách chạy backtest trước và sau khi đặt tên — kết quả phải **giống hệt**.
+
+Đụng tên thì phân hai ca: **cùng giá trị → dùng lại** dòng đã có (`chu_ky_atr` engine
+luôn đòi phải có, đẻ thêm `chu_ky_atr_2 = 14` chính là thứ rác đang dọn); **khác giá
+trị → thêm hậu tố**, vì đè lên là âm thầm đổi một thứ người dùng không hỏi.
 
 ```jsonc
 "tham_so": [
   {"ten": "nguong_nen_bps", "nhan": "Ngưỡng nén", "gia_tri": 7.0, "don_vi": "bps"},
   …
 ]
-// rồi khối chỉ gọi bằng TÊN:
-{"trai": {"ten": "atr_bps", "tf": "M5", "period": "chu_ky_atr"},
- "phep": "<", "phai_loai": "tham_so", "phai": "nguong_nen_bps"}
+// rồi khối gọi bằng TÊN — cùng chỗ, cùng hình dạng với một con số:
+{"trai": {"ten": "atr", "tf": "M5", "period": "chu_ky_atr"},
+ "phep": "<", "phai": {"value": "nguong_nen_bps", "tinh": "bps"}}
 ```
+
+⚠ `don_vi` trong bảng tham số chỉ là **chữ ghi chú** (`DON_VI_THAM_SO`). Đơn vị THẬT —
+thứ bộ chạy quy đổi — nằm ở **chỗ dùng** (`tinh` trong `phai`), không nằm ở chỗ khai.
 
 **Hiển thị có phân biệt, và đó là chủ ý:**
 
@@ -502,8 +696,9 @@ ngưỡng và huỷ lệnh theo ngưỡng khác**, âm thầm.
 | Vế phải điều kiện · khoảng cách · lot | `nguong_nen_bps = 7` | đây là **núm vặn** — tên nói ý nghĩa, số nói thực tế |
 | Tham số của toán hạng (chu kỳ, nến) | `ATR(M5, 14)` | đây là **"đọc chuỗi số nào"**, không phải thứ người ta tinh chỉnh |
 
-Soát tự động bắt hai chuyện: tham chiếu tới tham số **không tồn tại** → lỗi; tham số
-khai ra mà **không khối nào dùng** → cảnh báo (sửa nó sẽ không đổi gì cả).
+Soát tự động bắt ba chuyện: tham chiếu tới tham số **không tồn tại** → lỗi; tham số
+khai ra mà **không khối nào dùng** → cảnh báo; và **số gõ tay hai chỗ cùng vai** →
+cảnh báo kèm nút đặt tên.
 
 Bộ mặc định lấy thẳng từ `kho/engine_d02.py::THAM_SO_MAC_DINH` — cùng một nguồn với
 mặc định của EA, nên không có chuyện tài liệu nói một đằng mẫu chạy một nẻo.

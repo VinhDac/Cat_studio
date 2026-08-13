@@ -58,12 +58,12 @@ bd["pos"] = [0.0, 0.0]
 g = core.make_action_step({
     "type": core.CHECK_COND, "name": "giá > 100",
     "conditions": [{"trai": {"ten": "close"}, "phep": ">",
-                    "phai_loai": "so", "phai": 100.0}]})
+                    "phai": {"value": 100.0}}]})
 g["pos"] = [0.0, 0.0]
 v = core.make_action_step({
     "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market",
-    "lot": 0.01, "sl": {"tinh": "theo_gia", "value": 1.0},
-    "tp": {"tinh": "theo_R", "value": 2.0}})
+    "lot": 0.01, "sl": {"tinh": "gia", "value": 1.0},
+    "tp": {"tinh": "R", "value": 2.0}})
 v["pos"] = [0.0, 0.0]
 d = core.normalize_process({
     "name": "thử nhật ký", "symbol": "X",
@@ -118,7 +118,7 @@ kiem("chỉ dựng chữ cho lô xin, không dựng cả 100% nhật ký",
 g_atr = core.make_action_step({
     "type": core.CHECK_COND, "name": "ATR < 999",
     "conditions": [{"trai": {"ten": "atr", "period": 5}, "phep": "<",
-                    "phai_loai": "so", "phai": 999.0}]})
+                    "phai": {"value": 999.0}}]})
 g_atr["pos"] = [0.0, 0.0]
 d3 = core.normalize_process(dict(
     d, entry={"steps": [bd, g_atr, v],
@@ -246,11 +246,15 @@ print("\n▸ Đường ray — gộp mà không được kể sai thứ tự")
 
 # Cần một lệnh CHỜ thật (đặt xong còn treo mấy nến rồi mới khớp) thì pha "trước khi
 # khớp" mới tồn tại. Lệnh thị trường khớp ngay nên không soi được chỗ này.
+# MỐC NEO = giá hiện tại, CỐ Ý: sơ đồ thử này không có cổng zone nào, nên không có
+# zone để neo vào. Trước đây một cỗ máy ẩn dựng sẵn zone cho mọi sơ đồ nên chỗ này
+# không phải khai gì — chính cái ẩn đó là thứ vừa bị bỏ.
 v8 = core.make_action_step({
     "type": core.VAO_LENH, "name": "mua chờ", "huong": "mua", "loai": "stop",
-    "lot": 0.01, "dem": {"tinh": "theo_gia", "value": 5.0},
-    "sl": {"tinh": "theo_gia", "value": 1.0},
-    "tp": {"tinh": "theo_R", "value": 2.0}})
+    "lot": 0.01, "dem": {"tinh": "gia", "value": 5.0},
+    "entry": {"moc": "gia_hien_tai"},
+    "sl": {"tinh": "gia", "value": 1.0},
+    "tp": {"tinh": "R", "value": 2.0}})
 v8["pos"] = [0.0, 0.0]
 bdm8 = core.make_start_step("theo dõi", "M1")
 bdm8["pos"] = [0.0, 0.0]
@@ -261,9 +265,9 @@ bdm8["pos"] = [0.0, 0.0]
 g8 = core.make_action_step({
     "type": core.CHECK_COND, "name": "giá trong khoảng",
     "conditions": [{"trai": {"ten": "close"}, "phep": ">",
-                    "phai_loai": "so", "phai": 100.0},
+                    "phai": {"value": 100.0}},
                    {"trai": {"ten": "close"}, "phep": "<",
-                    "phai_loai": "so", "phai": 1000.0}]})
+                    "phai": {"value": 1000.0}}]})
 g8["pos"] = [0.0, 0.0]
 d8 = core.normalize_process({
     "name": "thử ray", "symbol": "X", "tham_so": d["tham_so"],
@@ -385,7 +389,7 @@ kiem("bộ chạy ghi lại nhịp M1 lúc khớp — thứ duy nhất xếp n�
 #     cùng với lệnh bị khối "Huỷ chờ" huỷ — và đường ray im lặng, không có đoạn kết.
 v10 = json.loads(json.dumps(v8))
 v10["id"] = v8["id"] + "x"
-v10["dem"] = {"tinh": "theo_gia", "value": 500.0}
+v10["dem"] = {"tinh": "gia", "value": 500.0}
 d10 = core.normalize_process({
     "name": "treo", "symbol": "X", "tham_so": d["tham_so"],
     "entry": {"steps": [bd, g8, v10],

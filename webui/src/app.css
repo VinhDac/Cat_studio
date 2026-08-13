@@ -487,6 +487,17 @@ input, textarea { user-select: text; }
 .dong-van-de .muc { flex: 0 0 auto; font-size: 11px; }
 .dong-van-de.loi .muc { color: var(--err); }
 .dong-van-de.canh-bao .muc { color: var(--warn); }
+/* Nút sửa NGAY TRONG dòng cảnh báo. `flex: 0 0 auto` + `white-space: nowrap` để câu
+   chữ dài co lại chứ không đẩy nút xuống dòng — nút mà xuống dòng là không ai thấy. */
+.dong-van-de .dat-ten {
+  flex: 0 0 auto; white-space: nowrap; align-self: center;
+  /* Luôn nằm sát MÉP PHẢI, không bám đuôi câu chữ: câu dài câu ngắn thì nút nhảy chỗ,
+     mà mắt tìm một nút hay đổi vị trí thì chậm hơn hẳn. */
+  margin-left: auto;
+  padding: 2px 9px; font-size: 11.5px;
+  border-color: var(--warn); color: var(--warn); background: transparent;
+}
+.dong-van-de .dat-ten:hover { background: var(--warn); color: var(--bg); }
 .trong { color: var(--dim); padding: 10px 12px; font-style: italic; }
 .nhat-ky { font: 11.5px/1.6 var(--mono); padding: 4px 12px; white-space: pre-wrap; color: var(--muted); }
 
@@ -826,16 +837,31 @@ select.o { cursor: pointer; }
 .chen { flex: 1; }
 
 /* ---- một dòng điều kiện ---- */
+/* ⚠ LƯỚI CỐ ĐỊNH, không phải flex-wrap.
+   Trước đây mỗi ô co theo nội dung nên hai dòng cùng loại lệch hẳn nhau — mắt không
+   quét dọc được, mà đó chính là việc phải làm khi một cổng mang bốn năm điều kiện.
+   Sáu cột: số · vế trái · phép · vế phải · đơn vị · xoá. */
 .dong-dk {
-  display: flex;
+  display: grid;
+  /* Cột PHÉP 88px: `là ĐÚNG` là chữ dài nhất trong tám phép — 72px cắt nó.
+     Cột ĐƠN VỊ 118px: đo trên màn hình, `bps của giá` cần 99px và `giá tuyệt đối`
+     còn dài hơn — hộp 96px cắt thành `bps của gi`.
+     Cột VẾ PHẢI không còn nút `số`/`đ.lượng` đứng trước — hình dạng của nó do ô tích
+     trên đầu hộp thoại quyết, nên mọi dòng trong khối giống hệt nhau. */
+  grid-template-columns: 17px minmax(0, 1fr) 88px minmax(0, 1fr) 118px 22px;
   align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
+  gap: 6px;
   padding: 6px 8px;
   background: var(--field);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   position: relative;
+}
+/* SO HAI ĐẠI LƯỢNG — không có cột đơn vị. Hai vế cùng chia một mẫu số nên nó triệt
+   tiêu; giữ một cột rỗng là chiếm 118px mà chẳng nói gì, trong khi hai ô chọn toán
+   hạng đang chật. Cả khối cùng một cơ chế nên mọi dòng vẫn thẳng cột. */
+.dong-dk.hai-ben {
+  grid-template-columns: 17px minmax(0, 1fr) 88px minmax(0, 1fr) 22px;
 }
 .so-dk {
   width: 17px; height: 17px;
@@ -849,12 +875,194 @@ select.o { cursor: pointer; }
 .cum-toan-hang { display: flex; gap: 4px; align-items: center; flex: 1 1 240px; min-width: 0; }
 .cum-toan-hang.hep { flex: 1 1 180px; }
 .cum-toan-hang > .o:first-child { flex: 1; min-width: 96px; }
-.o.phep { flex: none; width: 128px; }
+/* ⚠ Ô PHÉP phải VỪA ĐÚNG cột của nó, không tự đặt bề rộng riêng.
+   Trước đây là `width: 128px` — rác từ hồi hàng điều kiện còn dựng bằng flex. Khi hàng
+   chuyển sang lưới, cột phép rộng 88px, nên ô 128px TRÀN 40px sang cột vế phải và đè
+   lên nó. (`flex: none` cũng vô nghĩa với một ô lưới.)
+   Phép đo canh cột của tôi không bắt được vì nó so MÉP TRÁI — mép trái vẫn thẳng tăm
+   tắp, chỉ có phần đuôi thò sang ô bên cạnh. */
+.o.phep { width: 100%; min-width: 0; }
 .xoa-dk { margin-left: auto; }
-.chu-thich-dk {
-  position: absolute; right: 30px; top: -7px;
-  font-size: 9.5px; color: var(--dim);
-  background: var(--surface); padding: 0 4px;
+
+/* Hai VẾ là hai khung giống hệt nhau — nhìn là biết cả hai đều là "một đại lượng".
+   `min-width: 0` để ô trong nó co được, nếu không lưới bị đẩy rộng ra. */
+.cum-toan-hang, .ve-phai {
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+}
+.cum-toan-hang > select:first-child, .ve-phai > select:last-child,
+.ve-phai > .cum-toan-hang { flex: 1 1 auto; min-width: 0; }
+.cum-toan-hang > .o.nho, .ve-phai > .o.nho { flex: 0 0 auto; }
+/* Vế trái giờ LUÔN là `[toán hạng][⚙]` — khung thời gian, chu kỳ, kiểu trung bình đã
+   dời vào menu ⚙. Trước đây chúng nằm thẳng trên hàng nên vế trái phình từ 1 ô
+   (`zone_dem`) tới 4 ô (MA), và hàng nào cũng lệch hàng nào. */
+.cum-toan-hang > .o:first-child { flex: 1 1 auto; min-width: 0; }
+/* ⚠ `.ctl-kieu` (nút `số`/`đ.lượng` trên TỪNG DÒNG) đã bỏ. Nó chỉ tồn tại vì một hàng
+   phải gánh hai hình dạng vế phải; đưa lựa chọn lên mức KHỐI (ô tích "So hai đại lượng"
+   cạnh ô Tên) thì mọi dòng trong khối giống hệt nhau và cái nút tự thừa. */
+
+/* Ô TÍCH đổi cơ chế, nằm cuối hàng đầu của hộp thoại. */
+.tick-cochet {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  margin-left: auto; padding: 3px 9px 3px 7px;
+  background: var(--raised); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap;
+  user-select: none;
+}
+.tick-cochet:hover { border-color: var(--accent); color: var(--text); }
+.tick-cochet:has(input:checked) {
+  border-color: var(--accent); color: var(--accent);
+  background: var(--accent-soft);
+}
+.tick-cochet input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+/* Ô số của vế phải trải hết chỗ còn lại của cột. Căn TRÁI chứ không giữa: `.o.so.nho`
+   căn giữa vì nó vốn là ô hẹp 44px; kéo dài ra thì con số trôi ra giữa khoảng trắng,
+   mắt phải đi tìm. Căn trái thì mọi dòng bắt đầu ở cùng một chỗ. */
+.ve-phai > .o.so.nho.rong {
+  flex: 1 1 auto; width: auto; min-width: 0; text-align: left;
+}
+
+/* ---- ⚙ MENU THAM SỐ CỦA TOÁN HẠNG ---- */
+
+/* Dùng <details>/<summary> chứ không dựng popover bằng JS: đóng-mở là trạng thái của
+   DOM, Esc và click-ngoài đã có sẵn hành vi chuẩn, và không có state nào để lệch. */
+.menu-th { flex: 0 0 auto; position: relative; }
+/* Toán hạng không có tham số (11/17 cái) — CHỪA CHỖ nhưng không vẽ nút chết, để mọi
+   dòng trong một khối rộng bằng nhau. */
+.menu-th.trong { width: 26px; height: 26px; pointer-events: none; }
+/* Hàng nào ĐANG mở menu thì nổi lên trên các hàng sau. `.dong-dk` là `position:
+   relative`, nên hàng dưới vẽ đè lên phần menu tràn xuống nếu không nâng z-index. */
+.dong-dk:has(.menu-th[open]),
+.khoi-form .hang:has(.menu-th[open]) { z-index: 5; }
+.menu-th > summary { list-style: none; }
+.menu-th > summary::-webkit-details-marker { display: none; }
+.ctl-banh-rang {
+  display: grid; place-items: center;
+  width: 26px; height: 26px; cursor: pointer;
+  background: var(--raised); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); color: var(--muted); font-size: 12px;
+  user-select: none;
+}
+.ctl-banh-rang:hover { border-color: var(--accent); color: var(--accent); }
+.menu-th[open] > .ctl-banh-rang { border-color: var(--accent); color: var(--accent); }
+/* ⚠ NỀN PHẢI ĐẶC. Bản đầu viết `background: var(--panel)` — một biến KHÔNG TỒN TẠI
+   trong `theme.css`, nên nền thành trong suốt và chữ phía sau xuyên thẳng qua menu.
+   Biến ma trong CSS hỏng LẶNG: không lỗi, không cảnh báo, chỉ là nhìn sai.
+   Dùng `--raised` (#383838) — sáng hơn `--surface` của hộp thoại đúng một bậc, nên menu
+   NỔI LÊN thay vì chìm vào nền. */
+.menu-th-noi {
+  position: absolute; z-index: 60; top: calc(100% + 6px); left: 0;
+  min-width: 240px; padding: 4px 0 6px;
+  display: flex; flex-direction: column;
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+}
+/* Mũi tên trỏ về ⚙ — nói cho mắt biết menu này thuộc về nút nào, khi hàng có tới hai
+   cái ⚙ (vế trái và vế phải). */
+.menu-th-noi::before {
+  content: ''; position: absolute; top: -5px; left: 8px;
+  width: 8px; height: 8px; transform: rotate(45deg);
+  background: var(--raised);
+  border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+}
+/* LẬT SANG TRÁI cho toán hạng VẾ PHẢI.
+   Bánh răng của nó nằm sát mép phải hộp thoại (787→813 trong vùng nội dung 0→850), nên
+   menu 240px mở sang phải thì chạy tới 1027 — tràn 177px. Và nó bị CẮT chứ không chỉ
+   thò ra: `.ht-than` có `overflow: auto` (cần cho hộp thoại dài) nên nó là khung cắt.
+   Mở sang trái thì 573→813, nằm gọn.
+
+   Khoá theo `.ve-phai` — "đây là vế phải của hàng", đúng cái lý do phải lật. Không đo
+   lúc chạy: hộp thoại rộng cố định, chỉ có hai vị trí bánh răng, và mỗi vị trí luôn vừa
+   theo hướng đã chọn. Đo rồi lật chỉ là thêm một cơ chế cho bài toán đã biết đáp án. */
+.ve-phai .menu-th-noi { left: auto; right: 0; }
+.ve-phai .menu-th-noi::before { left: auto; right: 8px; }
+
+.menu-th-dau {
+  color: var(--accent); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; font-weight: 600;
+  padding: 4px 10px 6px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.menu-th-dong {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+  padding: 4px 10px; font-size: 12px; color: var(--text);
+}
+.menu-th-dong:hover { background: var(--raised-hover); }
+
+/* ---- CHIP tham số ---- */
+
+/* CHIP THAM SỐ — ô số đang giữ một cái TÊN.
+   Nhìn khác hẳn ô nhập, và KHÔNG gõ được: đó là cả điểm của nó. Trước đây tên hiện
+   trong một ô trắng y hệt ô nhập, nên ai cũng tưởng đấy là chỗ đặt tên — mà gõ vào
+   thì `parseInt` nuốt mất. Giờ tên chỉ vào ô bằng nút "Đặt tên cho số này". */
+.chip-ts {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px;
+  height: 26px; padding: 0 2px 0 7px; min-width: 0;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono); font-size: 11.5px; color: var(--accent);
+}
+.chip-ts.rong { flex: 1 1 auto; }
+.chip-ten { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tên không còn trong bảng tham số — hiện ngay tại chỗ, thay vì đợi bấm ▶ mới biết. */
+.chip-ts.mat {
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+  border-color: color-mix(in srgb, var(--err) 55%, transparent);
+  color: var(--err);
+}
+.chip-ts.mat .chip-ten { text-decoration: line-through; }
+.chip-x {
+  flex: 0 0 auto; width: 16px; height: 16px; padding: 0; line-height: 1;
+  background: transparent; border: 0; border-radius: 3px;
+  color: inherit; opacity: .55; font-size: 10px; cursor: pointer;
+}
+.chip-x:hover { opacity: 1; background: color-mix(in srgb, currentColor 22%, transparent); }
+/* Dòng đúng/sai không có vế phải — giữ chỗ để lưới không xô lệch. */
+.ve-phai.trong { min-height: 26px; }
+
+/* Ô số + nút ▾ chọn tham số, dính liền nhau thành một khối. */
+.cum-so { display: inline-flex; align-items: center; flex: 0 0 auto; min-width: 0; }
+.cum-so.rong { flex: 1 1 auto; }
+.cum-so.rong > .o.so.nho { flex: 1 1 auto; width: auto; min-width: 0; text-align: left; }
+.cum-so > .o.so.nho { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* Nút ▾ CHỈ HIỆN khi có tham số hợp đơn vị — không có thì ô sạch như cũ. Là một
+   `<select>` thật, nên bàn phím và màn hình đọc đều hiểu, không phải menu tự chế. */
+.chon-ts {
+  flex: 0 0 auto; width: 24px; padding: 0; margin-left: -1px;
+  height: 26px; cursor: pointer;
+  background: var(--raised); color: var(--accent);
+  border: 1px solid var(--border-soft);
+  /* Chỉ bo hai góc PHẢI — dính liền ô số thành một khối, nhìn ra ngay là nó thuộc về ô
+     bên trái chứ không phải một điều khiển rời. */
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 11px; text-align: center; text-align-last: center;
+  appearance: none; -webkit-appearance: none;
+}
+.chon-ts:hover { border-color: var(--accent); background: var(--field); }
+/* Ô số bị KHOÁ HẲN — `mép zone đối diện` không nhân với con số nào. */
+.o.so.nho.tat-hoan-toan {
+  display: grid; place-items: center;
+  color: var(--dim); background: transparent; border-color: transparent;
+  cursor: default; user-select: none;
+}
+
+/* ĐƠN VỊ — mờ đi khi đại lượng không quy đổi được, để nhìn là biết mà không gõ nhầm. */
+.don-vi { text-align: center; }
+.don-vi.tat {
+  color: var(--dim); background: transparent; border-color: transparent;
+  font-size: 10.5px; cursor: default; user-select: none;
+  display: grid; place-items: center;
+}
+/* KHOÁ — vế phải là một tham số, đơn vị do tham số quy định. Vẫn HIỆN (ẩn đi thì cột
+   lệch, mà đọc điều kiện lại phải mở bảng tham số), chỉ là không đổi được. */
+.don-vi.khoa {
+  display: grid; place-items: center;
+  color: var(--muted); background: var(--raised);
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--radius-sm); height: 26px;
+  font-size: 10.5px; cursor: default; user-select: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* ---- danh sách hành động trong StepDialog ---- */
@@ -1624,6 +1832,19 @@ select.o { cursor: pointer; }
 .lv-chinh-dong { font-family: var(--mono); font-size: 11px; color: var(--muted);
                  padding: 1px 0; }
 
+/* CỔNG ZONE — ô tick trong hộp thoại Kiểm tra điều kiện.
+   Nổi hẳn lên vì nó không phải một tuỳ chọn nhỏ: đánh dấu ô này là khối đó ĐỊNH NGHĨA
+   zone cho mọi khối phía sau. */
+.tick-zone {
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  margin-top: 10px; padding: 8px 10px;
+  background: var(--accent-soft); border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+.tick-zone b { color: var(--accent); letter-spacing: .02em; }
+.tick-zone .goi-y { flex: 1 0 100%; color: var(--dim); font-size: 11px;
+                    font-style: italic; }
+
 /* Nhật ký MÁY — dòng chảy thô của cửa sổ Live (bước bài kiểm, mất/nối lại kết
    nối, lô nến về). Chữ đều để mốc giờ thẳng cột. */
 .lv-may { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
@@ -1657,5 +1878,5 @@ select.o { cursor: pointer; }
 
 /* Mốc "── lượt 2/4" giữa các lượt lặp. */
 .lv-moc-lap { margin: 10px 0 2px; font-size: 11px; color: var(--dim);
-              letter-spacing: .04em; border-top: 1px dashed var(--line);
+              letter-spacing: .04em; border-top: 1px dashed var(--border);
               padding-top: 6px; }

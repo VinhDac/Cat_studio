@@ -4,7 +4,7 @@ import { useKhungCuaSo } from '../useKhungCuaSo'
 import CongChot from './CongChot'
 import TitleBar, { type NhomMenu } from '../components/TitleBar'
 import IconNet from '../components/Icon'
-import Chart, { type Bar, type KieuChart, type NenM1 } from '../tester/Chart'
+import Chart, { type Bar, type HopZone, type KieuChart, type NenM1 } from '../tester/Chart'
 import NutChart from '../tester/NutChart'
 import BangSoLieu, { type BangCat } from '../tester/BangSoLieu'
 import Journey, { type DongNk } from '../tester/Journey'
@@ -102,6 +102,8 @@ export default function Live() {
   const [kieu, setKieu] = useState<KieuChart>('nen')
   const [mauThuong, setMauThuong] = useState(false)
   const [hienLenh, setHienLenh] = useState(true)
+  const [hienZone, setHienZone] = useState(true)
+  const [zone, setZone] = useState<HopZone[]>([])
   const [veNay, setVeNay] = useState(0)
   const [hienBang, setHienBang] = useState(true)
   const [dePhong, setDePhong] = useState<DePhong | null>(null)
@@ -184,6 +186,7 @@ export default function Live() {
         // chuẩn là từ lúc bấm ghi hình trở đi — phần trước chỉ để mắt có bối cảnh.
         const d0 = Math.max(0, v.t.length - TRAN_NEN)
         setDatNen(v.t.slice(d0).map((_, x) => bar(d0 + x)))
+        setZone(v.zone ?? [])
         setBatDau(x => x + 1)
         setThemNen(null)
         // Bỏ đuôi cũ: nó là lưới của KHUNG TRƯỚC. Chart đã có chốt `tfCuaBars` chặn
@@ -191,6 +194,16 @@ export default function Live() {
         setDuoiNen(null)
       } else {
         setDuoiNen(v.t.map((_, x) => bar(x)))
+        // Xin ĐUÔI thì Python chỉ gửi zone chạm quãng đuôi (~44 byte). Ghép vào danh
+        // sách cũ theo `t_đầu`: zone đang lớn dần thì bản mới ĐÈ bản cũ, zone đã chết
+        // nằm phía trước thì giữ nguyên.
+        if (v.zone?.length) {
+          setZone(cu => {
+            const m = new Map(cu.map(z => [z[0], z]))
+            for (const z of v.zone!) m.set(z[0], z)
+            return [...m.values()].sort((x, y) => x[0] - y[0])
+          })
+        }
       }
     }
   }, [tfVe])
@@ -375,6 +388,7 @@ export default function Live() {
                   datTf={setTfVe} kieu={kieu} datKieu={setKieu}
                   mauThuong={mauThuong} datMau={setMauThuong}
                   hienLenh={hienLenh} datHienLenh={setHienLenh}
+                  hienZone={hienZone} datHienZone={setHienZone}
                   veHienTai={() => setVeNay(x => x + 1)} />
         <span className="tb-day" />
         <span className="lv-che-do">{tBayGio ? new Date(tBayGio * 1000)
@@ -394,6 +408,7 @@ export default function Live() {
         <Chart tfPhut={tfVe} digits={soLe} lenh={lenh} tBayGio={tBayGio}
                batDau={batDau} dat={datNen} them={themNen} duoi={duoiNen}
                kieu={kieu} mauThuong={mauThuong} hienLenh={hienLenh}
+               zone={zone} hienZone={hienZone}
                veHienTai={veNay} tranNen={TRAN_NEN} />
         {hienBang && <BangSoLieu k={khungBang} digits={soLe} />}
       </div>

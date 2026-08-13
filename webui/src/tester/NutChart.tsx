@@ -16,7 +16,8 @@ const KIEU: [KieuChart, string, string][] = [
 ]
 
 export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
-                                   datMau, hienLenh, datHienLenh, veHienTai }: {
+                                   datMau, hienLenh, datHienLenh,
+                                   hienZone, datHienZone, veHienTai }: {
   tf: number
   /** `[nhãn, số phút]` — do cửa sổ truyền vào, vì hai nơi có bộ khung khác nhau. */
   dsTf: readonly (readonly [string, number])[]
@@ -27,6 +28,8 @@ export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
   datMau: (v: boolean) => void
   hienLenh: boolean
   datHienLenh: (v: boolean) => void
+  hienZone: boolean
+  datHienZone: (v: boolean) => void
   /** `null` = đang bám nến hiện tại, nút tắt. Nút sáng thường trực là một nút chết. */
   veHienTai: (() => void) | null
 }) {
@@ -50,6 +53,10 @@ export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
            () => datMau(!mauThuong), mauThuong)}
       {nut('an-lenh', hienLenh ? 'Ẩn visual vào lệnh / sửa lệnh' : 'Hiện lại visual lệnh',
            () => datHienLenh(!hienLenh), !hienLenh)}
+      {/* Zone là PHÔNG NỀN. Mặc định bật, nhưng lệnh mới là nhân vật chính — thấy
+          vướng là tắt được ngay, không phải chịu đựng. */}
+      {nut('zone', hienZone ? 'Ẩn phông zone (vùng nén)' : 'Hiện phông zone (vùng nén)',
+           () => datHienZone(!hienZone), !hienZone)}
       {/* Chỉ bấm được khi đã kéo lệch khỏi mép phải — xem chú thích `veHienTai`. */}
       {nut('ve-nay', 'Về nến hiện tại', () => veHienTai?.(), false, !veHienTai)}
     </>

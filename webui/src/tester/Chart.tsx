@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   BarSeries, CandlestickSeries, LineSeries, LineStyle, LineType, createChart,
   createSeriesMarkers,
-  type IChartApi, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp,
+  type IChartApi, type IPrimitivePaneRenderer, type IPrimitivePaneView,
+  type ISeriesApi, type ISeriesPrimitive, type SeriesAttachedParameter,
+  type SeriesMarker, type Time, type UTCTimestamp,
 } from 'lightweight-charts'
 import { pyTester } from '../api'
 import type { ChangRay, LenhVe } from '../types'
@@ -55,9 +57,118 @@ type Diem = { time: UTCTimestamp; value: number }
 
 export type KieuChart = 'nen' | 'bar' | 'line'
 
+/** Một HỘP ZONE: `[t_đầu, t_cuối, đáy, đỉnh]` — Python gửi sang, đã cắt ở con trỏ. */
+export type HopZone = [number, number, number, number]
+
+/* ---------------------------------------------------------------------------
+   LỚP ZONE — phông nền, không phải nhân vật.
+
+   Vẽ bằng series primitive của lightweight-charts, `zOrder: 'bottom'` nên nó nằm DƯỚI
+   CẢ NẾN. Lệnh · SL · TP · đường sửa lệnh không bị đụng gì: chúng vẫn là thứ mắt bắt
+   được trước.
+
+   ⚠ MÀU TRUNG TÍNH, cố ý không dùng cam. Luật ba họ màu ghi ở đầu file này: cam để
+   dành cho ĐÚNG MỘT việc — giá lệnh chờ. Zone không phải một mức lệnh, cũng không phải
+   một kết quả, nên nó không được mượn màu của ai.
+
+   ⚠ Toạ độ ngang đi qua CHỈ SỐ NẾN chứ không phải `timeToCoordinate`. Zone sinh ra trên
+   trục quyết định (M5), còn chart có thể đang vẽ M15 — lúc đó mốc thời gian của zone
+   KHÔNG phải mốc của một cây nến nào, và `timeToCoordinate` trả `null`. Dò ra chỉ số
+   nến rồi dùng `logicalToCoordinate` thì khung nào cũng đúng, kể cả khi hộp nằm ngoài
+   tầm nhìn (hàm đó ngoại suy được, `timeToCoordinate` thì không).
+--------------------------------------------------------------------------- */
+const ZONE_NEN = 'rgba(255, 255, 255, 0.05)'
+const ZONE_VIEN = 'rgba(255, 255, 255, 0.14)'
+
+class LopZone implements ISeriesPrimitive<Time> {
+  private _hop: HopZone[] = []
+  private _bars: () => Bar[] = () => []
+  private _chart: IChartApi | null = null
+  private _series: ISeriesApi<'Candlestick' | 'Bar' | 'Line'> | null = null
+  private _capNhat: (() => void) | null = null
+  private _hien = true
+  private _view: IPrimitivePaneView = {
+    zOrder: () => 'bottom',
+    renderer: (): IPrimitivePaneRenderer | null => ({
+      draw: (target) => this._ve(target),
+    }),
+  }
+
+  attached(p: SeriesAttachedParameter<Time>) {
+    this._chart = p.chart
+    this._series = p.series as ISeriesApi<'Candlestick' | 'Bar' | 'Line'>
+    this._capNhat = p.requestUpdate
+  }
+
+  detached() {
+    this._chart = null
+    this._series = null
+    this._capNhat = null
+  }
+
+  paneViews() { return [this._view] }
+
+  /** `bars` truyền vào dạng HÀM: mảng nến bị thay liên tục, giữ tham chiếu cũ là vẽ
+   *  theo dữ liệu đã chết. */
+  dat(hop: HopZone[], bars: () => Bar[], hien: boolean) {
+    this._hop = hop
+    this._bars = bars
+    this._hien = hien
+    this._capNhat?.()
+  }
+
+  /** Chỉ số cây nến CHỨA mốc `t` — nhị phân, vì mảng nến có thể tới 60.000 cây. */
+  private _chiSo(bars: Bar[], t: number) {
+    let lo = 0, hi = bars.length - 1, ra = -1
+    while (lo <= hi) {
+      const g = (lo + hi) >> 1
+      if ((bars[g].time as number) <= t) { ra = g; lo = g + 1 } else { hi = g - 1 }
+    }
+    return ra
+  }
+
+  private _ve(target: Parameters<IPrimitivePaneRenderer['draw']>[0]) {
+    const chart = this._chart, series = this._series
+    if (!this._hien || !chart || !series || !this._hop.length) return
+    const bars = this._bars()
+    if (!bars.length) return
+    const ts = chart.timeScale()
+    const nua = Math.max(1, ts.options().barSpacing / 2)
+
+    target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: px,
+                                      verticalPixelRatio: py, bitmapSize }) => {
+      ctx.save()
+      for (const [t0, t1, day, dinh] of this._hop) {
+        const i0 = this._chiSo(bars, t0)
+        const i1 = this._chiSo(bars, t1)
+        if (i0 < 0 || i1 < 0) continue
+        const xa = ts.logicalToCoordinate(i0 as never)
+        const xb = ts.logicalToCoordinate(i1 as never)
+        const ya = series.priceToCoordinate(dinh)
+        const yb = series.priceToCoordinate(day)
+        if (xa == null || xb == null || ya == null || yb == null) continue
+        const x0 = Math.round((xa - nua) * px)
+        const x1 = Math.round((xb + nua) * px)
+        const y0 = Math.round(ya * py)
+        const y1 = Math.round(yb * py)
+        if (x1 < 0 || x0 > bitmapSize.width) continue      // ngoài tầm nhìn
+        ctx.fillStyle = ZONE_NEN
+        ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0))
+        // Gạch mảnh MÉP TRÊN và MÉP DƯỚI — cho cái băng có hình, mà không thành một
+        // cái khung bốn cạnh bắt mắt.
+        ctx.fillStyle = ZONE_VIEN
+        ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, Math.round(py)))
+        ctx.fillRect(x0, y1, Math.max(1, x1 - x0), Math.max(1, Math.round(py)))
+      }
+      ctx.restore()
+    })
+  }
+}
+
 export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat,
                                 duoi = null,
                                 kieu = 'nen', mauThuong = false, hienLenh = true,
+                                zone = [], hienZone = true,
                                 veHienTai = 0, tranNen = TRAN }: {
   tfPhut: number
   digits: number
@@ -87,6 +198,11 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
   mauThuong?: boolean
   /** Ẩn toàn bộ visual vào lệnh / sửa lệnh — để nhìn giá trần. */
   hienLenh?: boolean
+  /** HỘP ZONE làm phông nền. Python gửi kèm gói nến, đã cắt ở con trỏ. */
+  zone?: HopZone[]
+  /** Tắt phông zone. Mặc định bật — nhưng lệnh mới là nhân vật chính, nên phải tắt
+   *  được ngay khi thấy vướng. */
+  hienZone?: boolean
   /** Tăng số này = kéo chart về nến đang chạy. Dùng số chứ không dùng hàm: prop hàm
    *  đổi mỗi lần render cha, mà việc này chỉ được xảy ra khi người dùng BẤM. */
   veHienTai?: number
@@ -108,6 +224,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
   /** Vân tay dữ liệu ĐÃ VẼ của từng đường — xem chú thích trong `doan`. */
   const veRoi = useRef<Map<string, string>>(new Map())
   const mark = useRef<ReturnType<typeof createSeriesMarkers<Time>> | null>(null)
+  const lopZone = useRef<LopZone | null>(null)
   const daKeo = useRef(false)
   /** `bars.current` đang là lưới của KHUNG NÀO. Xem chú thích ở nhịp phát. */
   const tfCuaBars = useRef(0)
@@ -161,6 +278,9 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
                        : c.addSeries(CandlestickSeries, { priceFormat: gia })
     nen.current = s
     mark.current = createSeriesMarkers<Time>(s, [])
+    // Lớp zone bám vào series, nên đổi kiểu vẽ (nến/bar/đường) là phải gắn lại.
+    lopZone.current = new LopZone()
+    s.attachPrimitive(lopZone.current)
     if (bars.current.length) {
       s.setData(kieu === 'line'
         ? bars.current.map(b => ({ time: b.time, value: b.close })) as never
@@ -168,6 +288,13 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
     }
     setDoiSeries(x => x + 1)        // ép vẽ lại marker: chúng bám vào series vừa thay
   }, [kieu, digits])
+
+  /* PHÔNG ZONE. Truyền `bars` dạng HÀM chứ không phải mảng: mảng nến bị thay mỗi lần
+     nhảy, giữ tham chiếu cũ là vẽ theo dữ liệu đã chết. `doiSeries` nằm trong deps vì
+     đổi kiểu vẽ thì lớp zone được gắn lại vào series mới. */
+  useEffect(() => {
+    lopZone.current?.dat(zone, () => bars.current, hienZone)
+  }, [zone, hienZone, doiSeries, dat, duoi])
 
   /* MÀU đổi TẠI CHỖ. Đây là một `applyOptions`, không phải một lần dựng lại — bấm là
      thấy ngay, không nháy, không mất chỗ đang xem. */

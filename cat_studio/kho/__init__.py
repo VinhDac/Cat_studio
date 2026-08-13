@@ -7,7 +7,7 @@
 
 Vì sao tách ra chứ không để một danh sách phẳng trong `core.py`:
 
-  · `so_nen_nen` CHỈ có nghĩa khi engine D_02 đang nạp. Trộn nó chung với `close` là
+  · `zone_dem` CHỈ có nghĩa khi engine D_02 đang nạp. Trộn nó chung với `close` là
     nói dối về việc thứ gì luôn có, thứ gì đến từ một chiến lược cụ thể.
   · Thêm một chiến lược mới = thêm MỘT file vào đây, không sửa `core.py`.
   · Hộp thoại "Kho" chỉ việc đọc `danh_muc()` — nó không cần biết gì thêm.
