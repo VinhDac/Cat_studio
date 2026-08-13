@@ -212,20 +212,6 @@ def ma(x, chu_ky, kieu="SMA"):
 
 
 # ---------------------------------------------------------------------------
-# Còn lại
-# ---------------------------------------------------------------------------
-def _cuc_tri(x, n, lon_nhat):
-    x = _f(x)
-    n = int(n)
-    ra = np.full(len(x), np.nan, dtype=F)
-    if n <= 0 or len(x) < n:
-        return ra
-    cua = np.lib.stride_tricks.sliding_window_view(x, n)
-    ra[n - 1:] = cua.max(axis=1) if lon_nhat else cua.min(axis=1)
-    return ra
-
-
-# ---------------------------------------------------------------------------
 # Cửa duy nhất bộ chạy gọi tới
 # ---------------------------------------------------------------------------
 #: Chỉ báo nào cần cột giá nào. Bộ chạy chỉ việc tra bảng, không `if/elif` một dãy.

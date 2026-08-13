@@ -1089,7 +1089,6 @@ select.o { cursor: pointer; }
 .nut-hang { margin-top: 8px; gap: 5px; }
 
 /* ---- linh tinh ---- */
-.nut.nho { padding: 3px 7px; font-size: 11px; }
 .o.o-symbol { width: 78px; text-transform: uppercase; }
 .cum-mau { display: flex; gap: 5px; flex-wrap: wrap; }
 
@@ -1293,6 +1292,10 @@ select.o { cursor: pointer; }
 .cd-nguon { font-size: 11px; color: var(--muted); }
 .cd-dong { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 .cd-goi-y { color: var(--accent); }
+/* ⚠ Khai ĐÚNG MỘT lần. Trước đây có hai luật `.nut.nho` cách nhau 200 dòng với padding
+   khác nhau (3px 7px ở mục "linh tinh" và 1px 8px ở đây) — cùng độ ưu tiên nên luật SAU
+   luôn thắng, tức sửa luật trên là vô hiệu mà không có một dấu hiệu nào. Giữ lại đúng
+   giá trị vẫn đang hiển thị. */
 .nut.nho { padding: 1px 8px; font-size: 11px; }
 
 /* ---- dải tóm tắt ---- */

@@ -2,6 +2,10 @@
 .venv/
 __pycache__/
 *.pyc
+# Dự án KHÔNG dùng pytest (bộ kiểm là script chạy qua `tests/chay_tat_ca.py`) — thư mục
+# này là rác còn lại từ một lần chạy pytest cũ. Nó tự giấu bằng `.gitignore` riêng bên
+# trong, nên `git status` không hề kêu; khai ở đây để lần sau thấy ngay.
+.pytest_cache/
 
 # Sinh ra lúc chạy, cạnh app — không thuộc về repo
 du_lieu/

@@ -81,10 +81,11 @@ cổng điều kiện — nghĩa của nó vốn đã là *"không nhánh nào k
 |---|---|
 | **Kiểm tra điều kiện** | Đọc thị trường + tài khoản rồi quyết đi nhánh nào. Đây cũng là **cổng rẽ nhánh**. |
 | **Vào lệnh** | Mở vị thế mới: Mua/Bán · Market/Stop/Limit · lot · SL & TP ban đầu |
-| **Sửa lệnh** | Tác động lên lệnh đã có: dời SL · dời TP · hoà vốn · trailing · đóng một phần · đóng hẳn · huỷ lệnh chờ |
+| **Sửa lệnh** | Tác động lên lệnh đã có: dời SL · dời TP · SL về hoà vốn · **kết thúc lệnh này** (gộp đóng hẳn + huỷ chờ — với một lệnh, "đóng" và "huỷ" là cùng một ý định) |
 
-32 toán hạng (giá · chỉ báo · vùng nén · tài khoản · **lệnh này** · thời gian) × 9 phép
-so, viết bằng **ký hiệu** `< ≤ > ≥ = ≠` chứ không phải chữ — một cổng mang 4–5 điều
+17 toán hạng (giá · chỉ báo · sổ lệnh · **lệnh này** · zone) × 8 phép
+so, viết bằng **ký hiệu** `< ≤ > ≥ = ≠` chứ không phải chữ (hai phép còn lại là
+`là ĐÚNG` / `là SAI`, dành riêng cho toán hạng đúng/sai) — một cổng mang 4–5 điều
 kiện thì mắt phải liếc thấy quan hệ, không phải đọc chữ. **Mọi khoảng cách là bội của ATR hoặc của R — không có pip hay đô nào**,
 nên cùng một bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
 

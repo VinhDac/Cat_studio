@@ -169,9 +169,35 @@ kiem("M6", "huỷ dùng CÙNG ngưỡng với lúc vào — một tham số, hai
 # `Kết thúc lệnh này` gộp đóng-hẳn và huỷ-chờ: bộ chạy tự biết lệnh đã khớp hay chưa.
 # D_02 chỉ HUỶ lệnh chờ khi nén tan, không bao giờ chủ động đóng một vị thế đã khớp —
 # nên khối kết thúc phải nằm sau cổng "CHƯA khớp".
+# ⚠ Bản trước của phép này RỖNG: biến vòng lặp `s` không hề xuất hiện trong thân, nên
+# nó chỉ lặp lại đúng một biểu thức hằng bao nhiêu lần cũng thế — xanh kể cả khi khối
+# `ket_thuc` bị nối sau một cổng hoàn toàn khác. Giờ truy ĐƯỜNG ĐI thật: từ mỗi khối
+# `ket_thuc` lần ngược lên, phải gặp một cổng hỏi "lệnh này đã khớp — là SAI".
+_ket = [s["id"] for s in doc["manage"]["steps"] if s.get("che_do") == "ket_thuc"]
+_truoc = {}
+for _e in doc["manage"]["edges"]:
+    _truoc.setdefault(_e["to"], []).append(_e["from"])
+_theo_id = {s["id"]: s for s in doc["manage"]["steps"]}
+
+
+def _co_cong_chua_khop(sid, tham=()):
+    """Lần ngược từ `sid`: có cổng nào hỏi `lenh_da_khop là SAI` đứng trước không."""
+    for cha in _truoc.get(sid, []):
+        if cha in tham:
+            continue
+        kh = _theo_id.get(cha) or {}
+        for c in kh.get("conditions") or []:
+            if ((c.get("trai") or {}).get("ten") == "lenh_da_khop"
+                    and c.get("phep") == "la_sai"):
+                return True
+        if _co_cong_chua_khop(cha, tuple(tham) + (cha,)):
+            return True
+    return False
+
+
 kiem("M7", "D_02 KHÔNG bao giờ tự đóng vị thế đã khớp",
-     all(dk_cua(cong("manage", "tan")).get("lenh_da_khop", {}).get("phep") == "la_sai"
-         for s in doc["manage"]["steps"] if s.get("che_do") == "ket_thuc"))
+     bool(_ket) and all(_co_cong_chua_khop(x) for x in _ket),
+     f"— {len(_ket)} khối kết thúc")
 kiem("M8", "không trailing, không đóng một phần — đã bỏ khỏi bộ từ vựng",
      "trailing" not in core.SUA_CHE_DO and "dong_mot_phan" not in core.SUA_CHE_DO)
 

@@ -180,8 +180,26 @@ class ChuongTrinh:
         dong1 = tt.moc_dong(self.nen1, "M1")
         # Với mỗi nến M1, nến trục nào đã ĐÓNG gần nhất. −1 = chưa có nến trục nào.
         self.m1_to_5 = np.searchsorted(dong5, dong1, side="right") - 1
-        # Nến M1 nào ĐÓNG ĐÚNG lúc một nến trục đóng → đó là nhịp chạy Entry.
-        self.la_nhip5 = np.isin(dong1, dong5)
+        # NHỊP ENTRY = nến M1 ĐẦU TIÊN thuộc về một nến trục MỚI.
+        #
+        # ⚠ Trước đây là `np.isin(dong1, dong5)` — "nến M1 nào đóng ĐÚNG KHÍT mốc đóng
+        # của một nến trục". Phép trùng khít ấy phụ thuộc DỮ LIỆU M1 CÓ ĐỦ PHÚT CUỐI hay
+        # không: thiếu đúng cây phút đó thì cả nến trục KHÔNG ĐƯỢC CHẠY ENTRY lần nào —
+        # cổng zone không được xét, zone không lớn cũng không chết.
+        #
+        # Đo trên 260.000 nến XAUUSD thật: 188 nến trục (0,36 %) không có nhịp nào. Phần
+        # lớn vô hại vì nến sau mang cờ `lo_hong5` và giết zone đúng chỗ. Nhưng khi CHÍNH
+        # nến không-nhịp là nến mang cờ lỗ hổng thì cờ bốc hơi cùng nến — zone sống XUYÊN
+        # qua một quãng chợ đóng, trái hẳn luật đã ghi ở `_nuoi_zone`: "48 giờ chợ đóng
+        # cửa không phải giá đứng yên".
+        #
+        # Luật mới không phụ thuộc phút cuối. Đo lại trên cùng bộ nến: GIỮ NGUYÊN toàn bộ
+        # 51.938 nhịp cũ, thêm 184 nhịp bị bỏ sót, và mỗi nến trục có ĐÚNG MỘT nhịp.
+        moi = np.zeros(len(dong1), dtype=bool)
+        if len(dong1):
+            moi[0] = self.m1_to_5[0] >= 0
+            moi[1:] = (self.m1_to_5[1:] != self.m1_to_5[:-1]) & (self.m1_to_5[1:] >= 0)
+        self.la_nhip5 = moi
 
         # Lỗ hổng trên TRỤC QUYẾT ĐỊNH: hai nến cách nhau quá 2 bước là chợ đã đóng.
         buoc = core.TF_PHUT[self.tf5] * 60

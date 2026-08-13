@@ -106,8 +106,6 @@ export const py = {
   save_action: (draft: Record<string, unknown>, tab: Tab, thamSo: ThamSo[]) =>
     goi<{ action: Record<string, unknown>; display: string }>(
       'save_action', draft, tab, thamSo),
-  describe_actions: (actions: unknown[]) =>
-    goi<{ text: string; type?: string | null }[]>('describe_actions', actions),
   action_defaults: (t: string) => goi<Record<string, unknown>>('action_defaults', t),
 
   // --- cài đặt ---
@@ -118,12 +116,6 @@ export const py = {
   save_test_settings: (t: Record<string, unknown>) =>
     goi<Record<string, unknown>>('save_test_settings', t),
 
-  // --- nguồn nến: tài sản của APP, không của một lần chạy ---
-  nguon_liet_ke: () => goi<{ ds: BoNen[]; co_mt5: boolean }>('nguon_liet_ke'),
-  nguon_uoc_tinh: (symbol: string, tu: string, den: string) =>
-    goi<{ so_nen: number; mb: number; du: boolean }>('nguon_uoc_tinh', symbol, tu, den),
-  nguon_tai: (symbol: string, tu: string, den: string) =>
-    goi<{ chu: string; ds: BoNen[] }>('nguon_tai', symbol, tu, den),
   nguon_xoa: (symbol: string) => goi<{ ds: BoNen[] }>('nguon_xoa', symbol),
   /** Nối thử MT5 ngay trong Cài đặt — trả lời "vì sao không tải được" trước khi bấm ▶. */
   nguon_kiem_ket_noi: (symbol: string) => goi<{
@@ -156,7 +148,6 @@ export const py = {
  */
 export const pyTester = {
   bootstrap_tester: () => goi<TesterBoot>('bootstrap_tester'),
-  tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
 
 
   // --- chạy (luồng nền + tiến trình) ---
@@ -191,11 +182,6 @@ export const pyTester = {
     goi<MucLichSu>('test_lich_su_ten', ma, ten),
   test_lich_su_xoa: (ma: string) => goi<boolean>('test_lich_su_xoa', ma),
 
-  // --- đọc dòng thời gian ---
-  test_nen: (j: number, so: number) => goi<CuaSoNen>('test_nen', j, so),
-  test_khung: (j: number) => goi<Khung>('test_khung', j),
-  test_nhat_ky: (tu: number, so: number, chiCoViec: boolean) =>
-    goi<LoNhatKy>('test_nhat_ky', tu, so, chiCoViec),
   test_luot: (i: number) => goi<{ j: number; nen: number; tab: string }>('test_luot', i),
   test_ghi_nhat_ky: () => goi<{ duong_dan: string }>('test_ghi_nhat_ky'),
 }
@@ -228,7 +214,6 @@ export const pyLive = {
     goi<{ san: string; tu: string; do_luc: string | null }>('live_chep_ho_so', tuKhoa),
   /** Kéo cửa sổ VẼ lên trước — Live chạy ngầm hàng giờ, cửa sổ kia hay bị lấp. */
   live_ve_so_do: () => goi<{ da_keo: boolean }>('live_ve_so_do'),
-  live_rac: () => goi<{ vi_the: number[]; lenh_cho: number[]; chu: string }>('live_rac'),
   live_don_rac: () =>
     goi<{ da_dong: number; da_huy: number; chu: string }>('live_don_rac'),
   live_kiem_ket_noi: (symbol: string) => goi<{

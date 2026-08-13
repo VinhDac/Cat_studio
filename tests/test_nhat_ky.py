@@ -408,10 +408,46 @@ kiem("đường ray của nó CÓ đoạn kết — không im lặng giữa ch�
      f"— chặng cuối {ray_b[-1].get('moc') if ray_b else None}")
 
 # Ngược lại: lệnh do chính SƠ ĐỒ huỷ đã có chặng `viec` kể rồi, không được kể thêm lần nữa.
-tu_huy = {v["lenh_id"] for r in kq8.nhat_ky for v in r["viec"] if v["loai"] == "lenh_huy"}
+#
+# ⚠ `kq8` KHÔNG có lệnh nào bị sơ đồ huỷ (Manage của nó rỗng), nên tập `tu_huy` luôn
+# rỗng và phép kiểm dưới xanh vô điều kiện — nó không canh gì suốt một thời gian dài.
+# Dựng riêng một lần chạy CÓ huỷ: lệnh chờ STOP treo xa không bao giờ khớp, Manage mở
+# cổng rồi kết thúc nó.
+v11 = core.make_action_step({
+    "type": core.VAO_LENH, "name": "chờ xa", "huong": "mua", "loai": "stop",
+    "lot": 0.01, "entry": {"moc": "gia_hien_tai"},
+    "dem": {"tinh": "gia", "value": 500.0},          # treo xa, không nến nào chạm
+    "sl": {"tinh": "gia", "value": 1.0}})
+v11["pos"] = [0.0, 0.0]
+g11 = core.make_action_step({
+    "type": core.CHECK_COND, "name": "chưa khớp thì huỷ",
+    "conditions": [{"trai": {"ten": "lenh_da_khop"}, "phep": "la_sai"}]})
+g11["pos"] = [0.0, 0.0]
+h11 = core.make_action_step({"type": core.SUA_LENH, "name": "kết thúc",
+                             "che_do": "ket_thuc"})
+h11["pos"] = [0.0, 10.0]
+bdm11 = core.make_start_step("theo dõi", "M1")
+bdm11["pos"] = [0.0, 0.0]
+d11 = core.normalize_process({
+    "name": "thử huỷ", "symbol": "X", "tham_so": d["tham_so"],
+    "entry": {"steps": [bd, g8, v11],
+              "edges": [{"from": bd["id"], "to": g8["id"], "port": "out"},
+                        {"from": g8["id"], "to": v11["id"], "port": "out"}]},
+    "manage": {"steps": [bdm11, g11, h11],
+               "edges": [{"from": bdm11["id"], "to": g11["id"], "port": "out"},
+                         {"from": g11["id"], "to": h11["id"], "port": "out"}]}})
+kq11 = bc.chay(d11, nen_m1([110.0] * 40), cd)
+at11 = api.ApiTester(ChaGia())
+at11._kq = kq11
+
+tu_huy = {v["lenh_id"] for r in kq11.nhat_ky for v in r["viec"] if v["loai"] == "lenh_huy"}
 thua = [i for i in tu_huy
         if any(c["tab"] is None and c.get("moc") not in (None, "khop")
-               for c in at9.test_duong_ray(i)["value"]["chang"])]
+               for c in at11.test_duong_ray(i)["value"]["chang"])]
+# ⚠ CHỐT CHẶN: `tu_huy` rỗng thì `thua` cũng rỗng, và phép dưới xanh vô điều kiện — bài
+# kiểm không canh gì cả mà vẫn báo đạt. Bắt ngay tại chỗ.
+kiem("có lệnh nào do SƠ ĐỒ tự huỷ để mà canh (không thì phép dưới xanh giả)",
+     bool(tu_huy), f"— {len(tu_huy)} lệnh")
 kiem("sơ đồ tự huỷ thì chỉ kể MỘT lần, không chèn thêm mốc trùng", not thua,
      f"— {len(tu_huy)} lệnh tự huỷ, {len(thua)} cái bị kể hai lần")
 

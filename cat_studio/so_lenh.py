@@ -63,22 +63,12 @@ class Zone:
             return 0.0
         return self.dinh - self.day
 
-    @property
-    def rong_atr(self):
-        return self.rong / self.atr_hien_tai if self.atr_hien_tai else 0.0
-
     def them_nen(self, cao, thap, atr):
         self.so_nen += 1
         self.atr_tong += atr
         self.atr_hien_tai = atr
         self.dinh = cao if self.dinh is None else max(self.dinh, cao)
         self.day = thap if self.day is None else min(self.day, thap)
-
-    def tom_tat(self):
-        return {"id": self.id, "so_nen": self.so_nen, "dinh": self.dinh,
-                "day": self.day, "rong": self.rong, "rong_atr": self.rong_atr,
-                "atr_tb": self.atr_tb, "atr_hien_tai": self.atr_hien_tai,
-                "song": self.song}
 
 
 class Lenh:
@@ -201,9 +191,6 @@ class SoLenh:
         self.lenh.append(l)
         return l
 
-    def theo_id(self, id):
-        return next((l for l in self.lenh if l.id == id), None)
-
     def dang_song(self):
         """Lệnh sơ đồ MANAGE phải chạy qua, mỗi cái một lượt.
 
@@ -233,7 +220,4 @@ class SoLenh:
         l.ly_do_dong = ly_do
         return l
 
-    def tom_tat(self):
-        return {"lenh": [l.tom_tat() for l in self.lenh],
-                "zone": [v.tom_tat() for v in self.zone],
-                "so_lenh_cho": self.so_lenh_cho(), "so_vi_the": self.so_vi_the()}
+

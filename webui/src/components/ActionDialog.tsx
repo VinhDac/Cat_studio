@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { py } from '../api'
 import type { Bootstrap, Tab, ThamSo, ToanHang } from '../types'
 import Modal from './Modal'
+import { chotSo, locSo } from '../so'
 
 /** Hộp thoại sửa MỘT hành động.
  *
@@ -49,6 +50,9 @@ function OSo({ v, dat, thamSo, donVi, lop, title, nguyen, tat }: {
   /** `mép zone đối diện` không dùng con số nào cả — khoá ô lại thay vì để gõ vô ích. */
   tat?: boolean
 }) {
+  /** Bản nháp đang gõ — `null` = ô đang hiển thị theo giá trị thật. Xem chú thích ở ô
+   *  nhập bên dưới: ép về số từng phím là nuốt mất dấu chấm. */
+  const [nhap, datNhap] = useState<string | null>(null)
   const laTen = typeof v === 'string' && v !== ''
   const ts = laTen ? thamSo.find(t => t.ten === v) : undefined
   // Chỉ những tham số ĐÚNG đơn vị của ô này. Đây là chỗ luật "một tham số một đơn vị"
@@ -75,19 +79,28 @@ Bấm ✕ để quay lại gõ một con số.`
   }
   return (
     <span className={'cum-so' + (lop ? ' ' + lop : '')}>
-      <input className="o so nho" inputMode="decimal" value={v ?? ''} spellCheck={false}
-             title={title}
+      {/* ⚠ BẢN NHÁP khi đang gõ. Không ép về số ngay từng phím, vì số DỞ DANG thì ép là
+          MẤT KÝ TỰ: gõ `1` `.` `5` → `Number("1.")` ra `1` → state không đổi → React ghi
+          đè ô về `"1"`, dấu chấm biến mất → phím `5` cho `"15"`. SL 1,5 × ATR thành
+          15 × ATR, sai gấp mười, không một dòng cảnh báo. (Dán `1.5` một phát thì lọt,
+          nên bài kiểm phải GÕ TỪNG PHÍM mới thấy.)
+
+          Cũng không đẩy chuỗi dở dang lên tài liệu được: ở đó một CHUỖI nghĩa là tên
+          tham số, và `ct.so("1.")` sẽ ném "tham số không có trong bảng". Nên bản nháp
+          nằm lại trong ô, chỉ số HOÀN CHỈNH mới đi lên. */}
+      <input className="o so nho" inputMode="decimal" spellCheck={false}
+             value={nhap ?? (v ?? '')} title={title}
              onChange={e => {
-               // Lọc TẠI CHỖ GÕ: chữ không lọt vào được, nên không thể nhầm ô này với
-               // ô đặt tên. Giữ dấu trừ đầu và MỘT dấu chấm — chặn thô quá thì gõ
-               // "1.5" cũng không xong.
-               let t = e.target.value.replace(nguyen ? /[^\d]/g : /[^\d.-]/g, '')
-               if (!nguyen) {
-                 const am = t.startsWith('-')
-                 const p = t.replace(/-/g, '').split('.')
-                 t = (am ? '-' : '') + p.shift() + (p.length ? '.' + p.join('') : '')
-               }
-               dat(t === '' || t === '-' || t === '.' ? t : Number(t))
+               // Chữ không lọt vào được, nên không thể nhầm ô này với ô đặt tên.
+               const { chu, so } = locSo(e.target.value, nguyen)
+               datNhap(chu)
+               if (so !== null) dat(so)
+             }}
+             onBlur={() => {
+               // Rời ô thì bản nháp hết nhiệm vụ. Còn dở dang thì chốt về con số gần
+               // nhất đọc được, chứ không để ô trống mang nghĩa mơ hồ.
+               if (nhap !== null && locSo(nhap, nguyen).so === null) dat(chotSo(nhap))
+               datNhap(null)
              }} />
       {/* Nút này CHỈ HIỆN khi có tham số dùng được. Không có thì ô sạch như cũ — đúng
           luật "chỉ bày ra thứ dùng được", áp cho chính cái nút chọn. */}
@@ -261,8 +274,12 @@ function OKhoang({ k, boot, dat, nhan, goiY, thamSo, oDau, coZone }: {
   const ds = (boot.don_vi_cho[oDau] ?? Object.keys(boot.don_vi)).filter(
     d => d === k?.tinh || coZone || !boot.don_vi_can_zone.includes(d))
   const laThamSo = typeof k?.value === 'string' && k.value !== ''
+  /* ⚠ `<div className="hang">`, KHÔNG phải `<label>`. Luật HTML: bấm bất kỳ đâu trong
+     một `<label>` sẽ kích điều khiển ĐẦU TIÊN bên trong nó. Bọc CẢ HÀNG bằng `<label>`
+     thì bấm chữ "Tên" lại mở dropdown "Loại", bấm nhãn "Đệm" lại nhảy vào ô số — tay ở
+     một chỗ, chuyện xảy ra ở chỗ khác. Nhãn của từng điều khiển đã có riêng rồi. */
   return (
-    <label className="hang">
+    <div className="hang">
       <span className="nhan-o">{nhan}</span>
       {k ? (
         <>
@@ -296,7 +313,7 @@ function OKhoang({ k, boot, dat, nhan, goiY, thamSo, oDau, coZone }: {
         </button>
       )}
       {goiY && <span className="goi-y">{goiY}</span>}
-    </label>
+    </div>
   )
 }
 
@@ -541,7 +558,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
              </>
            }>
 
-      <label className="hang">
+      <div className="hang">
         <span className="nhan-o">Loại</span>
         <select className="o" value={a.type} onChange={e => doiLoai(e.target.value)}>
           {loaiChoPhep.map(t =>
@@ -569,7 +586,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
             So hai đại lượng
           </label>
         )}
-      </label>
+      </div>
 
       {/* ------------------------------ Kiểm tra điều kiện ---------------------- */}
       {a.type === 'check_cond' && (
@@ -614,7 +631,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
       {/* ------------------------------ Vào lệnh -------------------------------- */}
       {a.type === 'vao_lenh' && (
         <div className="khoi-form">
-          <label className="hang">
+          <div className="hang">
             <span className="nhan-o">Hướng</span>
             {Object.entries(boot.huong).map(([k, v]) => (
               <label key={k} className="tick">
@@ -632,13 +649,13 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
             <OSo v={a.lot} thamSo={thamSo} donVi={boot.don_vi_o.lot}
                  dat={x => dat('lot', x)}
                  title="Khối lượng lệnh, tính bằng lot." />
-          </label>
+          </div>
 
           {/* ⭐ MỐC NEO — thứ QUYẾT ĐỊNH lệnh nằm ở đâu, nên nó đứng TRƯỚC đệm.
               Trước đây trường này không tồn tại: việc "neo vào mép zone thuận chiều"
               bị viết cứng trong bộ chạy, nên trên hộp thoại chỉ hiện mỗi ô Đệm — và
               cái đệm, vốn chỉ là tấm khiên mỏng, hoá thành nhân vật chính. */}
-          <label className="hang">
+          <div className="hang">
             <span className="nhan-o">Đặt tại</span>
             <select className="o" value={a.entry?.moc ?? ''}
                     onChange={e => dat('entry', { moc: e.target.value })}>
@@ -650,7 +667,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
                 ? 'cần một cổng ZONE ở phía trên — entry = mốc này ± đệm'
                 : 'entry = mốc này ± đệm'}
             </span>
-          </label>
+          </div>
 
           {/* ĐỆM là TUỲ CHỌN. Bỏ trống thì lệnh nằm đúng mốc — hợp lệ, chỉ dễ dính
               một nhịp phá giả hơn. */}
@@ -674,14 +691,14 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
       {/* ------------------------------ Sửa lệnh -------------------------------- */}
       {a.type === 'sua_lenh' && (
         <div className="khoi-form">
-          <label className="hang">
+          <div className="hang">
             <span className="nhan-o">Chế độ</span>
             <select className="o" value={a.che_do ?? 'doi_sl'}
                     onChange={e => dat('che_do', e.target.value)}>
               {Object.entries(boot.sua_che_do).map(([k, v]) =>
                 <option key={k} value={k}>{v}</option>)}
             </select>
-          </label>
+          </div>
 
           {boot.sua_can_gia.includes(a.che_do) && (
             <OKhoang nhan="Khoảng cách mới" k={a.khoang} boot={boot}

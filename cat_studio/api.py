@@ -375,11 +375,6 @@ class Api(NenCuaSo):
         return _ok([_the_buoc(s, ts) for s in (steps or []) if isinstance(s, dict)])
 
     @_bat_loi
-    def describe_actions(self, actions):
-        return _ok([{"text": core.action_display(a), "type": (a or {}).get("type")}
-                    for a in (actions or [])])
-
-    @_bat_loi
     def action_defaults(self, action_type):
         return _ok(_hanh_dong_mac_dinh(action_type))
 
@@ -745,16 +740,6 @@ class Api(NenCuaSo):
     # Nằm ở Api CHÍNH vì nguồn nến là tài sản của APP, không phải của một lần chạy:
     # tải một lần rồi mọi chiến lược đều dùng chung, và xoá thì xoá hẳn.
     @_bat_loi
-    def nguon_liet_ke(self):
-        return _ok({"ds": nguon_nen.liet_ke(), "co_mt5": nguon_nen.CO_MT5})
-
-    @_bat_loi
-    def nguon_uoc_tinh(self, symbol, tu, den):
-        """Bấm Tải sẽ tải bao nhiêu? BÁO TRƯỚC số MB — không bao giờ tải lén."""
-        k = nguon_nen.khoang_thieu(symbol, tu, den)
-        return _ok(dict(nguon_nen.uoc_tinh(k), du=not k))
-
-    @_bat_loi
     def nguon_kiem_ket_noi(self, symbol):
         """Nối thử tới MT5 ngay trong Cài đặt, TRƯỚC khi bấm ▶.
 
@@ -762,13 +747,6 @@ class Api(NenCuaSo):
         dùng chỉ gặp một lỗi lúc chạy, mà câu lỗi đó nói về khoảng thời gian chứ không
         nói gì về kết nối. Nút này hỏi thẳng và trả lời thẳng."""
         return _ok(nguon_nen.kiem_ket_noi(symbol))
-
-    @_bat_loi
-    def nguon_tai(self, symbol, tu, den):
-        r = nguon_nen.tai(symbol, tu, den,
-                          tien_do=lambda i, n, c: self._ban(
-                              "tai", {"da": i, "tong": n, "chu": c}))
-        return _ok({"chu": r["chu"], "meta": r["meta"], "ds": nguon_nen.liet_ke()})
 
     @_bat_loi
     def nguon_xoa(self, symbol):
@@ -832,11 +810,6 @@ class ApiTester(NenCuaSo):
             "cai_dat": (self._cha._cai_dat or {}).get("test") or {},
             "timeframes": core.TIMEFRAMES,
         })
-
-    @_bat_loi
-    def tester_doc(self):
-        """Cửa sổ tester hỏi: tôi đang phải chạy sơ đồ nào?"""
-        return _ok(self._cha._doc_tester)
 
     # ------------------------------------------------------------- chạy
     @_bat_loi
@@ -1002,34 +975,6 @@ class ApiTester(NenCuaSo):
 
     # ------------------------------------------------- đọc dòng thời gian
     @_bat_loi
-    def test_nen(self, j, so=400):
-        """Cửa sổ nến M1 kết thúc ở con trỏ. KHÔNG trả nến bên phải con trỏ.
-
-        Đó là cả điểm của replay: nến chưa xảy ra thì CHƯA TỒN TẠI. Thấy trước nến sau
-        rồi thì mọi phán đoán "chỗ này lẽ ra nên vào lệnh" đều là tự lừa mình."""
-        kq = self._doi_kq()
-        j = max(0, min(int(j), len(kq.nen1) - 1))
-        i0 = max(0, j - int(so) + 1)
-        a = kq.nen1[i0:j + 1]
-        return _ok({
-            "t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
-            "l": a["l"].tolist(), "c": a["c"].tolist(), "j0": i0, "j": j,
-        })
-
-    @_bat_loi
-    def test_khung(self, j):
-        """Mọi thứ giao diện cần tại MỘT vị trí con trỏ: bảng số liệu + lệnh để vẽ."""
-        kq = self._doi_kq()
-        j = max(0, min(int(j), len(kq.nen1) - 1))
-        i = max(0, int(kq._ct.m1_to_5[j]))
-        return _ok({
-            "j": j, "i": i,
-            "t": int(kq.nen1["t"][j]),
-            "bang": kq.bang(i, j),
-            "lenh": kq.the_lenh(i),
-        })
-
-    @_bat_loi
     def test_nen_tf(self, tf, j, tran=60000, tu_t=0):
         """TOÀN BỘ nến khung `tf` từ ĐẦU dữ liệu tới con trỏ — để chart kéo đi đâu cũng đủ.
 
@@ -1071,9 +1016,16 @@ class ApiTester(NenCuaSo):
         Trả MỐC THỜI GIAN, không phải chỉ số nến — người dùng đổi khung hiển thị
         (M1/M5/M15) thì hộp vẫn nằm đúng chỗ, vì thời gian thì khung nào cũng như nhau.
 
-        ⚠ CẮT Ở CON TRỎ. `kq.so.zone` là danh sách của CẢ lần chạy, kể cả những zone
-        hình thành SAU chỗ đang xem. Vẽ hết là lộ tương lai — đúng cái tội mà cả cửa sổ
-        này dựng lên để tránh (xem chú thích `tBayGio` bên `Chart.tsx`).
+        ⚠ CẮT Ở CON TRỎ THEO **CẢ HAI CHIỀU**.
+
+        Ngang: `kq.so.zone` là danh sách của CẢ lần chạy, kể cả zone hình thành SAU chỗ
+        đang xem — vẽ hết là lộ tương lai.
+
+        Dọc: `v.dinh` / `v.day` là đỉnh–đáy CUỐI CÙNG của zone, tức đã gồm cả những nến
+        chưa tới. Bản đầu của hàm này chỉ cắt chiều ngang nên hộp vẫn CAO BẰNG TƯƠNG LAI:
+        đo được trên nến thật — con trỏ ở nến thứ 2 của zone, đáy thật là 4484,49 mà hộp
+        vẽ 4476,62, tức đáy của 13 nến sau đó. Nên đỉnh–đáy phải tính lại từ chính đoạn
+        nến `[b0..b1]` đã cắt, không đọc thuộc tính của zone.
 
         MỘT hộp mỗi zone, không phải bậc thang từng nến: rẻ hơn ~20 lần, và ở độ mờ này
         thì cái bậc không ai đọc được. Cái cần kể là "chỗ này có một đợt nén, rộng chừng
@@ -1095,10 +1047,16 @@ class ApiTester(NenCuaSo):
             if t0 > t_cuoi:                 # chưa tới con trỏ
                 continue
             b1 = min(len(n5) - 1, b0 + int(v.so_nen) - 1)
+            # Cắt DỌC: chỉ lấy tới cây nến cuối cùng người xem đã thấy.
+            while b1 > b0 and int(n5["t"][b1]) > t_cuoi:
+                b1 -= 1
             t1 = min(int(n5["t"][b1]), t_cuoi)
             if tu_t > 0 and t1 < tu_t:      # xin ĐUÔI: bỏ zone đã nằm hẳn phía trước
                 continue
-            ra.append([t0, t1, float(v.day), float(v.dinh)])
+            doan = n5[b0:b1 + 1]
+            if not len(doan):
+                continue
+            ra.append([t0, t1, float(doan["l"].min()), float(doan["h"].max())])
         return ra
 
     @_bat_loi
@@ -1221,11 +1179,6 @@ class ApiTester(NenCuaSo):
             return [float((int(t) // 3600) % 24) if ten == "gio"
                     else float((int(t) // 86400 + 4) % 7 + 2) for t in a["t"]]
         return None     # chưa ghi lại theo nến — thà bỏ trống còn hơn bịa một con số
-
-    @_bat_loi
-    def test_nhat_ky(self, tu=0, so=200, chi_co_viec=True):
-        kq = self._doi_kq()
-        return _ok(nhat_ky.dung_lo(kq, int(tu), int(so), bool(chi_co_viec)))
 
     @_bat_loi
     def test_luot(self, i):
@@ -1945,11 +1898,6 @@ class ApiLive(ApiTester):
         về thì người dùng phải đi tìm trên taskbar."""
         self._cha._khung.keo_len_truoc()
         return _ok({"da_keo": True})
-
-    @_bat_loi
-    def live_rac(self):
-        """Còn rác của bài kiểm trước không — hỏi mỗi lần mở Live."""
-        return _ok(ket_noi.rac_con_lai(self.symbol))
 
     @_bat_loi
     def live_don_rac(self):

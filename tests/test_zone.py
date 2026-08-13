@@ -314,6 +314,85 @@ kiem("`bps` bày ra cho SL/TP thì bộ chạy phải CÀI THẬT (trước đâ
                         neo=2000.0) - 10.0) < 1e-9,
      "— 50 bps của 2000 = 10,0")
 
+print("\n▸ 9. MỖI NẾN TRỤC ĐƯỢC CHẠY ĐÚNG MỘT LẦN, kể cả khi dữ liệu M1 thủng")
+#
+# Nhịp Entry TỪNG được lấy bằng phép trùng khít mốc (`np.isin(dong1, dong5)`) — "nến M1
+# nào đóng ĐÚNG lúc nến trục đóng". Thiếu đúng cây phút đó thì cả nến trục không được
+# chạy lần nào: cổng zone không được xét, zone không lớn cũng không chết.
+#
+# Đo trên 260.000 nến XAUUSD thật: 188 nến trục (0,36 %) bị bỏ. Hậu quả nặng nhất là khi
+# CHÍNH nến bị bỏ mang cờ lỗ hổng — cờ bốc hơi cùng nến, zone sống XUYÊN qua một quãng
+# chợ đóng, trái luật mà `_nuoi_zone` tự tuyên bố ("48 giờ chợ đóng cửa không phải giá
+# đứng yên").
+_nen9 = nen_m1([100.0] * 200)
+# Đục THỦNG đúng cây phút cuối của một nến M5 (mốc đóng chia hết cho 300).
+_thung = [k for k in range(80, 180) if (int(_nen9["t"][k]) + 60) % 300 == 0][0]
+_ct9 = bc.ChuongTrinh(so_do(DK_NEN), np.delete(_nen9, _thung), CD)
+_co9 = np.zeros(len(_ct9.nen5), dtype=bool)
+_co9[_ct9.m1_to_5[_ct9.la_nhip5]] = True
+kiem("thủng phút cuối vẫn KHÔNG bỏ sót nến trục nào",
+     bool(_co9[1:].all()), f"— {int((~_co9[1:]).sum())} nến trục không có nhịp nào")
+_dem9 = np.bincount(_ct9.m1_to_5[_ct9.la_nhip5], minlength=len(_ct9.nen5))
+kiem("và không nến trục nào bị chạy HAI lần",
+     int(_dem9.max()) <= 1, f"— nhiều nhất {int(_dem9.max())} nhịp/nến")
+
+# Hệ quả: zone không được sống xuyên một quãng chợ đóng.
+_kq9 = chay(so_do(DK_NEN), YEN + DONG)
+_xuyen = [v.id for v in _kq9.so.zone
+          if v.so_nen > 1
+          and _kq9._ct.lo_hong5[v.nen_bat_dau + 1:v.nen_bat_dau + v.so_nen].any()]
+kiem("không zone nào sống xuyên lỗ hổng dữ liệu", not _xuyen, f"— {_xuyen}")
+
+print("\n▸ 10. HỘP ZONE trên chart KHÔNG được lộ tương lai")
+#
+# `_hop_zone` gửi zone sang chart làm phông nền. `kq.so.zone` là danh sách của CẢ lần
+# chạy, và `v.dinh`/`v.day` là đỉnh–đáy CUỐI CÙNG — tức đã gồm cả những nến người xem
+# chưa tới. Phải cắt ở con trỏ theo CẢ HAI CHIỀU.
+#
+# ⚠ Bản đầu chỉ cắt chiều NGANG, nên hộp vẫn cao bằng tương lai. Đo trên nến thật: con
+# trỏ ở nến thứ 2 của zone, đáy thật 4484,49 mà hộp vẽ 4476,62 — đáy của 13 nến sau.
+# Không ai thấy, vì nó chỉ là một mảng mờ sau lưng cây nến.
+from cat_studio import api as _api          # noqa: E402
+from cat_studio import tinh_toan as _tt     # noqa: E402
+
+#: ⚠ KHÔNG dùng `YEN` (giá phẳng 100,0 suốt): đỉnh và đáy khi đó bằng nhau ở MỌI mốc,
+#: nên phép so luôn đúng bất kể hàm sai hay đúng — một bài kiểm tự xác nhận.
+#: Đây là dải NỞ DẦN: biên độ lớn lên từng nến nên đỉnh–đáy tới nến thứ 2 khác hẳn tới
+#: nến thứ 5. Vẫn đủ hẹp để cổng `atr < 50 bps` không giết zone.
+#: Dải phải NỞ RA **SAU KHI ZONE ĐÃ BẮT ĐẦU** (nến M5 thứ 14, tức nến M1 thứ 70 — trước
+#: đó ATR còn NaN vì chu kỳ 14). Nở sớm rồi chặn trần thì tới lúc zone mở, đỉnh–đáy đã
+#: đứng yên, và phép so ở dưới đúng ở mọi mốc bất kể hàm sai hay đúng.
+#: Biên độ tối đa ±0,30 → ATR ~6 bps, dưới xa ngưỡng 50 bps nên cổng vẫn qua.
+NO_DAN = [100.0 + (0.02 if i < 80 else min(0.30, 0.02 + 0.003 * (i - 80)))
+          * (1 if i % 2 else -1) for i in range(400)]
+_kq = chay(so_do(DK_NEN), NO_DAN + DONG)
+_v = _kq.so.zone[0]
+_n5 = _kq._ct.nen5
+_b0 = _v.nen_bat_dau
+# ⚠ CHỐT CHẶN cho chính bài kiểm này: nếu dữ liệu thử làm đỉnh–đáy đứng yên qua mọi mốc
+# thì phép so bên dưới luôn đúng, kể cả khi hàm sai. Đã dính đúng bẫy đó một lần (dữ liệu
+# `YEN` phẳng 100,0 → hh = ll = 100 ở mọi mốc). Bắt ngay, đừng để nó xanh giả.
+_moc = [(float(_n5["l"][_b0:_b0 + k].min()), float(_n5["h"][_b0:_b0 + k].max()))
+        for k in (1, 2, 5)]
+kiem("dữ liệu thử PHÂN BIỆT ĐƯỢC các mốc (không thì bài dưới xanh giả)",
+     len(set(_moc)) > 1, f"— {[tuple(round(x, 3) for x in m) for m in _moc]}")
+
+for _k in (1, 2, 5):
+    _a = _tt.gop(_kq.nen1[:(_b0 + _k) * 5], "M5", giu_nen_do_dang=True)
+    _hop = _api.ApiTester._hop_zone(_kq, _a, 0)
+    _that = (float(_n5["l"][_b0:_b0 + _k].min()), float(_n5["h"][_b0:_b0 + _k].max()))
+    kiem(f"con trỏ ở nến thứ {_k}: hộp cao đúng bằng những gì ĐÃ THẤY",
+         bool(_hop) and abs(_hop[-1][2] - _that[0]) < 1e-9
+         and abs(_hop[-1][3] - _that[1]) < 1e-9,
+         (f"— hộp {tuple(round(x, 4) for x in _hop[-1][2:])} · thật "
+          f"{tuple(round(x, 4) for x in _that)}") if _hop else "— không có hộp nào")
+
+# Zone hình thành SAU con trỏ thì không được hiện.
+_a0 = _tt.gop(_kq.nen1[:_b0 * 5], "M5", giu_nen_do_dang=True)
+kiem("zone chưa bắt đầu thì KHÔNG có hộp nào",
+     not [h for h in _api.ApiTester._hop_zone(_kq, _a0, 0)
+          if h[0] >= int(_n5["t"][_b0])])
+
 print(f"\n{'=' * 68}")
 print(f"  {dung}/{dung + sai} kiểm qua" if not sai else f"  ✘ {sai} bài HỎNG")
 print("=" * 68)

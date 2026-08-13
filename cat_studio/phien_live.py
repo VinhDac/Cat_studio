@@ -149,18 +149,14 @@ class PhienLive:
             r = r[:-1]
             if not len(r):
                 return None
-            return nn.tu_mt5(r) if hasattr(nn, "tu_mt5") else _doi(r)
+            # DÙNG CHUNG phép đổi của `nguon_nen`, không chép lại: bản chép cũ ở
+            # đây giống nó từng byte, mà hai nơi cùng dựng một mảng nến thì sớm muộn
+            # một nơi quên cột. (Nhánh `hasattr(nn, "tu_mt5")` cũ là nhánh chết vĩnh
+            # viễn — `tu_mt5` chưa từng tồn tại trong repo.)
+            return nn._sang_dtype(r)
         except Exception as e:                  # noqa: BLE001
             self.loi = f"{type(e).__name__}: {e}"
             return None
 
 
-def _doi(r):
-    """rates của MT5 → mảng nến chuẩn của app."""
-    import numpy as np
-    a = np.empty(len(r), dtype=nn.DTYPE)
-    a["t"] = r["time"]
-    for k in ("o", "h", "l", "c"):
-        a[k] = r[{"o": "open", "h": "high", "l": "low", "c": "close"}[k]]
-    a["vol"] = r["tick_volume"]
-    return a
+

@@ -193,9 +193,26 @@ d7 = so_do([bd, g, v], [day(bd, g), day(g, v)],
 kq = bc.chay(d7, nen_m1([110.0] * 20), CD)
 e = [x["seq"] for x in kq.nhat_ky if x["tab"] == "entry"]
 m = [x["seq"] for x in kq.nhat_ky if x["tab"] == "manage"]
-kiem("lượt Manage của một nhịp luôn đứng TRƯỚC lượt Entry của chính nhịp đó",
-     all(any(y < x for y in m) for x in e[1:]) if m else False,
-     f"— {len(m)} lượt manage / {len(e)} lượt entry")
+# ⚠ Bản trước so LỎNG: "mỗi lượt entry có MỘT lượt manage nào đó đứng trước" — đúng cả
+# khi hai lượt thuộc HAI NHỊP KHÁC NHAU, tức nó không canh đúng thứ định canh. Và `d7`
+# đóng lệnh ngay lượt Manage đầu tiên nên KHÔNG nhịp nào có cả hai tab — phép so cũ chạy
+# trên tập rỗng mà vẫn xanh.
+#
+# Kịch bản riêng: cổng Manage KHÔNG BAO GIỜ qua, nên lệnh sống suốt và Manage chạy ở mọi
+# nhịp M1 — kể cả những nhịp trùng biên M5, đúng chỗ hai tab gặp nhau.
+_m_khong = cong("lãi ≥ 999R", "lenh_lai_R", ">=", 999.0)
+_d7b = so_do([bd, g, v], [day(bd, g), day(g, v)],
+             [m_bd, _m_khong, huy], [day(m_bd, _m_khong), day(_m_khong, huy)])
+_kq7b = bc.chay(_d7b, nen_m1([110.0] * 30), CD)
+_theo_j = {}
+for _x in _kq7b.nhat_ky:
+    _theo_j.setdefault(_x["j"], {}).setdefault(_x["tab"], []).append(_x["seq"])
+_ca_hai = [v for v in _theo_j.values() if "entry" in v and "manage" in v]
+kiem("dữ liệu thử CÓ nhịp chứa cả hai tab (không thì phép dưới rỗng)",
+     bool(_ca_hai), f"— {len(_ca_hai)}/{len(_theo_j)} nhịp có cả hai")
+kiem("lượt Manage của một nhịp luôn đứng TRƯỚC lượt Entry của CHÍNH nhịp đó",
+     all(max(v["manage"]) < min(v["entry"]) for v in _ca_hai),
+     f"— {len(_ca_hai)} nhịp có cả hai tab")
 sinh = {v["lenh_id"]: x["seq"] for x in kq.nhat_ky for v in x["viec"]
         if v["loai"] == "lenh_dat"}
 kiem("lệnh vừa sinh KHÔNG bị quản lý trong CÙNG lượt đẻ ra nó",

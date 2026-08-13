@@ -55,6 +55,15 @@ TOAN_HANG_KEYS = [t["key"] for t in TOAN_HANG]
 THEO_KEY = {t["key"]: t for t in TOAN_HANG}
 NHOM_LENH_NAY = "Lệnh này"
 
+#: Toán hạng chỉ có nghĩa khi ĐANG CÓ ZONE — gom từ chính các engine khai
+#: (`ENGINE_TRA_LOI`), không chép tay.
+#:
+#: ⚠ `core.TOAN_HANG_CAN_ZONE` từng là một tuple gõ tay, và nó đã lệch thật: còn sót
+#: `zone_range_atr`, một toán hạng đã bị gỡ khỏi kho từ lâu. Hai nơi cùng trả lời
+#: "cái nào cần zone" thì sớm muộn một nơi nói sai — mà `bo_chay` cũng đọc
+#: `ENGINE_TRA_LOI`, nên bản gõ tay là nguồn thứ hai không ai đồng bộ.
+CAN_ZONE = tuple(k for m in MODULE for k in getattr(m, "ENGINE_TRA_LOI", ()))
+
 
 def nhan(key):
     return (THEO_KEY.get(key) or {}).get("nhan", key)

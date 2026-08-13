@@ -686,8 +686,10 @@ trị → thêm hậu tố**, vì đè lên là âm thầm đổi một thứ ng
  "phep": "<", "phai": {"value": "nguong_nen_bps", "tinh": "bps"}}
 ```
 
-⚠ `don_vi` trong bảng tham số chỉ là **chữ ghi chú** (`DON_VI_THAM_SO`). Đơn vị THẬT —
-thứ bộ chạy quy đổi — nằm ở **chỗ dùng** (`tinh` trong `phai`), không nằm ở chỗ khai.
+⚠ `tinh` trong `phai` mới là thứ **bộ chạy quy đổi** — đơn vị nằm ở CHỖ DÙNG. Còn
+`don_vi` trong bảng tham số là một **khoá** (`NHAN_DON_VI`) quyết định tham số ấy được
+mời vào ô nào, và khi bạn chọn nó thì `tinh` bị **khoá** theo nó. Hai thứ luôn khớp —
+soát tĩnh báo lỗi nếu lệch. (Trước đây cột đó là chữ tự do chỉ để đọc; xem §6.4.)
 
 **Hiển thị có phân biệt, và đó là chủ ý:**
 
@@ -914,8 +916,8 @@ và `Ctrl+Z` thành vô dụng.
 // một khối trông thế này:
 { "kind": "action", "id": "s…", "type": "check_cond", "pos": [400, 120],
   "conditions": [
-    { "trai": {"ten": "atr_bps", "tf": "M5", "period": "chu_ky_atr"},
-      "phep": "<", "phai_loai": "tham_so", "phai": "nguong_nen_bps" }
+    { "trai": {"ten": "atr", "tf": "M5", "period": "chu_ky_atr"},
+      "phep": "<", "phai": {"value": "nguong_nen_bps", "tinh": "bps"} }
   ] }
 ```
 

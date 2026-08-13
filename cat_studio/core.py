@@ -622,6 +622,11 @@ def ve_phai_display(c, tham_so=None):
     # xuyên suốt app — xem `ChuongTrinh.so()`.
     if isinstance(p, dict) and p.get("ten"):
         return toan_hang_display(p, tham_so)
+    # Cơ chế "so hai đại lượng" chưa chọn vế phải: `{"ten": ""}`. Nó KHÔNG phải một
+    # lượng — rơi vào nhánh dưới thì `_so_hoac_ten(None)` in ra chữ "None" của Python
+    # ngay trên thẻ. Vế trái đã dùng "?" cho đúng ca này từ lâu.
+    if isinstance(p, dict) and "ten" in p:
+        return "?"
     if isinstance(p, dict):
         s_ = _so_hoac_ten(p.get("value"), tham_so)
         dv = p.get("tinh")
@@ -1291,14 +1296,27 @@ def _soat_toan_hang(o, cho, err, tab=None, ten_tham_so=None):
                         f"để đọc nến đã đóng — nến 0 còn đang chạy nên tín hiệu sẽ vẽ lại.")
 
 
-def _soat_khoang(k, cho, err, bat_buoc=True, ten_tham_so=None):
-    """Soát một khoảng cách giá {"tinh", "value"}. `value` có thể là tên tham số."""
+def _soat_khoang(k, cho, err, bat_buoc=True, ten_tham_so=None, o_dau=None):
+    """Soát một khoảng cách giá {"tinh", "value"}. `value` có thể là tên tham số.
+
+    `o_dau` = ô nào (`dem` · `sl` · `tp` · `sua`) để tra `DON_VI_CHO`.
+
+    ⚠ Thiếu nó thì soát tĩnh chỉ hỏi "đơn vị này CÓ TỒN TẠI không", chứ không hỏi "có
+    dùng được Ở ĐÂY không" — mà `DON_VI_CHO` đã ghi sẵn luật từ lâu, chỉ mỗi cái dropdown
+    tôn trọng. Hậu quả có thật: `sl = 1.5 R` (từ file cũ, hoặc từ chính bản app đời trước
+    vốn bày cả bảy đơn vị cho mọi ô) qua soát tĩnh SẠCH BONG, rồi `_khoang` không nhận
+    `R=` nên trả NaN, `_vao_lenh` trả None — backtest chạy hết một năm dữ liệu ra ĐÚNG
+    0 LỆNH, nhật ký vẫn ghi "xong", không một dòng cảnh báo."""
     if not k:
         if bat_buoc:
             err(f"{cho} chưa được đặt.")
         return
     if not isinstance(k, dict) or k.get("tinh") not in DON_VI:
         err(f"{cho} chưa chọn cách tính.")
+        return
+    if o_dau and k["tinh"] not in DON_VI_CHO.get(o_dau, DON_VI):
+        err(f"{cho} không dùng được đơn vị \"{DON_VI[k['tinh']]}\" — chỉ nhận: "
+            f"{', '.join(DON_VI[d] for d in DON_VI_CHO[o_dau])}.")
         return
     v = k.get("value")
     if isinstance(v, str):
@@ -1367,7 +1385,11 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
                 if phep not in PHEP_SO:
                     e(f"{cho} chưa chọn phép so sánh.")
                 p_ = (c or {}).get("phai")
-                if isinstance(p_, dict) and p_.get("ten"):
+                if hai_ben or (isinstance(p_, dict) and p_.get("ten")):
+                    # Khối "so hai đại lượng" thì vế phải LUÔN là một đại lượng — kể cả
+                    # khi chưa chọn. Rơi xuống nhánh LƯỢNG là mắng "cần một con số", chỉ
+                    # sang một ô không hề có trên giao diện; câu đúng ("chưa chọn toán
+                    # hạng") đã nằm sẵn trong `_soat_toan_hang`.
                     _soat_toan_hang(p_, f"{cho} — vế phải", e, tab, ten_tham_so)
                 else:
                     gt = p_.get("value") if isinstance(p_, dict) else p_
@@ -1393,9 +1415,9 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
             if a.get("loai") == "stop" and not a.get("dem")                     and (a.get("entry") or {}).get("moc") == "gia_hien_tai":
                 e("Lệnh chờ neo vào GIÁ HIỆN TẠI mà không có đệm thì khớp ngay — "
                   "nó không còn là lệnh chờ nữa. Thêm đệm, hoặc neo vào mép zone.")
-            _soat_khoang(a.get("dem"), "Khoảng đệm", e, False, ten_tham_so)
-            _soat_khoang(a.get("sl"), "Stop Loss ban đầu", e, False, ten_tham_so)
-            _soat_khoang(a.get("tp"), "Take Profit ban đầu", e, False, ten_tham_so)
+            _soat_khoang(a.get("dem"), "Khoảng đệm", e, False, ten_tham_so, "dem")
+            _soat_khoang(a.get("sl"), "Stop Loss ban đầu", e, False, ten_tham_so, "sl")
+            _soat_khoang(a.get("tp"), "Take Profit ban đầu", e, False, ten_tham_so, "tp")
             if not a.get("sl"):
                 e("\"Vào lệnh\" chưa đặt Stop Loss ban đầu — vào lệnh không có SL là "
                   "để ngỏ toàn bộ tài khoản. Đặt SL ở đây, còn khối \"Sửa lệnh\" phía "
@@ -1407,7 +1429,8 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
                 e("\"Sửa lệnh\" chưa chọn chế độ.")
             else:
                 if cd in SUA_CAN_GIA:
-                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e, True, ten_tham_so)
+                    _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e, True,
+                                 ten_tham_so, "sua")
 
 
 
@@ -1435,8 +1458,7 @@ def validate_so_do(steps, edges, tab, ten_tham_so=None):
 
 #: Toán hạng chỉ có nghĩa khi ĐÃ có zone. Chúng đọc từ zone hiện hành, mà zone thì do
 #: một cổng trong chính sơ đồ định nghĩa — không còn cỗ máy ẩn nào dựng sẵn nữa.
-TOAN_HANG_CAN_ZONE = ("zone_dem", "zone_HH", "zone_LL", "zone_range",
-                      "zone_range_atr", "zone_atr_tb", "zone_da_sinh_lenh")
+TOAN_HANG_CAN_ZONE = kho.CAN_ZONE
 #: ⚠ `DON_VI_CAN_ZONE` từng được khai LẠI ngay tại đây — hai dòng y hệt nhau cách nhau
 #: 1100 dòng. Trùng như vậy thì sửa một chỗ là hai nơi nói khác nhau mà không ai thấy.
 #: Bản duy nhất nằm cạnh `DON_VI_CHO`, chỗ mọi luật về đơn vị sống chung.
@@ -1842,8 +1864,14 @@ def toan_hang_dung(doc):
         for st in (doc.get(tab) or {}).get("steps") or []:
             for c in st.get("conditions") or []:
                 them(c.get("trai"))
-                if c.get("phai_loai") == "toan_hang":
-                    them(c.get("phai"))
+                # ⚠ KIỂU SUY RA, không đọc `phai_loai` — khoá đó đã bị gỡ khỏi hình
+                # dạng điều kiện (xem chú thích ở `normalize_action`). Đọc nó nghĩa là
+                # MỌI toán hạng chỉ nằm ở vế phải của cổng "so hai đại lượng" đều rơi
+                # khỏi bảng số liệu: `ma` của cổng xu hướng trong sơ đồ mẫu không có lấy
+                # một hàng, dù bộ chạy đã tính nó. Backtest vẫn đúng — chỉ bảng nói dối.
+                p_ = c.get("phai")
+                if isinstance(p_, dict) and p_.get("ten"):
+                    them(p_)
             for k in ("dem", "sl", "tp", "khoang"):
                 tinh = (st.get(k) or {}).get("tinh") if isinstance(st.get(k), dict) else None
                 for t in TINH_CAN_TOAN_HANG.get(tinh, ()):
