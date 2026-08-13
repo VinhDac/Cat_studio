@@ -1336,6 +1336,83 @@ entry. Đúng loại lệnh cho kết quả cực đoan nhất và làm lệch h
 > "Nén" nghĩa là giá đứng yên trong một quãng **liền mạch**. 48 giờ chợ đóng không phải giá đứng
 > yên — không có giá nào cả.
 
+### 12.6c ⭐ CỔNG ZONE ĐỌC ĐƯỢC TOÁN HẠNG ZONE — vì nó phán xét hậu quả của chính nó
+
+Người dùng chỉ vào chart: lệnh chờ **đã khớp rồi** — tức giả thuyết về zone đã trúng —
+mà cái hộp zone vẫn phình ra, nuốt luôn cây nến vừa phá vỡ nó.
+
+**Đo trên một năm XAUUSD thật:** 89 % zone (491/550) tiếp tục **nở bề rộng** sau khi đã
+sinh lệnh · trung vị **1,93×** · lớn nhất **17,0×**. Đếm theo số nến thì 96 %, trung vị
+**+24 nến**, nặng nhất **10 → 188 nến**. Không phải ca hiếm — gần như mọi zone.
+
+#### Vì sao KHÔNG sửa được bằng cách vẽ
+
+Người dùng đã thử đúng ba đường, cả ba đều cụt, và đó mới là bằng chứng lỗ nằm ở cơ chế:
+
+1. **Đặt `bề rộng ≤ 4 × ATR` ở cổng `[3]`** — nó nằm SAU cổng zone nên chỉ **lọc lệnh**,
+   không giết zone. Người dùng tưởng mình đã đặt hạn mức; thật ra chưa từng đặt được.
+2. **Thêm một cổng "kiểm tra lại zone" sau khối Vào lệnh** — nhánh đó chạy **đúng một
+   nến**. Từ nến sau, cổng `[3]` đã trượt ở vế `zone_da_sinh_lenh là SAI`, dòng chảy
+   không bao giờ tới nữa. Mà zone phình là chuyện của những nến *sau đó*.
+3. **Nối một hành động huỷ zone** — không có. `ACTION_TYPES` chỉ có `check_cond` ·
+   `vao_lenh` · `sua_lenh`, và `SUA_CHE_DO` chỉ có `doi_sl · doi_tp · hoa_von ·
+   ket_thuc`. Tất cả đều về **lệnh**; zone là thứ *đọc được*, không phải thứ khối tác
+   động vào (§6.3).
+
+Zone chỉ có **đúng một cửa sinh-tử**: cổng mang cờ `cong_zone`. Mà đứng ở cổng đó thì
+app lại **cấm đọc toán hạng zone** — nên câu *"rộng quá thì thôi, không tính là zone
+nữa"* **không có chỗ nào hợp lệ để đứng**.
+
+#### Luật mới, và nó chỉ là một câu
+
+> **Cổng zone trả lời "cây nến này có được nuốt vào zone không?" — nên thứ nó phải nhìn
+> là ZONE SAU KHI NUỐT, tức chính hậu quả nó sắp gây ra.**
+
+`bo_chay._dat_zone_thu` bày ra **ZONE THỬ** (`so_lenh.Zone.thu_them` — bản sao đã cộng
+cây nến đang xét) ngay trước khi cổng được đánh giá, rồi dẹp ngay sau. `engine_d02.doc`
+ưu tiên nó. Mọi khối khác vẫn đọc zone thật.
+
+Hai thứ rơi ra từ đó, không phải tính năng phải cài thêm:
+
+- **`bề rộng ≤ N` thành một HẠN MỨC** — kiểm trước khi tiêu, nên zone **không bao giờ
+  vượt**. Nhìn zone *trước* khi nuốt thì cây nến làm vỡ hạn mức đã nằm trong zone rồi:
+  zone chết muộn một nhịp, và chết với hình dạng đã sai.
+- **Ca NẾN ĐẦU TIÊN hết là ca đặc biệt.** Zone thử luôn có ít nhất một nến nên
+  `bề rộng` = high − low của chính nó, một con số thật. Đây là chỗ hướng "zone thử"
+  thắng hẳn hướng "zone như đang có": hướng kia gặp zone rỗng → NaN → cổng trượt → zone
+  **không bao giờ hình thành được**.
+
+⚠ **`zone_da_sinh_lenh` phải tra theo ID CỦA BẢN THỬ.** Bỏ id đi thì hàm tự lấy zone hiện
+hành — mà lúc có lỗ hổng dữ liệu, zone hiện hành là zone **CŨ** (đã sinh lệnh) trong khi
+bản thử là zone **MỚI** tinh. Cổng sẽ đọc "đã sinh lệnh" cho một zone chưa hề tồn tại.
+
+⚠ **`_dat_zone_thu` phải dựng ĐÚNG thứ `_nuoi_zone` sẽ dựng**, kể cả nhánh lỗ hổng dữ
+liệu. Hai bên lệch nhau là cổng phán xét một zone khác với zone thật sự được tạo ra —
+loại lỗi im lặng tuyệt đối.
+
+#### Đo được
+
+Thêm đúng một dòng `Zone — bề rộng ≤ zone_range_max` vào cổng `[2]` của sơ đồ mẫu:
+
+| | zone nở bề rộng sau khi sinh lệnh | nở gấp, trung vị | nặng nhất |
+|---|---|---|---|
+| không có hạn mức (như cũ) | 89 % | 1,93× | **17,0×** |
+| có hạn mức ở cổng zone | 74 % | **1,18×** | **3,1×** |
+
+Phần nở còn lại là **hợp lệ**: hạn mức là `4 × ATR hiện tại`, ATR giãn thì trần giãn
+theo — đúng câu người dùng viết ra. Hết ca phình vô hạn.
+
+⭐ **Sơ đồ CŨ không đổi một con số nào** — 550 lệnh · −19,52 R · DD 1,08 % · vốn 9.933,09
+· 98 T / 292 B, trùng khít trước và sau. Đúng như phải vậy: zone thử chỉ tồn tại trong
+đúng lúc cổng zone được đánh giá, và sơ đồ nào không hỏi về zone ở đó thì không thấy gì
+khác. *(Thêm điều kiện vào thì số đổi hẳn — 853 lệnh · −16,08 R · DD 1,54 % — nhưng đó
+là người dùng đổi chiến lược, không phải cơ chế tự đổi.)*
+
+`core.khoi_sau_cong_zone` giờ tính **cả chính cổng zone**, và vì giao diện đọc thẳng
+`validate.luong[tab].sau_cong_zone` từ đó nên dropdown ở cổng `[2]` có ngay toán hạng
+zone — **không sửa một dòng TypeScript nào**. Đúng lý do §6.3 bắt hai bên dùng chung một
+phép duyệt.
+
 ### 12.7 ⭐ DÒNG THỜI GIAN BẤT BIẾN · con trỏ
 
 Không lưu "khung hình". Một lần chạy sinh ra ba hình dạng dữ liệu, đóng băng sau khi tính xong:

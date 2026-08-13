@@ -70,6 +70,21 @@ class Zone:
         self.dinh = cao if self.dinh is None else max(self.dinh, cao)
         self.day = thap if self.day is None else min(self.day, thap)
 
+    def thu_them(self, cao, thap, atr):
+        """Bản SẼ THÀNH nếu nuốt cây nến này — KHÔNG đụng gì tới bản thật.
+
+        Cổng zone phán xét đúng cái hậu quả nó sắp gây ra, nên nó phải nhìn zone SAU khi
+        nuốt chứ không phải trước. Nhờ vậy `bề rộng ≤ 4 × ATR` thành một HẠN MỨC: kiểm
+        trước khi tiêu, nên zone không bao giờ vượt. Kiểm sau thì cây nến làm vỡ hạn mức
+        đã nằm trong zone rồi, và zone chết muộn một nhịp với hình dạng đã sai.
+
+        Dùng `copy` chứ không dựng tay từng trường: thêm một trường vào `Zone` mà quên
+        chép sang bản thử thì cổng đọc một con số cũ, im lặng và rất khó tìm."""
+        import copy as _copy
+        v = _copy.copy(self)
+        v.them_nen(cao, thap, atr)
+        return v
+
 
 class Lenh:
     """Một lệnh, từ lúc đặt tới lúc chết.

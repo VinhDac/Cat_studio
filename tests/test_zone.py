@@ -30,6 +30,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 from cat_studio import bo_chay as bc  # noqa: E402
 from cat_studio import core  # noqa: E402
+from cat_studio import so_lenh  # noqa: E402
 
 dung = sai = 0
 
@@ -279,13 +280,42 @@ print("\n▸ 8. CHỈ BÀY RA THỨ DÙNG ĐƯỢC — lọc tại nguồn, khô
 d8 = so_do(DK_NEN)
 sau = core.khoi_sau_cong_zone(d8["entry"]["steps"], d8["entry"]["edges"])
 kiem("khối SAU cổng zone nằm trong danh sách", "v1" in sau, f"— {sorted(sau)}")
-kiem("CHÍNH cổng zone thì KHÔNG — điều kiện của nó chạy trước khi zone lớn thêm",
-     "g1" not in sau)
+# ⭐ ĐỔI LUẬT (core.md §12.6c). Trước đây CHÍNH cổng zone bị loại khỏi danh sách, lý do
+# ghi là "điều kiện của nó chạy trước khi zone lớn thêm". Lý do ấy mô tả đúng code cũ
+# nhưng khoá chết câu người dùng buộc phải viết được: "zone rộng quá thì thôi, không
+# tính là zone nữa" — câu đó chỉ có MỘT chỗ đúng để đứng là chính cổng định nghĩa zone.
+kiem("CHÍNH cổng zone CŨNG nằm trong danh sách — nó nhìn ZONE THỬ (đã cộng nến này)",
+     "g1" in sau)
 kiem("khối Bắt đầu (đứng TRƯỚC cổng) cũng không",
      d8["entry"]["steps"][0]["id"] not in sau)
 d8b = so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai")
 kiem("không có cổng zone thì danh sách RỖNG",
      core.khoi_sau_cong_zone(d8b["entry"]["steps"], d8b["entry"]["edges"]) == set())
+
+# ---- ZONE THỬ: cổng zone phán xét HẬU QUẢ nó sắp gây ra (core.md §12.6c) ------------
+#
+# Cổng zone trả lời "cây nến này có được nuốt không?", nên nó phải nhìn zone SAU khi
+# nuốt. Nhờ vậy `bề rộng ≤ N` thành một HẠN MỨC: kiểm trước khi tiêu, zone không bao giờ
+# vượt. Nhìn zone TRƯỚC khi nuốt thì cây nến làm vỡ hạn mức đã nằm trong zone rồi.
+print("\n▸ 8b. ZONE THỬ — cổng zone nhìn zone ĐÃ CỘNG nến đang xét")
+
+_z = so_lenh.Zone("V-0001", 0)
+_z.them_nen(110.0, 100.0, 2.0)
+_t = _z.thu_them(130.0, 90.0, 4.0)
+kiem("`thu_them` KHÔNG đụng bản thật",
+     (_z.so_nen, _z.dinh, _z.day) == (1, 110.0, 100.0),
+     f"— thật {_z.so_nen} nến {_z.day}–{_z.dinh}")
+kiem("bản thử đã cộng nến mới", (_t.so_nen, _t.dinh, _t.day) == (2, 130.0, 90.0),
+     f"— thử {_t.so_nen} nến {_t.day}–{_t.dinh}")
+kiem("bản thử GIỮ id — `zone_da_sinh_lenh` tra đúng zone", _t.id == "V-0001")
+kiem("`atr_tb` của bản thử tính cả nến mới", _t.atr_tb == 3.0, f"— {_t.atr_tb}")
+
+# NẾN ĐẦU TIÊN hết là ca đặc biệt: zone thử luôn có ít nhất một nến nên bề rộng là một
+# con số thật, không phải NaN. Đây là thứ làm hướng "zone thử" thắng hướng "zone trước".
+_moi = so_lenh.Zone("(thử)", 0)
+_moi.them_nen(105.0, 100.0, 1.0)
+kiem("nến ĐẦU của một zone: bề rộng = high−low của chính nó, KHÔNG phải NaN",
+     _moi.rong == 5.0 and _moi.so_nen == 1, f"— rộng {_moi.rong}")
 
 # Ba nhát cắt trên danh sách ĐƠN VỊ.
 kiem("chưa qua cổng zone: `× ATR zone` KHÔNG được bày ra",

@@ -86,7 +86,7 @@ class Ctx:
     thêm một nguồn dữ liệu là sửa đúng một chỗ."""
 
     __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts",
-                 "zone_da_xet")
+                 "zone_da_xet", "zone_thu")
 
     def __init__(self, ct, so, ts):
         self.ct, self.so, self.ts = ct, so, ts
@@ -98,6 +98,9 @@ class Ctx:
         #: Cổng zone ĐÃ được xét ở nến trục này chưa. Luật lùi có thể quay lại một
         #: ngã rẽ, nhưng một cây nến chỉ được đếm vào zone đúng MỘT lần.
         self.zone_da_xet = False
+        #: ZONE THỬ — bản zone SẼ THÀNH nếu nến này được nuốt. Chỉ khác `None` trong
+        #: đúng lúc CỔNG ZONE đang được đánh giá; mọi khối khác đọc zone thật.
+        self.zone_thu = None
 
     # -- giá --
     @property
@@ -667,6 +670,39 @@ def _sua_lenh(st, ctx):
 # ---------------------------------------------------------------------------
 # Đi trên đồ thị
 # ---------------------------------------------------------------------------
+def _dat_zone_thu(ctx):
+    """Bày ra ZONE THỬ cho cổng zone nhìn — rồi `_nuoi_zone` mới quyết giữ hay bỏ.
+
+    ⭐ VÌ SAO CỔNG PHẢI NHÌN ZONE ĐÃ CỘNG NẾN NÀY (core.md §12.6c).
+
+    Cổng zone trả lời đúng một câu: *"cây nến này có được nuốt vào zone không?"* Nên thứ
+    nó phải phán xét là **hậu quả nó sắp gây ra**, không phải trạng thái trước đó. Nhờ
+    vậy `Zone — bề rộng ≤ 4 × ATR` thành một HẠN MỨC: kiểm trước khi tiêu, zone không
+    bao giờ vượt. Nhìn zone trước khi nuốt thì cây nến làm vỡ hạn mức đã nằm trong zone
+    rồi, zone chết muộn một nhịp và chết với hình dạng đã sai.
+
+    Và ca NẾN ĐẦU TIÊN hết là ca đặc biệt: zone thử luôn có ít nhất một nến, nên
+    `bề rộng` = high − low của chính nó. Không NaN, nên không có chuyện điều kiện trượt
+    làm zone không bao giờ hình thành được.
+
+    ⚠ Dựng đúng thứ `_nuoi_zone` SẼ dựng ngay sau đó, kể cả nhánh lỗ hổng dữ liệu — hai
+    bên lệch nhau là cổng phán xét một zone khác với zone thật sự được tạo ra."""
+    if ctx.zone_da_xet:
+        # Nến này đã xét & nuốt xong (luật lùi quay lại) — zone thật CHÍNH LÀ bản thử.
+        return
+    v = None if ctx.co_lo_hong else ctx.so.zone_hien_hanh()
+    cao, thap = ctx.gia_nen("h"), ctx.gia_nen("l")
+    atr = ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+    if v is not None:
+        ctx.zone_thu = v.thu_them(cao, thap, atr)
+    else:
+        # Zone MỚI. Id riêng, không đụng bộ đếm thật — và nhờ nó mà
+        # `zone_da_sinh_lenh` tra ra ĐÚNG "chưa có lệnh nào", thay vì đọc nhầm zone cũ.
+        z = sl.Zone("(thử)", ctx.i)
+        z.them_nen(cao, thap, atr)
+        ctx.zone_thu = z
+
+
 def _nuoi_zone(ctx, khop):
     """CỔNG ZONE vừa được xét — lớn lên hay chết.
 
@@ -751,7 +787,12 @@ def _chay_so_do(tab, ctx):
             s = ngan[-1].pop(0)
             st = theo_id[s]
             if core.is_branch_gate(st):
+                # Cổng zone nhìn ZONE THỬ (đã cộng nến này), mọi cổng khác nhìn zone
+                # thật. Dựng trước khi xét, dẹp ngay sau — không để rò sang khối sau.
+                if st.get("cong_zone"):
+                    _dat_zone_thu(ctx)
                 khop, vet = _xet_cong(st, ctx)
+                ctx.zone_thu = None
                 cong.append({"khoi": s, "ve": vet, "khop": bool(khop)})
                 if st.get("cong_zone"):
                     _nuoi_zone(ctx, bool(khop))

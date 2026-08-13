@@ -1601,13 +1601,25 @@ def khoi_sau_cong_zone(steps, edges):
     tự đi lại đồ thị thì thành hai luật, và hai luật rồi sẽ lệch nhau — cùng lý do
     `dat_ten.cho` trả sẵn đường dẫn thay vì để giao diện tự quét.
 
-    Không có cổng zone → rỗng. Cổng zone KHÔNG tự tính là "sau chính nó": điều kiện
-    của cổng chạy TRƯỚC khi zone lớn thêm, nên ngay trong cổng thì zone vẫn chưa có."""
+    Không có cổng zone → rỗng.
+
+    ⭐ CỔNG ZONE TỰ TÍNH LÀ "SAU CHÍNH NÓ" — xem `core.md §12.6c`.
+
+    Trước đây thì không, với lý do *"điều kiện của cổng chạy TRƯỚC khi zone lớn thêm,
+    nên ngay trong cổng thì zone vẫn chưa có"*. Lý do ấy mô tả đúng thứ tự code cũ,
+    nhưng nó khoá chết một câu người dùng buộc phải viết được: **"zone rộng quá thì
+    thôi, không tính là zone nữa"**. Câu đó chỉ có một chỗ đúng để đứng — chính cổng
+    định nghĩa zone; đặt ở khối sau thì nó chỉ lọc lệnh, không giết zone (đo được: 96%
+    zone vẫn phình sau khi đã sinh lệnh, trung vị +23 nến, nặng nhất 10 → 188).
+
+    Giờ bộ chạy cho cổng zone nhìn **ZONE THỬ** — zone đã cộng cây nến đang xét — nên
+    câu hỏi của cổng thành *"thêm cây này vào thì zone còn hợp lệ không"*. Zone thử
+    LUÔN tồn tại (ít nhất một nến), nên toán hạng zone ở đây không bao giờ vô nghĩa."""
     cong = [s for s in steps or [] if isinstance(s, dict) and s.get("cong_zone")]
     if not cong:
         return set()
     _, ke = flow_map(steps, edges)
-    toi, hang = set(), [cong[0].get("id")]
+    toi, hang = {cong[0].get("id")}, [cong[0].get("id")]
     while hang:
         for y in ke.get(hang.pop(), []):
             if y not in toi:

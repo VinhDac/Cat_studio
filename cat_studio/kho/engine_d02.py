@@ -171,9 +171,18 @@ class Engine:
         CHƯA CÓ VÙNG NÀO → trả `NaN` chứ không trả 0. `0` là lời nói dối lọt qua mọi
         phép so: `zone_range_atr <= 4` sẽ ĐÚNG trong lúc chẳng có vùng nén nào tồn tại."""
         so = ctx.so
+        # ZONE THỬ chỉ khác `None` trong đúng lúc CỔNG ZONE đang được đánh giá — nó là
+        # zone SẼ THÀNH nếu nến này được nuốt (`bo_chay._dat_zone_thu`). Mọi khối khác
+        # đọc zone thật. Nhờ nó mà cổng zone hỏi được về chính zone nó sắp tạo ra.
+        thu = ctx.zone_thu
         if ten == "zone_da_sinh_lenh":
-            return so.zone_da_sinh_lenh()
-        v = so.zone_hien_hanh()
+            # ⚠ Phải tra theo ID CỦA BẢN THỬ. Bỏ id đi thì `zone_da_sinh_lenh()` tự lấy
+            # zone hiện hành — mà lúc có lỗ hổng dữ liệu, zone hiện hành là zone CŨ (đã
+            # sinh lệnh) trong khi bản thử là zone MỚI tinh. Cổng sẽ đọc "đã sinh lệnh"
+            # cho một zone chưa hề tồn tại.
+            return so.zone_da_sinh_lenh(thu.id) if thu is not None \
+                else so.zone_da_sinh_lenh()
+        v = thu if thu is not None else so.zone_hien_hanh()
         if v is None:
             return float("nan")
         return {
