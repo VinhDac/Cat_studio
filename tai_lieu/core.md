@@ -6,8 +6,8 @@
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
 
-Cập nhật: 2026-08-10 · Trạng thái: **P0–P4 + kho/lưu trữ/sổ lệnh xong** · test 332/332 · giao diện tester đã chạy thật
-Thiết kế **Strategy Tester chốt xong** → §12. Bộ chạy chưa viết một dòng nào.
+Cập nhật: 2026-08-13 · Trạng thái: **P0–P7 + P9 xong** · 14/14 bài kiểm qua · đã đóng gói và chạy thật
+Tester + bộ chạy đã đo trên một năm dữ liệu thật (§12). **P8 · Live** nối sàn ở **chế độ QUAN SÁT** — §14.
 
 ---
 
@@ -962,8 +962,10 @@ có thật nên không nuốt nhầm gói Python nào.
 | **P4 · Canvas** | React Flow, ribbon, **pill Entry/Manage**, undo 60 bước (gom cả hai tab), template, chép/dán, phím tắt | ✅ |
 | **P4b · Kho + lưu trữ** | `kho/` chia theo engine · `so_lenh.py` id của ta · `du_lieu/` · bảng tham số · hộp thoại **Kho** (menu File) | ✅ |
 | **P6 · Mẫu** | Sơ đồ mẫu Compress EA, khớp §7 | ✅ **Entry 7 khối · Manage 5 khối · KHÔNG một mũi tên ngược**, soát sạch |
-| **P5 · Tester** | Cửa sổ Strategy Tester — thiết kế đầy đủ ở **§12** | 🔨 **thiết kế chốt xong**, khung có 3 lỗi phải sửa (§12.12) |
-| **P7 · Bộ chạy** | `nguon_nen` → `tinh_toan` → `khop_lenh` → `bo_chay`. Nối MT5, kéo nến M1, backtest thật | ⬜ *(đang tới)* |
+| **P5 · Tester** | Cửa sổ Strategy Tester — thiết kế đầy đủ ở **§12** | ✅ phát lại · nhật ký ảo hoá · thống kê · lịch sử lần chạy |
+| **P7 · Bộ chạy** | `nguon_nen` → `tinh_toan` → `khop_lenh` → `bo_chay`. Nối MT5, kéo nến M1, backtest thật | ✅ **2,9 s cho 354.503 nến M1**, `nen_mo_ho = 0` (§12.13e) |
+| **P8 · Live 🆕** | Nối sàn thật: vòi cấp nến · sức khoẻ kết nối · tầng phòng vệ · hiệu chuẩn — **§14** | ✅ chế độ **QUAN SÁT**. Luồng đặt lệnh chưa nối (§14.14) |
+| **P9 · Đóng gói** | `tools\dong_goi.bat` — PyInstaller `onedir`, chạy bộ kiểm trước khi gói | ✅ 66 MB · chạy trên máy trắng ra **trùng từng con số** (§13.1) |
 
 ### Sơ đồ mẫu ra đúng thế này
 
@@ -2376,28 +2378,570 @@ so với lần trước: −3 lệnh · +2 lượt trượt tại [2] · tổng 
 
 ---
 
+## 14. ⭐⭐ LIVE — nối sàn thật, và cách chống CHẾT IM LẶNG
+
+> Chốt ngày 2026-08-13, sau khi bộ chạy và tester đã đo trên một năm dữ liệu thật.
+>
+> Live **không thêm một luật giao dịch nào**. Nó đổi đúng hai thứ: *nguồn nến* và *nguồn
+> sự thật*. Toàn bộ phần còn lại của §14 sinh ra để trả lời một câu duy nhất —
+> **làm sao biết nó đang thật sự chạy đúng?**
+
+### 14.0 Một câu
+
+> Backtest hỏng thì ra một con số sai và ta **nhìn thấy**. Live hỏng thì thường không ra
+> gì cả — nó **im lặng**. Cả §14 là để bắt cái im lặng đó phải nói.
+
+Bốn module mới, và chỉ ba trong số đó chạm sàn:
+
+| Module | Việc | Chạm sàn? |
+|---|---|---|
+| `phien_live.py` | vòi cấp nến: sàn đóng nến M1 → gọi `bo_chay.PhienChay.mot_nhip` | đọc nến |
+| `ket_noi.py` | sức khoẻ kết nối · hồ sơ đo được · **vòng hiệu chuẩn** · lệnh của sàn | ✔ đặt lệnh |
+| `gui_lenh.py` | **tầng phòng vệ** — ý định của chiến lược → việc có thật ở sàn | ✔ đặt lệnh |
+| `api.ApiLive` | bề mặt của cửa sổ Live, kế thừa bề mặt ĐỌC của `ApiTester` | qua luồng máy |
+
+### 14.1 ⭐ MỘT ĐOẠN CODE CHO CẢ HAI
+
+`phien_live.py` chỉ 160 dòng, và đó là **kết quả có chủ ý** chứ không phải chưa làm xong.
+Nó cố ý không chứa luật giao dịch nào: mọi quyết định vẫn nằm ở
+`bo_chay.PhienChay.mot_nhip` — **đúng cái hàm** backtest gọi trong vòng lặp. Việc duy
+nhất của file là biến *"sàn vừa đóng một nến M1"* thành một lời gọi `mot_nhip`.
+
+> Đó là cả điểm của lần tách bộ chạy: *"test như nào thì live như thế"* thành chuyện của
+> **kiến trúc**, không phải của kỷ luật.
+
+Hệ quả kéo theo, và nó đắt hơn vẻ ngoài: `nhip()` **dựng lại `ChuongTrinh` trên mảng nến
+dài hơn** rồi chạy lại từ khung hình số 0, thay vì nuôi chỉ báo tăng dần. Có một bản
+"tính dần" thứ hai là có hai phép tính chỉ báo, và sớm muộn chúng lệch nhau.
+
+⚠ **Dựng vào biến cục bộ rồi mới công bố.** Bản trước gán thẳng `self.phien` rồi mới phát
+lại — tức trong suốt lúc phát lại, `self.phien` là một phiên RỖNG. Luồng cầu nối gọi
+`anh_chup()` đúng lúc đó thì đọc được nhật ký 0 dòng, lệnh 0 cái, và cửa sổ chớp trắng
+một nhịp. Đo được: giữa `nhip()` thấy 0/0 trong khi trước và sau đều là 19/17. Gán **một
+phát ở cuối** thì không có khe nào.
+
+### 14.2 Nhịp — quyết định ở BIÊN NẾN, không theo tick
+
+| Việc | Nhịp | Ai làm |
+|---|---|---|
+| sức khoẻ kết nối · giá cho chart | **1 giây** (`ApiLive.NHIP_DO`) | luồng máy |
+| hỏi nến mới | **10 giây** (`NHIP_NEN = 10` nhịp đo) | luồng máy |
+| quyết định | mỗi nến M1 đóng → Manage · mỗi nến M5 đóng → Entry | `mot_nhip` |
+| khớp lệnh · SL/TP | thời gian thực — **SÀN làm**, ta chỉ đọc kết quả | sàn |
+
+**Không chạy theo tick**, vì bộ chạy đọc `close`/`ATR` của nến **đã đóng**. Chạy theo tick
+là đọc một cây nến đang hình thành, giá trị nhảy liên tục, và live sẽ khác backtest —
+đúng thứ đang cố tránh. Bản gốc MQL5 cũng quyết định ở biên nến (`if(!IsNewBar(...)) return;`).
+
+**Hỏi nến 10 giây chứ không 60:** nến đóng theo giờ **SERVER**, mà giờ server lệch giờ máy
+— canh đúng phút là có lúc trễ cả một nhịp. Hỏi thừa thì rẻ, trễ thì không.
+
+⚠ **`_keo` bỏ cây nến CUỐI.** `copy_rates_from_pos` trả cả nến đang hình thành. Đưa nó vào
+bộ chạy là quyết định trên một cây nến chưa đóng.
+
+⚠ **`nhip()` chạy MỌI nến còn thiếu, không chỉ nến mới nhất.** App bận, máy ngủ, mạng rớt
+— bỏ nến là bỏ luôn quyết định của những phút đó, và trạng thái vùng nén lệch hẳn so với
+backtest. `mot_nhip` chịu được gọi ngắt quãng; `test_bo_chay.py` giữ đúng điều đó.
+
+### 14.3 ⭐ KHUNG HÌNH SỐ 0 — lịch sử để TÍNH, không phải chuyện ĐÃ XẢY RA
+
+Hai thứ khác hẳn nhau, và bản đầu đã gộp chúng làm một:
+
+- **Chỉ báo cần lịch sử.** ATR(14) M5 cần 14 nến đã đóng, MA(50) M15 cần 12,5 giờ. Đọc
+  nến cũ để TÍNH RA con số không phải là "chiến lược đã chạy" — đó là mở mắt ở khung hình
+  đầu tiên. Nên `ChuongTrinh` vẫn dựng trên **cả mảng** (`SO_NEN_NAP = 7200` ≈ 5 ngày).
+- **Trạng thái chiến lược thì KHÔNG.** Vùng nén đang đếm, cờ *"vùng này đã sinh lệnh"*,
+  sổ lệnh — **bắt đầu từ số 0** lúc bấm Live.
+
+> Bản trước chạy `mot_nhip` qua cả 7.200 nến quá khứ, đẻ ra **208 dòng nhật ký** và mấy
+> lệnh MÔ PHỎNG rồi bày lên như chuyện đã xảy ra ở sàn. Sai bản chất: **test là bộ phim đã
+> quay xong, live là máy quay vừa bấm nút.**
+
+Và đây cũng đúng bản gốc: `FilterEngine::Initialize` đặt `m_comp_bar_count = 0`,
+`state = COMP_IDLE` — gắn EA vào chart là nó bắt đầu trống rỗng, phải chờ một cú nén MỚI.
+
+`t_bat_dau` (mốc bấm Live) là ranh giới, và nó phải chảy ra tới giao diện: mọi thứ trước
+nó là mô phỏng để dựng trạng thái, **không được hiện ra như kết quả live**. Trộn hai thứ
+đó là nói dối đúng chỗ người ta cần tin nhất.
+
+### 14.4 ⭐ MỘT LUỒNG CHẠM SÀN — giao diện chỉ ĐỌC BỘ NHỚ
+
+Đây là chỗ sửa gốc của cả chuyện lag, và nó là **kiến trúc chứ không phải cảm giác**.
+
+> Bản trước có HAI chỗ chạm sàn: luồng máy (10 giây một lần, kéo nến) và `live_tin()` do
+> JS gọi **mỗi giây**, tự đi đo bằng 5 lượt IPC. Hai bên giành cùng một ổ khoá `_KetNoi`,
+> nên nhịp nào của bên này rơi trúng lúc bên kia đang giữ là đứng — đúng cảm giác *"lúc
+> lag lúc không"*.
+
+Giờ: **luồng máy `_vong()` sở hữu kết nối và tự đo, cất vào bộ nhớ.** `live_tin()` chỉ đọc
+cái đã có — không IPC, không giành khoá, không bao giờ chờ ai. Quan trọng hơn cho ngày
+mai: khi luồng gửi lệnh vào, nó nối tiếp trên **cùng luồng này** chứ không cạnh tranh với
+giao diện.
+
+Ba thứ đi kèm, cả ba đều là luật:
+
+- **Gộp mọi thứ vào MỘT lời gọi** (`live_tin`): tách ra thì bảng Vấn đề và dải kết nối đọc
+  hai lần đo khác nhau, và sẽ có lúc dải báo xanh còn bảng báo mất kết nối.
+- **Chỉ gửi phần MỚI** của nhật ký bài kiểm (`da_co`): bài hiệu chuẩn sinh vài chục bước,
+  gửi lại cả danh sách mỗi giây là chép một thứ không đổi qua cầu nối hàng trăm lần.
+- ⚠ **TUỔI của bản đo phải chảy ra ngoài** (`tin_cu_giay` · `tam_dung`). Đọc bộ nhớ thì rẻ,
+  đổi lại số liệu có thể CŨ mà vẫn trông như đang sống — lúc hiệu chuẩn ta cố ý ngừng đo,
+  và nếu luồng máy chết thì nó đứng hẳn. Hiện `tuổi tick 1,4 s` đông cứng suốt ba phút là
+  đúng loại nói dối im lặng mà cả app này sinh ra để chống. Ngưỡng: quá **3 nhịp** thì
+  giao diện nói thẳng *"đang tạm dừng"* thay vì giả vờ tươi.
+
+⚠ **Đóng cửa sổ Live PHẢI dừng luồng máy** (`_dung = True`). Không có dòng đó thì `_vong()`
+chạy mãi — điều kiện `self._window is not None` không bao giờ đổi vì không ai gán lại — và
+mở Live lần hai là có **HAI luồng** cùng kéo nến, cùng giành cầu nối.
+
+> **Chọn nghĩa: ĐÓNG CỬA SỔ = DỪNG PHIÊN.** Chưa có luồng đặt lệnh nên không có gì phải
+> giữ chạy ngầm. Ngày thêm nó thì đây là chỗ **phải bàn lại** — `ApiLive` được viết sẵn
+> theo hướng "máy live không sống trong cửa sổ" để lúc đó không phải bẻ lại cấu trúc.
+
+### 14.5 CỔNG CHỐT — nói TRƯỚC, không nói sau
+
+Cổng chốt (chọn chiến lược · symbol · kiểm kết nối) nằm **TRONG chính cửa sổ Live**, không
+phải ở cửa sổ vẽ. Vào bằng `Ctrl+L` hay bằng nút thì cũng đáp xuống đúng một chỗ, và cửa
+sổ vẽ không phải gánh thêm một hộp thoại chẳng liên quan gì tới việc vẽ. Không đóng được
+bằng ✕ hay Esc — đóng nó ra một cửa sổ Live rỗng không biết mình đang chạy gì.
+
+Sơ đồ được soát **ngay lúc chọn**, không đợi bấm "Bắt đầu", và soát **hai lớp bằng cùng
+một bộ luật** (giao diện gọi `live_soat_so_do`, `live_chon` soát lại lần nữa): đây là cửa
+duy nhất giữa một sơ đồ vẽ dở và một kết nối tiêu tiền thật.
+
+⚠ **`validate_process` cố ý DỄ TÍNH — Live thì không được.** Nó soát một sơ đồ *đang vẽ
+dở*, mà vẽ dở thì chưa vào lệnh được là chuyện thường. Đo được: một *"Chiến lược 1"* mới
+tinh, chưa có gì ngoài khối Bắt đầu, đi qua nó với **0 lỗi 0 cảnh báo**. Ở cửa sổ vẽ thế
+là đúng; ở Live đó là một cái máy sẽ nối vào sàn rồi **ngồi im mãi mãi** trong khi người
+dùng tưởng nó đang canh.
+
+Nên `_loi_live` thêm đúng một câu hỏi — *sơ đồ này có thể đặt nổi một lệnh không* — và trả
+lời bằng hai phép kiểm: Entry có khối **Vào lệnh** nào không, và khối đó có **nối tới
+được** từ khối Bắt đầu không (dùng lại `flow_order().unreachable`, không tự đi đồ thị lần
+nữa).
+
+Điều kiện chạy lấy **ĐÚNG bộ của Strategy Tester** — cùng spread, cùng phí, cùng đòn bẩy.
+Live mà chạy trên một bộ số khác thì so nhật ký hai cửa sổ là vô nghĩa.
+
+### 14.6 ⭐ SỨC KHOẺ KẾT NỐI — ba kiểu chết im lặng
+
+`ket_noi.SucKhoe` **không** đo *"có nối được không"* (câu đó `nguon_nen.kiem_ket_noi` trả
+rồi). Nó đo **có TIN được không**. Ba kiểu chết dưới đây không hiện ra ở chỗ nào khác
+trong app:
+
+1. **Terminal báo "connected" mà feed đứng.** `terminal_info().connected` vẫn `True` trong
+   khi tick cuối đã 40 phút không đổi. Nhìn chart thì thấy nến đứng yên và cứ tưởng thị
+   trường lặng. → mạch đập thật là **tuổi của tick cuối**, ngưỡng `TICK_QUA_HAN = 90 s`.
+2. **Nút AlgoTrading tắt.** Mọi lệnh gửi đi đều bị từ chối, mà lý do nằm trong một retcode
+   chứ không nằm trên màn hình. → kiểm **cả hai**: terminal cho phép VÀ tài khoản cho EA
+   giao dịch.
+3. **Spread live khác xa spread đã backtest.** Kết nối tốt, lệnh gửi được, nhưng chiến
+   lược đang chạy trong một thế giới khác cái đã thử. **Kiểu chết đắt nhất vì không có gì
+   báo động cả.** → `spread_lech` = spread thật ÷ spread đã test.
+
+Cộng ba thứ nữa đọc luôn trong cùng nhịp đó:
+
+- **`lech_gio`** — nến M5 đóng theo giờ SERVER, nên lệch giờ là lệch cả nhịp quyết định.
+- **`symbol_giao_dich_duoc`** — nhiều sàn để vàng ở chế độ chỉ-đóng ngoài giờ, hoặc
+  chỉ-xem: nối tốt mà vẫn không đặt được lệnh nào (`SYMBOL_TRADE_MODE_FULL = 4`).
+- **`nen_dang`** — cây nến đang hình thành. Chiến lược **không bao giờ** đọc nó, nhưng
+  chart phải có, không thì trên M1 màn hình đứng im tới 60 giây và trông như mất kết nối.
+  Nhịp này vốn đã đọc tick nên gửi kèm **không tốn thêm một lời gọi nào**.
+
+**Giữ LỊCH SỬ chứ không chỉ ảnh chụp.** *"Đang nối được"* là câu vô nghĩa nếu trong ba giờ
+qua nó rớt bốn lần. Cái quyết định có dám để máy chạy qua đêm là **con số rớt**, không
+phải cái đèn xanh lúc này. Đếm rớt theo **cạnh xuống**, không theo trạng thái: nối được
+suốt 3 giờ rồi rớt một lần là MỘT lần rớt, không phải một nghìn lần đo thấy rớt.
+
+**`van_de()` trả về đúng hình dạng bảng Vấn đề của cửa sổ vẽ**, và mỗi dòng phải **hành
+động được**: *"kết nối kém"* là vô dụng, *"AlgoTrading đang tắt — bấm nút đó trên MT5"* thì
+làm được ngay. Nối vào **TÀI KHOẢN THẬT** là một dòng mức `error`, cố ý.
+
+`thong_so_tinh()` tách riêng vì nó đọc được trên **mọi** tài khoản kể cả tài khoản thật,
+nên luôn kiểm mỗi lần mở Live. Bốn con số, mỗi con số là một cách chiến lược chạy tốt
+trong backtest hỏng ngay ngày đầu live — và ⚠ **netting là cái lớn nhất**: D_02 dựa hẳn
+vào nhiều lệnh sống song song, tài khoản netting thì hai lệnh mua **cộng lại** thành một
+vị thế, và kết quả khác backtest mà không có gì báo.
+
+### 14.7 ⭐ TẦNG PHÒNG VỆ (`gui_lenh.py`) — bốn kết cục, không phải hai
+
+Chiến lược nói *"mua 0.01 lot, SL ở 4400"*. Giữa câu đó và một lệnh có thật ở sàn có một
+đống thứ chen vào: SL quá sát giá, giá nhảy trước khi lệnh tới, sàn không nhận kiểu khớp,
+vị thế đang bị đóng băng, ống đứt. File này lo hết — và **ghi lại nó đã phải làm gì**, vì
+mỗi lần nó sửa ý định là live lệch một chút khỏi backtest, mà lệch âm thầm là thứ tệ nhất.
+
+**MỌI thứ chạm sàn đều đi qua đây.** Bảy thao tác: mở · gắn SL/TP · sửa SL/TP · đóng · đặt
+chờ · sửa chờ · huỷ chờ. Không có cửa sau. *(Bản trước chỉ có `gui()`, nên sáu thao tác kia
+gọi thẳng `order_send` — vừa không được phòng vệ, vừa không khai báo mã lạ. Đó là chỗ
+`10029` và `10036` lọt lưới suốt.)*
+
+| Kết cục | Nghĩa |
+|---|---|
+| `ok` | ý định thành hiện thực — **kể cả khi phải sửa vài lần dọc đường** |
+| `bo` | thử hết cách vẫn không được → **GIẢ THUYẾT SAI**, phải chỉnh con số |
+| `nguoi` | máy không chữa được (AlgoTrading tắt, hết tiền, chợ đóng). Chỉnh số bao nhiêu cũng vô ích |
+| `hong` | chết trước cả khi gửi được gì (chưa cài thư viện, sàn không có symbol) |
+
+> Tách `nguoi` khỏi `bo` mới cho vòng hiệu chuẩn biết lúc nào **dừng hẳn** thay vì lặp mãi
+> một bài không đời nào qua được.
+
+**Hai thứ đừng lẫn:** *luật* ở đây là **thường trực** — luôn chạy, không phải bật khi cần.
+Còn mấy con số trong luật (`kep_stops`, `deviation`, `thu_lai`…) là **GIẢ THUYẾT**, và §14.8
+sinh ra để kiểm chúng.
+
+**Ranh giới quan trọng nhất:** thử lại cái ĐÁNG thử, và tuyệt đối không thử lại cái vô
+vọng. Retry mù trên *"thiếu tiền"* là gửi mãi một lệnh không bao giờ vào được, và che mất
+lỗi thật.
+
+#### 14.7a Bảng retcode — mỗi mã một cách xử
+
+`XU_LY` có **42 mã**, chia chín cách: `thu` · `noi` (nới deviation) · `kep` (đẩy SL/TP ra
+xa) · `doi_fill` · `cho_lau` · `cho_noi` · `xong` · `dung` · `nguoi`. Ba chỗ đáng ghi:
+
+⚠ **`cho_noi` chứ không phải ngủ rồi gửi tiếp.** `10031` nghĩa là **cái ống đứt**. Ngủ
+500 ms rồi ném lệnh vào cái ống vẫn đứt thì thử 4 lần cũng hỏng cả 4 — đo được, đúng bằng
+một lần hiệu chuẩn. Phải chờ tới lúc nó **thật sự nối lại** rồi gửi **ngay lúc đó**.
+
+⚠ **`10013` là MÃ HAI NGHĨA.** Terminal trả nó cho *yêu cầu sai tham số* (thử lại vô ích)
+**và** cho *không gửi đi được lúc này* (trả về trong 0,1 ms, chưa hề ra tới sàn — rất đáng
+thử lại). Không nhìn mã mà đoán được; phải **hỏi thẳng terminal** đang nối hay không
+(`LUONG_LU`). Xếp cứng nó vào `dung` thì mọi lần ống đứt bị đọc thành "sai tham số", bỏ
+cuộc ngay lần thử đầu, và vòng hiệu chuẩn cứ tăng `thu_lai` — một con số không bao giờ
+được dùng tới.
+
+⚠ **`CHUA_BIET` — chỗ cái chưa biết chịu lộ mặt.** Không ai liệt kê hết được mọi cách một
+sàn từ chối lệnh, nên thay vì cố đoán cho đủ, hệ thống **đếm** những mã đã gặp mà chưa có
+luật rồi hiện ra. Bản trước `XU_LY.get(ma, "thu")` nuốt mã lạ vào nhánh mặc định — nó vẫn
+chạy, có khi chạy đúng, nhưng **không ai biết ta vừa gặp một thứ chưa hiểu**.
+
+#### 14.7b Ba luật BẤT ĐỐI XỨNG — và cả ba đều tốn tiền nếu sai
+
+**1 · Mã THÀNH CÔNG không được đọc thành thất bại.** `10008` (chờ đã đặt) · `10009` ·
+`10010` (khớp MỘT PHẦN) · `10025` (không có gì thay đổi → SL/TP vốn đã đúng) · `10036` (vị
+thế đã đóng → muốn đóng mà nó đóng rồi thì… đạt).
+
+> Đo được: sàn khớp một phần thì lệnh **ĐÃ VÀO**, nhưng vòng thử đọc thành "chưa xong" rồi
+> **GỬI LẠI** — xin 5 lot mà bắn ra 3 lệnh, thành **15 lot thật**, và hai ticket đầu biến
+> mất khỏi sổ nên không ai thấy. **Một "thành công" bị đọc thành "thất bại" tốn tiền gấp
+> bội một thất bại bị đọc thành thành công.**
+
+**2 · Mã MỜ NGHĨA trên lệnh thị trường thì DỪNG** (`MO_HO_TREN_DEAL = {10011, 10012, 10023,
+10031}`). Timeout và mất kết nối là đúng nghĩa *"không biết"* — yêu cầu có thể đã tới sàn
+và khớp xong rồi, chỉ có câu trả lời là lạc. Gửi lại một `TRADE_ACTION_DEAL` trong tình
+trạng đó là **đánh cược bằng tiền thật**. Dựng lại được trên sàn giả: sàn khớp thật rồi trả
+`10012` → một ý định ra **HAI vị thế**. `10041` (sàn TỪ CHỐI) **không** nằm đây: từ chối là
+bằng chứng lệnh KHÔNG vào, thử lại an toàn.
+
+**3 · Mã LẠ: `dung` với lệnh thị trường, `thu` với mọi thứ khác.** Không biết mã nghĩa gì
+tức là không biết lệnh đã vào sàn hay chưa. Nhưng gửi lại một lệnh **sửa SL/TP** hay **huỷ
+lệnh chờ** thì vô hại — cùng lắm là "không có gì thay đổi". Bất đối xứng này phải nằm
+**trong luật**, không để nhánh mặc định nuốt.
+
+#### 14.7c Hai cái bẫy đã cắn lúc chạy thật
+
+⚠ **Kẹp SL/TP theo giá HIỆN TẠI, không theo giá mở.** `stops_level` là khoảng cách tối
+thiểu tới **giá đang chạy** — sàn đo từ đó. Kẹp theo giá mở thì khi giá đã chạy xa, việc
+kéo SL lên khoá lời bị đẩy ngược về sát giá vào: mua ở 4400, giá 4500, xin SL 4495 (khoá
++95 điểm) mà **lại gửi đi SL 4397** — xoá sạch phần lời đã khoá, và sổ vẫn ghi "ok".
+
+⚠ **`_vi_the` LUÔN đọc lại từ sàn**, kể cả khi người gọi đưa sẵn đối tượng vị thế. Đối
+tượng vị thế là **ảnh chụp tại một thời điểm** — giữa lúc chụp và lúc dùng, SL có thể đã
+dính và vị thế đã đóng. Cầm cái ảnh đó gọi tiếp thì terminal từ chối tại chỗ trong 0,1 ms
+với mã `10013`, và ta đọc thành "yêu cầu sai tham số" rồi bỏ cuộc. Gặp thật, và nó giết
+trọn vòng 1 của một lần hiệu chuẩn.
+
+Còn **`sua_truoc` và `da_sua` là hai cột khác nhau**, không gộp: sửa TRƯỚC khi gửi nghĩa là
+phòng vệ **đoán đúng** nên sàn không kịp từ chối — đó là bằng chứng **mạnh nhất** rằng giả
+thuyết đúng. Sửa SAU khi bị từ chối là chữa được, vẫn đạt, nhưng yếu hơn.
+
+### 14.8 ⭐ HIỆU CHUẨN — vòng lặp TỰ CHỈNH, không phải bài thi
+
+> **Đây KHÔNG phải bài thi để chấm điểm. Đây là vòng lặp tự chỉnh cho tới khi bảng Đề
+> phòng ĐÚNG.**
+
+Nên thứ giao lại ở cuối không phải một danh sách lỗi, mà là **một bộ con số mà mỗi dòng
+đều ghi *đo được***. Bản trước in ra *"14/21 bước đạt"* rồi thôi — con số đó vừa vô nghĩa
+(trộn bốn thứ khác hẳn nhau vào một rổ) vừa vô dụng (biết rồi thì làm gì?).
+
+**Vì sao phải mở/đóng lệnh THẬT** thay vì đặt một lệnh không thể khớp: bốn thứ dưới đây
+**không có cách nào đọc ra, chỉ đo được** — trượt giá lúc vào và lúc ra · độ trễ thật của
+từng loại thao tác (gửi ≠ sửa ≠ đóng) · sàn có thật sự nhận filling mode nó khai không ·
+ngưỡng SL/TP thật. Lặp nhiều vòng và **giãn cách để giá chạy**: đo sáu lần ở cùng một mức
+giá thì ra sáu con số giống nhau — đó là một điểm, không phải một phân bố.
+
+**TỪ CHỐI nếu không phải demo** — đọc `trade_mode`, không hỏi.
+
+#### 14.8a Bốn mức chấm, không phải đạt/hỏng
+
+| Mức | Nghĩa |
+|---|---|
+| `tron` | chạy trơn, phòng vệ không phải động tay |
+| `xac` | phòng vệ **sửa TRƯỚC** khi gửi nên sàn không kịp từ chối → bằng chứng mạnh nhất |
+| `do` | sàn từ chối, phòng vệ **chữa được**, ý định vẫn thành → **VẪN LÀ ĐẠT** |
+| `hong` | phòng vệ bó tay → giả thuyết SAI, phải chỉnh con số rồi chạy lại |
+| `nguoi` | máy không chữa được → **DỪNG** và nói rõ người phải làm gì |
+
+> **Lỗi mà ta đã đề phòng đúng thì không phải lỗi của ta.** Tô đỏ một bước mà tầng phòng vệ
+> đã chữa xong là **báo động giả**, và báo động giả thì lần sau không ai đọc nữa.
+
+#### 14.8b Ba trạng thái kết thúc — và mỗi cái phải nói rõ là cái nào
+
+| | |
+|---|---|
+| `xong` | không còn gì để chỉnh. Bảng Đề phòng đã đúng |
+| `nguoi` | gặp thứ máy không chữa được. Dừng, và nói người phải làm gì |
+| `chua_hoi_tu` | hết trần lặp (`LAP_TOI_DA = 4`) mà vẫn còn hỏng. **Nói thẳng chỗ chưa chốt được**, kèm những gì đã thử |
+
+`_suy_chinh()` là **trái tim** của vòng lặp: *lỗi vừa gặp TỰ KHAI giá trị đúng*. Mỗi luật
+đọc được thành một câu — `10029` vẫn lọt ⇒ `cho_bang_ms` đang thiếu ⇒ nhân đôi. Không có
+hàm này thì bài kiểm chỉ biết kêu, còn chỉnh vẫn là việc của người — mà người thì không
+biết `10029` nghĩa là tăng `cho_bang_ms`.
+
+**Ba lần nói dối theo hướng trấn an đã bị chặn**, và cả ba đều lọt qua chính cái chốt dựng
+cho nó:
+
+1. ⚠ **Lượt VỠ GIỮA CHỪNG từng ra `xong`.** `chay_duoc` đã bật từ đầu, `dem` không có mục
+   `hong` nào (lượt chỉ NGỪNG chứ không có bước nào thất bại), nên `hieu_chuan` thấy đủ ba
+   dấu hiệu tốt và tuyên bố **"xong"** — trong khi 6/7 thao tác chạm sàn chưa bao giờ được
+   thử. Giờ `vo_giua` → `chua_hoi_tu`: lượt chưa chạy hết thì **mọi** kết luận rút ra từ nó
+   đều không có cơ sở, kể cả kết luận "không còn gì để chỉnh".
+2. ⚠ **Còn hỏng mà không con số nào chỉnh được → DỪNG NGAY.** Bản trước rơi thẳng vào nhánh
+   "xong". Lặp tiếp cũng vô nghĩa: cùng bộ số thì cùng kết quả. *"Đây là chỗ ta chưa hiểu,
+   không phải chỗ cài sai."*
+3. ⚠ **Chỉ tăng `thu_lai` cho mã CÒN ĐƯỢC THỬ LẠI.** Bản trước tăng cho mọi mã hỏng kể cả
+   mã xếp `dung` — tức chỉnh một con số không bao giờ được dùng tới, rồi vòng lặp tưởng
+   mình vừa tiến bộ nên chạy tiếp. Đo được: `thu_lai 3→4→5→6→7` suốt bốn lượt trong khi mã
+   hỏng là `10013`, đốt sạch bài kiểm mà không sửa gì.
+
+⚠ **Bài kiểm GIÀNH cầu nối suốt thời gian chạy** (`_dang_kiem`). `mt5` giữ MỘT kết nối cho
+cả tiến trình, và `_KetNoi` đóng nó khi thoát. Nhịp đo sức khoẻ 1 giây và vòi cấp nến 10
+giây cắt ngang bài kiểm đang chạy dở → mọi lệnh từ vòng 2 trả `10031 mất kết nối`. Người
+dùng chỉ thấy "bài kiểm hỏng" mà không có cách nào biết vì sao.
+
+⚠ **Tiến độ phải có cả LƯỢT chứ không chỉ vòng.** Bản trước chỉ đẩy `vòng k/3` và nó reset
+mỗi lượt, nên bốn lượt trông y hệt một vòng lặp vô tận. Và **nhật ký chảy ra NGAY**, không
+gom tới cuối: bài kiểm đặt 5 lệnh thật mà nhật ký im lặng suốt hai phút là đúng cái app này
+sinh ra để chống.
+
+#### 14.8c Đo ngưỡng SL/TP thật — và trả lại hiện trường
+
+Lần chạy thật: sàn khai `trade_stops_level = 0` nhưng SL cách **300 điểm** vẫn bị từ chối
+`10016`. **Con số khai KHÔNG dùng được.** Mà D_02 tính SL theo ATR — lúc nén chặt SL còn
+ngắn hơn thế, nên không biết ngưỡng thật thì live bị từ chối im lặng **đúng lúc vào lệnh**.
+
+`do_stops_level` chia đôi khoảng, mỗi lần thử là một `order_send` thật, 6–8 lần là biết.
+Ba chi tiết, cả ba đều học từ một lần hỏng:
+
+- **Gọi thẳng `order_send`, CỐ Ý.** Đây là phép ĐO, mà tầng phòng vệ sinh ra để né đúng cái
+  ta đang muốn chạm vào. Cho nó chen vào đây là **đo chính nó**.
+- ⚠ **Tách NHIỄU khỏi câu trả lời** (`_NHIEU`). Không tách thì một lần đóng băng bị đọc
+  thành "ngưỡng cao hơn" và trả về con số to hơn sự thật — rồi mọi SL sau đó bị đẩy ra xa
+  vô cớ. Đo được: cùng một sàn ra **410 điểm** ở lượt này và **324** ở lượt sau.
+- ⚠ **PHẢI TRẢ LẠI HIỆN TRƯỜNG.** Phép đo kết thúc với SL nằm **sát giá nhất có thể** — đó
+  là định nghĩa của nó. Vàng chạy vài chục điểm mỗi phút nên cái SL ấy dính gần như ngay,
+  vị thế đóng, và ba bước sau vẫn cầm vị thế cũ mà gọi tiếp → cả vòng chết. **Một phép đo
+  mà làm hỏng thứ nó vừa đo thì không phải phép đo.**
+
+Vì nhiễu như thế nên **đo MỘT LẦN rồi dùng lại** cho các lượt sau (`nguong_biet`): đo lại
+mỗi lượt thì lần nào nhích lên là lại sinh một lần "chỉnh", và vòng lặp leo thang **vì
+nhiễu chứ không vì sai**.
+
+Biên: `BIEN_KEP = 1.2` (đo 215 mà cài 215 là cài đúng mép — spread giãn một nhịp là lại bị
+từ chối) · `BIEN_TRUOT = 1.5` (deviation quá hẹp thì lệnh bị từ chối, quá rộng thì khớp giá
+xấu — nhưng **KHÔNG khớp còn tệ hơn khớp xấu**).
+
+#### 14.8d Dọn rác BẰNG MỌI GIÁ
+
+Bài kiểm đứt giữa chừng vì mất cầu nối, để lại **một vị thế đang mở**. Không ai soi thì nó
+nằm đó âm thầm ăn/lỗ, và người dùng mở Live lên chẳng thấy gì bất thường.
+
+- `MAGIC_KIEM = 777001` tách hẳn khỏi magic chiến lược → dọn rác **không bao giờ đụng nhầm
+  lệnh thật**.
+- `don_rac` gọi được cả từ nút riêng lẫn từ `finally`, và **đi qua `gui_lenh`** như mọi thứ
+  khác — dọn rác cũng là chạm sàn, và đây đúng là lúc hay đứt nhất.
+- ⚠ **Dọn hỏng thì phải KÊU.** Bản trước `if ok: đếm` — thất bại rơi vào im lặng, và
+  `{"da_dong": 0}` không phân biệt được với *"không có gì để dọn"*. Rác ở đây là **vị thế
+  thật đang ăn/lỗ**, đúng thứ nguy nhất khi để âm thầm.
+
+### 14.9 HỒ SƠ KẾT NỐI — cache, không phải cài đặt
+
+`du_lieu/ho_so_ket_noi.json`. Khác cài đặt ở chỗ: **cài đặt là thứ người dùng gõ vào, hồ sơ
+là thứ ĐO ĐƯỢC từ sàn.** Mất file này không hỏng gì cả, chỉ là phải chạy lại bài kiểm — nên
+nó nằm riêng, xoá thoải mái, và **không bao giờ trộn vào `cai_dat.json`**.
+
+⚠ **Khoá theo `sàn + symbol`, KHÔNG theo server.** Demo và thật của cùng một sàn là hai
+server khác nhau (`Exness-MT5Trial7` vs server thật) — khoá theo server thì hiệu chuẩn trên
+demo không bao giờ áp được cho tài khoản thật, tức cả luồng *"test trên demo rồi sang
+thật"* chết ngay ở bước cuối.
+
+⚠ **Nhưng tên sàn cũng không chắc.** Một sàn có thể có nhiều pháp nhân — demo báo một chuỗi
+(`Exness Technologies Ltd`), tài khoản thật báo chuỗi khác (`Exness (SC) Ltd`). Khi đó live
+**không tìm thấy hồ sơ và lặng lẽ rơi về số mặc định đang đoán**, không có gì báo. Nên
+`ho_so_khac()` hỏi thẳng: *"chưa có hồ sơ cho sàn này — dùng cái đã đo ở kia?"*
+
+> Máy **không tự chép**: nó không biết hai chuỗi đó là một sàn hay hai. Nhưng nó **BIẾT**
+> mình đang không có hồ sơ, và im lặng rơi về số mặc định là đúng kiểu chết ngầm cả tầng
+> này sinh ra để chặn. Đây là chỗ **duy nhất** người dùng phải tự quyết.
+
+**Bản chép để lại vết** (`chep_tu` + `chep_luc`), giữ nguyên `do_luc` gốc. Xoá vết là biến
+một bản sao thành một phép đo giả.
+
+#### ⚠ 14.9a BA XUẤT XỨ — và chỉ hai trong ba mang từ demo sang thật được
+
+Bảng Đề phòng nhìn thì đồng nhất, nhưng các dòng của nó trả lời **khác hẳn nhau** cho cùng
+một câu: *"số này mang từ demo sang tài khoản thật được không?"*
+
+| `LOAI` | Là gì | Mang sang thật? |
+|---|---|---|
+| `san` | **luật của sàn** — `kep_stops`, `filling`, `cho_bang_ms` | ✔ demo và thật cấu hình như nhau cho cùng symbol. Đo một lần, xài mãi |
+| `khop` | **chất lượng khớp** — `deviation` (trượt giá) | ⚠ demo **không có thanh khoản thật**, số đo được chỉ là **CHẶN DƯỚI**. Chép thẳng là cài hụt đúng cái ăn tiền |
+| `ta` | **cách app tự xử** — `thu_lai`, `cho_ms`, `cho_noi_giay` | ✔ không phụ thuộc tài khoản nào |
+
+Không đánh dấu ra thì người dùng chép cả bảng — **kể cả dòng duy nhất không được chép.**
+
+### 14.10 Bảng ĐỀ PHÒNG — hệ thống đang tự bảo vệ bằng gì, và số đó từ đâu ra
+
+Trình bày như khối Tài khoản: nhãn · giá trị · ghi chú. Nó **BÁO CÁO**, không phải để
+chỉnh — chỉnh là việc của bài hiệu chuẩn, tự ghi vào hồ sơ.
+
+Ghi chú nói **NGUỒN** mới là chỗ có giá trị, và nó có **BA mức chứ không hai**:
+
+| | |
+|---|---|
+| *đã chỉnh* | bài kiểm gặp lỗi rồi **tự sửa** con số này. Bằng chứng mạnh nhất |
+| *đã kiểm* | chạy qua bài kiểm mà **không hỏng lần nào** → giả thuyết ĐÚNG SẴN |
+| *đang đoán* | chưa hiệu chuẩn lần nào. **Con số bịa** |
+
+> ⚠ Mức giữa là chỗ dễ hiểu nhầm nhất: **không đổi gì KHÔNG phải là chưa thử**, mà là thử
+> rồi và không cần đổi. Gộp nó với *đang đoán* là vứt mất toàn bộ giá trị của một lần chạy
+> sạch.
+
+Mức *đã chỉnh* đọc thẳng từ `da_chinh` của hồ sơ (mỗi dòng dạng `kep_stops: 0 → 258 — vì
+sao`), không đoán lại, không lưu trùng. Ba dòng cuối bảng là **kiểm kê luật**: bao nhiêu mã
+đã có luật · bao nhiêu mã cần người · và **những mã CHƯA có luật đã gặp** (§14.7a).
+
+Và bảng phải nói rõ **đo ở tài khoản nào · đang chạy ở tài khoản nào** — hai câu khác nhau,
+và chỗ lệch giữa chúng là toàn bộ rủi ro của luồng *"đo demo, chạy thật"*.
+
+### 14.11 ⭐ SỰ THẬT CỦA LIVE LÀ SÀN, không phải sổ mô phỏng
+
+Ở tester, sự thật là sổ lệnh MÔ PHỎNG — vì không có sàn nào cả. Ở live, sự thật là **SÀN**:
+chiến lược chỉ *quyết định*, còn cái gì thật sự tồn tại thì chỉ MT5 biết.
+
+Vẽ chart Live từ sổ mô phỏng sai theo **hai chiều**, và chiều thứ hai mới nguy:
+
+- lệnh do bài kiểm đặt — **CÓ THẬT, có ticket** — không hiện, vì engine không biết;
+- engine "nghĩ" đã đặt mà sàn từ chối → chart vẽ ra một lệnh **KHÔNG TỒN TẠI**.
+
+Nên nguồn lệnh của Live là `positions_get` · `orders_get` · `history_deals_get`, cắt từ mốc
+bấm Live, trả về **đúng hình dạng `LenhVe`** mà `Chart` đang ăn — không thêm tầng nào, bỏ
+bớt một tầng trùng lặp. Vị thế đã đóng ghép từ deal theo `position_id` (một vị thế có ít
+nhất hai deal, vào và ra). Lệnh của bài kiểm mang cờ `la_kiem` để phân biệt được với lệnh
+của chiến lược.
+
+Đây cũng là **chỗ DUY NHẤT phải đổi** để cả bề mặt đọc của tester dùng được cho live:
+`ApiLive._doi_kq()` trả **ảnh chụp SỐNG** thay cho `KetQua` bất biến của backtest.
+
+### 14.12 Giao diện Live — dùng chung ba component với tester
+
+**Không copy, không fork.** `Chart` · `BangSoLieu` · `Journey` nhập thẳng từ `../tester/`,
+nên sau này sửa màu chart hay cách vẽ lệnh là đổi **CẢ HAI** cửa sổ — không có bản thứ hai
+để trôi xa. Làm được thế vì `ApiLive` **kế thừa bề mặt ĐỌC của `ApiTester`** và chỉ đổi
+đúng `_doi_kq()`; giao diện không biết mình đang xem live hay backtest.
+
+Đổi lại phải **bịt những cửa không có nghĩa ở live** — `test_chay`, `test_lich_su_chay` trả
+lỗi thẳng. Để hở thì bấm nhầm là chạy backtest **đè lên phiên live đang chạy**.
+
+Khác tester đúng ba chỗ:
+
+| | Tester | Live |
+|---|---|---|
+| thanh công cụ | phát lại, tua, nhảy mốc | **không có** — live chỉ có MỘT con trỏ: *bây giờ* |
+| bảng dưới | Nhật ký · Thống kê | Vấn đề · **Kết nối** · Nhật ký (không Thống kê — sàn làm rồi) |
+| con trỏ | thả đâu cũng được | luôn ở nến mới nhất, tự nhảy khi sàn đóng nến |
+
+Ba con số của giao diện, mỗi con số một lý do:
+
+- **`LO = 120` khung hình mỗi lần làm mới, không phải 900.** Đo được: `test_doan(-1, 900)`
+  là **178 KB mỗi phút** qua cầu nối pywebview — mà cầu nối đó **đồng bộ và mã hoá payload
+  hai lần**, nên *kích thước gói* mới là chỗ đau chứ không phải thời gian Python (13 ms).
+  Live không tua lại nên lô chỉ để nhật ký có bối cảnh.
+- **`TRAN_NEN = 2000`** — chart Live là chart **quan sát** như chart trading, không phải
+  cuộn phim để tua. Tester giữ 60.000 vì ở đó bạn có quyền nhảy về bất kỳ đâu.
+- **`digits` lấy từ chính engine đang chạy**, không viết cứng 2. Ô Symbol ở cổng chốt là ô
+  gõ tự do: chọn EURUSD (5 số) mà bước giá 0,01 thì 1.08501 và 1.08528 gộp vào một mức,
+  nến dẹp thành một vạch, và mọi con số in ra `.toFixed(2)` thành "1.09".
+
+⚠ **`useKhungCuaSo` phải gọi ở TRANG Live.** Thiếu đúng một dòng đó là cửa sổ Live không
+kéo được, không giãn được, không Aero Snap — vì `frameless=True` đã xoá viền hệ thống mà
+không có ai dựng lại. Ba nút thu nhỏ/phóng to/đóng vẫn chạy nên nhìn thoáng qua tưởng thanh
+tiêu đề ổn. `App.tsx` và `Tester.tsx` đều gọi; chỉ Live sót (cùng bẫy §12.12).
+
+⚠ **Vá khung khớp theo `"— Live"` chứ không `"Live"` trần.** `tim_hwnd` khớp **chuỗi con**,
+mà một chiến lược đặt tên "Live" sẽ làm tiêu đề tester (`Live — Strategy Tester`) khớp
+trước → vá nhầm cửa sổ.
+
+Kèm nút **`live_ve_so_do`** kéo cửa sổ vẽ lên trước: live chạy ngầm hàng giờ nên cửa sổ vẽ
+hay bị lấp sau, mà không có đường quay về thì người dùng phải đi tìm trên taskbar.
+
+### 14.13 Bài kiểm trên SÀN GIẢ — `tests/test_gui_lenh.py`
+
+Ba module chạm tiền thật, và trước bài này chúng **không có một dòng test nào**. Cổng kiểm
+trước khi đóng gói (`dong_goi.bat` bước 3) vẫn báo *"9/9 qua"* kể cả khi bảng xử lý retcode
+bị bẻ hỏng hoàn toàn — tức **một bản phát hành biết đặt lệnh sai vẫn ra khỏi cửa**.
+
+Sàn giả **nói dối ĐÚNG KIỂU sàn thật đã đo được**, và đó là toàn bộ giá trị của nó:
+
+- khai `trade_stops_level = 0` nhưng ngưỡng thật là **215 điểm**;
+- khai nhận FOK nhưng chỉ nhận **IOC**;
+- vị thế vừa mở thì **đóng băng** một lúc (mã `10029`).
+
+Bốn thứ được canh: mã thành công không được đọc thành thất bại · mã lạ trên lệnh thị trường
+thì dừng · vòng hiệu chuẩn không được nói dối (vỡ giữa chừng phải ra `chua_hoi_tu`) · ý
+định phải thành hiện thực. **Chạy được ở bất cứ đâu, không cần MT5.**
+
+### 14.14 Trước khi nối LUỒNG ĐẶT LỆNH — ba thứ phải chốt
+
+Hôm nay `gui_lenh` chỉ được gọi từ `ket_noi.hieu_chuan` và `don_rac`. **Chiến lược chưa nối
+vào nó**, và đó là quyết định, không phải thiếu sót:
+
+> Chưa ai nên để một cái máy đặt lệnh thật khi chưa ngồi nhìn nó chạy câm vài ngày và so
+> nhật ký với tester.
+
+Ngày nối, ba câu này phải có lời trước dòng code đầu tiên — cùng nếp §12.5:
+
+1. **Sổ lệnh của ai là sự thật?** Engine giữ `so_lenh.Lenh` với id của ta, sàn giữ ticket.
+   Lệnh sàn từ chối thì engine phải quên nó đi hay giữ lại? §14.11 đã chốt *hiển thị* theo
+   sàn; còn *quyết định* của Manage đang đọc sổ mô phỏng.
+2. **Lệch giữa ý định và hiện thực đi đâu?** `sua_truoc`/`da_sua` đang chảy vào nhật ký bài
+   kiểm. Với lệnh thật, chúng phải vào **nhật ký lượt chạy** — nếu không thì "vì sao live
+   khác backtest" vĩnh viễn không trả lời được.
+3. **Đóng cửa sổ = dừng phiên, còn đúng nữa không?** §14.4 chọn thế vì chưa có gì phải giữ.
+   Có lệnh thật rồi thì đóng cửa sổ mà bỏ mặc vị thế là chuyện khác hẳn.
+
+---
+
 ## 13. Việc còn treo
 
-Thiết kế Strategy Tester đã chốt hết ở §12. Còn lại là **việc làm**, theo đúng thứ tự:
+Tester (§12), bộ chạy (§12.13e), đóng gói (§13.1) và Live chế độ quan sát (§14) đều đã
+xong và **đo trên dữ liệu thật** — chi tiết nằm ở từng mục, không chép lại thành danh sách
+ở đây. Dưới là **thứ chưa có**.
 
-- [x] ~~Sửa 3 lỗi có sẵn của cửa sổ tester (§12.12)~~ — xong, đã đo bằng chuột thật
-- [x] ~~`nhip` thay `timeframe`~~ — xong, schema 4, di cư file cũ tự động
-- [x] ~~Sửa mô tả ATR trong `kho/chi_bao.py`~~ — xong, và bộ TÍNH cũng đã có (`tinh_toan.atr`)
-- [x] ~~Lỗi soát khi hai đầu nhánh lệch dưới 8 px~~ — xong, `core.LECH_TOI_THIEU`
-- [x] ~~Cập nhật `test_doi_chieu_d02.py`~~ — giờ **9 chỗ cố ý khác**, mỗi chỗ gắn nhãn có
-      ĐỔI SỐ hay không (`SỐ LỆNH` · `GIÁ & P&L` · `không`); 4 chỗ đổi số
-- [x] ~~`nguon_nen.py`~~ — xong, đã tải thật 30k nến XAUUSD; 22 bài kiểm không cần MT5
-- [x] ~~`tinh_toan.py`~~ — xong. **Gộp M1→M5/M15/H1 trùng khít MT5 tới từng chữ số** trên
-      một tháng dữ liệu thật (5.994 nến M5 · 1.999 M15 · 501 H1, lệch OHLC = 0)
-- [x] ~~`khop_lenh.py`~~ — xong, 30 bài kiểm từng ca tính tay được
-- [x] ~~`bo_chay.py`~~ — xong: biên dịch, vòng lặp M1, Manage/Entry theo nhịp, nhật ký
-- [x] ~~**Đo tốc độ trên 1 năm thật**~~ — **2,9 s** cho 354.503 nến M1 (§12.13e)
-- [x] ~~`nhat_ky.py`~~ — xong: dựng 200 dòng mất **0,6 ms**, ghi 8.020 lượt ra 3,3 MB
-- [x] ~~Giao diện tester: chart Canvas · bảng 4 khối · nhật ký ảo hoá~~ — xong, đã chạy
-      backtest thật trong cửa sổ và đối chiếu bảng ↔ nhật ký (§12.15)
+### Live — một việc lớn, và nó chặn phần còn lại
 
-Chưa liên quan tới tester:
+- [ ] **LUỒNG ĐẶT LỆNH.** `gui_lenh` đã có đủ bảy thao tác và có bài kiểm trên sàn giả,
+      nhưng **chưa ai gọi nó từ chiến lược**. Ba câu phải chốt trước: **§14.14**.
+- [ ] **Phiên sống qua cửa sổ.** Hôm nay đóng cửa sổ Live là dừng phiên (§14.4). `ApiLive`
+      đã dựng theo hướng "máy live không sống trong cửa sổ" nên đổi được, nhưng chỉ đáng
+      đổi khi có lệnh thật để giữ.
+- [ ] **Hiệu chuẩn cho tài khoản THẬT.** Bài kiểm từ chối chạy ngoài demo (§14.8), nên dòng
+      `deviation` mãi mãi là **chặn dưới** (§14.9a). Chưa có cách nào đo trượt giá thật mà
+      không đặt lệnh thật — có thể là *đo thụ động* trên chính lệnh của chiến lược.
 
-- [ ] **Chồng lệnh** — D_02: nhiều VỊ THẾ (`Max_Positions`) nhưng đúng MỘT lệnh chờ. Giữa hai lần vào lệnh bắt buộc có một đợt ATR bung ra (`CONSUMED` chỉ thoát bằng `atr_bps ≥ N`).
-- [ ] Có cần `HOẶC` giữa các điều kiện không? *(đang thiết kế: **không** — dùng nhiều nhánh, vì "hoặc" giấu trong hộp thoại thì nhìn sơ đồ không thấy)*
-- [ ] Đóng gói `.exe` (PyInstaller) — chưa làm spec.
+### Thiết kế còn treo (không dính Live)
+
+- [ ] **Chồng lệnh** — D_02: nhiều VỊ THẾ (`Max_Positions`) nhưng đúng MỘT lệnh chờ. Giữa
+      hai lần vào lệnh bắt buộc có một đợt ATR bung ra (`CONSUMED` chỉ thoát bằng
+      `atr_bps ≥ N`).
+- [ ] Có cần `HOẶC` giữa các điều kiện không? *(đang thiết kế: **không** — dùng nhiều nhánh,
+      vì "hoặc" giấu trong hộp thoại thì nhìn sơ đồ không thấy)*
