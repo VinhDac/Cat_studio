@@ -180,7 +180,24 @@ export default function Tester() {
 
   const apDung = (L: DoanPhat, k: number) => {
     setLenh(L.lenh)
-    setTBayGio(L.t[Math.max(0, Math.min(k, L.n - 1))])
+    const t = L.t[Math.max(0, Math.min(k, L.n - 1))]
+    setTBayGio(t)
+    /* ZONE lớn dần theo con trỏ. Lấy bản ghi MỚI NHẤT có `t_nến ≤ con trỏ` cho mỗi
+       zone — nên nó nở ra từng khung lúc phát, và không bao giờ lộ tương lai dù lô
+       mang sẵn cả những nến phía trước. Chỉ đặt state khi thật sự đổi: `apDung` chạy
+       mỗi khung hình, dựng mảng mới mỗi lần là ép Chart vẽ lại vô ích. */
+    if (L.zone?.length) {
+      setZone(cu => {
+        const m = new Map(cu.map(z => [z[0], z]))
+        let doi = false
+        for (const z of L.zone!) {
+          if (z[1] > t) continue
+          const c = m.get(z[0])
+          if (!c || c[1] < z[1]) { m.set(z[0], z); doi = true }
+        }
+        return doi ? [...m.values()].sort((x, y) => x[0] - y[0]) : cu
+      })
+    }
     setKhungBang(dungBang(L, k))
     const jj = L.j0 + k
     let n = 0

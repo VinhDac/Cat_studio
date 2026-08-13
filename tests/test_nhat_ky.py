@@ -451,5 +451,28 @@ kiem("có lệnh nào do SƠ ĐỒ tự huỷ để mà canh (không thì phép 
 kiem("sơ đồ tự huỷ thì chỉ kể MỘT lần, không chèn thêm mốc trùng", not thua,
      f"— {len(tu_huy)} lệnh tự huỷ, {len(thua)} cái bị kể hai lần")
 
+print("\n--- 11. CHIẾN LƯỢC TRẮNG phải chạy được, không vỡ tester ---")
+#
+# Lỗi thật: `cuoi = r.get("cong") and r["cong"][-1]["khoi"]` — trong Python `[] and x`
+# trả về `[]`, KHÔNG phải `False`. Lượt nào không có cổng nào thì `cuoi` thành một list,
+# rồi `nhan.get(list)` ném TypeError và vỡ cả `test_doan`.
+#
+# Ca đó không hề hiếm: `File → Mới` cho ra đúng hai khối Bắt đầu, không cổng nào. Thêm
+# `chu_ky_atr` cho đủ tham số là soát tĩnh 0 lỗi, backtest chạy ngon — bấm ▶ mới nổ.
+d11b = core.new_process()
+d11b["tham_so"] = [core.make_tham_so("chu_ky_atr", "", 14, "nen")]
+d11b = core.normalize_process(d11b)
+kiem("chiến lược trắng đi qua soát tĩnh sạch",
+     not [p for p in core.validate_process(d11b) if p["severity"] == "error"])
+kq11b = bc.chay(d11b, nen_m1([100.0] * 200), cd)
+_rong11 = [r for r in kq11b.nhat_ky if not r["viec"] and not r["cong"]]
+kiem("và sinh ra lượt KHÔNG việc KHÔNG cổng (đúng ca làm vỡ)",
+     bool(_rong11), f"— {len(_rong11)}/{len(kq11b.nhat_ky)} lượt")
+at11b = api.ApiTester(ChaGia())
+at11b._kq = kq11b
+_r11b = at11b.test_doan(0, 200)
+kiem("`test_doan` KHÔNG vỡ", bool(_r11b.get("ok")),
+     "" if _r11b.get("ok") else f"— {str(_r11b.get('error'))[:70]}")
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

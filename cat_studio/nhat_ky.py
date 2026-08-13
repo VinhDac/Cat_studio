@@ -134,7 +134,13 @@ def dong_chu(r, nhan, khoi, ts, nen5):
     if r["viec"]:
         duoi = " · ".join(_viec_chu(v) for v in r["viec"])
     else:
-        cuoi = r.get("cong") and r["cong"][-1]["khoi"]
+        # ⚠ KHÔNG viết `r.get("cong") and …`: trong Python `[] and x` trả về `[]`,
+        # không phải `False`. Lượt nào KHÔNG có cổng nào (sơ đồ chỉ có khối Bắt đầu —
+        # đúng thứ `File → Mới` tạo ra) thì `cuoi` thành một LIST, rồi `nhan.get(list)`
+        # ném TypeError và vỡ cả `test_doan`. Đo được: chiến lược trắng + `chu_ky_atr`
+        # đi qua soát tĩnh 0 lỗi, backtest chạy ngon, bấm ▶ là tester nổ.
+        cong_ds = r.get("cong") or []
+        cuoi = cong_ds[-1]["khoi"] if cong_ds else None
         vs = _vi_sao(r.get("cong"), ts, khoi)
         duoi = f"hết lượt tại [{nhan.get(cuoi, '?')}]" + (f" · {vs}" if vs else "")
     return f"{t}  {tab}{lenh}  {duong}  {duoi}"

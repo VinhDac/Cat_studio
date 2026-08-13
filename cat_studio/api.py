@@ -1139,7 +1139,44 @@ class ApiTester(NenCuaSo):
             "l": a["l"].tolist(), "c": a["c"].tolist(),
             "bang": bang, "lenh_song": song, "tai_khoan": tk,
             "lenh": kq.the_lenh(i_cuoi), "nhat_ky": nk,
+            "zone": self._zone_trong_lo(kq, i5),
         })
+
+    @staticmethod
+    def _zone_trong_lo(kq, i5):
+        """Zone LỚN DẦN qua từng nến trục của lô: `[t_zone_mở, t_nến, đáy, đỉnh]`.
+
+        ⚠ VÌ SAO LÔ PHẢI MANG ZONE. Lúc phát lại, `nhip()` lấy khung hình TỪ LÔ và không
+        hỏi Python một câu nào — đó là cả điểm của lô (phát 60 ms/nhịp mà gọi cầu nối
+        mỗi nhịp thì giật). Nhưng zone thì chỉ được nạp ở đường NHẢY, nên suốt lúc phát
+        nó đứng yên: bấm ▶ zone không nhúc nhích, bấm "tới sự kiện" mới thấy nó nhảy một
+        phát. Đúng lỗi người dùng gặp.
+        Lệnh không bị vậy vì lô mang sẵn cả sự kiện tương lai và `Chart` tự cắt theo
+        `tBayGio`. Giờ zone theo đúng luật đó.
+
+        Rẻ: lô 300 nhịp M1 = 60 nến trục, nên nhiều nhất 60 bản ghi (~2 KB). Gửi kèm còn
+        rẻ hơn một lời gọi riêng.
+
+        Mỗi bản ghi là trạng thái zone TÍNH TỚI nến đó — nên `Chart` chỉ việc lấy bản
+        ghi mới nhất có `t_nến ≤ tBayGio`, và không bao giờ lộ tương lai."""
+        n5 = getattr(getattr(kq, "_ct", None), "nen5", None)
+        if n5 is None or not len(i5):
+            return []
+        lo0, lo1 = int(i5[0]), int(i5[-1])
+        ra = []
+        for v in getattr(kq.so, "zone", ()) or ():
+            if v.dinh is None or v.so_nen <= 0:
+                continue
+            b0 = int(v.nen_bat_dau)
+            b1 = min(len(n5) - 1, b0 + int(v.so_nen) - 1)
+            if b1 < lo0 or b0 > lo1:            # zone không chạm cửa sổ lô
+                continue
+            t0 = int(n5["t"][b0])
+            for b in range(max(b0, lo0), min(b1, lo1) + 1):
+                doan = n5[b0:b + 1]
+                ra.append([t0, int(n5["t"][b]),
+                           float(doan["l"].min()), float(doan["h"].max())])
+        return ra
 
     def _cot_toan_hang(self, kq, o, i5, a):
         """Giá trị một toán hạng tại TỪNG khung hình của lô. `None` = chưa ghi lại được.

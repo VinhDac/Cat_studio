@@ -393,6 +393,36 @@ kiem("zone chưa bắt đầu thì KHÔNG có hộp nào",
      not [h for h in _api.ApiTester._hop_zone(_kq, _a0, 0)
           if h[0] >= int(_n5["t"][_b0])])
 
+print("\n▸ 11. ZONE phải LỚN DẦN trong lúc PHÁT LẠI, không đợi tới lúc nhảy")
+#
+# Lúc phát lại, `nhip()` lấy khung hình TỪ LÔ và không hỏi Python một câu nào — đó là cả
+# điểm của lô (phát 60 ms/nhịp mà gọi cầu nối mỗi nhịp thì giật). Nhưng zone từng chỉ
+# được nạp ở đường NHẢY, nên suốt lúc phát nó ĐỨNG YÊN: bấm ▶ zone không nhúc nhích,
+# bấm "tới sự kiện" mới thấy nó nhảy một phát.
+#
+# Lệnh không bị vậy vì lô mang sẵn cả sự kiện tương lai và `Chart` cắt theo `tBayGio`.
+# Bài này canh zone theo đúng luật đó.
+_at11 = _api.ApiTester(object())
+_at11._kq = _kq
+_L = _at11.test_doan(0, min(300, len(_kq.nen1)))["value"]
+kiem("lô mang theo bản ghi zone", bool(_L.get("zone")),
+     f"— {len(_L.get('zone') or [])} bản ghi")
+
+# Mô phỏng ĐÚNG phép gộp của `Tester.apDung`: bản ghi mới nhất có `t_nến ≤ con trỏ`.
+_hop11, _buoc11 = {}, []
+for _k in range(_L["n"]):
+    _t11 = _L["t"][_k]
+    for _z in _L.get("zone") or []:
+        if _z[1] <= _t11 and (_z[0] not in _hop11 or _hop11[_z[0]][1] < _z[1]):
+            _hop11[_z[0]] = _z
+    _buoc11.append(tuple(sorted((z[0], z[2], z[3]) for z in _hop11.values())))
+_doi11 = sum(1 for _i in range(1, len(_buoc11)) if _buoc11[_i] != _buoc11[_i - 1])
+kiem("hộp zone NỞ RA nhiều lần trong một lô, không đứng yên",
+     _doi11 >= 2, f"— đổi {_doi11} lần trong {_L['n']} khung")
+
+kiem("và không bản ghi nào vượt quá con trỏ (không lộ tương lai)",
+     all(z[1] <= _L["t"][_L["n"] - 1] for z in _hop11.values()))
+
 print(f"\n{'=' * 68}")
 print(f"  {dung}/{dung + sai} kiểm qua" if not sai else f"  ✘ {sai} bài HỎNG")
 print("=" * 68)
