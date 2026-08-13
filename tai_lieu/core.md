@@ -1308,8 +1308,11 @@ là bug chiến lược trong khi đó là bug của công cụ.
 
 Bốn khối, mỗi khối một nguồn rõ ràng:
 
-1. **Toán hạng đang dùng** — suy từ chính `doc`, khoá theo `(tên + tf + period)` nên ATR(M5,14)
-   và ATR(M5,42) là hai dòng riêng. Toán hạng chưa được đọc trong lượt đó hiện **dấu gạch**, không hiện 0.
+1. **Toán hạng đang dùng** — suy từ chính `doc`, khoá theo
+   `(tên + tf ĐÃ CHUẨN HOÁ VỀ KHUNG QUYẾT ĐỊNH + period + method + ĐƠN VỊ TẠI CHỖ ĐỌC)` nên
+   ATR(M5,14) và ATR(M5,42) là hai dòng riêng — và ATR(M5,14) đọc bằng `bps` cũng là một dòng
+   riêng với ATR(M5,14) đọc bằng giá (xem 12.9e). Toán hạng chưa được đọc trong lượt đó hiện
+   **dấu gạch**, không hiện 0.
 2. **Trạng thái engine** — `VungNen.tom_tat()` (đã có sẵn, chưa ai gọi).
 3. **Tài khoản** — equity, drawdown, margin đã dùng, số vị thế, số lệnh chờ.
 4. **Bảng theo TỪNG LỆNH đang sống** — mỗi lệnh một hàng, cột là 6 toán hạng nhóm "Lệnh này".
@@ -1367,6 +1370,10 @@ Chữ **12px** — 11px mỏi mắt, 13px chiếm chỗ mà chẳng rõ thêm.
 nghĩa. Dòng trên là *tình trạng* (hướng · id · đã khớp/chờ Stop · R), dòng dưới là *ba mức giá đủ
 số*. Chấm hoà vốn chuyển sang nằm cạnh **SL** — nó nói về SL chứ không nói về cái id.
 
+Phương án *"hiện cả hai giá trị / thêm một dòng phụ mờ dưới mỗi hàng"* (bàn ở 12.9e) đã bị **bác**
+vì cùng lý lẽ này: 4 trong 12 hàng của sơ đồ mẫu là `khoang_cach` nên dòng phụ tốn ~84px — gần
+trọn 110px vừa thu về khi bỏ tên nhóm — mà **vẫn** để lại con số trùng trên màn hình.
+
 #### 12.9d ⚠ LỖI THẬT: hàng lệnh đọc trạng thái CUỐI backtest
 
 Tìm ra lúc soi ảnh chụp kiểm bố cục mới, không phải lúc tìm lỗi.
@@ -1391,6 +1398,112 @@ Kiểm lại: 17:59 → `chờ Stop @2638.965`, `lai_R = None`; 20:05 → `đã 
 Khi con trỏ đứng đúng lượt có lệnh được đặt, hiện thêm **phép tính vào lệnh đã dùng số nào**:
 `đệm = 0.10 × ATR_hiện_tại = 0.42 · R = 1.5 × ATR_TB_vùng = 4.80`. Đây là chỗ **duy nhất** bắt
 được lỗi lẫn hai loại ATR mà §6.3 cảnh báo — validator không bắt được lỗi đó.
+
+#### 12.9e ⚠ LỖI THẬT: hai hàng ATR trùng mặt · ĐƠN VỊ THEO CHỖ DÙNG
+
+Triệu chứng người dùng chụp lại: bảng có **hai dòng y hệt nhau**, `ATR · M5·14 · 1.412`, cách nhau
+một dòng. Không trùng do hiển thị — trùng **từ nguồn**: hàng đầu là vế trái cổng nén, hàng sau do
+`TINH_CAN_TOAN_HANG["atr"]` sinh ra vì đệm vào lệnh dùng cách tính `× ATR`. Khoá dedupe giữ chúng
+riêng (`tf='M5'` vs `tf=None`), rồi `api.py` điền `tf=None → M5` và `ChuongTrinh.khoa` cũng điền
+`tf or tf5`, nên hai hàng khác khoá lại đổ ra cùng một mặt và cùng một cột.
+
+Bốn câu chốt:
+
+1. **Một hàng = một cặp *(toán hạng, đơn vị tại chỗ nó được đọc)*.** Cùng `atr(M5,14)` đọc ở cổng
+   nén là `bps`, ở đệm vào lệnh là GIÁ — hai con số khác nhau, nên hai hàng. Gộp lại thì hàng đó
+   nói dối cho một trong hai chỗ. Kèm theo: `tf` để trống được chuẩn hoá về **khung quyết định**
+   ngay tại `core.toan_hang_dung` (`core.khung_quyet_dinh`), tức cùng tầng với khoá dedupe — chứ
+   không ở tầng hiển thị như trước.
+2. **Đơn vị lấy từ `phai.tinh` của ĐIỀU KIỆN**, qua `core.don_vi_cua_o` (§6.4 — đơn vị thuộc về
+   cái ô, và một hàng bảng *là* một ô). **Không** lấy từ `tinh` của đệm/SL/TP: ở đó `atr` là **số
+   nhân** của `_khoang`, không phải đại lượng đang được đo — lấy nhầm là in `ATR [× ATR] = 1.000`
+   và mất đúng con số 1.412 mà đệm cần. Vắng `tinh` nghĩa là **GIÁ**, không phải "chưa biết"
+   (`normalize_action` chặn `gia` khỏi `phai.tinh`).
+3. **Đơn vị đi vào `phu`**, không vào `nhan` (§6.4: nhãn thuộc TOÁN HẠNG, dùng chung hộp
+   thoại/nhật ký/kho) và **không** thành cột thứ tư (§12.9c vẫn ba cột). Dạng `M5·14 [bps]`, chữ
+   do Python ghép từ `core.DON_VI_NGAN` — Tester/Live không nhận bảng đơn vị nào, gửi khoá thô là
+   buộc JS đẻ ra một bảng nhãn thứ hai lệch được.
+4. **Đơn vị đồng thời là một lời khai phụ thuộc.** `X <= 4 [× ATR zone]` đọc ngầm `zone_atr_tb`
+   làm mẫu số; không khai thì nó không vào `bo_chay.CV`, engine không ghi cột, và hàng đó trống
+   vĩnh viễn. Mẫu số **phải** đến từ cột đã ghi lúc chạy, không hỏi lại `so.zone_hien_hanh()`
+   (đúng lỗi §12.9d); thiếu cột thì để trống cả hàng. `bo_chay.quy_doi_cot` (bản theo CỘT, cho
+   bảng) và `bo_chay._quy_doi` (bản theo NẾN, cho cổng và cho vết nhật ký) **phải sửa cùng lúc** —
+   công thức lệch nhau là bảng hiện một số còn nhật ký hiện số khác đúng lúc đang debug cổng.
+
+Đo lại sau khi sửa, trên một lần chạy thật của sơ đồ mẫu: `ATR · M5·14 [bps] · 4.697` đứng cạnh
+`ATR · M5·14 · 1.242`, và đối chiếu **226 lượt** chạy cổng nén thì bảng khớp vết nhật ký với lệch
+tối đa **0.000e+00**.
+
+⚠ Hệ quả ngoài yêu cầu ban đầu, phải nói ra: cổng zone viết `zone_range <= zone_range_max [× ATR]`
+nên hàng `Zone — bề rộng` cũng chuyển từ đơn vị giá sang `[× ATR]`. Cùng một luật, cùng một lỗi.
+
+#### 12.9e ✅ ĐƠN VỊ THEO CHỖ ĐỌC — một hàng là một CẶP (toán hạng, đơn vị)
+
+Người dùng gửi ảnh chụp bảng, chỉ vào **hai dòng `ATR · M5·14 · 1.412` giống hệt nhau**:
+*"đổi cho tôi atr đầu thành bps để tiện theo dõi."*
+
+Hai dòng đó không phải lỗi vẽ trùng. Chúng là **hai lần đọc khác nhau của cùng một toán
+hạng**: dòng đầu là vế trái cổng nén (`atr < 7 [bps]`), dòng sau do đệm vào lệnh
+(`0.15 × ATR`) ngầm cần qua `TINH_CAN_TOAN_HANG`. Bảng không in đơn vị nên chúng bị san
+phẳng thành một mặt.
+
+Và cái người dùng chỉ vào mới là chỗ đau thật: **cổng so bằng `bps`, bảng in bằng GIÁ.**
+Không ai nhẩm được `1.412` có nhỏ hơn ngưỡng `7 bps` hay không — mà đó đúng là câu bảng
+sinh ra để trả lời. Bảng và cổng nói hai thang khác nhau về cùng một con số, đúng cái bẫy
+§12.9 dựng cả mục ra để cảnh báo.
+
+> **§6.4 đã có sẵn luật này rồi: *"ĐƠN VỊ THUỘC VỀ CÁI Ô."* Bảng số liệu chưa áp. Một hàng
+> bảng CHÍNH LÀ một ô — nó là điểm con số được đọc.**
+
+Nên khoá dedupe lên `(ten, tf, period, method, don_vi)`, và `don_vi` lấy bằng chính
+`core.don_vi_cua_o` — đúng hàm mà nút `▾`, ô khoá của hộp thoại và soát tĩnh đang dùng, để
+một hàng không bao giờ khai được đơn vị mà cái ô ấy vốn cấm. Kết quả trên sơ đồ mẫu:
+
+```
+ATR              M5·14 [bps]      4.238   ← cổng nén so với 7
+ATR              M5·14            1.423   ← đệm vào lệnh, đơn vị GIÁ
+Zone — bề rộng   [× ATR]         10.760   ← cổng so với 4   (trước: 16.11 đơn vị giá)
+```
+
+Hai dòng thôi trùng mặt **như một hệ quả**, không phải như một bản vá: chúng vốn dĩ là hai
+thứ khác nhau, giờ mới được phép nói ra.
+
+**Bốn chỗ dễ sai, cả bốn đều đã cắn ít nhất một lần:**
+
+1. ⚠ **`tf` để trống phải chuẩn hoá Ở TẦNG SINH HÀNG, không ở tầng hiển thị.** Mặc định
+   *"ô khung trống = khung quyết định"* trước đây nằm trong `api.py`. Nên hai hàng **khác
+   khoá** (`tf=None` vs `tf='M5'`) lại đổ ra **cùng một mặt** — đó chính là cơ chế đẻ ra
+   cặp dòng trùng trong ảnh chụp. Luật nhịp gom về `core.nhip_cua` / `khung_quyet_dinh`,
+   một chỗ duy nhất cho cả `bo_chay._dung_truc` lẫn `toan_hang_dung`.
+2. ⚠ **Toán hạng do `TINH_CAN_TOAN_HANG` sinh KHÔNG được mượn `tinh` của khối.** Ở đó `atr`
+   là **số nhân** của `_khoang` (`v × ATR`), không phải đại lượng đang được đo. Gán bừa là
+   in `ATR [× ATR] = 1.000` — mất đúng con số 1.423 mà đệm vào lệnh cần.
+3. ⚠ **Đơn vị cũng là một lời khai phụ thuộc.** `X ≤ 4 [× ATR zone]` đọc ngầm `zone_atr_tb`
+   làm **mẫu số**. Không khai thì nó không vào danh sách cột engine, engine không ghi cột,
+   và hàng đó trống vĩnh viễn không ai hiểu vì sao.
+4. ⚠ **`quy_doi_cot` và `_quy_doi` phải sửa CÙNG LÚC**, nên đặt dính nhau trong
+   `bo_chay.py`. Một cái tính MỘT nến cho **cổng** (và cho vết nhật ký), cái kia tính CẢ LÔ
+   cho **bảng**. Công thức lệch nhau là bảng hiện 4.238 còn nhật ký hiện số khác — đúng lúc
+   đang debug chính cái cổng đó.
+
+Chỉ hiển thị 4 đơn vị `DON_VI_CHO["dieu_kien"]` cài được (`gia` · `bps` · `atr` · `atr_zone`):
+`R` và `bien_zone` hợp lệ ở ô SL/TP nhưng `_quy_doi` gặp chúng là `raise LoiChay`, mà nổ
+giữa lúc dựng lô 300 khung hình thì **mất cả bảng lẫn nến lẫn nhật ký**, không chỉ một hàng.
+
+Mẫu số đọc từ **CỘT đã ghi lúc chạy**, không hỏi lại `so.zone_hien_hanh()` — đối tượng đó
+mutate liên tục nên ở con trỏ nào cũng trả trạng thái CUỐI backtest (§12.9d). Thiếu cột mẫu
+số thì hàng **Ở LẠI và in gạch**, không biến mất: bỏ hàng là người dùng mất dấu một toán
+hạng sơ đồ ĐANG đọc.
+
+Đơn vị vào `phu`, **không vào `nhan`** — nhãn thuộc TOÁN HẠNG (dùng chung hộp thoại · nhật
+ký · kho), đơn vị thuộc CHỖ DÙNG. Vẫn đúng ba cột của §12.9c, và đơn vị GIÁ không in nhãn
+(cùng quy ước `ve_phai_display`).
+
+**Đã đo: backtest KHÔNG đổi một con số nào** — 550 lệnh · −19,52 R · DD 1,08 % · vốn
+9.933,09 trước và sau, trên cùng 353.129 nến. Đúng như phải vậy: `_quy_doi` (thứ cổng dùng)
+không bị đụng tới, đây thuần là tầng hiển thị. `tests/test_so_do_mau.py` canh cả hình dạng
+hàng lẫn **danh sách cột engine không đổi** — trước lượt này không bài nào gọi
+`toan_hang_dung`, dù cả bảng lẫn bộ chạy đều treo vào nó.
 
 ### 12.10 Chart — chỉ lệnh, không gì khác
 

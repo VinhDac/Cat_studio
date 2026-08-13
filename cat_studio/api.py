@@ -1097,27 +1097,38 @@ class ApiTester(NenCuaSo):
             ds = self._cot_toan_hang(kq, o, i5, a)
             if ds is None:
                 continue
-            # Ô khung để trống nghĩa là "khung quyết định" (`ChuongTrinh.khoa`). Bảng ghi
-            # rõ khung THẬT chứ không bỏ trống: `ATR` trơ ra một mình thì người dùng
-            # không biết đang xem ATR của khung nào. Toán hạng engine vốn không có khung.
-            tf = o.get("tf")
-            if not tf and (o["ten"] in tinh_toan.BANG or o["ten"] in ct_.COT_GIA):
-                tf = ct_.tf5
-            phan = [tf] if tf else []
+            # Ô khung để trống nghĩa là "khung quyết định" — mặc định đó nay nằm ở
+            # `core.toan_hang_dung`, tức CÙNG tầng với khoá dedupe. Điền ở đây (tầng hiển
+            # thị) là chỗ đã đẻ ra hai hàng `ATR M5·14 1.412` giống hệt nhau: khoá thì
+            # khác (`tf=None` vs `'M5'`), mặt thì bị san phẳng về một.
+            phan = [o["tf"]] if o.get("tf") else []
             if o.get("period"):
-                phan.append(str(ct_.so(o["period"]) if isinstance(o["period"], str)
-                                else o["period"]).rstrip("0").rstrip("."))
+                p = o["period"]
+                p = ct_.so(p) if isinstance(p, str) else p
+                # ⚠ ĐÃ SỬA: trước là `str(p).rstrip("0").rstrip(".")` — `period` gõ tay
+                # `50` cho ra `"5"`, `200` cho ra `"2"`. Trốn được vì sơ đồ mẫu ô nào cũng
+                # dùng TÊN tham số nên đi qua `so()` → float → đuôi `.0` hứng trọn.
+                phan.append(f"{p:g}" if isinstance(p, float) else str(p))
             if o.get("method"):
                 phan.append(str(o["method"]))
             # Nhãn tách LÀM ĐÔI. Trước đây nối thành `ATR chuẩn hoá (bps)(M5, 14)` rồi
             # giao diện dán cả cục vào cột trái, nên tên dài bị cắt cụt trong khi giữa
             # nhãn và số là một khe rỗng dài. Giờ phần bổ nghĩa (khung · chu kỳ · kiểu)
             # là một cột riêng, nằm đúng vào cái khe đó.
+            phu = "·".join(phan)
+            # ĐƠN VỊ TẠI CHỖ ĐỌC. Quy ước giống hệt `core.ve_phai_display`: đơn vị GIÁ
+            # KHÔNG in nhãn (`don_vi is None` đã nghĩa là giá). Chữ do PYTHON ghép từ
+            # `core.DON_VI_NGAN` — cửa sổ Tester/Live không nhận bảng đơn vị nào, gửi khoá
+            # thô sang là buộc JS đẻ ra một bảng nhãn thứ hai lệch được.
+            # Vào `phu`, KHÔNG vào `nhan`: §6.4 — nhãn thuộc TOÁN HẠNG (dùng chung hộp
+            # thoại / nhật ký / kho), đơn vị thuộc CHỖ DÙNG. Và vẫn đúng BA cột (§12.9c).
+            if o.get("don_vi"):
+                phu = (phu + " " if phu else "") + f"[{core.DON_VI_NGAN[o['don_vi']]}]"
             if o["nhom"] not in nhom_dau:
                 nhom_dau[o["nhom"]] = {"nhom": o["nhom"], "dong": []}
                 bang.append(nhom_dau[o["nhom"]])
             nhom_dau[o["nhom"]]["dong"].append(
-                {"ten": o["nhan"], "phu": "·".join(phan), "gia_tri": ds})
+                {"ten": o["nhan"], "phu": phu, "gia_tri": ds})
 
         # Lệnh SỐNG tại từng khung + lệnh đã đóng còn nằm trong tầm nhìn (để vẽ).
         song, tk = [], []
@@ -1198,11 +1209,28 @@ class ApiTester(NenCuaSo):
                     ra.append(float(v) if v == v else None)
             return ra
 
+        cot = None
         k = ct.khoa(o) if (ten in tinh_toan.BANG or ten in ct.COT_GIA) else None
         if k is not None and k in ct._cot:
-            return theo(ct._cot[k])
-        if ten in kq.cot_zone:
-            return theo(kq.cot_zone[ten], ten in core.TOAN_HANG_DUNG_SAI)
+            cot = ct._cot[k]
+        elif ten in kq.cot_zone:
+            if ten in core.TOAN_HANG_DUNG_SAI:
+                return theo(kq.cot_zone[ten], True)   # đúng/sai: không có đơn vị nào
+            cot = kq.cot_zone[ten]
+        if cot is not None:
+            # ĐƠN VỊ TẠI CHỖ ĐỌC. Trước đây hàm này luôn trả giá trị THÔ (đơn vị giá),
+            # nên cổng `atr < 7 [bps]` in ra 1.412 đứng cạnh một ngưỡng 7 bps — không ai
+            # nhẩm được. Giờ mỗi hàng mang theo đơn vị điểm nó được đọc.
+            dv = o.get("don_vi")
+            if dv:
+                q = bo_chay.quy_doi_cot(kq, o, cot, dv)
+                if q is None:
+                    # PHÂN BIỆT HAI LOẠI RỖNG. Không có NGUỒN → `return None` và hàng biến
+                    # mất (như cũ). Có nguồn nhưng THIẾU MẪU SỐ → hàng Ở LẠI và in gạch:
+                    # bỏ hàng thì người dùng mất dấu một toán hạng sơ đồ ĐANG đọc.
+                    return [None] * len(i5)
+                cot = q
+            return theo(cot)
         if ten in ("so_lenh_cho", "so_vi_the"):
             cho = ten == "so_lenh_cho"
             return [sum(1 for l in kq.lenh_tai(int(x)) if l.da_khop != cho) for x in i5]

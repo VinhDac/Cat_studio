@@ -453,7 +453,10 @@ export interface DoanPhat {
     nhom: string
     dong: {
       ten: string
-      /** Bổ nghĩa: `M15·50·SMA`. Rỗng với toán hạng không có khung/chu kỳ. */
+      /** Bổ nghĩa: `M15·50·SMA`, có thể kèm ĐƠN VỊ TẠI CHỖ ĐỌC — `M5·14 [bps]`.
+       *  Chữ đơn vị do PYTHON ghép từ `core.DON_VI_NGAN`; cửa sổ Tester/Live không nhận
+       *  bảng đơn vị nào, nên gửi khoá thô sang là buộc JS đẻ ra một bảng nhãn thứ hai.
+       *  Đơn vị GIÁ không in nhãn. Rỗng với toán hạng không có khung/chu kỳ/đơn vị. */
       phu: string
       gia_tri: (number | string | boolean | null)[]
     }[]

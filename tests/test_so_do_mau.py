@@ -382,5 +382,74 @@ kiem("chuẩn hoá HAI lần bằng đúng MỘT lần",
      json.dumps(_n1, sort_keys=True, ensure_ascii=False)
      == json.dumps(core.normalize_process(_n1), sort_keys=True, ensure_ascii=False))
 
+# --------------------------------------------------------------------------
+# BẢNG SỐ LIỆU — hàng do `core.toan_hang_dung` sinh (core.md §12.9b, §12.9e)
+#
+# Trước lượt sửa này KHÔNG bài nào gọi `toan_hang_dung`, dù cả bảng số liệu LẪN danh sách
+# cột engine `bo_chay` phải ghi đều treo vào nó. Triệu chứng đã có thật: bảng in ra HAI
+# dòng `ATR · M5·14 · 1.412` y hệt nhau — một dòng là vế trái cổng nén (đọc bằng `bps`),
+# một dòng do đệm vào lệnh dùng `× ATR` sinh ra (đơn vị GIÁ). Chúng khác nhau ở ĐƠN VỊ
+# TẠI CHỖ ĐỌC, mà đơn vị thì không đi theo hàng.
+print("\n▸ Bảng số liệu — hàng, đơn vị tại chỗ đọc, cột engine")
+
+_d = core.normalize_process(api._so_do_mau())
+_th = core.toan_hang_dung(_d)
+
+_TEN = ["atr", "zone_dem", "zone_range", "atr", "zone_da_sinh_lenh", "so_lenh_cho",
+        "so_vi_the", "close", "ma", "zone_atr_tb", "zone_HH", "zone_LL"]
+kiem("sơ đồ mẫu sinh đúng 12 hàng, đúng thứ tự sơ đồ đọc",
+     [x["ten"] for x in _th] == _TEN, f"— {len(_th)} hàng")
+
+_atr = [(i, x) for i, x in enumerate(_th) if x["ten"] == "atr"]
+kiem("có ĐÚNG HAI hàng ATR — không gộp, không tách thêm", len(_atr) == 2,
+     f"— {len(_atr)} hàng")
+
+_a0, _a1 = (_atr + [(None, {}), (None, {})])[:2]
+kiem("hàng ATR của cổng nén mang đơn vị `bps`",
+     _a0[1].get("don_vi") == "bps" and _a0[1].get("tf") == "M5"
+     and _a0[1].get("period") == "chu_ky_atr",
+     f"— {_a0[1].get('tf')}·{_a0[1].get('period')} [{_a0[1].get('don_vi')}]")
+kiem("hàng ATR của đệm vào lệnh mang đơn vị GIÁ (`None`) — nó là SỐ NHÂN, không phải "
+     "đại lượng đang đo",
+     _a1[1].get("don_vi") is None and _a1[1].get("tf") == "M5",
+     f"— {_a1[1].get('tf')}·{_a1[1].get('period')} [{_a1[1].get('don_vi')}]")
+
+# ĐÂY là hợp đồng chống trùng mặt: hai hàng khác nhau ĐÚNG ở chỗ chúng vốn khác.
+_khac = sorted(k for k in set(_a0[1]) | set(_a1[1]) if _a0[1].get(k) != _a1[1].get(k))
+kiem("hai hàng ATR khác nhau ĐÚNG MỘT trường: `don_vi`", _khac == ["don_vi"],
+     f"— khác ở {_khac}")
+
+# `tf` chuẩn hoá phải xảy ra Ở TẦNG NÀY, không ở `api.py`. Trước đây nó nằm dưới tầng
+# hiển thị nên hai hàng khác khoá (`tf=None` vs `'M5'`) lại đổ ra cùng một mặt.
+_trong = [x["ten"] for x in _th
+          if "tf" in core.TOAN_HANG_THAMSO.get(x["ten"], ()) and not x.get("tf")]
+kiem("mọi toán hạng khai được `tf` đều đã có `tf` — chuẩn hoá đúng tầng", not _trong,
+     f"— {_trong}")
+
+kiem("`zone_range` mang đơn vị `atr` — đơn vị lấy từ vế PHẢI của điều kiện",
+     next(x["don_vi"] for x in _th if x["ten"] == "zone_range") == "atr")
+_sinh = [x["ten"] for x in _th
+         if x["ten"] in ("zone_atr_tb", "zone_HH", "zone_LL") and x["don_vi"] is not None]
+kiem("hàng sinh từ `TINH_CAN_TOAN_HANG` KHÔNG mượn `tinh` của khối dem/sl/tp",
+     not _sinh, f"— {_sinh}")
+
+_la = [x["don_vi"] for x in _th
+       if x["don_vi"] is not None
+       and (x["don_vi"] == "gia" or x["don_vi"] not in core.DON_VI_HIEN)]
+kiem("mọi đơn vị hiển thị đều nằm trong 4 nhánh `_quy_doi` cài — `R`/`bien_zone` không "
+     "lọt tới hàm quy đổi cột", not _la, f"— {_la}")
+
+# ⚠ RÀNG BUỘC CỨNG. `bo_chay` lấy danh sách cột engine phải ghi từ chính hàm này. Siết
+# dedupe hay bỏ hàng là engine ghi thiếu cột → `kq.cot_zone` thiếu khoá → bảng trống, và
+# không có gì báo. Bài này đỏ ngay tại chỗ đó.
+_cv = tuple(dict.fromkeys(x["ten"] for x in _th
+                          if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
+kiem("danh sách cột engine `bo_chay` phải ghi KHÔNG đổi",
+     _cv == ("zone_dem", "zone_range", "zone_da_sinh_lenh",
+             "zone_atr_tb", "zone_HH", "zone_LL"), f"— {_cv}")
+
+kiem("khung quyết định suy từ khối Bắt đầu, một chỗ duy nhất",
+     core.khung_quyet_dinh(_d) == "M5", f"— {core.khung_quyet_dinh(_d)}")
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

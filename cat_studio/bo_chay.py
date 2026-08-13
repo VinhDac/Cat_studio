@@ -166,11 +166,10 @@ class ChuongTrinh:
         Cột chỉ báo cất trên trục Entry (~72k mục một năm) chứ không trên trục M1 (374k):
         chỉ báo chỉ đổi khi nến khung nó khép, nhân 5 lần bộ nhớ để chép lại cùng một
         con số là phí. Manage chạy nhịp M1 nên cần bảng tra — dựng một lần, 4 byte/nến."""
+        # Luật "nhịp của một tab" nằm ở `core.nhip_cua` — bảng số liệu cũng phải biết
+        # khung quyết định để chuẩn hoá ô khung trống, và hai bản chép tay thì trôi được.
         for tab in core.TABS:
-            bd = [s for s in (self.doc.get(tab) or {}).get("steps") or []
-                  if core.is_start_step(s)]
-            self.nhip[tab] = (bd[0].get("nhip") if bd else None) \
-                or core.NHIP_MAC_DINH[tab]
+            self.nhip[tab] = core.nhip_cua(self.doc, tab)
         self.tf5 = self.nhip[core.TAB_ENTRY]
         self.nen5 = tt.gop(self.nen1, self.tf5)
         if not len(self.nen5):
@@ -438,6 +437,49 @@ def _quy_doi(x, don_vi, o, ctx):
         v = ctx.so.zone_hien_hanh()
         return x / v.atr_tb if v and v.atr_tb else NAN
     raise LoiChay(f'Đơn vị so sánh "{don_vi}" chưa được cài trong bộ chạy.')
+
+
+def quy_doi_cot(kq, o, cot, don_vi):
+    """Bản-THEO-CỘT của `_quy_doi` ngay trên. `None` = không có mẫu số.
+
+    ⚠ HAI HÀM NÀY PHẢI SỬA CÙNG LÚC. `_quy_doi` tính MỘT nến cho CỔNG (và cho vết nhật
+    ký); hàm này tính CẢ LÔ cho BẢNG SỐ LIỆU. Công thức lệch nhau là bảng hiện 5.35 còn
+    nhật ký hiện một số khác đúng lúc đang debug cổng — core.md §12.9. Đặt hai hàm dính
+    nhau là cách rẻ nhất để lần sau ai sửa một cái sẽ thấy cái kia.
+
+    Khác duy nhất, và là cố ý: mẫu số `atr_zone` đọc từ CỘT đã ghi lúc chạy, KHÔNG hỏi
+    lại `so.zone_hien_hanh()`. Đối tượng đó mutate liên tục nên ở con trỏ nào cũng trả
+    trạng thái CUỐI backtest — đúng lỗi §12.9d.
+    ⚠ Đổi lại, cột `zone_atr_tb` được CHỤP ở bước 5 của `mot_nhip`, tức SAU khi sơ đồ
+    chạy xong nến đó, còn `_quy_doi` đọc zone GIỮA lúc sơ đồ chạy. Trên phần lớn nến là
+    một; nến nào zone bị chốt trong chính lượt ấy thì hai bên lệch. Vẫn chọn cột, vì lựa
+    chọn kia sai ở MỌI nến.
+
+    Thiếu cột mẫu số → `None` (bảng để trống CẢ HÀNG). Mẫu số 0/NaN tại một nến → NaN
+    tại đúng nến đó. Thà bỏ trống còn hơn bịa một con số (§12.9b)."""
+    if don_vi in (None, "", "gia") or cot is None:
+        return cot
+    ct = kq._ct
+    if don_vi == "bps":
+        # `close` CÙNG khung với VẾ TRÁI — y hệt `_quy_doi`, không phải khung quyết định.
+        mau, he = ct._cot.get(ct.khoa({"ten": "close", "tf": o.get("tf")})), 10000.0
+    elif don_vi == "atr":
+        # ATR khung QUYẾT ĐỊNH, chu kỳ `chu_ky_atr` — khoá này khớp khít
+        # `ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])` mà `_quy_doi` gọi.
+        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": ct.tf5,
+                                       "period": ct.ts["chu_ky_atr"]})), 1.0
+    elif don_vi == "atr_zone":
+        mau, he = kq.cot_zone.get("zone_atr_tb"), 1.0
+    else:
+        return cot          # đơn vị lạ từ file nhập ngoài: trả THÔ, đừng nổ giữa lô
+    if mau is None or len(mau) != len(cot):
+        return None
+    # ⚠ Phép MẢNG, không vòng lặp Python: `ApiLive` không ghi đè `_cot_toan_hang` nên hàm
+    # này chạy trên MỖI nhịp làm mới của Live, × số hàng × cả lô.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ra = np.asarray(cot, dtype=float) / np.asarray(mau, dtype=float) * he
+    ra[~np.isfinite(ra)] = NAN
+    return ra
 
 
 def _xet_cong(st, ctx):

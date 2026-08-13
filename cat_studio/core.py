@@ -404,6 +404,24 @@ def don_vi_cho(ten, o_dau="dieu_kien", co_zone=True):
 NHIP_MAC_DINH = {TAB_ENTRY: "M5", TAB_MANAGE: "M1"}
 
 
+def nhip_cua(doc, tab):
+    """Nhịp của một sơ đồ: khối Bắt đầu khai gì, không khai thì mặc định.
+
+    ⚠ MỘT CHỖ DUY NHẤT. `bo_chay._dung_truc` và `toan_hang_dung` đều gọi nó — luật này
+    trước đây chỉ nằm trong bộ chạy, mà bảng số liệu nay cũng cần biết "ô khung để trống
+    thì đọc trên khung nào". Chép sang là hai bản trôi được: bảng số liệu tra một cột,
+    bộ chạy tra cột khác, và không ai thấy vì hai bên vẫn ra số."""
+    bd = [s for s in (doc.get(tab) or {}).get("steps") or [] if is_start_step(s)]
+    return (bd[0].get("nhip") if bd else None) or NHIP_MAC_DINH[tab]
+
+
+def khung_quyet_dinh(doc):
+    """`tf5` — khung mà MỌI toán hạng để trống ô khung thật sự được đọc trên đó.
+
+    Đúng thứ `ChuongTrinh.khoa` điền vào khoá cột (`o.get("tf") or self.tf5`)."""
+    return nhip_cua(doc, TAB_ENTRY)
+
+
 # ---- MỐC NEO của khối Vào lệnh -------------------------------------------
 # ⚠ Trước đây khối Vào lệnh KHÔNG có trường nào cho mốc neo: việc "lệnh chờ neo vào mép
 # zone thuận chiều" bị viết cứng trong bộ chạy. Nên trên màn hình chỉ hiện mỗi ô ĐỆM —
@@ -1833,6 +1851,30 @@ TINH_CAN_TOAN_HANG = {
     "bien_zone": ({"ten": "zone_HH"}, {"ten": "zone_LL"}),
 }
 
+#: Đơn vị nào bảng số liệu HIỂN THỊ ĐƯỢC. Trùng khít 4 nhánh `bo_chay._quy_doi` cài,
+#: nên `R` / `bien_zone` (hợp lệ ở ô SL/TP) không bao giờ tới được hàm quy đổi cột —
+#: `_quy_doi` gặp chúng là `raise LoiChay`, mà nổ giữa lúc dựng lô 300 khung hình thì
+#: mất cả bảng lẫn nến lẫn nhật ký, không chỉ một hàng.
+DON_VI_HIEN = DON_VI_CHO["dieu_kien"]           # ('gia', 'bps', 'atr', 'atr_zone')
+
+
+def don_vi_tai_cho_doc(trai, phai):
+    """ĐƠN VỊ TẠI CHỖ MỘT TOÁN HẠNG ĐƯỢC ĐỌC, hoặc `None` nếu là đơn vị giá.
+
+    §6.4: đơn vị thuộc về CÁI Ô. Một hàng bảng số liệu CHÍNH LÀ một ô — nó là điểm con
+    số được đọc. Nên không suy lại bằng luật mới mà gọi thẳng `don_vi_cua_o`, đúng hàm
+    mà nút `▾`, ô khoá của hộp thoại và soát tĩnh đang dùng: một hàng không bao giờ khai
+    được đơn vị mà cái ô ấy vốn cấm.
+
+    `None` = ĐƠN VỊ GIÁ, không phải "chưa biết" — `normalize_action` chặn `gia` khỏi
+    `phai.tinh`, nên vắng `tinh` nghĩa là giá.
+
+    ⚠ Vế phải mang khoá `ten` (so hai đại lượng) thì KHÔNG có đơn vị: `_xet_cong` đặt
+    `dv = None` cho ca đó và không quy đổi gì."""
+    tinh = phai.get("tinh") if isinstance(phai, dict) and not phai.get("ten") else None
+    dv = don_vi_cua_o("dieu_kien", (trai or {}).get("ten"), tinh)
+    return dv if dv != "gia" and dv in DON_VI_HIEN else None
+
 
 def toan_hang_dung(doc):
     """Mọi toán hạng sơ đồ THẬT SỰ đọc, đã dedupe, giữ nguyên thứ tự gặp.
@@ -1842,39 +1884,64 @@ def toan_hang_dung(doc):
     bảng nói dối — mà nhóm thì `kho/` đã khai sẵn ở mỗi toán hạng rồi.
 
     KHÔNG gồm nhóm "Lệnh này": chúng không có MỘT giá trị tại nến i (Manage chạy một
-    lượt cho mỗi lệnh), nên chúng thuộc về bảng-theo-từng-lệnh (core.md §12.9)."""
-    ra, da = [], set()
+    lượt cho mỗi lệnh), nên chúng thuộc về bảng-theo-từng-lệnh (core.md §12.9).
 
-    def them(o):
+    MỘT HÀNG = MỘT CẶP (toán hạng, ĐƠN VỊ TẠI CHỖ NÓ ĐƯỢC ĐỌC). Cùng `atr(M5, 14)` đọc ở
+    cổng nén là `bps`, đọc ở đệm vào lệnh là GIÁ — hai con số khác nhau, nên hai hàng.
+    Gộp lại thì hàng đó nói dối cho một trong hai chỗ (core.md §12.9e).
+
+    ⚠ `tf` để trống được CHUẨN HOÁ về khung quyết định NGAY TẠI ĐÂY — đúng thứ
+    `ChuongTrinh.khoa` thật sự tra. Trước đây mặc định ấy nằm ở `api.py` (tầng hiển thị),
+    nên hai hàng khác khoá (`tf=None` vs `tf='M5'`) lại đổ ra CÙNG một mặt `ATR M5·14` và
+    CÙNG một con số 1.412 — đúng ảnh chụp người dùng gửi. Chuẩn hoá ở đây thì hàng nào
+    thật sự giống nhau sẽ GỘP, và điều đó an toàn cho `bo_chay.CV`: gộp chỉ xảy ra khi
+    trùng `ten`, mà chỗ đó chỉ đọc `ten` rồi `dict.fromkeys`."""
+    ra, da = [], set()
+    tf5 = khung_quyet_dinh(doc)
+
+    def them(o, dv=None):
         if not isinstance(o, dict) or not o.get("ten"):
             return
         t = o["ten"]
         if TOAN_HANG_NHOM.get(t) == NHOM_LENH_NAY:
             return
-        k = (t, o.get("tf"), o.get("period"), o.get("method"))
+        tf = o.get("tf") or (tf5 if "tf" in TOAN_HANG_THAMSO.get(t, ()) else None)
+        k = (t, tf, o.get("period"), o.get("method"), dv)
         if k in da:
             return
         da.add(k)
-        ra.append({"ten": t, "tf": o.get("tf"), "period": o.get("period"),
+        ra.append({"ten": t, "tf": tf, "period": o.get("period"),
                    "method": o.get("method"), "shift": o.get("shift"),
+                   "don_vi": dv,
                    "nhan": TOAN_HANG_LABELS.get(t, t),
                    "nhom": TOAN_HANG_NHOM.get(t, "Khác")})
 
     for tab in TABS:
         for st in (doc.get(tab) or {}).get("steps") or []:
             for c in st.get("conditions") or []:
-                them(c.get("trai"))
+                p_ = c.get("phai")
+                dv = don_vi_tai_cho_doc(c.get("trai"), p_)
+                them(c.get("trai"), dv)
                 # ⚠ KIỂU SUY RA, không đọc `phai_loai` — khoá đó đã bị gỡ khỏi hình
                 # dạng điều kiện (xem chú thích ở `normalize_action`). Đọc nó nghĩa là
                 # MỌI toán hạng chỉ nằm ở vế phải của cổng "so hai đại lượng" đều rơi
                 # khỏi bảng số liệu: `ma` của cổng xu hướng trong sơ đồ mẫu không có lấy
                 # một hàng, dù bộ chạy đã tính nó. Backtest vẫn đúng — chỉ bảng nói dối.
-                p_ = c.get("phai")
                 if isinstance(p_, dict) and p_.get("ten"):
-                    them(p_)
+                    them(p_)            # so hai đại lượng: KHÔNG bên nào có đơn vị
+                # ĐƠN VỊ CŨNG LÀ MỘT LỜI KHAI PHỤ THUỘC. `X <= 4 [× ATR zone]` đọc ngầm
+                # `zone_atr_tb` làm MẪU SỐ. Không khai thì nó không vào `bo_chay.CV`,
+                # engine không ghi cột, và hàng đó trống vĩnh viễn không ai hiểu vì sao.
+                # (`bps` và `× ATR` không cần: `_dung_cot` luôn dựng sẵn hai cột ấy.)
+                for t in TINH_CAN_TOAN_HANG.get(dv, ()):
+                    them(dict(t))
             for k in ("dem", "sl", "tp", "khoang"):
                 tinh = (st.get(k) or {}).get("tinh") if isinstance(st.get(k), dict) else None
                 for t in TINH_CAN_TOAN_HANG.get(tinh, ()):
+                    # ⚠ `dv=None` LÀ CỐ Ý. Ở đây `atr` là SỐ NHÂN của `_khoang` (v × ATR),
+                    # không phải đại lượng đang được ĐO. Lấy `tinh` của khối `dem` gán làm
+                    # đơn vị hiển thị là in `ATR [× ATR] = 1.000` — mất đúng con số 1.412
+                    # mà đệm vào lệnh cần.
                     them(dict(t))
             # Lệnh chờ STOP neo vào MÉP VÙNG thuận chiều (`bo_chay._vao_lenh`) — đỉnh/đáy
             # vùng là thứ quyết định giá đặt, dù không điều kiện nào hỏi tới. Người dùng

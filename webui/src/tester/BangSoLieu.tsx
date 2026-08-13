@@ -56,12 +56,18 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
   return (
     <div className="bang-so-lieu">
       <table className="bang-toan-hang"><tbody>
+        {/* ⚠ `phu` PHẢI nằm trong key. Trước đây key là `g.nhom + d.ten` và hai hàng ATR
+            cùng ra `"Chỉ báoATR"` — React cảnh báo trùng key và có thể tái dùng nhầm DOM
+            giữa hai hàng. Giờ `tf` đã chuẩn hoá và đơn vị đã vào khoá dedupe phía Python,
+            nên cặp `(ten, phu)` là hàm thuần của khoá đó: key hết đụng theo CƠ CHẾ, không
+            theo may. */}
         {k.nhom.map((g, gi) => g.dong.map((d, di) => (
-          <tr key={g.nhom + d.ten}
+          <tr key={g.nhom + d.ten + d.phu}
               className={gi > 0 && di === 0 ? 'sang-nhom' : undefined}>
             {/* `title` vì tên rất dài vẫn có thể bị cắt — rê chuột là đọc đủ. */}
             <td className="ten" title={d.ten}>{d.ten}</td>
-            <td className="phu">{d.phu}</td>
+            {/* `phu` chỉ rộng 84px: `M15·50·SMA [× ATR zone]` sẽ bị cắt, `title` cứu. */}
+            <td className="phu" title={d.phu}>{d.phu}</td>
             <td className="gt">{so(d.gia_tri)}</td>
           </tr>
         )))}
