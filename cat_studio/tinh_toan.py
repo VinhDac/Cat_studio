@@ -212,61 +212,17 @@ def ma(x, chu_ky, kieu="SMA"):
 
 
 # ---------------------------------------------------------------------------
-# Còn lại
-# ---------------------------------------------------------------------------
-def _cuc_tri(x, n, lon_nhat):
-    x = _f(x)
-    n = int(n)
-    ra = np.full(len(x), np.nan, dtype=F)
-    if n <= 0 or len(x) < n:
-        return ra
-    cua = np.lib.stride_tricks.sliding_window_view(x, n)
-    ra[n - 1:] = cua.max(axis=1) if lon_nhat else cua.min(axis=1)
-    return ra
-
-
-def donchian_tren(h, chu_ky):
-    """max(High) trong N nến — biên trên kênh Donchian."""
-    return _cuc_tri(h, chu_ky, True)
-
-
-def donchian_duoi(l, chu_ky):
-    """min(Low) trong N nến — biên dưới kênh Donchian."""
-    return _cuc_tri(l, chu_ky, False)
-
-
-def volume_ma(vol, chu_ky):
-    """Trung bình tick volume N nến."""
-    return _tb_truot(vol, chu_ky)
-
-
-def atr_bps(h, l, c, chu_ky):
-    """ATR chuẩn hoá: `(ATR / Close) × 10000`. 1 bps = 0,01 % giá.
-
-    Chuẩn hoá để **một con số mang cùng ý nghĩa trên mọi symbol**: ngưỡng 7 là "biến
-    động dưới 0,07 % giá", đúng như vậy trên XAUUSD 4000 lẫn EURUSD 1,08.
-
-    D_02 chia cho `iClose(signal_tf, 1)` — giá đóng của nến ĐANG XÉT, cùng nến với ATR
-    (`FilterEngine.mqh:202`). Đây là hai thứ cùng thời điểm, không lệch nến nào."""
-    a = atr(h, l, c, chu_ky)
-    c = _f(c)
-    ra = np.full(len(a), np.nan, dtype=F)
-    hop_le = np.isfinite(a) & np.isfinite(c) & (c > 0)
-    ra[hop_le] = a[hop_le] / c[hop_le] * 10000.0
-    return ra
-
-
-# ---------------------------------------------------------------------------
 # Cửa duy nhất bộ chạy gọi tới
 # ---------------------------------------------------------------------------
 #: Chỉ báo nào cần cột giá nào. Bộ chạy chỉ việc tra bảng, không `if/elif` một dãy.
+# ⚠ `atr_bps` KHÔNG còn ở đây. Nó là `atr` chia cho `close` — một phép QUY ĐỔI, giờ
+# nằm ở đơn vị của dòng điều kiện (`bo_chay._quy_doi`). Giữ một cột riêng cho nó là
+# tính hai lần cùng một thứ, và là lý do kho từng có hai mục cho một đại lượng.
+#
+# Donchian và Volume MA cũng đã bỏ: chưa sơ đồ nào dùng tới. Thêm lại khi cần thật.
 BANG = {
     "atr": lambda n, ck, **k: atr(n["h"], n["l"], n["c"], ck),
-    "atr_bps": lambda n, ck, **k: atr_bps(n["h"], n["l"], n["c"], ck),
     "ma": lambda n, ck, method="SMA", **k: ma(n["c"], ck, method),
-    "donchian_tren": lambda n, ck, **k: donchian_tren(n["h"], ck),
-    "donchian_duoi": lambda n, ck, **k: donchian_duoi(n["l"], ck),
-    "volume_ma": lambda n, ck, **k: volume_ma(n["vol"], ck),
 }
 
 

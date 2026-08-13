@@ -31,6 +31,7 @@ const HINH: Record<string, React.ReactNode> = {
   'kieu-bar': <><path {...S} d="M4.5 2.6v10.8M4.5 5h-2M4.5 8h2M11.5 2.6v10.8M11.5 6h-2M11.5 10h2" /></>,
   'kieu-line': <><path {...S} d="M2.5 11.5 6 7l2.5 2.5L13.5 4" /></>,
   've-mau': <><circle {...S} cx="8" cy="8" r="5.2" /><path {...S} d="M8 2.8v10.4" /></>,
+  'zone': <><rect {...S} x="1.8" y="5" width="12.4" height="6" rx="1" /></>,
   'an-lenh': <><path {...S} d="M1.8 8s2.6-4.2 6.2-4.2S14.2 8 14.2 8s-2.6 4.2-6.2 4.2S1.8 8 1.8 8Z" /><circle {...S} cx="8" cy="8" r="1.7" /></>,
   've-nay': <><path {...S} d="M13 8a5 5 0 1 1-1.6-3.7" /><path {...S} d="M13.2 2.6v2.9h-2.9" /></>,
   'dat-co': <><path {...S} d="M4 14V2.6" /><path {...S} d="M4 3.2h8l-2 2.7 2 2.7H4z" /></>,

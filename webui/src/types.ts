@@ -63,6 +63,13 @@ export interface Problem {
   index?: number | null
   /** Sơ đồ nào — bảng Vấn đề hiện lỗi của CẢ HAI tab, kèm nhãn. */
   tab: Tab
+  /** Chỉ có ở cảnh báo "số gõ tay hai chỗ" — đủ dữ liệu để đặt tên bằng MỘT nút.
+   *  `cho` là đường đi vào từng ô số, để giao diện khỏi phải quét lại sơ đồ (quét hai
+   *  lần bằng hai đoạn mã là hai luật, và chúng sẽ lệch nhau). */
+  dat_ten?: {
+    goi_y: string; gia_tri: number; don_vi: string; nhan: string
+    cho: { tab: Tab; step: string; duong: (string | number)[] }[]
+  }
 }
 
 /** Hai sơ đồ trong một chiến lược.
@@ -108,7 +115,7 @@ export interface KhoDanhMuc {
     luat: string[]
   }[]
   hanh_dong: { key: string; nhan: string; tabs: Tab[] }[]
-  cach_tinh: Record<string, string>
+  don_vi: Record<string, string>
   sua_che_do: Record<string, string>
   phep_so: Record<string, string>
   trang_thai_lenh: Record<string, string>
@@ -158,19 +165,47 @@ export interface Bootstrap {
   nhip_mac_dinh: Record<Tab, string>
   ma_methods: Record<string, string>
   toan_hang: ToanHang[]
+  /** Tám phép: `< ≤ > ≥ = ≠` + `là ĐÚNG` / `là SAI`. Hai phép cuối dùng CHO VÀ CHỈ CHO
+   *  toán hạng đúng/sai, và chúng KHÔNG có vế phải. */
   phep_so: Record<string, string>
-  cach_tinh: Record<string, string>
+  /** ĐƠN VỊ — MỘT bảng cho cả app: điều kiện, SL/TP/đệm, sửa lệnh.
+   *  Trước đây là hai bảng (`CACH_TINH` + `DON_VI_SS`) trùng nhau ba cặp. */
+  don_vi: Record<string, string>
+  don_vi_ngan: Record<string, string>
+  /** Đơn vị nào dùng được ở đâu: `dieu_kien` · `dem` · `sl` · `tp` · `sua`. */
+  don_vi_cho: Record<string, string[]>
   huong: Record<string, string>
   loai_lenh: Record<string, string>
+  /** Mốc neo của khối Vào lệnh — `zone_HH` · `zone_LL` · `gia_hien_tai`. */
+  moc_entry: Record<string, string>
+  /** Mốc nào chỉ có nghĩa khi phía trên có cổng zone. */
+  moc_can_zone: string[]
+  /** MỌI đơn vị → nhãn, kể cả đơn vị ĐẾM. Bảng tham số khai `don_vi` bằng khoá ở đây. */
+  nhan_don_vi: Record<string, string>
+  /** Đơn vị ĐẾM (`nen` · `lenh` · `lot`) — không quy đổi gì, chỉ nói con số đo cái gì. */
+  don_vi_dem: Record<string, string>
+  /** Toán hạng → đơn vị CỐ ĐỊNH của ô so với nó. `null` = đúng/sai, không có vế phải. */
+  toan_hang_don_vi: Record<string, string | null>
+  /** Toán hạng → loại đại lượng. Quyết định ô đơn vị sống hay mờ. */
+  toan_hang_loai: Record<string, string>
+  /** Loại DUY NHẤT được chọn đơn vị: `khoang_cach`. */
+  loai_co_don_vi: string
+  /** Toán hạng → đơn vị chính là NÓ. Chọn cái đó thì kết quả luôn = 1, nên không bày. */
+  don_vi_chinh_no: Record<string, string>
+  /** Toán hạng chỉ có nghĩa khi đã có zone. */
+  toan_hang_can_zone: string[]
+  /** Đơn vị chỉ có nghĩa khi đã có zone (`× ATR zone` · `mép zone đối diện`). */
+  don_vi_can_zone: string[]
+  /** Bốn chế độ: dời SL · dời TP · SL về hoà vốn · KẾT THÚC LỆNH NÀY (gộp đóng+huỷ). */
   sua_che_do: Record<string, string>
   sua_can_gia: string[]
-  sua_can_phan_tram: string[]
 
   /** Bộ nến đã tải — hộp thoại Cài đặt quản lý (tải thêm · xoá · số MB). */
   nguon: BoNen[]
   co_mt5: boolean
 
-  don_vi_tham_so: Record<string, string>
+  /** Đơn vị của những ô CỐ ĐỊNH ngoài điều kiện: `chu_ky` → nến, `lot` → lot. */
+  don_vi_o: Record<string, string>
   template_kinds: Record<string, string>
   accent_presets: Record<string, string>
   max_process_steps: number
@@ -192,6 +227,9 @@ export interface LuongSoDo {
   /** Vòng lặp CHƯA ghim. */
   vong_ho: [string, string][]
   lech_nhanh: string[]
+  /** Khối nào dòng chảy đã đi QUA cổng zone trước khi tới — chỉ ở đó zone mới tồn tại,
+   *  nên chỉ ở đó mới bày ra toán hạng zone và đơn vị `× ATR zone`. */
+  sau_cong_zone: string[]
 }
 
 /** Kết quả `api.validate` — soát CẢ HAI sơ đồ trong một lời gọi. */
@@ -242,7 +280,7 @@ export interface ThongKe {
   /** `null` = CHƯA CÓ lệnh lỗ nào, không phải 0. Hai chuyện khác hẳn nhau. */
   he_so_lai: number | null
   chuoi_thua: number
-  so_vung: number
+  so_zone: number
   /** Số nến M1 có CẢ SL lẫn TP trong biên độ. 0 = kết quả không phụ thuộc giả định
    *  đường đi 4 điểm (core.md §12.13d). */
   nen_mo_ho: number

@@ -57,6 +57,13 @@ async function goi<T>(ten: string, ...args: unknown[]): Promise<Reply<T>> {
   }
 }
 
+/** Gói nến. `zone` là HỘP phông nền — `[t_đầu, t_cuối, đáy, đỉnh]`, mốc THỜI GIAN nên
+ *  đổi khung hiển thị vẫn nằm đúng chỗ. Python đã cắt ở con trỏ, không lộ tương lai. */
+export interface GoiNen {
+  t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number
+  zone?: [number, number, number, number][]
+}
+
 export const py = {
   bootstrap: () => goi<Bootstrap>('bootstrap'),
   set_title: (ten: string) => goi<null>('set_title', ten),
@@ -99,8 +106,6 @@ export const py = {
   save_action: (draft: Record<string, unknown>, tab: Tab, thamSo: ThamSo[]) =>
     goi<{ action: Record<string, unknown>; display: string }>(
       'save_action', draft, tab, thamSo),
-  describe_actions: (actions: unknown[]) =>
-    goi<{ text: string; type?: string | null }[]>('describe_actions', actions),
   action_defaults: (t: string) => goi<Record<string, unknown>>('action_defaults', t),
 
   // --- cài đặt ---
@@ -111,12 +116,6 @@ export const py = {
   save_test_settings: (t: Record<string, unknown>) =>
     goi<Record<string, unknown>>('save_test_settings', t),
 
-  // --- nguồn nến: tài sản của APP, không của một lần chạy ---
-  nguon_liet_ke: () => goi<{ ds: BoNen[]; co_mt5: boolean }>('nguon_liet_ke'),
-  nguon_uoc_tinh: (symbol: string, tu: string, den: string) =>
-    goi<{ so_nen: number; mb: number; du: boolean }>('nguon_uoc_tinh', symbol, tu, den),
-  nguon_tai: (symbol: string, tu: string, den: string) =>
-    goi<{ chu: string; ds: BoNen[] }>('nguon_tai', symbol, tu, den),
   nguon_xoa: (symbol: string) => goi<{ ds: BoNen[] }>('nguon_xoa', symbol),
   /** Nối thử MT5 ngay trong Cài đặt — trả lời "vì sao không tải được" trước khi bấm ▶. */
   nguon_kiem_ket_noi: (symbol: string) => goi<{
@@ -149,7 +148,6 @@ export const py = {
  */
 export const pyTester = {
   bootstrap_tester: () => goi<TesterBoot>('bootstrap_tester'),
-  tester_doc: () => goi<ProcessDoc | null>('tester_doc'),
 
 
   // --- chạy (luồng nền + tiến trình) ---
@@ -160,7 +158,7 @@ export const pyTester = {
   test_doan: (j0: number, n: number) => goi<DoanPhat>('test_doan', j0, n),
   /** TOÀN BỘ nến khung `tf` từ đầu dữ liệu tới con trỏ — chart kéo đi đâu cũng đủ. */
   test_nen_tf: (tf: string, j: number) =>
-    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+    goi<GoiNen>(
       'test_nen_tf', tf, j),
   test_luot_ke: (j: number) => goi<{ j: number; i: number }>('test_luot_ke', j),
   /** Ngược lại: sự kiện gần nhất TRƯỚC `j`. `j = -1` nghĩa là phía trước không còn gì. */
@@ -184,11 +182,6 @@ export const pyTester = {
     goi<MucLichSu>('test_lich_su_ten', ma, ten),
   test_lich_su_xoa: (ma: string) => goi<boolean>('test_lich_su_xoa', ma),
 
-  // --- đọc dòng thời gian ---
-  test_nen: (j: number, so: number) => goi<CuaSoNen>('test_nen', j, so),
-  test_khung: (j: number) => goi<Khung>('test_khung', j),
-  test_nhat_ky: (tu: number, so: number, chiCoViec: boolean) =>
-    goi<LoNhatKy>('test_nhat_ky', tu, so, chiCoViec),
   test_luot: (i: number) => goi<{ j: number; nen: number; tab: string }>('test_luot', i),
   test_ghi_nhat_ky: () => goi<{ duong_dan: string }>('test_ghi_nhat_ky'),
 }
@@ -210,7 +203,7 @@ export const pyLive = {
    *  `tuT > 0` = xin ĐUÔI, chỉ những cây từ mốc đó — gói còn khoảng trăm byte thay vì
    *  134 KB, xem chú thích ở `test_nen_tf` phía Python. */
   test_nen_tf: (tf: string, j: number, tran?: number, tuT?: number) =>
-    goi<{ t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number }>(
+    goi<GoiNen>(
       'test_nen_tf', tf, j, tran ?? 60000, tuT ?? 0),
   test_soi_luot: (i: number) => goi<{ da_ban: boolean }>('test_soi_luot', i),
 
@@ -221,7 +214,6 @@ export const pyLive = {
     goi<{ san: string; tu: string; do_luc: string | null }>('live_chep_ho_so', tuKhoa),
   /** Kéo cửa sổ VẼ lên trước — Live chạy ngầm hàng giờ, cửa sổ kia hay bị lấp. */
   live_ve_so_do: () => goi<{ da_keo: boolean }>('live_ve_so_do'),
-  live_rac: () => goi<{ vi_the: number[]; lenh_cho: number[]; chu: string }>('live_rac'),
   live_don_rac: () =>
     goi<{ da_dong: number; da_huy: number; chu: string }>('live_don_rac'),
   live_kiem_ket_noi: (symbol: string) => goi<{

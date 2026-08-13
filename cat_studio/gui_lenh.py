@@ -165,6 +165,20 @@ CAN_NGUOI = {
 #: Xếp cứng nó vào `dung` thì mọi lần ống đứt đều bị đọc thành "sai tham số", bỏ cuộc
 #: ngay lần thử đầu, và vòng lặp cứ tăng `thu_lai` — một con số không bao giờ được
 #: dùng tới. Không nhìn mã mà đoán được; phải hỏi thẳng terminal đang nối hay không.
+#: MÃ MỜ NGHĨA — nó KHÔNG nói được lệnh đã vào sàn hay chưa.
+#:
+#: ⚠ Cùng một lý lẽ đã viết cho MÃ LẠ ở `_chay`, chỉ là trước đây chưa áp cho nhóm này:
+#: "không biết lệnh đã vào sàn hay chưa" thì gửi lại một `TRADE_ACTION_DEAL` là đánh cược
+#: bằng tiền thật. Timeout (10012) và mất kết nối (10031) là ĐÚNG NGHĨA "không biết" —
+#: yêu cầu có thể đã tới sàn và khớp xong rồi, chỉ có câu trả lời là lạc.
+#:
+#: Dựng lại được trên sàn giả: sàn khớp thật rồi trả 10012 → một ý định ra HAI vị thế.
+#:
+#: 10041 (sàn TỪ CHỐI) không nằm đây: từ chối là bằng chứng lệnh KHÔNG vào, thử lại an
+#: toàn. Sửa SL/TP và huỷ lệnh chờ cũng không nằm đây — chúng bất biến, gửi lại cùng lắm
+#: ra "không có gì thay đổi".
+MO_HO_TREN_DEAL = {10011, 10012, 10023, 10031}
+
 LUONG_LU = {10013}
 
 
@@ -311,6 +325,14 @@ def _chay(L, bg, tt, dung_yc):
 
         m = int(ma or 0)
         xu = _xu_ly(m)
+        la_deal = yc.get("action") == mt5.TRADE_ACTION_DEAL
+        if la_deal and m in MO_HO_TREN_DEAL:
+            # Xem `MO_HO_TREN_DEAL`. Thà bỏ lỡ một lệnh còn hơn mở hai.
+            bg["ket"] = "bo"
+            bg["chu"] = (f"mã {m} không nói được lệnh đã vào sàn hay chưa — DỪNG, "
+                         f"không gửi lại lệnh thị trường. Kiểm sổ lệnh trước khi thử lại.")
+            _them(bg, "da_sua", f"mã {m} MỜ NGHĨA trên lệnh thị trường — dừng")
+            return None
         if xu is None and m:
             CHUA_BIET[m] = CHUA_BIET.get(m, 0) + 1
             if m not in bg["la"]:
@@ -322,7 +344,6 @@ def _chay(L, bg, tt, dung_yc):
             # nó đã vào thì ta vừa nhân đôi vị thế. Còn gửi lại một lệnh sửa SL/TP hay
             # huỷ lệnh chờ thì vô hại — cùng lắm là "không có gì thay đổi".
             # Bất đối xứng này phải nằm trong luật, không để mặc định nuốt.
-            la_deal = yc.get("action") == mt5.TRADE_ACTION_DEAL
             xu = "dung" if la_deal else "thu"
             _them(bg, "da_sua", f"mã {m} CHƯA CÓ LUẬT — "
                                 + ("DỪNG, không dám gửi lại lệnh thị trường"

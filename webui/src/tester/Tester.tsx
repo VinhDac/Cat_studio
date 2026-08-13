@@ -7,7 +7,7 @@ import type {
   DoanPhat, KetQuaChay, LenhVe, ProcessDoc, TrangThaiChay, XemLichSu,
 } from '../types'
 import BangSoLieu, { type BangCat } from './BangSoLieu'
-import Chart, { type Bar, type KieuChart, type NenM1 } from './Chart'
+import Chart, { type Bar, type HopZone, type KieuChart, type NenM1 } from './Chart'
 import BangDuoi from './BangDuoi'
 import NutChart from './NutChart'
 import Journey from './Journey'
@@ -142,6 +142,7 @@ export default function Tester() {
       const v = n.value
       setDatNen(v.t.map((t, x) => ({ time: t as never, open: v.o[x], high: v.h[x],
                                      low: v.l[x], close: v.c[x] })))
+      setZone(v.zone ?? [])
     }
     setBatDau(x => x + 1)
     setThemNen(null)
@@ -258,6 +259,9 @@ export default function Tester() {
   const [kieu, setKieu] = useState<KieuChart>('nen')
   const [mauThuong, setMauThuong] = useState(false)
   const [hienLenh, setHienLenh] = useState(true)
+  const [hienZone, setHienZone] = useState(true)
+  /** HỘP ZONE làm phông nền — về cùng gói với nến, đã cắt ở con trỏ. */
+  const [zone, setZone] = useState<HopZone[]>([])
   const [veNay, setVeNay] = useState(0)
   const [moc, setMoc] = useState('')
   useEffect(() => { if (kq) setMoc(chuoiMoc(kq.t_dau)) }, [kq])
@@ -343,6 +347,7 @@ export default function Tester() {
                   kieu={kieu} datKieu={setKieu}
                   mauThuong={mauThuong} datMau={setMauThuong}
                   hienLenh={hienLenh} datHienLenh={setHienLenh}
+                  hienZone={hienZone} datHienZone={setHienZone}
                   veHienTai={() => setVeNay(x => x + 1)} />
         <span className="tb-ngan" />
         {/* Ô nhảy tới mốc. TÁCH khỏi đồng hồ bên phải chứ không gộp làm một: đồng hồ đổi
@@ -382,6 +387,7 @@ export default function Tester() {
         <Chart tfPhut={tfVe} digits={kq?.digits ?? 2} lenh={lenh} tBayGio={tBayGio}
                batDau={batDau} dat={datNen} them={themNen}
                kieu={kieu} mauThuong={mauThuong} hienLenh={hienLenh}
+               zone={zone} hienZone={hienZone}
                veHienTai={veNay} />
         {hienBang && <BangSoLieu k={khungBang} digits={kq?.digits ?? 2} />}
       </div>

@@ -85,7 +85,8 @@ class Ctx:
     Cố ý gom vào một chỗ: mọi toán hạng, mọi Engine chỉ được nhìn qua cái cửa này, nên
     thêm một nguồn dữ liệu là sửa đúng một chỗ."""
 
-    __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts")
+    __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts",
+                 "zone_da_xet")
 
     def __init__(self, ct, so, ts):
         self.ct, self.so, self.ts = ct, so, ts
@@ -94,6 +95,9 @@ class Ctx:
         self.tab = core.TAB_ENTRY
         self.lenh = None      # lệnh đang được xét (chỉ Manage)
         self.co_lo_hong = False
+        #: Cổng zone ĐÃ được xét ở nến trục này chưa. Luật lùi có thể quay lại một
+        #: ngã rẽ, nhưng một cây nến chỉ được đếm vào zone đúng MỘT lần.
+        self.zone_da_xet = False
 
     # -- giá --
     @property
@@ -176,8 +180,26 @@ class ChuongTrinh:
         dong1 = tt.moc_dong(self.nen1, "M1")
         # Với mỗi nến M1, nến trục nào đã ĐÓNG gần nhất. −1 = chưa có nến trục nào.
         self.m1_to_5 = np.searchsorted(dong5, dong1, side="right") - 1
-        # Nến M1 nào ĐÓNG ĐÚNG lúc một nến trục đóng → đó là nhịp chạy Entry.
-        self.la_nhip5 = np.isin(dong1, dong5)
+        # NHỊP ENTRY = nến M1 ĐẦU TIÊN thuộc về một nến trục MỚI.
+        #
+        # ⚠ Trước đây là `np.isin(dong1, dong5)` — "nến M1 nào đóng ĐÚNG KHÍT mốc đóng
+        # của một nến trục". Phép trùng khít ấy phụ thuộc DỮ LIỆU M1 CÓ ĐỦ PHÚT CUỐI hay
+        # không: thiếu đúng cây phút đó thì cả nến trục KHÔNG ĐƯỢC CHẠY ENTRY lần nào —
+        # cổng zone không được xét, zone không lớn cũng không chết.
+        #
+        # Đo trên 260.000 nến XAUUSD thật: 188 nến trục (0,36 %) không có nhịp nào. Phần
+        # lớn vô hại vì nến sau mang cờ `lo_hong5` và giết zone đúng chỗ. Nhưng khi CHÍNH
+        # nến không-nhịp là nến mang cờ lỗ hổng thì cờ bốc hơi cùng nến — zone sống XUYÊN
+        # qua một quãng chợ đóng, trái hẳn luật đã ghi ở `_nuoi_zone`: "48 giờ chợ đóng
+        # cửa không phải giá đứng yên".
+        #
+        # Luật mới không phụ thuộc phút cuối. Đo lại trên cùng bộ nến: GIỮ NGUYÊN toàn bộ
+        # 51.938 nhịp cũ, thêm 184 nhịp bị bỏ sót, và mỗi nến trục có ĐÚNG MỘT nhịp.
+        moi = np.zeros(len(dong1), dtype=bool)
+        if len(dong1):
+            moi[0] = self.m1_to_5[0] >= 0
+            moi[1:] = (self.m1_to_5[1:] != self.m1_to_5[:-1]) & (self.m1_to_5[1:] >= 0)
+        self.la_nhip5 = moi
 
         # Lỗ hổng trên TRỤC QUYẾT ĐỊNH: hai nến cách nhau quá 2 bước là chợ đã đóng.
         buoc = core.TF_PHUT[self.tf5] * 60
@@ -196,10 +218,16 @@ class ChuongTrinh:
                     for o in (c.get("trai"), c.get("phai")):
                         if isinstance(o, dict) and o.get("ten"):
                             self._xin_cot(o, tab, st)
-        # Engine cần `atr_bps` và `atr` trên khung quyết định dù sơ đồ có hỏi hay không.
-        for ten in ("atr_bps", "atr"):
-            self._xin_cot({"ten": ten, "tf": self.tf5,
-                           "period": self.ts["chu_ky_atr"]}, None, None)
+                    # Đơn vị `bps` / `%` chia cho GIÁ ĐÓNG cùng khung — cột đó phải có
+                    # sẵn dù sơ đồ không hỏi `close` ở đâu cả.
+                    tr = c.get("trai")
+                    dv = (c.get("phai") or {}).get("tinh")                         if isinstance(c.get("phai"), dict) else None
+                    if isinstance(tr, dict) and dv in ("bps", "pt"):
+                        self._xin_cot({"ten": "close", "tf": tr.get("tf")}, tab, st)
+        # Engine cần `atr` trên khung quyết định dù sơ đồ có hỏi hay không: zone cộng
+        # dồn nó để tính `zone_atr_tb`, và đơn vị `× ATR` chia cho nó.
+        self._xin_cot({"ten": "atr", "tf": self.tf5,
+                       "period": self.ts["chu_ky_atr"]}, None, None)
 
     #: Chu kỳ mặc định khi ô để trống. Trùng mặc định của hộp thoại hành động.
     CHU_KY_MAC_DINH = 14
@@ -290,6 +318,12 @@ class ChuongTrinh:
                 "theo_id": theo_id, "ke": ke,
                 "vao": core.flow_entry(steps, edges),
             }
+        # Sơ đồ Entry có cổng zone không. Không có thì zone không tồn tại — và bước 5
+        # của `mot_nhip` KHÔNG được đi giết một thứ chẳng ai định nghĩa.
+        self.co_cong_zone = any(
+            (st.get("action") or st).get("cong_zone")
+            for st in (self.doc.get(core.TAB_ENTRY) or {}).get("steps") or []
+            if isinstance(st, dict))
 
 
 # ---------------------------------------------------------------------------
@@ -333,48 +367,30 @@ def _lay_toan_hang(o, ctx):
     # Hai vế của một cổng đi hai đường thì lệch nhau thêm một nến nữa.
     if ten in ct.COT_GIA:
         return ct.doc_cot(o, ctx.i, o.get("shift", 0))
-    if ten == "bid":
-        return ctx.bid
-    if ten == "ask":
-        return ctx.ask
-    if ten == "spread":
-        return ct.cd.spread_diem
-
     if ten == "so_vi_the":
         return float(ctx.so.so_vi_the())
     if ten == "so_lenh_cho":
         return float(ctx.so.so_lenh_cho())
-    if ten == "so_lenh_hom_nay":
-        hnay = int(ct.nen5["t"][ctx.i]) // 86400
-        return float(sum(1 for x in ctx.so.lenh
-                         if int(ct.nen5["t"][x.nen_dat]) // 86400 == hnay))
-    if ten == "drawdown_pt":
-        return ct.drawdown_pt()
-
-    if ten in ("gio", "thu"):
-        t = int(ct.nen1["t"][ctx.j])
-        return float((t // 3600) % 24) if ten == "gio" else float((t // 86400 + 4) % 7 + 2)
-
     l = ctx.lenh
     if l is None:
         return NAN                              # "lệnh này" ở Entry — soát tĩnh đã chặn
     if ten == "lenh_da_khop":
         return bool(l.da_khop)
-    if ten == "lenh_la_mua":
-        return l.huong == sl.MUA
     if ten == "lenh_sl_hoa_von":
         return bool(l.sl_o_hoa_von)
     if ten == "lenh_lai_R":
         return float(l.lai_R(_gia_thoat(l, ctx.bid, ct.cd)))
-    if ten == "lenh_so_nen_song":
-        return float(l.so_nen_song(ctx.i))
-    if ten == "lenh_gia_vao":
-        return float(l.gia_khop) if l.gia_khop is not None else NAN
     raise LoiChay(f'Toán hạng "{ten}" chưa được cài trong bộ chạy.')
 
 
-def _so_sanh(trai, phep, phai, phai2=None):
+def _so_sanh(trai, phep, phai):
     """Một phép so. NaN ở bất kỳ vế nào → False (cổng trượt), không nổ."""
+    # ĐÚNG/SAI là một phép so, không phải một ô tick riêng — nhờ vậy mọi điều kiện
+    # có cùng hình dạng và `_xet_cong` không còn nhánh ngoại lệ nào.
+    if phep == "la_dung":
+        return bool(trai)
+    if phep == "la_sai":
+        return not bool(trai)
     if isinstance(trai, bool):
         return trai
     if trai != trai or (isinstance(phai, float) and phai != phai):
@@ -391,10 +407,37 @@ def _so_sanh(trai, phep, phai, phai2=None):
         return trai == phai
     if phep == "!=":
         return trai != phai
-    if phep == "trong_khoang":
-        return phai <= trai <= (phai2 if phai2 is not None else phai)
-    # `cat_len` / `cat_xuong` cần giá trị nến trước — chưa dùng ở sơ đồ mẫu.
     raise LoiChay(f'Phép so "{phep}" chưa được cài trong bộ chạy.')
+
+
+def _quy_doi(x, don_vi, o, ctx):
+    """Đổi giá trị vế trái sang ĐƠN VỊ được chọn. Đây là chỗ `atr_bps` sống tiếp.
+
+    Công thức phải TRÙNG KHÍT bản cũ, nếu không mọi sơ đồ đã lưu đổi hành vi âm thầm:
+
+      bps  =  x / close × 10⁴   — `close` CÙNG khung, CÙNG shift với vế trái, đúng
+                                  `iClose(signal_tf, 1)` của D_02 (FilterEngine.mqh:202)
+      × ATR       =  x / atr(chu_ky_atr)   — ATR nến vừa đóng, giống `rong_atr` cũ
+                                             (`so_lenh.Zone.rong_atr` chia `atr_hien_tai`)
+      × ATR zone  =  x / zone_atr_tb       — ATR trung bình cả zone, thước của RỦI RO
+
+    Không có mẫu số → NaN, và NaN làm cổng TRƯỢT. Trả 0 thì cổng KHỚP giữa lúc chưa
+    biết gì — đúng loại lỗi im lặng cả kiến trúc này dựng lên để tránh."""
+    if don_vi in (None, "", "gia") or isinstance(x, bool) or x != x:
+        return x
+    if don_vi == "bps":
+        c = ctx.ct.doc_cot({"ten": "close", "tf": o.get("tf")}, ctx.i,
+                           o.get("shift", 0))
+        if c != c or not c:
+            return NAN
+        return x / c * 10000.0
+    if don_vi == "atr":
+        a = ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+        return x / a if a == a and a else NAN
+    if don_vi == "atr_zone":
+        v = ctx.so.zone_hien_hanh()
+        return x / v.atr_tb if v and v.atr_tb else NAN
+    raise LoiChay(f'Đơn vị so sánh "{don_vi}" chưa được cài trong bộ chạy.')
 
 
 def _xet_cong(st, ctx):
@@ -404,18 +447,25 @@ def _xet_cong(st, ctx):
     trả lời được "cổng trượt vì con số nào" khi nhật ký được đọc lại."""
     vet, khop = [], True
     for c in st.get("conditions") or []:
-        t = _lay_toan_hang(c["trai"], ctx)
-        loai = c.get("phai_loai") or "so"
-        if loai == "toan_hang":
-            p = _lay_toan_hang(c["phai"], ctx)
-        elif isinstance(c.get("phai"), str):
-            p = ctx.ct.so(c["phai"])
+        phep = c.get("phep") or "<"
+        p_ = c.get("phai")
+        # KIỂU SUY RA, không khai: có khoá `ten` là một đại lượng khác, còn lại là
+        # LƯỢNG `{value, tinh}` — `value` là số hoặc TÊN THAM SỐ, `ct.so()` lo cả hai.
+        la_dai_luong = isinstance(p_, dict) and p_.get("ten")
+        # ĐƠN VỊ nằm ở vế PHẢI nhưng quy đổi vế TRÁI — vì nó trả lời "con số bạn gõ
+        # mang nghĩa gì", mà con số đó đứng bên phải.
+        dv = None if la_dai_luong else (p_ or {}).get("tinh")
+        t = _quy_doi(_lay_toan_hang(c["trai"], ctx), dv, c["trai"], ctx)
+        if la_dai_luong:
+            p = _lay_toan_hang(p_, ctx)
+        elif phep in ("la_dung", "la_sai"):
+            p = NAN                          # không có vế phải
         else:
-            p = c.get("phai")
-            p = float(p) if isinstance(p, (int, float)) else NAN
-        dat = _so_sanh(t, c["phep"], p, c.get("phai2"))
-        if c.get("dao"):
-            dat = not dat
+            try:
+                p = ctx.ct.so((p_ or {}).get("value", 0))
+            except LoiChay:
+                p = NAN
+        dat = _so_sanh(t, phep, p)
         vet.append({"trai": _js(t), "phai": _js(p), "dat": bool(dat)})
         khop = khop and dat
     return khop, vet
@@ -438,28 +488,31 @@ def _js(x):
 def _khoang(k, ctx, neo=None, R=None):
     """`{tinh, value}` → một khoảng cách tính bằng ĐƠN VỊ GIÁ.
 
-    ⚠ `theo_ATR` và `theo_ATR_vung` là HAI THỨ KHÁC NHAU, và đây là chỗ duy nhất giữ
+    ⚠ `atr` và `atr_zone` là HAI THỨ KHÁC NHAU, và đây là chỗ duy nhất giữ
     cho chúng khác nhau (core.md §6.3):
-      * `theo_ATR`      = ATR của nến VỪA ĐÓNG   → đo đệm vào lệnh (`comp.atr_current`)
-      * `theo_ATR_vung` = ATR TRUNG BÌNH cả vùng → ĐỊNH NGHĨA 1R    (`comp.atr_avg`)
+      * `atr`      = ATR của nến VỪA ĐÓNG   → đo đệm vào lệnh (`comp.atr_current`)
+      * `atr_zone` = ATR TRUNG BÌNH cả vùng → ĐỊNH NGHĨA 1R    (`comp.atr_avg`)
     Gộp làm một là mất đúng cái làm cho 1R nhất quán, mà validator KHÔNG bắt được."""
     if not k:
         return NAN
     v = ctx.ct.so(k.get("value", 0))
     tinh = k.get("tinh")
-    if tinh == "theo_ATR":
+    if tinh == "atr":
         return v * ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
-    if tinh == "theo_ATR_vung":
-        vung = ctx.so.vung_hien_hanh()
+    if tinh == "atr_zone":
+        vung = ctx.so.zone_hien_hanh()
         return v * vung.atr_tb if vung else NAN
-    if tinh == "theo_R":
+    if tinh == "R":
         return v * (R if R is not None else NAN)
-    if tinh == "theo_gia":
+    if tinh == "gia":
         return v
-    if tinh == "theo_pt":
-        return v / 100.0 * (neo if neo is not None else NAN)
-    if tinh == "theo_bien_vung":
-        vung = ctx.so.vung_hien_hanh()
+    # ⚠ `bps` từng được BÀY RA cho SL/TP/đệm (`DON_VI_CHO`) mà KHÔNG cài ở đây: chọn nó
+    # là ném `LoiChay` giữa lúc backtest. Nó chính là `pt` cũ đổi mẫu số — `pt` đã bỏ vì
+    # trùng ý nghĩa với `bps` (chênh đúng 100 lần), giữ hai tên cho một phép là rác.
+    if tinh == "bps":
+        return v / 10000.0 * (neo if neo is not None else NAN)
+    if tinh == "bien_zone":
+        vung = ctx.so.zone_hien_hanh()
         if vung is None or neo is None:
             return NAN
         return abs(neo - (vung.day if neo >= vung.dinh else vung.dinh))
@@ -472,19 +525,36 @@ def _khoang(k, ctx, neo=None, R=None):
 def _vao_lenh(st, ctx):
     """Đặt một lệnh. Trả bản ghi `viec` cho nhật ký, hoặc None nếu không đặt được.
 
-    NEO: lệnh chờ stop neo vào MÉP VÙNG thuận chiều (Mua → đỉnh, Bán → đáy) rồi cộng
-    đệm ra ngoài — đúng `entry = highest_high + buf` của bản gốc. Lệnh thị trường thì
-    neo vào giá hiện tại."""
+    MỐC NEO giờ là một TRƯỜNG của khối, không còn suy ra từ hướng lệnh.
+
+    ⚠ Trước đây chỗ này viết cứng "lệnh chờ neo mép zone thuận chiều, lệnh thị trường
+    neo giá hiện tại". Trên màn hình vì thế chỉ hiện mỗi ô ĐỆM — và cái đệm, vốn chỉ là
+    tấm khiên mỏng lọc một nhịp phá giả, hoá thành nhân vật chính; còn thứ QUYẾT ĐỊNH
+    lệnh nằm ở đâu thì tàng hình. Giờ mốc hiện ra và bắt buộc, đệm là tuỳ chọn: bỏ
+    trống thì lệnh nằm đúng mép.
+
+    `entry = HH của zone + đệm` của bản gốc giờ đọc thẳng được trên khối."""
     ct, so_ = ctx.ct, ctx.so
     huong = st.get("huong", sl.MUA)
     loai = st.get("loai", "stop")
     lot = ct.so(st.get("lot", 0.01))
-    vung = so_.vung_hien_hanh()
+    vung = so_.zone_hien_hanh()
 
-    if loai == "stop" and vung is not None:
-        mep = vung.dinh if huong == sl.MUA else vung.day
+    moc = (st.get("entry") or {}).get("moc") or (
+        "gia_hien_tai" if loai == "market" else
+        ("zone_HH" if huong == sl.MUA else "zone_LL"))
+    if moc == "zone_HH":
+        if vung is None:
+            return None                 # chưa có zone → chưa có mốc để neo
+        mep = vung.dinh
+    elif moc == "zone_LL":
+        if vung is None:
+            return None
+        mep = vung.day
     else:
         mep = ctx.ask if huong == sl.MUA else ctx.bid
+    # ĐỆM là tuỳ chọn. Không có thì lệnh nằm đúng mốc — hợp lệ, chỉ dễ dính một nhịp
+    # phá giả hơn. Đó là lựa chọn của người vẽ, không phải lỗi.
     dem = _khoang(st.get("dem"), ctx, neo=mep) if st.get("dem") else 0.0
     if dem != dem:
         return None
@@ -530,29 +600,19 @@ def _sua_lenh(st, ctx):
             return None
         moi = ctx.bid - d if (l.huong == sl.MUA) == (cd == "doi_sl") else ctx.bid + d
         setattr(l, "sl" if cd == "doi_sl" else "tp", moi)
-    elif cd == "trailing":
-        d = _khoang(st.get("khoang"), ctx, neo=ctx.bid, R=l.R)
-        if d != d:
-            return None
-        moi = ctx.bid - d if l.huong == sl.MUA else ctx.bid + d
-        # Trailing chỉ ĐI THEO một chiều. Cho nó lùi lại là nới rủi ro ra, tức không
-        # còn là trailing nữa.
-        if l.sl is not None and ((moi <= l.sl) if l.huong == sl.MUA else (moi >= l.sl)):
-            return None
-        l.sl = moi
-    elif cd == "dong_han":
+    elif cd == "ket_thuc":
+        # MỘT chế độ thay cho `dong_han` + `huy_cho`. Manage chạy một lượt cho MỖI
+        # lệnh, nên "lệnh này" là duy nhất và ta TỰ BIẾT nó đã khớp hay chưa — bắt
+        # người dùng chọn giữa hai cái là bắt họ khai một thứ máy đã biết, mà chọn
+        # nhầm thì hành động im lặng không làm gì.
+        if not l.da_khop:
+            so_.dong(l, None, ctx.i, "huy")
+            return {"loai": "lenh_huy", "lenh_id": l.id}
         so_.dong(l, ctx.bid if l.huong == sl.MUA else ctx.ask, ctx.i, "dong_tay")
         # Ghi tiền NGAY, y như đường sàn đóng lệnh — xem chú thích ở `chay()`.
         ctx.ct.ghi_tien(l)
         return {"loai": "lenh_dong", "lenh_id": l.id, "ly_do": "dong_tay",
                 "gia": _js(l.gia_dong)}
-    elif cd == "huy_cho":
-        if l.da_khop:
-            return None
-        so_.dong(l, None, ctx.i, "huy")
-        return {"loai": "lenh_huy", "lenh_id": l.id}
-    elif cd == "dong_mot_phan":
-        raise LoiChay("Chế độ \"Đóng một phần\" chưa được cài trong sổ lệnh.")
     else:
         raise LoiChay(f'Chế độ sửa lệnh "{cd}" chưa được cài trong bộ chạy.')
 
@@ -565,6 +625,39 @@ def _sua_lenh(st, ctx):
 # ---------------------------------------------------------------------------
 # Đi trên đồ thị
 # ---------------------------------------------------------------------------
+def _nuoi_zone(ctx, khop):
+    """CỔNG ZONE vừa được xét — lớn lên hay chết.
+
+    ⚠ ĐÂY LÀ CHỖ ZONE ĐƯỢC ĐỊNH NGHĨA, và nó nằm trong sơ đồ chứ không nằm trong một
+    cỗ máy ẩn nữa.
+
+    Trước đây `engine.moi_nen()` chạy mỗi nến, TRƯỚC mọi sơ đồ, và viết cứng điều kiện
+    đếm là "atr_bps dưới ngưỡng". Nhìn sơ đồ không thấy zone ở đâu, và chiến lược thứ
+    hai muốn đếm theo điều kiện khác thì phải sửa engine.
+
+    Giờ: cổng nào mang cờ `cong_zone` thì CHÍNH NÓ là điều kiện đếm. Cổng qua → zone
+    lớn thêm một nến. Cổng trượt → zone chết ngay. Điều kiện đếm thành tham số mà không
+    cần thêm một ô cấu hình nào — nó là cái cổng bạn vẽ ra.
+
+    ĐÚNG MỘT LẦN mỗi nến trục: luật lùi có thể quay lại một ngã rẽ, nhưng một cây nến
+    chỉ được đếm một lần.
+    """
+    if ctx.zone_da_xet:
+        return
+    ctx.zone_da_xet = True
+    so = ctx.so
+    if not khop:
+        so.dong_zone()
+        return
+    # Khoảng trống dữ liệu > 2 bước nến thì zone CHẾT dù cổng vẫn qua: "nén" là giá
+    # đứng yên trong một quãng LIỀN MẠCH, 48 giờ chợ đóng cửa không phải giá đứng yên.
+    if ctx.co_lo_hong:
+        so.dong_zone()
+    v = so.zone_hien_hanh() or so.mo_zone(ctx.i)
+    v.them_nen(ctx.gia_nen("h"), ctx.gia_nen("l"),
+               ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"]))
+
+
 def _chay_so_do(tab, ctx):
     """Một LƯỢT chạy của một sơ đồ. Trả bản ghi nhật ký.
 
@@ -595,6 +688,8 @@ def _chay_so_do(tab, ctx):
             if core.is_branch_gate(st):
                 khop, vet = _xet_cong(st, ctx)
                 cong.append({"khoi": s, "ve": vet, "khop": bool(khop)})
+                if st.get("cong_zone"):
+                    _nuoi_zone(ctx, bool(khop))
                 if not khop:
                     continue
             di = s
@@ -763,7 +858,7 @@ def _thong_ke(so, cd, ct):
         # `None` = chưa có lệnh lỗ nào, KHÔNG phải 0. Hai chuyện khác hẳn nhau.
         "he_so_lai": round(lai_duong / lo_am, 2) if lo_am else None,
         "chuoi_thua": thua_dai,
-        "so_vung": len(so.vung),
+        "so_zone": len(so.zone),
     }, duong
 
 
@@ -832,6 +927,8 @@ class PhienChay:
             np.ones(len(dong1), dtype=bool)
         self.mo_ho = 0
         self.i5_truoc = -1
+        #: Nến trục đã CHỤP cột zone — chụp sau khi sơ đồ chạy, xem bước 5.
+        self.i5_chup = -1
         self.i5 = -1
 
         # DANH SÁCH LỆNH SỐNG, tự nuôi. `so.dang_song()` quét TOÀN SỔ mỗi lần gọi; gọi nó
@@ -841,19 +938,19 @@ class PhienChay:
         # không phải chuyện mô hình sổ lệnh.
         self.song, self.n_lenh = [], 0
 
-        # ⚠ VÙNG NÉN PHẢI THÀNH CỘT. `VungNen` mutate liên tục (đếm nến, nới đỉnh/đáy), nên
+        # ⚠ VÙNG NÉN PHẢI THÀNH CỘT. `Zone` mutate liên tục (đếm nến, nới đỉnh/đáy), nên
         # trạng thái vùng tại nến i KHÔNG suy ra được từ đối tượng cuối cùng. Bảng số liệu
-        # mà hỏi lại `so.vung_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
+        # mà hỏi lại `so.zone_hien_hanh()` thì ở con trỏ nào cũng đọc ra trạng thái CUỐI
         # BACKTEST — bảng nói một đằng, nhật ký nói một nẻo, đúng lúc đang debug.
         # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
         # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
         self.CV = CV = tuple(dict.fromkeys(
             x["ten"] for x in core.toan_hang_dung(doc)
             if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
-        self.cot_vung = {k: np.full(len(ct.nen5), NAN) for k in CV}
+        self.cot_zone = {k: np.full(len(ct.nen5), NAN) for k in CV}
         self.dung_sai = {k for k in CV if k in core.TOAN_HANG_DUNG_SAI}
-        self.vung_id = [None] * len(ct.nen5)
-        self.so_vung = np.zeros(len(ct.nen5), dtype=np.int32)
+        self.zone_id = [None] * len(ct.nen5)
+        self.so_zone = np.zeros(len(ct.nen5), dtype=np.int32)
 
     def ghi_tien(self, l):
         cd = self.cd
@@ -901,13 +998,11 @@ class PhienChay:
         if i5 != self.i5_truoc:
             ctx.co_lo_hong = bool(ct.lo_hong5[i5])
             ctx.lenh = None
+            # ⚠ Cờ này mở ra ở ĐẦU nến trục và chỉ đóng lại khi cổng zone được xét.
+            # Sau khi chạy xong Entry, còn mở nghĩa là dòng chảy KHÔNG TỚI được cổng —
+            # xem chú thích ở cuối `mot_nhip`.
+            ctx.zone_da_xet = False
             ct.engine.moi_nen(ctx)
-            for k in self.CV:
-                v = ct.engine.doc(k, ctx)
-                self.cot_vung[k][i5] = float(v) if k in self.dung_sai else v
-            v_ht = so.vung_hien_hanh()
-            self.vung_id[i5] = v_ht.id if v_ht else None
-            self.so_vung[i5] = len(so.vung)
             self.i5_truoc = i5
 
         # ---- 3. MANAGE — một lượt cho MỖI lệnh đang sống ----
@@ -933,6 +1028,26 @@ class PhienChay:
             if self.tien_do and i5 % 2000 == 0:
                 self.tien_do(i5, len(ct.nen5))
 
+        # ---- 5. CHỐT ZONE + chụp cột (sau khi sơ đồ đã chạy) ----
+        #
+        # ⚠ Phải chụp Ở ĐÂY chứ không ở bước 2 nữa: từ nay zone lớn lên NGAY TRONG lúc
+        # sơ đồ chạy, nên chụp trước là chụp trạng thái của nến trước.
+        if i5 >= 0 and self.i5_chup != i5 and ct.la_nhip5[j]:
+            # Dòng chảy KHÔNG TỚI được cổng zone (một cổng phía trên trượt) → ZONE CHẾT.
+            #
+            # Chọn thế chứ không cho zone đứng im, vì "nén" nghĩa là giá đứng yên trong
+            # một quãng LIỀN MẠCH. Nến không được kiểm thì ta KHÔNG BIẾT nó có nén hay
+            # không — cho zone sống xuyên qua một khoảng không kiểm là tự lừa mình.
+            if not ctx.zone_da_xet and ct.co_cong_zone:
+                so.dong_zone()
+            for k in self.CV:
+                v = ct.engine.doc(k, ctx)
+                self.cot_zone[k][i5] = float(v) if k in self.dung_sai else v
+            v_ht = so.zone_hien_hanh()
+            self.zone_id[i5] = v_ht.id if v_ht else None
+            self.so_zone[i5] = len(so.zone)
+            self.i5_chup = i5
+
     # ------------------------------------------------------------------ ảnh chụp
     def anh_chup(self):
         """`KetQua` đọc được TẠI ĐÂY, mà KHÔNG chốt sổ.
@@ -947,9 +1062,9 @@ class PhienChay:
         kq = KetQua(self.ct, self.so, self.nhat_ky, self.ct._cot,
                     {"so_luot": len(self.nhat_ky), "nen_mo_ho": self.mo_ho})
         kq.duong_von = []
-        kq.cot_vung = self.cot_vung
-        kq.vung_id = self.vung_id
-        kq.so_vung = self.so_vung
+        kq.cot_zone = self.cot_zone
+        kq.zone_id = self.zone_id
+        kq.so_zone = self.so_zone
         return kq
 
     # ------------------------------------------------------------------- kết sổ
@@ -972,9 +1087,9 @@ class PhienChay:
         tk["so_luot"] = len(self.nhat_ky)
         kq = KetQua(ct, so, self.nhat_ky, ct._cot, tk)
         kq.duong_von = duong_von
-        kq.cot_vung = self.cot_vung
-        kq.vung_id = self.vung_id
-        kq.so_vung = self.so_vung
+        kq.cot_zone = self.cot_zone
+        kq.zone_id = self.zone_id
+        kq.so_zone = self.so_zone
         return kq
 
 
@@ -1010,9 +1125,9 @@ def _bang(kq, i, j):
         v = float(cot[i]) if 0 <= i < len(cot) else NAN
         ra["toan_hang"].append({"ten": f"{nhan}({', '.join(phan)})", "gia_tri": _js(v)})
 
-    # ĐỌC CỘT, không hỏi lại `so.vung_hien_hanh()`: sổ đang ở trạng thái CUỐI backtest,
+    # ĐỌC CỘT, không hỏi lại `so.zone_hien_hanh()`: sổ đang ở trạng thái CUỐI backtest,
     # nên hỏi lại là ở con trỏ nào cũng ra cùng một đáp án — sai và im lặng.
-    cv = kq.cot_vung
+    cv = kq.cot_zone
     co = 0 <= i < len(kq.nen5)
     ra["engine"] = [
         {"ten": core.TOAN_HANG_LABELS.get(k, k),
@@ -1027,7 +1142,7 @@ def _bang(kq, i, j):
         ("Số vị thế đang mở", sum(1 for l in song if l.da_khop)),
         ("Số lệnh đã đóng", sum(1 for l in so.lenh if l.nen_dong is not None
                                 and l.nen_dong <= i)),
-        ("Số vùng nén đã sinh", int(kq.so_vung[i]) if co else 0),
+        ("Số vùng nén đã sinh", int(kq.so_zone[i]) if co else 0),
     )]
 
     gia = float(ct.nen1["c"][j])

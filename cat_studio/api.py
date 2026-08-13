@@ -82,14 +82,14 @@ def _hanh_dong_mac_dinh(loai):
     người dùng mới có thứ hợp lý để sửa chứ không phải bịa từ số không."""
     if loai == core.VAO_LENH:
         return {"type": loai, "huong": "mua", "loai": "stop", "lot": 0.01,
-                "dem": {"tinh": "theo_ATR", "value": 0.1},
-                "sl": {"tinh": "theo_ATR", "value": 1.5},
-                "tp": {"tinh": "theo_R", "value": 2}}
+                "dem": {"tinh": "atr", "value": 0.1},
+                "sl": {"tinh": "atr", "value": 1.5},
+                "tp": {"tinh": "R", "value": 2}}
     if loai == core.SUA_LENH:
         return {"type": loai, "che_do": "hoa_von"}
     return {"type": core.CHECK_COND, "conditions": [{
-        "trai": {"ten": "atr_bps", "tf": "M5", "period": 14},
-        "phep": "<", "phai_loai": "so", "phai": 7.0}]}
+        "trai": {"ten": "atr", "tf": "M5", "period": 14}, "don_vi": "bps",
+        "phep": "<", "phai": {"value": 7.0, "tinh": "bps"}}]}
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +143,10 @@ def _the_buoc(st, ts=None, tab=None):
     if st.get("type") == core.CHECK_COND:
         n = len(st.get("conditions") or [])
         the["badges"].append("cổng rẽ nhánh" if core.is_branch_gate(st) else "kiểm tra")
+        # Khối CÓ điều kiện thì chữ tự nói (`Giá đóng cửa(M15) > MA(M15, 50)`), nhưng
+        # khối RỖNG ở hai cơ chế nhìn giống hệt nhau — nhãn này là chỗ phân biệt duy nhất.
+        if st.get("so_dai_luong"):
+            the["badges"].append("so hai đại lượng")
         if n > 1:
             the["badges"].append(f"{n} điều kiện · VÀ")
     return the
@@ -152,7 +156,26 @@ def _kem_the(doc):
     """Gắn `cards` vào từng sơ đồ. Chữ trên hộp do Python sinh, JS không ghép lại.
 
     Truyền cả bảng tham số xuống để dòng chữ hiện `ngưỡng nén = 7` thay vì trơ ra một
-    cái tên không ai biết bằng bao nhiêu."""
+    cái tên không ai biết bằng bao nhiêu.
+
+    ⚠ CHUẨN HOÁ NGAY TẠI ĐÂY, chứ không tin từng chỗ gọi nhớ làm. Đây là hàm DUY NHẤT
+    chuẩn bị một doc cho giao diện, nên nó phải là chỗ bảo đảm luật *"mọi doc tới tay
+    giao diện đều đã chuẩn hoá"*.
+
+    Vì sao gắt thế, có ca thật: `demo_process` từng gọi `_kem_the(_so_do_mau())` — thiếu
+    đúng một lời gọi `normalize_process`. Sơ đồ mẫu vì vậy thiếu cờ `so_dai_luong` (cờ
+    này chỉ chuẩn hoá mới sinh ra được), nên mở cổng "Xu hướng LÊN?" ra thì hộp thoại
+    tưởng là cơ chế "so với giá trị": ô số trắng trơn, cột đơn vị in "giá tuyệt đối".
+    Mà CHỮ TRÊN THẺ vẫn đúng — `cond_display` tự SUY từ `phai.ten` chứ không đọc cờ. Hai
+    nguồn cho một sự thật, và cái lệch thì im lặng.
+
+    Lỗ đó có từ trước; nó chỉ lộ ra khi `so_dai_luong` thành trường đầu tiên mà giao diện
+    KHÔNG suy lại được. Vá dòng 449 thì lần sau ai thêm endpoint mới lại quên tiếp.
+
+    An toàn vì `normalize_process` BẤT BIẾN — chạy hai lần bằng đúng một lần
+    (`tests/test_so_do_mau.py` canh chuyện đó), nên mấy chỗ đã chuẩn hoá rồi gọi thêm
+    một lần nữa cũng không đổi gì."""
+    doc = core.normalize_process(doc)
     ts = core.bang_tham_so(doc)
     for tab in core.TABS:
         g = doc.get(tab) or {"steps": [], "edges": []}
@@ -310,14 +333,36 @@ class Api(NenCuaSo):
             # không phải nhớ sửa chỗ này.
             "toan_hang": core.TOAN_HANG,
             "phep_so": core.PHEP_SO,
-            "cach_tinh": core.CACH_TINH,
+            # ĐƠN VỊ — MỘT bảng cho cả app: điều kiện, SL/TP/đệm, sửa lệnh.
+            # Trước đây là hai bảng (`CACH_TINH` + `DON_VI_SS`) trùng nhau ba cặp.
+            "don_vi": core.DON_VI,
+            "don_vi_ngan": core.DON_VI_NGAN,
+            "don_vi_cho": {k: list(v) for k, v in core.DON_VI_CHO.items()},
             "huong": core.HUONG,
             "loai_lenh": core.LOAI_LENH,
+            # MỐC NEO của khối Vào lệnh — xem `core.MOC_ENTRY`.
+            "moc_entry": core.MOC_ENTRY,
+            # MỌI đơn vị, một bảng nhãn — kể cả đơn vị ĐẾM (nến · lệnh · lot).
+            # Bảng tham số khai `don_vi` bằng một khoá ở đây, và ô số chỉ mời những
+            # tham số có ĐÚNG đơn vị của nó.
+            "nhan_don_vi": core.NHAN_DON_VI,
+            "don_vi_dem": core.DON_VI_DEM,
+            # Toán hạng → đơn vị CỐ ĐỊNH của ô so với nó (`None` = không có vế phải).
+            "toan_hang_don_vi": {
+                t["key"]: core.don_vi_cua_o("dieu_kien", t["key"])
+                for t in kho.TOAN_HANG},
+            "toan_hang_loai": core.TOAN_HANG_LOAI,
+            "loai_co_don_vi": core.LOAI_CO_DON_VI,
+            # Toán hạng nào KHÔNG đo được bằng chính nó (kết quả luôn = 1).
+            "don_vi_chinh_no": core.DON_VI_CHINH_NO,
+            # Toán hạng nào chỉ có nghĩa khi đã có zone, và đơn vị nào cũng vậy.
+            "toan_hang_can_zone": list(core.TOAN_HANG_CAN_ZONE),
+            "don_vi_can_zone": list(core.DON_VI_CAN_ZONE),
+            "moc_can_zone": list(core.MOC_CAN_ZONE),
             "sua_che_do": core.SUA_CHE_DO,
             "sua_can_gia": list(core.SUA_CAN_GIA),
-            "sua_can_phan_tram": list(core.SUA_CAN_PHAN_TRAM),
 
-            "don_vi_tham_so": core.DON_VI,
+            "don_vi_o": {k: core.don_vi_cua_o(k) for k in ("chu_ky", "lot")},
             "template_kinds": core.TEMPLATE_KINDS,
             "accent_presets": core.ACCENT_PRESETS,
             "max_process_steps": core.MAX_PROCESS_STEPS,
@@ -328,11 +373,6 @@ class Api(NenCuaSo):
     def describe(self, steps, tham_so=None):
         ts = {t["ten"]: t["gia_tri"] for t in (tham_so or [])}
         return _ok([_the_buoc(s, ts) for s in (steps or []) if isinstance(s, dict)])
-
-    @_bat_loi
-    def describe_actions(self, actions):
-        return _ok([{"text": core.action_display(a), "type": (a or {}).get("type")}
-                    for a in (actions or [])])
 
     @_bat_loi
     def action_defaults(self, action_type):
@@ -396,6 +436,12 @@ class Api(NenCuaSo):
                 "quay_lai": [list(c) for c in kq["quay_lai"]],
                 "vong_ho": [list(c) for c in kq["vong_ho"]],
                 "lech_nhanh": kq["lech_nhanh"],
+                # Khối nào đã đi QUA cổng zone — hộp thoại dùng nó để KHÔNG bày ra toán
+                # hạng zone và đơn vị `× ATR zone` ở chỗ zone chưa tồn tại. Trả kèm ở
+                # đây thay vì thêm một lệnh riêng: sơ đồ đổi là bảng này đổi theo, không
+                # có đường nào để hai bên lệch nhau.
+                "sau_cong_zone": sorted(core.khoi_sau_cong_zone(
+                    st, core.default_edges(st) if ed is None else ed)),
             }
         return _ok(probs,
                    so_loi=sum(1 for p in probs if p["severity"] == "error"),
@@ -414,7 +460,7 @@ class Api(NenCuaSo):
 
         Dựng bằng chính các khối người dùng có, không phải thứ đặc biệt gì — mở ra là
         thấy ngay bộ khối này diễn tả được một chiến lược thật tới đâu."""
-        return _ok(_kem_the(_so_do_mau()))
+        return _ok(_kem_the(_so_do_mau()))   # `_kem_the` tự chuẩn hoá
 
     @_bat_loi
     def load_process(self, name):
@@ -638,7 +684,7 @@ class Api(NenCuaSo):
         d["hanh_dong"] = [{"key": k, "nhan": core.ACTION_LABELS[k],
                            "tabs": list(core.ACTION_TABS[k])}
                           for k in core.ACTION_TYPES]
-        d["cach_tinh"] = core.CACH_TINH
+        d["don_vi"] = core.DON_VI
         d["sua_che_do"] = core.SUA_CHE_DO
         d["phep_so"] = core.PHEP_SO
         d["trang_thai_lenh"] = {
@@ -694,16 +740,6 @@ class Api(NenCuaSo):
     # Nằm ở Api CHÍNH vì nguồn nến là tài sản của APP, không phải của một lần chạy:
     # tải một lần rồi mọi chiến lược đều dùng chung, và xoá thì xoá hẳn.
     @_bat_loi
-    def nguon_liet_ke(self):
-        return _ok({"ds": nguon_nen.liet_ke(), "co_mt5": nguon_nen.CO_MT5})
-
-    @_bat_loi
-    def nguon_uoc_tinh(self, symbol, tu, den):
-        """Bấm Tải sẽ tải bao nhiêu? BÁO TRƯỚC số MB — không bao giờ tải lén."""
-        k = nguon_nen.khoang_thieu(symbol, tu, den)
-        return _ok(dict(nguon_nen.uoc_tinh(k), du=not k))
-
-    @_bat_loi
     def nguon_kiem_ket_noi(self, symbol):
         """Nối thử tới MT5 ngay trong Cài đặt, TRƯỚC khi bấm ▶.
 
@@ -711,13 +747,6 @@ class Api(NenCuaSo):
         dùng chỉ gặp một lỗi lúc chạy, mà câu lỗi đó nói về khoảng thời gian chứ không
         nói gì về kết nối. Nút này hỏi thẳng và trả lời thẳng."""
         return _ok(nguon_nen.kiem_ket_noi(symbol))
-
-    @_bat_loi
-    def nguon_tai(self, symbol, tu, den):
-        r = nguon_nen.tai(symbol, tu, den,
-                          tien_do=lambda i, n, c: self._ban(
-                              "tai", {"da": i, "tong": n, "chu": c}))
-        return _ok({"chu": r["chu"], "meta": r["meta"], "ds": nguon_nen.liet_ke()})
 
     @_bat_loi
     def nguon_xoa(self, symbol):
@@ -781,11 +810,6 @@ class ApiTester(NenCuaSo):
             "cai_dat": (self._cha._cai_dat or {}).get("test") or {},
             "timeframes": core.TIMEFRAMES,
         })
-
-    @_bat_loi
-    def tester_doc(self):
-        """Cửa sổ tester hỏi: tôi đang phải chạy sơ đồ nào?"""
-        return _ok(self._cha._doc_tester)
 
     # ------------------------------------------------------------- chạy
     @_bat_loi
@@ -951,34 +975,6 @@ class ApiTester(NenCuaSo):
 
     # ------------------------------------------------- đọc dòng thời gian
     @_bat_loi
-    def test_nen(self, j, so=400):
-        """Cửa sổ nến M1 kết thúc ở con trỏ. KHÔNG trả nến bên phải con trỏ.
-
-        Đó là cả điểm của replay: nến chưa xảy ra thì CHƯA TỒN TẠI. Thấy trước nến sau
-        rồi thì mọi phán đoán "chỗ này lẽ ra nên vào lệnh" đều là tự lừa mình."""
-        kq = self._doi_kq()
-        j = max(0, min(int(j), len(kq.nen1) - 1))
-        i0 = max(0, j - int(so) + 1)
-        a = kq.nen1[i0:j + 1]
-        return _ok({
-            "t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
-            "l": a["l"].tolist(), "c": a["c"].tolist(), "j0": i0, "j": j,
-        })
-
-    @_bat_loi
-    def test_khung(self, j):
-        """Mọi thứ giao diện cần tại MỘT vị trí con trỏ: bảng số liệu + lệnh để vẽ."""
-        kq = self._doi_kq()
-        j = max(0, min(int(j), len(kq.nen1) - 1))
-        i = max(0, int(kq._ct.m1_to_5[j]))
-        return _ok({
-            "j": j, "i": i,
-            "t": int(kq.nen1["t"][j]),
-            "bang": kq.bang(i, j),
-            "lenh": kq.the_lenh(i),
-        })
-
-    @_bat_loi
     def test_nen_tf(self, tf, j, tran=60000, tu_t=0):
         """TOÀN BỘ nến khung `tf` từ ĐẦU dữ liệu tới con trỏ — để chart kéo đi đâu cũng đủ.
 
@@ -1007,7 +1003,61 @@ class ApiTester(NenCuaSo):
         if len(a) > int(tran):
             a = a[-int(tran):]
         return _ok({"t": a["t"].tolist(), "o": a["o"].tolist(), "h": a["h"].tolist(),
-                    "l": a["l"].tolist(), "c": a["c"].tolist(), "j": j})
+                    "l": a["l"].tolist(), "c": a["c"].tolist(), "j": j,
+                    "zone": self._hop_zone(kq, a, int(tu_t or 0))})
+
+    @staticmethod
+    def _hop_zone(kq, a, tu_t):
+        """Zone thành HỘP để chart vẽ phông nền: `[t_đầu, t_cuối, đáy, đỉnh]`.
+
+        Đi kèm gói nến chứ không làm một lệnh riêng: nến với zone luôn phải nói cùng một
+        con trỏ, mà tách hai lệnh thì giữa hai lời gọi con trỏ đã có thể nhảy.
+
+        Trả MỐC THỜI GIAN, không phải chỉ số nến — người dùng đổi khung hiển thị
+        (M1/M5/M15) thì hộp vẫn nằm đúng chỗ, vì thời gian thì khung nào cũng như nhau.
+
+        ⚠ CẮT Ở CON TRỎ THEO **CẢ HAI CHIỀU**.
+
+        Ngang: `kq.so.zone` là danh sách của CẢ lần chạy, kể cả zone hình thành SAU chỗ
+        đang xem — vẽ hết là lộ tương lai.
+
+        Dọc: `v.dinh` / `v.day` là đỉnh–đáy CUỐI CÙNG của zone, tức đã gồm cả những nến
+        chưa tới. Bản đầu của hàm này chỉ cắt chiều ngang nên hộp vẫn CAO BẰNG TƯƠNG LAI:
+        đo được trên nến thật — con trỏ ở nến thứ 2 của zone, đáy thật là 4484,49 mà hộp
+        vẽ 4476,62, tức đáy của 13 nến sau đó. Nên đỉnh–đáy phải tính lại từ chính đoạn
+        nến `[b0..b1]` đã cắt, không đọc thuộc tính của zone.
+
+        MỘT hộp mỗi zone, không phải bậc thang từng nến: rẻ hơn ~20 lần, và ở độ mờ này
+        thì cái bậc không ai đọc được. Cái cần kể là "chỗ này có một đợt nén, rộng chừng
+        này, cao chừng này"."""
+        if not len(a):
+            return []
+        n5 = getattr(getattr(kq, "_ct", None), "nen5", None)
+        if n5 is None or not len(n5):
+            return []
+        t_cuoi = int(a["t"][-1])
+        ra = []
+        for v in getattr(kq.so, "zone", ()) or ():
+            if v.dinh is None or v.day is None or v.so_nen <= 0:
+                continue
+            b0 = int(v.nen_bat_dau)
+            if not (0 <= b0 < len(n5)):
+                continue
+            t0 = int(n5["t"][b0])
+            if t0 > t_cuoi:                 # chưa tới con trỏ
+                continue
+            b1 = min(len(n5) - 1, b0 + int(v.so_nen) - 1)
+            # Cắt DỌC: chỉ lấy tới cây nến cuối cùng người xem đã thấy.
+            while b1 > b0 and int(n5["t"][b1]) > t_cuoi:
+                b1 -= 1
+            t1 = min(int(n5["t"][b1]), t_cuoi)
+            if tu_t > 0 and t1 < tu_t:      # xin ĐUÔI: bỏ zone đã nằm hẳn phía trước
+                continue
+            doan = n5[b0:b1 + 1]
+            if not len(doan):
+                continue
+            ra.append([t0, t1, float(doan["l"].min()), float(doan["h"].max())])
+        return ra
 
     @_bat_loi
     def test_doan(self, j0, n=300):
@@ -1030,7 +1080,7 @@ class ApiTester(NenCuaSo):
         j1 = min(len(kq.nen1), j0 + n)
         a = kq.nen1[j0:j1]
         i5 = kq._ct.m1_to_5[j0:j1]
-        cv = kq.cot_vung
+        cv = kq.cot_zone
 
         def cot_theo_khung(mang):
             return [(float(mang[k]) if 0 <= k < len(mang)
@@ -1114,8 +1164,8 @@ class ApiTester(NenCuaSo):
         k = ct.khoa(o) if (ten in tinh_toan.BANG or ten in ct.COT_GIA) else None
         if k is not None and k in ct._cot:
             return theo(ct._cot[k])
-        if ten in kq.cot_vung:
-            return theo(kq.cot_vung[ten], ten in core.TOAN_HANG_DUNG_SAI)
+        if ten in kq.cot_zone:
+            return theo(kq.cot_zone[ten], ten in core.TOAN_HANG_DUNG_SAI)
         if ten in ("so_lenh_cho", "so_vi_the"):
             cho = ten == "so_lenh_cho"
             return [sum(1 for l in kq.lenh_tai(int(x)) if l.da_khop != cho) for x in i5]
@@ -1129,11 +1179,6 @@ class ApiTester(NenCuaSo):
             return [float((int(t) // 3600) % 24) if ten == "gio"
                     else float((int(t) // 86400 + 4) % 7 + 2) for t in a["t"]]
         return None     # chưa ghi lại theo nến — thà bỏ trống còn hơn bịa một con số
-
-    @_bat_loi
-    def test_nhat_ky(self, tu=0, so=200, chi_co_viec=True):
-        kq = self._doi_kq()
-        return _ok(nhat_ky.dung_lo(kq, int(tu), int(so), bool(chi_co_viec)))
 
     @_bat_loi
     def test_luot(self, i):
@@ -1855,11 +1900,6 @@ class ApiLive(ApiTester):
         return _ok({"da_keo": True})
 
     @_bat_loi
-    def live_rac(self):
-        """Còn rác của bài kiểm trước không — hỏi mỗi lần mở Live."""
-        return _ok(ket_noi.rac_con_lai(self.symbol))
-
-    @_bat_loi
     def live_don_rac(self):
         return _ok(ket_noi.don_rac(self.symbol))
 
@@ -1953,9 +1993,11 @@ def _so_do_mau():
         dem[0] += 1
         return f"mau{dem[0]:02d}"
 
-    def dk(ten, conds, x, y):
-        s = core.make_action_step({"id": _ma(), "type": core.CHECK_COND, "name": ten,
-                                   "conditions": conds})
+    def dk(ten, conds, x, y, cong_zone=False):
+        a = {"id": _ma(), "type": core.CHECK_COND, "name": ten, "conditions": conds}
+        if cong_zone:
+            a["cong_zone"] = True
+        s = core.make_action_step(a)
         s["pos"] = [x, y]
         return s
 
@@ -1966,7 +2008,7 @@ def _so_do_mau():
 
     def so(ten, phep, gia_tri, **kw):
         return {"trai": dict({"ten": ten}, **kw), "phep": phep,
-                "phai_loai": "so", "phai": gia_tri}
+                "phai": {"value": gia_tri}}
 
     def ts(ten, phep, ten_tham_so, **kw):
         """Vế phải là một THAM SỐ CÓ TÊN, không phải số gõ tay.
@@ -1975,13 +2017,20 @@ def _so_do_mau():
         Entry hỏi "còn nén không", Manage hỏi "nén tan chưa". Gõ tay hai nơi thì sửa
         một chỗ là hai vế lệch nhau âm thầm."""
         return {"trai": dict({"ten": ten}, **kw), "phep": phep,
-                "phai_loai": "tham_so", "phai": ten_tham_so}
+                "phai": {"value": ten_tham_so}}
+
+    def ts_dv(ten, phep, ten_tham_so, don_vi, **kw):
+        """Như `ts` nhưng có ĐƠN VỊ — vế trái được quy đổi trước khi so.
+
+        `atr < nguong_nen_bps [bps]` thay cho toán hạng `atr_bps` cũ. Đại lượng nằm
+        trong kho, thước nằm ở dòng điều kiện."""
+        c = ts(ten, phep, ten_tham_so, **kw)
+        c["phai"]["tinh"] = don_vi          # ĐƠN VỊ nằm trong LƯỢNG, như SL/TP
+        return c
 
     def dung_sai(ten, dao=False):
-        c = {"trai": {"ten": ten}}
-        if dao:
-            c["dao"] = True
-        return c
+        # ĐÚNG/SAI là một PHÉP SO, không phải ô tick — mọi điều kiện cùng hình dạng.
+        return {"trai": {"ten": ten}, "phep": "la_sai" if dao else "la_dung"}
 
     def canh(a, b):
         return {"from": a["id"], "to": b["id"], "port": "out",
@@ -1992,48 +2041,61 @@ def _so_do_mau():
     e_bd["id"] = "mau-bd-entry"
     e_bd["pos"] = [40, 300]
 
-    e_nen = dk("Vùng nén đã xác nhận?", [
-        ts("atr_bps", "<", "nguong_nen_bps", tf="M5", period="chu_ky_atr"),
-        ts("so_nen_nen", ">=", "so_nen_nen"),          # đủ K nến liên tiếp
-        ts("rong_vung_atr", "<=", "rong_vung_toi_da"),  # vùng không quá rộng
-        dung_sai("vung_da_sinh_lenh", dao=True),        # = COMP_CONSUMED
-    ], 340, 300)
+    # ⭐ CỔNG ZONE — chính cổng này ĐỊNH NGHĨA zone.
+    #
+    # Trước đây bốn điều kiện dưới đây nằm CHUNG một khối, còn việc đếm nến nén thì do
+    # một cỗ máy ẩn chạy ngoài sơ đồ. Nhìn khối không biết zone sinh ra từ đâu.
+    #
+    # Giờ tách đôi, và thứ tự nói lên đúng nhân quả:
+    #   khối này  = ĐIỀU KIỆN ĐẾM. Qua thì zone lớn thêm một nến, trượt thì zone chết.
+    #   khối sau  = hỏi về zone VỪA ĐƯỢC ĐỊNH NGHĨA ở trên.
+    # Không có khối này thì `zone_dem`, `zone_HH`… không có nghĩa gì cả.
+    e_nen = dk("Nến này có nén không?", [
+        ts_dv("atr", "<", "nguong_nen_bps", "bps", tf="M5", period="chu_ky_atr"),
+    ], 340, 300, cong_zone=True)
+
+    e_zone = dk("Zone đã đủ điều kiện chưa?", [
+        ts("zone_dem", ">=", "zone_can_nen"),           # đủ K nến liên tiếp
+        ts_dv("zone_range", "<=", "zone_range_max", "atr"),  # zone không quá rộng
+        dung_sai("zone_da_sinh_lenh", dao=True),        # = COMP_CONSUMED
+    ], 640, 300)
 
     e_cho = dk("Còn chỗ cho lệnh mới?", [
         so("so_lenh_cho", "==", 0),      # D_02: đúng MỘT lệnh chờ tại một thời điểm
         ts("so_vi_the", "<", "so_vi_the_toi_da"),   # bằng nhau là đã đầy
-    ], 700, 300)
+    ], 940, 300)
 
     def vao(huong):
         return {
             "type": core.VAO_LENH, "huong": huong, "loai": "stop", "lot": "lot",
             # Đệm đo bằng ATR HIỆN TẠI — tấm khiên mỏng ngoài mép vùng, đủ lọc một
             # nhịp phá giả. Lệnh chờ luôn neo vào mép vùng thuận chiều.
-            "dem": {"tinh": "theo_ATR", "value": "dem_vao_lenh"},
+            "dem": {"tinh": "atr", "value": "dem_vao_lenh"},
             # Rủi ro đo bằng ATR TRUNG BÌNH CẢ VÙNG NÉN — lấy mức nhiễu thật suốt cú
             # nén, nên mỗi lệnh rủi ro một R tương đương dù vùng rộng hẹp khác nhau.
             # HAI CHỮ ATR NÀY LÀ HAI THỨ KHÁC NHAU, tách ra là có chủ ý.
-            "sl": {"tinh": "theo_ATR_vung", "value": "sl_theo_atr_vung"},
-            "tp": {"tinh": "theo_R", "value": "ty_le_RR"},
+            "sl": {"tinh": "atr_zone", "value": "sl_theo_atr_vung"},
+            "tp": {"tinh": "R", "value": "ty_le_RR"},
+            # MỐC NEO hiện ra thành một trường, không còn suy ra từ hướng lệnh nữa.
+            # `entry = HH của zone + đệm` giờ đọc thẳng được trên khối.
+            "entry": {"moc": "zone_HH" if huong == "mua" else "zone_LL"},
         }
 
     e_len = dk("Xu hướng LÊN?", [{
-        "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": ">",
-        "phai_loai": "toan_hang",
+        "trai": {"ten": "close", "tf": "M15"}, "phep": ">",
         "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
                  "method": "SMA"}}], 1060, 160)
-    e_mua = hd("Buy Stop trên đỉnh vùng", vao("mua"), 1420, 160)
+    e_mua = hd("Buy Stop trên đỉnh vùng", vao("mua"), 1660, 160)
 
     e_xuong = dk("Xu hướng XUỐNG?", [{
-        "trai": {"ten": "close", "tf": "M15", "shift": 1}, "phep": "<",
-        "phai_loai": "toan_hang",
+        "trai": {"ten": "close", "tf": "M15"}, "phep": "<",
         "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
                  "method": "SMA"}}], 1060, 440)
-    e_ban = hd("Sell Stop dưới đáy vùng", vao("ban"), 1420, 440)
+    e_ban = hd("Sell Stop dưới đáy vùng", vao("ban"), 1660, 440)
 
     entry = {
-        "steps": [e_bd, e_nen, e_cho, e_len, e_mua, e_xuong, e_ban],
-        "edges": [canh(e_bd, e_nen), canh(e_nen, e_cho),
+        "steps": [e_bd, e_nen, e_zone, e_cho, e_len, e_mua, e_xuong, e_ban],
+        "edges": [canh(e_bd, e_nen), canh(e_nen, e_zone), canh(e_zone, e_cho),
                   canh(e_cho, e_len), canh(e_len, e_mua),
                   canh(e_cho, e_xuong), canh(e_xuong, e_ban)],
     }
@@ -2049,10 +2111,10 @@ def _so_do_mau():
         dung_sai("lenh_da_khop", dao=True),
         # CÙNG một `nguong_nen_bps` với cổng nén bên Entry — đây chính là chỗ hai
         # hằng số gõ tay sẽ lệch nhau nếu không có bảng tham số.
-        ts("atr_bps", ">=", "nguong_nen_bps", tf="M5", period="chu_ky_atr"),
+        ts_dv("atr", ">=", "nguong_nen_bps", "bps", tf="M5", period="chu_ky_atr"),
     ], 400, 160)
     m_huy_hd = hd("Huỷ lệnh chờ",
-                  {"type": core.SUA_LENH, "che_do": "huy_cho"}, 760, 160)
+                  {"type": core.SUA_LENH, "che_do": "ket_thuc"}, 760, 160)
 
     # Ba dòng guard của `ManageBreakEven` gói đúng vào một cổng. Vế "SL chưa ở hoà vốn"
     # KHÔNG được thiếu: Manage chạy lại mỗi nến, không có nó thì lệnh sửa SL bắn hoài.

@@ -26,6 +26,10 @@ BAI = [
     #    khi bảng xử lý retcode bị bẻ hỏng — tức bản phát hành biết đặt lệnh sai
     #    vẫn ra khỏi cửa. Chạy trên SÀN GIẢ nên không cần MT5.
     ("test_gui_lenh.py", "Tầng phòng vệ + vòng hiệu chuẩn — trên sàn giả"),
+    ("test_zone.py", "Cổng ZONE định nghĩa zone · MỐC NEO của khối Vào lệnh"),
+    ("test_dat_ten.py", "Số gõ tay hai chỗ → cảnh báo + nút đặt tên"),
+    ("test_giao_dien.py", "Biến CSS ma — thứ hỏng LẶNG, build vẫn sạch"),
+    ("test_o_so.py", "Ô số — gõ TỪNG PHÍM, số thập phân không được nuốt"),
 ]
 
 hong = []

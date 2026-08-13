@@ -76,6 +76,9 @@ class SanGia(types.ModuleType):
         self.dem = 1000
         self.kich_ban = list(kich_ban)
         self.noi = True
+        #: Sàn LÀM THẬT rồi mới trả mã mờ — đúng cái xảy ra khi timeout/mất kết nối:
+        #: yêu cầu tới nơi, khớp xong, chỉ có câu trả lời là lạc.
+        self.khop_roi_moi_bao = False
 
     def initialize(self, *a, **k):
         return True
@@ -116,11 +119,22 @@ class SanGia(types.ModuleType):
     def copy_rates_from_pos(self, *a):
         return None
 
+    def _lam_that(self, yc):
+        """Khớp một lệnh thị trường như thường — nhưng người gọi sẽ KHÔNG biết."""
+        if yc.get("action") == self.TRADE_ACTION_DEAL and "position" not in yc:
+            self.dem += 1
+            t = self.dem
+            self.vt[t] = _O(ticket=t, type=yc["type"], price_open=float(yc["price"]),
+                            volume=yc["volume"], magic=yc.get("magic", 0),
+                            sl=0.0, tp=0.0, time=int(time.time()), _sinh=time.time())
+
     def order_send(self, yc):
         self.da_gui.append(dict(yc))
         if self.kich_ban:
             ma = self.kich_ban.pop(0)
             if ma:
+                if self.khop_roi_moi_bao:
+                    self._lam_that(yc)
                 return _O(retcode=ma, order=0, price=0.0)
         if not self.noi:
             return _O(retcode=10031, order=0, price=0.0)
@@ -338,6 +352,28 @@ san.kich_ban = [10045] * 8              # FIFO → 'dung', không đóng đượ
 d = kn.don_rac("XAUUSD")
 kiem("đóng không được thì ghi lại", bool(d["khong_don_duoc"]), str(d["khong_don_duoc"]))
 kiem("và nói thẳng còn sót", "CÒN SÓT" in d["chu"], d["chu"])
+
+print("\n--- 11. MÃ MỜ NGHĨA trên lệnh thị trường: thà bỏ lỡ còn hơn mở HAI ---")
+#
+# Sàn khớp THẬT rồi trả 10012 (timeout). Người gọi không biết lệnh đã vào hay chưa. Vòng
+# thử mà gửi lại thì MỘT ý định ra HAI vị thế — mất tiền thật, và ticket đầu không ai
+# đối chiếu. Luật bất đối xứng vốn đã có cho MÃ LẠ; đây là áp nốt cho nhóm mã mờ nghĩa.
+for _ma in (10012, 10031, 10011, 10023):
+    san, gl, _ = cam([_ma] * 6)
+    san.khop_roi_moi_bao = True
+    _bg = gl.gui("XAUUSD", True, 0.10, luat={"cho_ms": 1, "cho_noi_giay": 0})
+    kiem(f"mã {_ma}: sàn khớp rồi báo mờ → CHỈ MỘT vị thế",
+         len(san.vt) == 1, f"— {len(san.vt)} vị thế / gửi {len(san.da_gui)} lần")
+    kiem(f"mã {_ma}: bản ghi nói rõ vì sao dừng",
+         _bg["ket"] == "bo" and "không nói được" in _bg["chu"], f"— {_bg['chu'][:55]}")
+
+# Chiều ngược lại: SỬA SL/TP gửi lại là VÔ HẠI, nên vẫn phải thử lại.
+san, gl, _ = cam([10012, 10012])
+san.vt[1] = _O(ticket=1, type=0, price_open=4400.0, volume=0.1, sl=0.0, tp=0.0,
+               magic=0, time=int(time.time()), _sinh=time.time())
+_bg2 = gl.sua_stops("XAUUSD", 1, sl=4390.0, luat={"cho_ms": 1})
+kiem("sửa SL/TP gặp mã mờ thì VẪN thử lại (thao tác bất biến)",
+     _bg2["so_lan"] >= 2, f"— thử {_bg2['so_lan']} lần")
 
 print(f"\n{'=' * 68}")
 print(f"  {dung}/{dung + sai} kiểm qua" if not sai else f"  ✘ {sai} bài HỎNG")

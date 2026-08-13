@@ -106,6 +106,10 @@ function Ung() {
   const [ten, setTen] = useState('Chiến lược 1')
   const [symbol, setSymbol] = useState('XAUUSD')
   const [vanDe, setVanDe] = useState<Problem[]>([])
+  /* Khối nào đã đi QUA cổng zone. Python tính (`core.khoi_sau_cong_zone`) rồi gửi kèm
+     `validate` — hộp thoại chỉ nhận một `Set`, không tự đi lại đồ thị. Hai đoạn mã cùng
+     duyệt một sơ đồ là hai luật, và chúng sẽ lệch nhau. */
+  const [sauCongZone, setSauCongZone] = useState<Set<string>>(new Set())
   const [tabDuoi, setTabDuoi] = useState<'van-de' | 'nhat-ky'>('van-de')
   const [nhatKy, setNhatKy] = useState<{ gio: string; msg: string; tag?: string | null }[]>([])
   const [sanSang, setSanSang] = useState(false)
@@ -350,6 +354,7 @@ function Ung() {
       setThuTu(l?.order ?? {})
       setQuayLai(new Set((l?.quay_lai ?? []).map(([a, b]) => `${a}|${b}`)))
       setVongHo((l?.vong_ho ?? []).length)
+      setSauCongZone(new Set(l?.sau_cong_zone ?? []))
       setTsDangDung(new Set(((r as any).tham_so_dang_dung as string[]) ?? []))
     }, 250)   // gộp lại: kéo hộp bắn ra hàng chục thay đổi mỗi giây
     return () => clearTimeout(h)
@@ -796,14 +801,14 @@ function Ung() {
     setTrangThai('đã mở Live')
   }, [layDoc, ghi])
 
-  /** Đổi bảng tham số — vẽ lại thẻ CẢ HAI sơ đồ, vì một tham số có thể được dùng ở
-   *  bất cứ đâu và chữ trên hộp phải đổi theo ngay. */
-  const luuThamSo = useCallback(async (ds: ThamSo[]) => {
-    chup()
-    setThamSo(ds)
-    setMoThamSo(false)
+  /** Vẽ lại thẻ CẢ HAI sơ đồ theo bảng tham số `ds`. Tách ra vì hai chỗ cần: sửa bảng
+   *  tham số, và đặt tên cho một con số (chỗ đó còn sửa cả các bước trước khi gọi).
+   *
+   *  `tu` cho phép truyền thẳng bảng nút MỚI vào: `nodes` ở đây là giá trị của lần
+   *  render này, `setNodes` vừa gọi xong chưa kịp phản ánh. */
+  const veLaiThe = useCallback(async (ds: ThamSo[], tu?: Map<Tab, Node[]>) => {
     for (const t of ['entry', 'manage'] as Tab[]) {
-      const ns = t === tab ? nodes : kho.current[t].nodes
+      const ns = tu?.get(t) ?? (t === tab ? nodes : kho.current[t].nodes)
       const r = await py.describe(ns.map(n => (n.data as { step: Step }).step), ds)
       if (!r.ok) continue
       const the = new Map((r.value ?? []).map(c => [c.id, c]))
@@ -811,8 +816,70 @@ function Ung() {
         ? { ...n, data: { ...(n.data as object), card: the.get(n.id) as Card } } : n))
       if (t === tab) setNodes(moi); else kho.current[t] = { ...kho.current[t], nodes: moi }
     }
+  }, [tab, nodes, setNodes])
+
+  /** Đổi bảng tham số — vẽ lại thẻ CẢ HAI sơ đồ, vì một tham số có thể được dùng ở
+   *  bất cứ đâu và chữ trên hộp phải đổi theo ngay. */
+  const luuThamSo = useCallback(async (ds: ThamSo[]) => {
+    chup()
+    setThamSo(ds)
+    setMoThamSo(false)
+    await veLaiThe(ds)
     ghi(`cập nhật ${ds.length} tham số`, 'ok')
-  }, [chup, tab, nodes, setNodes, ghi])
+  }, [chup, veLaiThe, ghi])
+
+  /** ĐẶT TÊN CHO MỘT CON SỐ — một nút, không phải một quy trình.
+   *
+   *  Python đã nói sẵn con số nằm ở NHỮNG Ô NÀO (`dat_ten.cho`), nên ở đây chỉ việc đi
+   *  theo đường dẫn và thay số bằng tên. Cố ý KHÔNG quét lại sơ đồ ở phía giao diện:
+   *  hai đoạn mã quét cùng một thứ là hai luật, và sớm muộn chúng sẽ lệch nhau.
+   *
+   *  Thay HẾT mọi chỗ chứ không chỉ chỗ đang bấm — để lại một chỗ gõ tay thì cảnh báo
+   *  biến mất nhưng cái bẫy vẫn còn nguyên, mà lần này còn khó thấy hơn. */
+  const datTenCho = useCallback(async (dt: NonNullable<Problem['dat_ten']>) => {
+    /* Tên gợi ý có thể đã có sẵn trong bảng — hai trường hợp KHÁC HẲN nhau:
+         cùng giá trị  → DÙNG LẠI dòng đó. `chu_ky_atr = 14` engine luôn đòi phải có;
+                         tạo thêm `chu_ky_atr_2 = 14` là đúng cái rác ta đang dọn.
+         khác giá trị  → thêm hậu tố. Đè lên là âm thầm đổi một thứ người dùng không hỏi. */
+    const cu = thamSo.find(t => t.ten === dt.goi_y)
+    let ten = dt.goi_y
+    const dungLai = !!cu && Number(cu.gia_tri) === dt.gia_tri
+    if (cu && !dungLai) {
+      const dangCo = new Set(thamSo.map(t => t.ten))
+      for (let i = 2; dangCo.has(ten); i++) ten = `${dt.goi_y}_${i}`
+    }
+
+    chup()
+    const doi = new Map<Tab, Node[]>()
+    for (const t of ['entry', 'manage'] as Tab[]) {
+      const ns = t === tab ? nodes : kho.current[t].nodes
+      const can = dt.cho.filter(c => c.tab === t)
+      if (!can.length) { doi.set(t, ns); continue }
+      doi.set(t, ns.map(n => {
+        const duong = can.filter(c => c.step === n.id)
+        if (!duong.length) return n
+        const st = JSON.parse(JSON.stringify((n.data as { step: Step }).step)) as Step
+        for (const c of duong) {
+          let o: Record<string, unknown> = st as unknown as Record<string, unknown>
+          for (const k of c.duong.slice(0, -1)) o = o?.[k] as Record<string, unknown>
+          if (o) o[c.duong[c.duong.length - 1]] = ten
+        }
+        return { ...n, data: { ...(n.data as object), step: st } }
+      }))
+    }
+    for (const t of ['entry', 'manage'] as Tab[]) {
+      const ns = doi.get(t) as Node[]
+      if (t === tab) setNodes(ns); else kho.current[t] = { ...kho.current[t], nodes: ns }
+    }
+
+    const ds = dungLai ? thamSo
+      : [...thamSo, { ten, nhan: dt.nhan, gia_tri: dt.gia_tri,
+                      don_vi: dt.don_vi, ghi_chu: '' }]
+    setThamSo(ds)
+    await veLaiThe(ds, doi)
+    ghi(`${dungLai ? 'dùng lại' : 'đặt'} tên "${ten}" = ${dt.gia_tri}`
+        + ` cho ${dt.cho.length} chỗ`, 'ok')
+  }, [chup, tab, nodes, setNodes, thamSo, veLaiThe, ghi])
 
   /* --------------------------- menu chuột phải --------------------------- */
 
@@ -1265,6 +1332,19 @@ function Ung() {
                   <span className="muc">{v.severity === 'error' ? '●' : '▲'}</span>
                   <span className={'nhan-tab t-' + v.tab}>{v.tab === 'entry' ? 'Entry' : 'Manage'}</span>
                   <span>{v.message}</span>
+                  {v.dat_ten && (
+                    // Nút NGAY TRONG dòng cảnh báo, không phải "mở bảng tham số rồi tự
+                    // gõ lại": chỗ phát hiện vấn đề cũng là chỗ sửa được nó.
+                    <button className="nut nho dat-ten"
+                            title={`Thêm tham số "${v.dat_ten.goi_y}" = ${v.dat_ten.gia_tri}`
+                                   + ` và thay vào cả ${v.dat_ten.cho.length} chỗ`}
+                            onClick={e => {
+                              e.stopPropagation()   // không nhảy tới khối
+                              void datTenCho(v.dat_ten!)
+                            }}>
+                      Đặt tên cho số này
+                    </button>
+                  )}
                 </div>
               ))
           ) : (
@@ -1352,7 +1432,7 @@ function Ung() {
         // người dùng đi qua một lớp "danh sách 1 phần tử" vô nghĩa.
         return (
           <ActionDialog action={st as Record<string, any>} boot={boot} tab={tab}
-                        thamSo={thamSo}
+                        thamSo={thamSo} coZone={sauCongZone.has(st.id)}
                         onDong={() => setDangSua(null)}
                         onLuu={a => ghiBuoc({ ...a, kind: 'action', id: st.id,
                                               pos: st.pos, ghim: st.ghim } as Step)} />

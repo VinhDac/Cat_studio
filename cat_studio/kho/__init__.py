@@ -7,7 +7,7 @@
 
 Vì sao tách ra chứ không để một danh sách phẳng trong `core.py`:
 
-  · `so_nen_nen` CHỈ có nghĩa khi engine D_02 đang nạp. Trộn nó chung với `close` là
+  · `zone_dem` CHỈ có nghĩa khi engine D_02 đang nạp. Trộn nó chung với `close` là
     nói dối về việc thứ gì luôn có, thứ gì đến từ một chiến lược cụ thể.
   · Thêm một chiến lược mới = thêm MỘT file vào đây, không sửa `core.py`.
   · Hộp thoại "Kho" chỉ việc đọc `danh_muc()` — nó không cần biết gì thêm.
@@ -54,6 +54,15 @@ BANG_TRANG_THAI = _soat_trung(_gom("BANG_TRANG_THAI"), "bảng trạng thái")
 TOAN_HANG_KEYS = [t["key"] for t in TOAN_HANG]
 THEO_KEY = {t["key"]: t for t in TOAN_HANG}
 NHOM_LENH_NAY = "Lệnh này"
+
+#: Toán hạng chỉ có nghĩa khi ĐANG CÓ ZONE — gom từ chính các engine khai
+#: (`ENGINE_TRA_LOI`), không chép tay.
+#:
+#: ⚠ `core.TOAN_HANG_CAN_ZONE` từng là một tuple gõ tay, và nó đã lệch thật: còn sót
+#: `zone_range_atr`, một toán hạng đã bị gỡ khỏi kho từ lâu. Hai nơi cùng trả lời
+#: "cái nào cần zone" thì sớm muộn một nơi nói sai — mà `bo_chay` cũng đọc
+#: `ENGINE_TRA_LOI`, nên bản gõ tay là nguồn thứ hai không ai đồng bộ.
+CAN_ZONE = tuple(k for m in MODULE for k in getattr(m, "ENGINE_TRA_LOI", ()))
 
 
 def nhan(key):
