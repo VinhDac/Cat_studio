@@ -304,6 +304,8 @@ Một khối có **nhiều đường ra** thì phải quyết định được �
 
 1. Các nhánh được **thử lần lượt từ TRÊN xuống DƯỚI** (theo vị trí canvas).
 2. Mỗi nhánh phải mở đầu bằng một **CỔNG** = khối mang hành động `check_cond`.
+   *(Trừ ngã rẽ mà MỌI đầu nhánh đều là hành động — khi đó nó là ngã rẽ **VÀ** và bộ
+   chạy làm hết, xem §5.0.)*
 3. Nhiều nhất **MỘT** nhánh được để trống làm **nhánh mặc định** — và nó **bắt buộc xếp cuối cùng**
    (nhánh mặc định luôn khớp, xếp trên thì các nhánh dưới không bao giờ chạy tới).
 4. Hai cổng cùng điều kiện y hệt → cảnh báo (cái dưới không bao giờ tới lượt).
@@ -320,6 +322,155 @@ Một khối `check_cond` chỉ **đọc** dữ liệu thị trường nên lùi
 
 Không nhánh nào khớp thì **hết lượt** — nến sau chạy lại từ khối Bắt đầu. Đó là cách
 "chờ" được diễn tả, và là trường hợp thường gặp nhất, KHÔNG phải lỗi.
+
+### 5.0 ⭐⭐ ĐẦU NHÁNH QUYẾT ĐỊNH NGHĨA CỦA NGÃ RẼ — HOẶC hay VÀ
+
+> **Toàn CÂU HỎI → HOẶC** (chọn một). **Toàn HÀNH ĐỘNG → VÀ** (làm hết).
+
+Người dùng bỏ hai cổng xu hướng rồi nối `[4]` toả sang cả Buy Stop lẫn Sell Stop, và
+nói thẳng cái luật:
+
+> *"bạn phải phân loại được điều kiện với hành động. nếu điều kiện rẽ nhánh thì sẽ là
+> hoặc, còn hành động í thì sẽ là cả hai."*
+
+**Đúng, và tôi đã cãi sai.** Lập luận của tôi là *"một hình mang hai nghĩa thì không đọc
+được"*. Lập luận đó hỏng ở hai chỗ:
+
+1. **Hai mệnh lệnh cạnh nhau thì "chọn một" vốn đã vô nghĩa** — chọn theo căn cứ nào?
+   Không có câu hỏi nào cả. Chỉ còn đúng một cách đọc, nên không có gì để nhập nhằng.
+2. **Hình không mang hai nghĩa — ĐẦU NHÁNH mang, và nó nhìn thấy được.** `§4.6` vừa cho
+   khối màu theo mục đích (lam = hỏi · xanh/đỏ = mua/bán · tím = sửa), nên nhìn từ xa là
+   phân biệt ngay. Khác hẳn ca ô số không nhãn ở `§6.3` — chỗ đó người dùng **không có
+   tín hiệu nào**, đây thì tín hiệu to và có màu.
+
+Và bắt vẽ nối tiếp thay thì **sơ đồ nói dối**: `[4] → Buy → Sell` đọc ra là *"đặt Buy,
+RỒI mới đặt Sell"*, trong khi hai chân straddle đối xứng và cùng lúc. Hình toả ra mới
+đúng sự thật; thêm chân thứ ba là thêm một nhánh, chứ không phải kéo dài một sợi dây.
+
+| Đầu các nhánh | Nghĩa | |
+|---|---|---|
+| toàn **câu hỏi** | **HOẶC** — thử lần lượt trên xuống | như cũ |
+| câu hỏi + **đúng 1** hành động (xếp cuối) | HOẶC + nhánh mặc định | như cũ |
+| toàn **hành động** (≥2) | **VÀ — làm hết** | 🆕 |
+| câu hỏi + **≥2** hành động | thật sự nhập nhằng → **lỗi** | như cũ |
+
+Thứ tự chạy của ngã rẽ VÀ vẫn lấy từ **vị trí trên canvas**, trên xuống — không đẻ khái
+niệm mới. Kết quả trên sơ đồ của người dùng: **167/167 nến đẻ đúng một cặp Mua/Bán cùng
+`zone_id`**, y hệt bản nối tiếp.
+
+⚠ **Có CẠNH QUAY LẠI thì KHÔNG phải VÀ.** Cạnh quay lại (trỏ vào khối đã ghim) mang sẵn
+vai *"không nhánh nào khớp thì quay về trên"* — tức một **phương án thay thế**, đúng
+nghĩa HOẶC. Trộn nó vào một ngã rẽ VÀ là hai nghĩa trong một chỗ.
+
+**`core.la_nga_re_va` là NGUỒN DUY NHẤT của luật này**, dùng chung cho soát tĩnh (cho vẽ
+hay không) và bộ chạy (đi thế nào). Hai bên tự suy riêng là sớm muộn soát tĩnh nói một
+đằng bộ chạy chạy một nẻo.
+
+#### 5.0a ⚠ RANH GIỚI PHẢI SẮC — *lùi* khác *làm nốt*
+
+Đây là chỗ dễ hỏng ngầm nhất, vì cả hai đi qua đúng một đoạn mã trong `_chay_so_do`:
+
+```
+nhánh HOẶC  →  đi tiếp = THỬ PHƯƠNG ÁN KHÁC   → đã chạm thị trường thì CẤM (§12.5a)
+nhánh VÀ    →  đi tiếp = LÀM NỐT VIỆC ĐÃ ĐỊNH  → không phải lùi, nên không cấm
+```
+
+Nên `cham_thi_truong` được hỏi **ở mức đang quay về**, không hỏi một lần cho cả lượt:
+cùng một cú *"hết nhánh ở đây"* mang hai nghĩa tuỳ mức cha là VÀ hay HOẶC. `bo_chay` giữ
+một ngăn xếp `va[]` song song với `ngan[]` đúng để trả lời câu đó.
+
+Bài kiểm neo cả hai chiều: ngã rẽ VÀ phải ra **hai** lệnh, và ngã rẽ HOẶC mà nhánh trên
+đã vào lệnh rồi mới cụt thì **không được** lùi sang nhánh dưới. Sơ đồ mẫu (XOR) chạy lại
+ra **trùng từng con số**: 550 lệnh · −19,52 R · DD 1,08 %.
+
+#### 5.0b `duong` trong nhật ký = ĐÃ ĐI QUA, không phải TỔ TIÊN
+
+Trước đây `duong` bị `pop` mỗi lần lùi nên nó luôn song song với ngăn xếp — tức là *tổ
+tiên của khối đang đứng*. Với ngã rẽ VÀ, cách đó **nói dối**: lượt đi qua cả `[4A]` lẫn
+`[4B]` mà log chỉ còn `[4B]`, nhánh kia biến mất dù nó vừa đặt một lệnh thật.
+
+Giờ chỉ append. Đúng chữ `§12.8` vẫn viết (*"đường đã đi, THEO THỨ TỰ"*), và tốt hơn cả
+ở ca cũ — một cổng **đã khớp** rồi mới cụt phía dưới thì nó vẫn nằm trong đường, vì lượt
+đó thật sự đã đi tới đó:
+
+```
+trước:  [1]→[2]→[3]           hết lượt tại [4B]
+sau:    [1]→[2]→[3]→[4]       hết lượt tại [4B]      ← [4] đã khớp, giờ mới thấy
+```
+
+Kèm theo: **mỗi bản ghi `viec` mang `khoi` của chính nó.** Một lượt qua ngã rẽ VÀ đặt hai
+lệnh ở hai khối khác nhau; không có khoá này thì nhật ký có hai dòng `lenh_dat` mà không
+nói được cái nào của khối nào — đúng câu người ta cần khi debug.
+
+### 5.1 ⭐ HAI KHỐI VÀO LỆNH NỐI TIẾP — luật hỏi về *LỆNH*, không hỏi về *hình vẽ*
+
+Người dùng bỏ hai cổng xu hướng rồi nối thẳng `[4] Còn chỗ cho lệnh mới?` sang **cả hai**
+khối Vào lệnh, và hỏi: *"tôi bỏ điều kiện xác định chiều, thì nó đặt 2 lệnh chứ, có sai
+logic gì đâu."*
+
+Ý định là một **straddle nén**: đặt sẵn Buy Stop trên đỉnh zone và Sell Stop dưới đáy
+zone, giá phá ra bên nào thì ăn bên đó. Hoàn toàn hợp lệ — và với một cú nén thì nó còn
+tự nhiên hơn việc chọn hướng bằng MA, vì không ai biết lò xo sẽ bung lên hay xuống.
+
+**App chặn cả hai cách vẽ, bằng hai luật mâu thuẫn nhau:**
+
+```
+song song  [4] ─┬─ Buy Stop      luật rẽ nhánh chặn: "mỗi nhánh phải mở đầu bằng cổng"
+                └─ Sell Stop     và chặn ĐÚNG — đo được 0/182 nến đẻ ra hai lệnh:
+                                 rẽ nhánh là XOR, khối thứ hai CHẾT vĩnh viễn
+
+nối tiếp   [4] → Buy Stop → Sell Stop      luật cũ chặn: "một lượt sẽ đẻ ra HAI lệnh"
+                                           mà lời khuyên của nó — "hãy tách thành hai
+                                           NHÁNH" — chỉ thẳng vào luật ở trên
+```
+
+Vòng kín: **không có đường hợp lệ nào để đặt hai lệnh trong một nhịp.** Mà bộ chạy thì
+làm được sẵn — nối tiếp chạy 3 tháng ra **167/167 nến đẻ đúng một cặp Mua/Bán cùng
+`zone_id`**. Chỉ soát tĩnh chặn.
+
+**Chỗ sai của luật cũ là ở TẦNG CÂU HỎI.** Nó đếm *số khối Vào lệnh trên một đường* —
+một câu hỏi về **hình vẽ**. Câu đúng là về **lệnh**:
+
+> **Hai lệnh này có CÙNG TỒN TẠI ĐƯỢC trong sổ không?**
+> Được → cho vẽ. Không được → chặn.
+
+Cùng tồn tại được thì sổ giữ cả hai, và "hai lệnh" đúng nghĩa là hai lệnh. Không cùng tồn
+tại được thì chúng rơi vào **đúng một chỗ** — đó không phải hai lệnh, mà là **một lệnh
+viết hai lần**.
+
+| Hai khối khác nhau ở | Cùng tồn tại? | |
+|---|---|---|
+| **hướng** | ✔ | Buy trên đỉnh + Sell dưới đáy — straddle |
+| **mốc neo** | ✔ | cùng Buy, một ở đỉnh zone một ở giá hiện tại — hai giá khác nhau |
+| **đệm** | ✔ | cùng Buy đỉnh zone, 0.1 và 0.5 × ATR — rải thang |
+| **SL / TP** | ✔ | cùng giá vào, chốt lời hai mức — sàn giữ cả hai |
+| **lot** | ✔ | hai ticket riêng |
+| **không khác gì cả** | ✘ **lỗi** | một lệnh viết hai lần — gần như luôn là `Ctrl+D` rồi quên sửa |
+
+Khoá so sánh là `core._KHOA_MOT_LENH` = `(huong, loai, lot, entry, dem, sl, tp)`.
+
+⚠ **SL/TP/lot NẰM TRONG khoá, và đó là chủ ý.** Bảng đầu tiên tôi trình chỉ có bốn khoá
+(`hướng · loại · mốc · đệm`); nhưng *cùng giá vào mà khác TP* là hai chân chốt lời hai
+mức, sàn giữ cả hai — chặn nó là phá đúng cái nguyên tắc luật này vừa dựng lên.
+
+⚠ **`name` / `pos` / `id` ĐỨNG NGOÀI khoá.** Đổi tên khối hay kéo nó sang chỗ khác không
+sinh ra một cái lệnh khác. Đây là khoá về LỆNH, không phải về khối.
+
+⚠ **So THÔ, không quy tên tham số về giá trị.** `dem = 0.1` và `dem = dem_vao_lenh` (= 0.1)
+ra cùng một giá nhưng ở đây coi là khác nhau — cố ý, để mỗi tầng lo việc của mình: *"hai
+chỗ cùng một SỐ"* là việc của `_soat_so_lap` (§6.4), luật này chỉ lo *"hai khối cùng một
+LỆNH"*. Trộn vào thì `validate_flow_graph` — vốn là hàm thuần về đồ thị — phải biết bảng
+giá trị tham số.
+
+**Luật rẽ nhánh KHÔNG đổi.** Song song vẫn là XOR và vẫn bị chặn, vì ở đó cái sai là thật:
+khối thứ hai không bao giờ chạy tới, mà sơ đồ thì trông như nó có chạy.
+
+> ⚠ **Straddle thiếu OCO — chưa có luật nào bắt.** Đặt hai chân xong, một chân khớp thì
+> chân kia vẫn nằm đó. Manage của sơ đồ mẫu chỉ huỷ lệnh chờ khi *nén đã tan*, mà lúc một
+> chân vừa khớp thì nén đang **bung ra** — có thể kịp, có thể không. Giá phá lên khớp Buy
+> rồi quét ngược xuống khớp luôn Sell là **ôm cả long lẫn short**. Vẽ được bằng một cổng
+> Manage: `lệnh này chưa khớp` **và** `số vị thế > 0` → **Kết thúc lệnh này**. Chưa đưa
+> vào sơ đồ mẫu vì mẫu vẫn là D_02 một chiều.
 
 ---
 

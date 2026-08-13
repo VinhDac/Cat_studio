@@ -449,6 +449,14 @@ HUONG = {"mua": "Mua", "ban": "Bán"}
 # số sai.
 LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop"}
 
+#: MỌI THỨ ĐỊNH NGHĨA MỘT LỆNH — dùng để hỏi "hai khối Vào lệnh có cùng tồn tại được
+#: không" (`validate_flow_graph`). Khác nhau MỘT khoá thôi là hai lệnh khác nhau, và hai
+#: lệnh khác nhau thì sổ giữ được cả hai.
+#:
+#: `name` / `pos` / `id` cố ý ĐỨNG NGOÀI: đổi tên khối hay kéo nó sang chỗ khác không
+#: sinh ra một cái lệnh khác. Đây là khoá về LỆNH, không phải về khối.
+_KHOA_MOT_LENH = ("huong", "loai", "lot", "entry", "dem", "sl", "tp")
+
 # ---- Chế độ của "Sửa lệnh" -------------------------------------------------
 # Một hành động, nhiều chế độ — thay vì bảy hành động gần giống nhau. Tất cả đều tác
 # động lên lệnh ĐÃ CÓ, không cái nào tạo ra lệnh mới.
@@ -838,6 +846,38 @@ def is_branch_gate(step):
             and step.get("type") == CHECK_COND)
 
 
+def la_nga_re_va(dau_nhanh):
+    """Ngã rẽ này là **VÀ** (làm hết) hay **HOẶC** (chọn một)? Nhận danh sách khối ĐẦU
+    của các nhánh.
+
+    ⭐ ĐẦU NHÁNH QUYẾT ĐỊNH NGHĨA CỦA NGÃ RẼ, và nó nhìn thấy được.
+
+        toàn CÂU HỎI    → HOẶC. Có căn cứ để chọn, nên chọn.
+        toàn HÀNH ĐỘNG  → VÀ.   Không có gì để chọn — chọn theo cái gì? — nên làm hết.
+
+    Đây không phải "một hình mang hai nghĩa". Hai mệnh lệnh đặt cạnh nhau mà không câu
+    hỏi nào thì cách đọc "chọn một" vốn đã vô nghĩa; chỉ còn đúng một cách đọc. Và
+    `§4.6` đã cho khối màu theo mục đích (lam = hỏi · xanh/đỏ = mua/bán · tím = sửa) nên
+    nhìn từ xa là phân biệt được ngay — khác hẳn ca ô số không nhãn ở `§6.3`, chỗ người
+    dùng KHÔNG có tín hiệu nào.
+
+    Vì sao không bắt vẽ nối tiếp thay: `[4] → Buy → Sell` đọc ra là *"đặt Buy, RỒI mới
+    đặt Sell"*, trong khi hai chân straddle đối xứng và cùng lúc. Hình toả ra mới đúng
+    sự thật, và thêm chân thứ ba là thêm một nhánh chứ không phải kéo dài một dây.
+
+    ⚠ CÓ CẠNH QUAY LẠI thì KHÔNG phải VÀ. Cạnh quay lại (trỏ vào khối đã ghim) mang sẵn
+    vai *"không nhánh nào khớp thì quay về trên"* — tức một phương án thay thế, đúng
+    nghĩa HOẶC. Trộn nó vào một ngã rẽ VÀ là hai nghĩa trong một chỗ.
+
+    ⚠ Hàm này là NGUỒN DUY NHẤT của luật đó: `validate_flow_graph` dùng nó để quyết định
+    cho vẽ hay không, `bo_chay._chay_so_do` dùng nó để quyết định đi thế nào. Hai bên tự
+    suy riêng là sớm muộn soát tĩnh nói một đằng bộ chạy chạy một nẻo."""
+    ds = list(dau_nhanh or [])
+    if len(ds) < 2 or any((s or {}).get("ghim") for s in ds):
+        return False
+    return not any(is_branch_gate(s) for s in ds)
+
+
 def _khoa_dieu_kien(conds):
     """Dấu vân tay của một bộ điều kiện, để phát hiện hai cổng giống hệt nhau.
     Sắp khoá trước khi ghép: hai dict cùng nội dung khác thứ tự khoá vẫn phải ra cùng
@@ -1125,26 +1165,63 @@ def validate_flow_graph(steps, edges):
                  f"ghim số khối đó.")
 
     # ---- HAI khối Vào lệnh trên CÙNG một đường ----
-    # Cổng "số lệnh chờ = 0" chỉ được hỏi MỘT LẦN ở đầu lượt, nên hai khối Vào lệnh nối
-    # tiếp nhau sẽ đẻ ra hai lệnh mà không cổng nào chặn được. D_02 chốt cứng đúng MỘT
-    # lệnh chờ (`TradeManager.mqh:330-334`).
+    #
+    # ⭐ LUẬT HỎI VỀ *LỆNH*, KHÔNG HỎI VỀ *HÌNH VẼ*.
+    #
+    # Bản trước chặn MỌI cặp Vào lệnh nối tiếp nhau, lý do ghi là "cổng số lệnh chờ = 0
+    # chỉ được hỏi một lần đầu lượt". Sai ở chỗ đó là luật về SỐ KHỐI TRÊN ĐƯỜNG chứ
+    # không phải về hai cái lệnh — và nó khoá chết một chiến lược hoàn toàn hợp lệ:
+    # straddle nén (Buy Stop trên đỉnh zone + Sell Stop dưới đáy zone, chờ giá phá ra
+    # bên nào thì ăn bên đó). Hai lệnh ấy **cùng tồn tại được** trong sổ, nên không có
+    # gì để chặn.
+    #
+    # Tệ hơn: câu nó khuyên — *"Hãy tách chúng thành hai NHÁNH"* — lại chỉ thẳng vào thứ
+    # luật rẽ nhánh cấm (nhánh phải mở đầu bằng cổng), mà tách có cổng thì thành XOR nên
+    # chỉ ra MỘT lệnh. Người dùng đi vòng tròn giữa hai câu lỗi và không có đường nào
+    # hợp lệ. Đo được: nối song song chạy 3 tháng ra 182 lệnh, **0/182 nến đẻ ra hai
+    # lệnh** — khối thứ hai chết vĩnh viễn; nối tiếp ra 167/167 nến đẻ đúng một cặp
+    # Mua/Bán cùng `zone_id`. Bộ chạy vốn đã làm đúng, chỉ luật này chặn.
+    #
+    # LUẬT MỚI: chỉ chặn khi hai khối tạo ra **ĐÚNG MỘT LỆNH GIỐNG HỆT** — cùng hướng,
+    # cùng loại, cùng mốc neo, cùng đệm, cùng SL/TP/lot. Chỉ khi ấy chúng mới rơi vào
+    # đúng một chỗ trong sổ, tức không phải hai lệnh mà là một lệnh viết hai lần (gần
+    # như luôn là hậu quả của `Ctrl+D` rồi quên sửa).
+    #
+    # ⚠ SL/TP/lot NẰM TRONG khoá so sánh, và đó là chủ ý. Cùng giá vào mà khác TP là hai
+    # chân chốt lời hai mức — sàn giữ cả hai, cùng tồn tại được. Bỏ chúng khỏi khoá là
+    # chặn nhầm đúng cái luật này vừa mở ra.
+    #
+    # ⚠ So THÔ, không quy tên tham số về giá trị. `dem = 0.1` và `dem = dem_vao_lenh`
+    # (= 0.1) ra cùng một giá nhưng ở đây coi là khác nhau — CỐ Ý, để tầng nào lo việc
+    # tầng ấy: "hai chỗ cùng một SỐ" là việc của `_soat_so_lap` (§6.4), còn luật này chỉ
+    # lo "hai khối cùng một LỆNH". Trộn vào là `validate_flow_graph` — vốn là hàm thuần
+    # về đồ thị — phải biết bảng giá trị tham số.
     #
     # Chặn ở đây chứ không chặn trong bộ chạy: bộ chạy phải làm ĐÚNG những gì sơ đồ vẽ,
     # còn thứ không nên vẽ thì đừng cho vẽ. Bộ chạy tự ý dừng sau lệnh đầu là nó âm thầm
     # bỏ qua một khối người dùng đã đặt vào.
+    def _khoa_lenh(st):
+        """Mọi thứ định nghĩa MỘT lệnh. Khác nhau một khoá thôi là hai lệnh khác nhau."""
+        return json.dumps({k: st.get(k) for k in _KHOA_MOT_LENH},
+                          sort_keys=True, ensure_ascii=False)
+
     vao_lenh = [sid for sid, st in theo_id.items() if st.get("type") == VAO_LENH]
     for sid in vao_lenh:
+        khoa = _khoa_lenh(theo_id[sid])
         tham, hang = {sid}, list(ke.get(sid, []))
         while hang:
             uv = hang.pop(0)
             if uv in tham:
                 continue
             tham.add(uv)
-            if theo_id.get(uv, {}).get("type") == VAO_LENH:
+            st_uv = theo_id.get(uv, {})
+            if st_uv.get("type") == VAO_LENH and _khoa_lenh(st_uv) == khoa:
                 _loi(ra, "error", uv,
-                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường — một lượt sẽ "
-                     f"đẻ ra HAI lệnh, mà cổng \"số lệnh chờ\" chỉ được hỏi một lần ở "
-                     f"đầu lượt nên không chặn được. Hãy tách chúng thành hai NHÁNH.")
+                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường và tạo ra ĐÚNG "
+                     f"MỘT LỆNH GIỐNG HỆT — cùng hướng, cùng loại, cùng mốc neo, cùng "
+                     f"đệm, cùng SL/TP/lot. Hai lệnh trùng khít nhau thì không phải hai "
+                     f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc cho "
+                     f"chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
                 break
             hang += ke.get(uv, [])
 
@@ -1170,14 +1247,20 @@ def validate_flow_graph(steps, edges):
         quay = [uv for uv in nhanh if theo_id[uv].get("ghim")]
         thang = [uv for uv in nhanh if uv not in quay]
         khong_cong = [uv for uv in thang if not is_branch_gate(theo_id[uv])]
-        if len(khong_cong) > 1:
+        if la_nga_re_va([theo_id[uv] for uv in nhanh]):
+            # NGÃ RẼ VÀ — mọi đầu nhánh đều là hành động, nên không có gì để chọn: bộ
+            # chạy làm hết. Hợp lệ, không phải lỗi. Xem `la_nga_re_va`.
+            pass
+        elif len(khong_cong) > 1:
             ds_ten = ", ".join(ten(uv) for uv in khong_cong)
             _loi(ra, "error", sid,
-                 f"{ten(sid)} rẽ {len(nhanh)} nhánh nhưng có {len(khong_cong)} nhánh "
-                 f"không có cổng kiểm tra ({ds_ten}) — chạy tới đây không biết chọn "
-                 f'nhánh nào. Mỗi nhánh phải bắt đầu bằng khối HĐ lẻ '
-                 f'"{ACTION_LABELS[CHECK_COND]}", nhiều nhất một nhánh được để trống '
-                 f"làm nhánh mặc định.")
+                 f"{ten(sid)} rẽ {len(nhanh)} nhánh, TRỘN câu hỏi với hành động "
+                 f"({ds_ten} không có cổng kiểm tra) — chạy tới đây không biết là CHỌN "
+                 f"hay LÀM HẾT. Ngã rẽ toàn câu hỏi nghĩa là HOẶC (chọn một); ngã rẽ "
+                 f"toàn hành động nghĩa là VÀ (làm hết). Trộn hai thứ thì không đọc ra "
+                 f"được: hoặc cho mỗi nhánh một cổng "
+                 f'"{ACTION_LABELS[CHECK_COND]}" (chừa nhiều nhất một nhánh làm mặc '
+                 f"định), hoặc bỏ hết cổng đi để thành ngã rẽ VÀ.")
         elif khong_cong and khong_cong[0] != thang[-1]:
             _loi(ra, "error", sid,
                  f"{ten(khong_cong[0])} là nhánh mặc định (không có cổng kiểm tra) "

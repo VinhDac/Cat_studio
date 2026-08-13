@@ -9,7 +9,8 @@ Năm thứ được canh:
      Đảo lại là lệnh vừa sinh bị quản lý ngay trong chính nến đẻ ra nó.
   2. **Luật lùi**: cổng trượt thì lùi về ngã rẽ gần nhất còn nhánh chưa thử — trừ khi
      lượt này đã chạm thị trường.
-  3. **Một lượt Entry sinh nhiều nhất MỘT lệnh** (hệ quả của luật trên).
+  3. **Hai khối Vào lệnh nối tiếp**: chỉ chặn khi hai lệnh KHÔNG cùng tồn tại được
+     (core.md §5.1). Straddle — Mua trên, Bán dưới — phải chạy và phải ra ĐỦ hai lệnh.
   4. **NaN không lọt qua cổng**: chưa có vùng nén thì không vào lệnh.
   5. **Tất định**: chạy lại cùng dữ liệu ra cùng id, cùng giá, cùng nhật ký.
 
@@ -114,18 +115,77 @@ kiem("TẤT ĐỊNH — chạy lại cùng dữ liệu ra cùng id, cùng giá, 
      and len(kq2.nhat_ky) == len(kq.nhat_ky))
 
 # ================= 2. một lượt Entry, một lệnh =================
-print("\n▸ Một lượt Entry sinh nhiều nhất MỘT lệnh")
+print("\n▸ Hai khối Vào lệnh nối tiếp — hỏi về LỆNH, không hỏi về hình vẽ")
 # Đây là phép SOÁT, không phải luật của bộ chạy: bộ chạy phải làm ĐÚNG những gì sơ đồ
 # vẽ, còn thứ không nên vẽ thì đừng cho vẽ. Bộ chạy tự dừng sau lệnh đầu là nó âm thầm
 # bỏ qua một khối người dùng đã đặt vào — tệ hơn hẳn so với báo lỗi.
-v2 = vao("mua 2", y=100.0)
-d2 = so_do([bd, g, v, v2], [day(bd, g), day(g, v), day(v, v2)])
-loi = [p["message"] for p in core.validate_process(d2) if p["severity"] == "error"]
-kiem("hai khối Vào lệnh trên CÙNG đường → báo LỖI (cổng \"số lệnh chờ\" chặn không nổi)",
-     any("HAI lệnh" in m for m in loi), f"— {[m[:44] for m in loi]}")
-d2b = so_do([bd, g, v, v2], [day(bd, g), day(g, v)])
+#
+# ⚠ LUẬT ĐÃ ĐỔI (core.md §5.1). Bản trước chặn MỌI cặp Vào lệnh nối tiếp với lý do "một
+# lượt sẽ đẻ ra HAI lệnh" — và nó khoá chết straddle nén, một chiến lược hợp lệ. Giờ chỉ
+# chặn khi hai khối ra ĐÚNG MỘT LỆNH GIỐNG HỆT.
+_trung = lambda d: any("GIỐNG HỆT" in p["message"]
+                       for p in core.validate_process(d) if p["severity"] == "error")
+
+v2 = vao("mua 2", y=100.0)                      # bản sao y hệt `v`, chỉ khác tên
+kiem("hai khối Vào lệnh Y HỆT nối tiếp → LỖI (một lệnh viết hai lần)",
+     _trung(so_do([bd, g, v, v2], [day(bd, g), day(g, v), day(v, v2)])))
 kiem("hai khối Vào lệnh trên HAI nhánh khác nhau thì không sao",
-     not any("HAI lệnh" in p["message"] for p in core.validate_process(d2b)))
+     not _trung(so_do([bd, g, v, v2], [day(bd, g), day(g, v)])))
+
+# STRADDLE: hai chân ngược hướng CÙNG TỒN TẠI ĐƯỢC → phải cho vẽ, và bộ chạy phải đẻ
+# ra ĐỦ HAI lệnh trong MỘT lượt. `cham_thi_truong` chỉ cấm LÙI, không cấm đi tiếp.
+vb = vao("bán", y=100.0)
+vb["huong"] = "ban"
+d2c = so_do([bd, g, v, vb], [day(bd, g), day(g, v), day(v, vb)])
+kiem("straddle nối tiếp (Mua → Bán) → KHÔNG lỗi", not _trung(d2c))
+kq2 = bc.chay(d2c, nen_m1([110.0] * 10), CD)
+_luot = [r for r in kq2.nhat_ky if r["viec"]]
+kiem("và bộ chạy đẻ ĐỦ HAI lệnh trong MỘT lượt",
+     len(_luot) >= 1 and len(_luot[0]["viec"]) == 2
+     and {l.huong for l in kq2.so.lenh} == {"mua", "ban"},
+     f"— {len(kq2.so.lenh)} lệnh, {[l.huong for l in kq2.so.lenh]}")
+
+# ---- NGÃ RẼ VÀ: cùng ngần ấy việc, nhưng vẽ TOẢ RA (core.md §5.1) -------------
+# Hai chân straddle đối xứng và cùng lúc, nên hình toả ra mới đúng sự thật. Đầu nhánh
+# toàn hành động thì không có gì để chọn → bộ chạy làm hết.
+print("\n▸ Ngã rẽ VÀ — toả ra hai hành động thì làm cả hai")
+d2d = so_do([bd, g, v, vb], [day(bd, g), day(g, v), day(g, vb)])
+# Soát ĐÚNG luật rẽ nhánh, không soát cả bảng: `cong()` ở file này cố tình dựng cổng
+# thiếu khung thời gian nên `validate_process` luôn có sẵn một lỗi khác, không liên quan.
+_nhanh = [p["message"] for p in core.validate_process(d2d)
+          if p["severity"] == "error"
+          and ("TRỘN" in p["message"] or "cổng kiểm tra" in p["message"])]
+kiem("rẽ 2 nhánh toàn Vào lệnh → luật rẽ nhánh KHÔNG kêu (là ngã rẽ VÀ)",
+     not _nhanh, f"— {_nhanh}")
+kq3 = bc.chay(d2d, nen_m1([110.0] * 10), CD)
+r3 = next((x for x in kq3.nhat_ky if x["viec"]), None)
+kiem("bộ chạy đi CẢ HAI nhánh → hai lệnh, hai hướng",
+     r3 is not None and len(r3["viec"]) == 2
+     and {l.huong for l in kq3.so.lenh} == {"mua", "ban"},
+     f"— {[l.huong for l in kq3.so.lenh]}")
+kiem("`duong` giữ CẢ HAI khối, không chỉ nhánh cuối",
+     r3 is not None and v["id"] in r3["duong"] and vb["id"] in r3["duong"],
+     f"— {len(r3['duong']) if r3 else 0} khối")
+kiem("mỗi VIỆC mang `khoi` của chính nó — nhật ký nói được lệnh nào ở khối nào",
+     r3 is not None and [x.get("khoi") for x in r3["viec"]] == [v["id"], vb["id"]])
+
+# ⚠ CHỐT AN TOÀN. Ngã rẽ HOẶC vẫn phải giữ luật §12.5a: bắn lệnh xong thì CẤM lùi thử
+# nhánh khác. Đây là thứ dễ vỡ nhất khi thêm ngã rẽ VÀ, vì cả hai đi qua cùng một chỗ.
+# Kịch bản: nhánh trên (cổng khớp) vào lệnh rồi mới cụt; nhánh dưới KHÔNG được chạy.
+print("\n▸ Ngã rẽ HOẶC vẫn CẤM lùi sau khi đã chạm thị trường")
+ok1 = cong("giá > 100", "close", ">", 100.0, y=0.0)
+cut = cong("giá > 999", "close", ">", 999.0, y=0.0)      # luôn trượt → cụt phía dưới
+ok2 = cong("giá > 100 (dưới)", "close", ">", 100.0, y=200.0)
+v_tren, v_duoi = vao("lệnh nhánh trên", y=0.0), vao("lệnh nhánh dưới", y=200.0)
+d4 = so_do([bd, ok1, ok2, v_tren, cut, v_duoi],
+           [day(bd, ok1), day(bd, ok2), day(ok1, v_tren), day(v_tren, cut),
+            day(ok2, v_duoi)])
+kq4 = bc.chay(d4, nen_m1([110.0] * 10), CD)
+_r4 = next((x for x in kq4.nhat_ky if x["viec"]), None)
+kiem("nhánh trên vào lệnh rồi cụt → KHÔNG lùi sang nhánh dưới (đúng 1 lệnh/lượt)",
+     _r4 is not None and len(_r4["viec"]) == 1
+     and v_duoi["id"] not in _r4["duong"],
+     f"— {len(_r4['viec']) if _r4 else 0} việc")
 
 # ================= 3. luật lùi =================
 print("\n▸ Luật lùi — cổng trượt thì thử nhánh dưới")

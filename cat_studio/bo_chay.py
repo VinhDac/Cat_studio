@@ -705,7 +705,19 @@ def _chay_so_do(tab, ctx):
 
     LUẬT LÙI (core.md §12.5a): cổng trượt thì lùi về ngã rẽ gần nhất còn nhánh chưa
     thử — TRỪ KHI lượt này đã chạm thị trường, khi đó hết lượt ngay. Đã bắn lệnh ra thì
-    không rút lại được, nên quay lui thử nhánh khác là đẻ ra lệnh thứ hai."""
+    không rút lại được, nên quay lui thử nhánh khác là đẻ ra lệnh thứ hai.
+
+    ⭐ NGÃ RẼ VÀ (core.md §5.1): ngã rẽ mà MỌI đầu nhánh đều là hành động thì không có
+    gì để chọn — bộ chạy làm HẾT các nhánh. Luật do `core.la_nga_re_va` giữ, dùng chung
+    với soát tĩnh.
+
+    ⚠ RANH GIỚI PHẢI SẮC, lẫn là hỏng ngầm:
+
+        nhánh HOẶC  →  đi tiếp = THỬ PHƯƠNG ÁN KHÁC. Đã chạm thị trường thì CẤM (§12.5a)
+        nhánh VÀ    →  đi tiếp = LÀM NỐT VIỆC ĐÃ ĐỊNH. Không phải lùi, nên không cấm
+
+    Vì thế `cham_thi_truong` được hỏi ở MỨC ĐANG QUAY VỀ, không hỏi một lần cho cả lượt:
+    cùng một cú "hết nhánh ở đây" mang hai nghĩa tuỳ mức cha là VÀ hay HOẶC."""
     ct = ctx.ct
     L = ct.luong[tab]
     theo_id, ke = L["theo_id"], L["ke"]
@@ -713,8 +725,19 @@ def _chay_so_do(tab, ctx):
     if not vao:
         return None
 
+    def _la_va(ds):
+        return core.la_nga_re_va([theo_id[s] for s in ds if s in theo_id])
+
+    # ⚠ `duong` là ĐÃ ĐI QUA THEO THỨ TỰ, không phải tổ tiên của khối đang đứng.
+    #
+    # Trước đây nó bị `pop` mỗi lần lùi, tức luôn song song với `ngan`. Với ngã rẽ VÀ thì
+    # cách đó nói dối: đi qua cả `[4A]` lẫn `[4B]` mà log chỉ còn `[4B]`, nhánh kia biến
+    # mất dù nó vừa đặt một lệnh thật. Chỉ append thì đúng chữ §12.8 vẫn viết ("đường đã
+    # đi, THEO THỨ TỰ") và đúng cả ca cũ: một cổng ĐÃ KHỚP rồi mới cụt phía dưới thì nó
+    # vẫn nằm trong đường — vì lượt đó thật sự đã đi tới đó.
     duong = [vao]
     ngan = [list(ke.get(vao, []))]
+    va = [_la_va(ngan[0])]
     cham_thi_truong = False
     # Ghi MỌI cổng đã thử, không chỉ cổng cuối. Ở một ngã rẽ, lượt trượt 1A rồi trượt
     # tiếp 1B — chỉ ghi 1B thì nhật ký trả lời được "1B trượt vì số nào" nhưng KHÔNG
@@ -738,11 +761,15 @@ def _chay_so_do(tab, ctx):
             break
 
         if di is None:
-            # Không nhánh nào ở đây khớp.
-            if cham_thi_truong or len(ngan) == 1:
+            # Hết nhánh ở mức này → quay về mức cha.
+            if len(ngan) == 1:
                 break
             ngan.pop()
-            duong.pop()
+            va.pop()
+            # Mức cha là VÀ thì đi tiếp là LÀM NỐT (luôn được); là HOẶC thì đi tiếp là
+            # THỬ PHƯƠNG ÁN KHÁC, và cái đó bị cấm sau khi đã chạm thị trường.
+            if cham_thi_truong and not va[-1]:
+                break
             continue
 
         duong.append(di)
@@ -752,17 +779,29 @@ def _chay_so_do(tab, ctx):
             v = _vao_lenh(st, ctx)
             cham_thi_truong = True
             if v:
-                viec.append(v)
+                # ⚠ Gắn KHỐI vào việc. Một lượt qua ngã rẽ VÀ đặt hai lệnh ở hai khối
+                # khác nhau; không có khoá này thì nhật ký có hai dòng `lenh_dat` mà
+                # không nói được cái nào của khối nào — đúng câu người ta cần khi debug.
+                viec.append(dict(v, khoi=di))
         elif t == core.SUA_LENH:
             v = _sua_lenh(st, ctx)
             cham_thi_truong = True
             if v:
-                viec.append(v)
+                viec.append(dict(v, khoi=di))
 
         ngan.append(list(ke.get(di, [])))
+        va.append(_la_va(ngan[-1]))
         if not ngan[-1]:
             ket = "xong"
-            break
+            # Đi hết một nhánh. Còn nhánh VÀ nào chưa làm ở phía trên thì LÀM NỐT —
+            # tìm mức VÀ gần nhất còn việc, KHÔNG đụng gì nếu không tìm thấy (để `duong`
+            # giữ nguyên đường vừa đi).
+            k = len(ngan) - 1
+            while k > 0 and not (va[k] and ngan[k]):
+                k -= 1
+            if not (va[k] and ngan[k]):
+                break
+            del ngan[k + 1:], va[k + 1:]
     else:
         raise LoiChay(f"Sơ đồ {tab} chạy quá {core.MAX_PROCESS_STEPS} bước — có vòng "
                       f"lặp không thoát được.")

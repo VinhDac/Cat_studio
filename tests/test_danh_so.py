@@ -274,6 +274,81 @@ kiem("đường nối trỏ về CHÍNH NÓ → lỗi",
      any("CHÍNH NÓ" in p["message"]
          for p in loi(list(b13.values()), noi_day(b13, [("1", "1")]), "error")))
 
+# ---- NGÃ RẼ VÀ: đầu nhánh quyết định nghĩa (core.md §5.1) ---------------------
+# Toàn câu hỏi → HOẶC (chọn một). Toàn hành động → VÀ (làm hết): hai mệnh lệnh cạnh
+# nhau thì không có gì để chọn, nên "chọn một" vốn đã là cách đọc vô nghĩa.
+print("\n▸ Ngã rẽ VÀ — đầu nhánh quyết định nghĩa")
+
+_g, _h = cong(7, 300, 0), viec("hành động", 300, 100)
+kiem("hai HÀNH ĐỘNG → ngã rẽ VÀ", core.la_nga_re_va([_h, viec("hđ 2", 300, 200)]))
+kiem("hai CÂU HỎI → không phải VÀ", not core.la_nga_re_va([_g, cong(9, 300, 200)]))
+kiem("TRỘN hỏi + làm → không phải VÀ", not core.la_nga_re_va([_g, _h]))
+kiem("một nhánh thôi → không phải ngã rẽ", not core.la_nga_re_va([_h]))
+_ghim = viec("đã ghim", 300, 200)
+_ghim["ghim"] = True
+kiem("có CẠNH QUAY LẠI → không phải VÀ (cạnh quay lại vốn mang vai phương án thay thế)",
+     not core.la_nga_re_va([_h, _ghim]))
+
+b14 = {"1": cong(7, 0, 100), "A": viec("Mua", 300, 0), "B": viec("Bán", 300, 200)}
+kiem("rẽ 2 nhánh TOÀN hành động → KHÔNG lỗi (là ngã rẽ VÀ)",
+     not loi(list(b14.values()), noi_day(b14, [("1", "A"), ("1", "B")]), "error"))
+
+b15 = {"1": cong(7, 0, 100), "G": cong(9, 300, 0),
+       "A": viec("Mua", 300, 200), "B": viec("Bán", 300, 400)}
+kiem("TRỘN câu hỏi với ≥2 hành động → vẫn LỖI (không đọc ra CHỌN hay LÀM HẾT)",
+     any("TRỘN" in p["message"] for p in
+         loi(list(b15.values()), noi_day(b15, [("1", "G"), ("1", "A"), ("1", "B")]),
+             "error")))
+
+b16 = {"1": cong(7, 0, 100), "G": cong(9, 300, 0), "MD": viec("mặc định", 300, 200)}
+kiem("câu hỏi + ĐÚNG MỘT hành động xếp cuối → vẫn là nhánh mặc định, không lỗi",
+     not loi(list(b16.values()), noi_day(b16, [("1", "G"), ("1", "MD")]), "error"))
+
+# ---- HAI khối Vào lệnh nối tiếp: hỏi về LỆNH, không hỏi về hình vẽ -------------
+#
+# Luật cũ chặn MỌI cặp Vào lệnh nối tiếp nhau, và nó khoá chết straddle nén — Buy Stop
+# trên đỉnh zone + Sell Stop dưới đáy zone, hai lệnh CÙNG TỒN TẠI ĐƯỢC trong sổ. Luật
+# mới chỉ chặn khi hai khối ra ĐÚNG MỘT LỆNH GIỐNG HỆT.
+print("\n▸ Hai khối Vào lệnh trên cùng một đường")
+
+
+def vao(x, y, **kw):
+    """Khối "Vào lệnh". Mặc định là chân MUA của straddle."""
+    a = {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
+         "entry": {"moc": "zone_HH"}, "dem": {"tinh": "atr", "value": 0.1},
+         "sl": {"tinh": "atr_zone", "value": 1.5}, "tp": {"tinh": "R", "value": 2}}
+    a.update(kw)
+    s = core.make_action_step(a)
+    s["pos"] = [x, y]
+    return s
+
+
+def noi_tiep(a, b_):
+    d = {"A": a, "B": b_}
+    return loi(list(d.values()), noi_day(d, [("A", "B")]), "error")
+
+
+_trung = lambda ds: any("GIỐNG HỆT" in p["message"] for p in ds)
+
+kiem("straddle: Buy đỉnh zone → Sell đáy zone → KHÔNG lỗi (cùng tồn tại được)",
+     not _trung(noi_tiep(vao(0, 0),
+                         vao(0, 200, huong="ban", entry={"moc": "zone_LL"}))))
+kiem("hai khối Y HỆT nối tiếp → LỖI (một lệnh viết hai lần)",
+     _trung(noi_tiep(vao(0, 0), vao(0, 200))))
+kiem("cùng entry, khác TP → KHÔNG lỗi (chốt lời hai mức, sổ giữ cả hai)",
+     not _trung(noi_tiep(vao(0, 0), vao(0, 200, tp={"tinh": "R", "value": 4}))))
+kiem("cùng hướng+mốc, khác ĐỆM → KHÔNG lỗi (rải thang, hai giá khác nhau)",
+     not _trung(noi_tiep(vao(0, 0), vao(0, 200, dem={"tinh": "atr", "value": 0.5}))))
+kiem("cùng mọi thứ, khác LOT → KHÔNG lỗi (hai ticket, sàn giữ cả hai)",
+     not _trung(noi_tiep(vao(0, 0), vao(0, 200, lot=0.02))))
+# `name` và `pos` KHÔNG được nằm trong khoá: đổi tên khối hay kéo nó đi chỗ khác không
+# đẻ ra một cái lệnh khác. Đây là khoá về LỆNH, không phải về khối.
+kiem("khác mỗi TÊN khối → VẪN LỖI (tên không phải một phần của lệnh)",
+     _trung(noi_tiep(vao(0, 0, name="Buy A"), vao(0, 200, name="Buy B"))))
+kiem("khoá so sánh KHÔNG chứa name/pos/id",
+     not ({"name", "pos", "id"} & set(core._KHOA_MOT_LENH)),
+     f"— {core._KHOA_MOT_LENH}")
+
 # ================= 8. Chuẩn hoá giữ cờ ghim =================
 print("\n▸ Chuẩn hoá & nhân bản")
 st = viec("x", 10, 20)
