@@ -1671,7 +1671,7 @@ def khoi_doc_duoc_zone(doc):
     return ra
 
 
-def _soat_cong_zone(steps, edges, tab, cho_doc=None):
+def _soat_cong_zone(steps, edges, tab, cho_doc=None, co_hop_le=None):
     """ZONE PHẢI ĐƯỢC MỘT CỔNG ĐỊNH NGHĨA, và cổng đó phải đứng TRƯỚC.
 
     ⚠ Đây là luật thay cho cỗ máy ẩn cũ. Trước đây zone tự có mặt vì một hàm chạy ngoài
@@ -1726,10 +1726,16 @@ def _soat_cong_zone(steps, edges, tab, cho_doc=None):
                        if isinstance(c.get("phai"), dict) else False)
                    for c in st.get(khoa) or [] if isinstance(c, dict))
 
-    co_dinh_nghia = any(s.get("dk_hop_le") for s in cong)
+    # ⚠ TÍNH TRÊN CẢ TÀI LIỆU, không theo từng tab. Định nghĩa "hợp lệ" nằm ở cổng zone
+    # của ENTRY, mà Manage cũng được hỏi `Zone hợp lệ` (§12.6d) — soát theo tab thì
+    # `cong` của Manage rỗng, và mọi cổng Manage hỏi tới nó đều bị mắng oan. Đúng bệnh
+    # `khoi_sau_cong_zone` đã dính, chỉ khác chỗ.
+    co_dinh_nghia = (any(s.get("dk_hop_le") for s in cong) if co_hop_le is None
+                     else co_hop_le)
     dung_hop_le = [s for s in steps if isinstance(s, dict) and _hoi_hop_le(s)]
     if dung_hop_le and not co_dinh_nghia:
-        loi("Sơ đồ hỏi \"Zone hợp lệ\" nhưng cổng zone chưa khai phần HỢP LỆ — đang hỏi "
+        loi("Sơ đồ hỏi \"Zone hiện hành hợp lệ\" nhưng cổng zone chưa khai phần HỢP LỆ "
+            "— đang hỏi "
             "một khái niệm chưa ai định nghĩa. Mở cổng zone ra và điền điều kiện hợp lệ "
             "(ví dụ \"Zone — số nến ≥ ngưỡng\").", dung_hop_le[0])
     # ⚠ VÒNG TRÒN. Phần ĐẾM của cổng zone chạy trước khi zone được chốt, mà "hợp lệ" lại
@@ -1738,7 +1744,8 @@ def _soat_cong_zone(steps, edges, tab, cho_doc=None):
     # không bao giờ hình thành, và không có gì báo.
     for s in cong:
         if _hoi_hop_le(s) or _hoi_hop_le(s, "dk_hop_le"):
-            loi("Cổng zone không hỏi được \"Zone hợp lệ\" — đó là kết quả của chính nó. "
+            loi("Cổng zone không hỏi được \"Zone hiện hành hợp lệ\" — đó là kết quả của "
+                "chính nó. "
                 "Điều kiện hợp lệ viết thẳng vào phần HỢP LỆ, đừng hỏi vòng lại.", s)
 
     # Khối hỏi về zone phải TỚI ĐƯỢC từ cổng zone — đứng trước hoặc ở nhánh khác thì
@@ -1910,11 +1917,14 @@ def validate_process(doc):
                            f"Lưu lại còn xoá mất những dòng sau. Hãy xoá bớt cho còn một."})
     # MỘT phép duyệt cho cả hai tab, dùng chung với giao diện (`api.validate`).
     cho_zone = khoi_doc_duoc_zone(doc)
+    co_hop_le = any(s.get("dk_hop_le")
+                    for s in ((doc or {}).get(TAB_ENTRY) or {}).get("steps") or []
+                    if isinstance(s, dict) and s.get("cong_zone"))
     for tab in TABS:
         g = (doc or {}).get(tab) or {}
         ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab, ten_ts)
         ra += _soat_cong_zone(g.get("steps") or [], g.get("edges") or [], tab,
-                              cho_zone.get(tab))
+                              cho_zone.get(tab), co_hop_le)
 
     # Manage phải chạy NHANH BẰNG HOẶC HƠN Entry. Chậm hơn nghĩa là lệnh vừa sinh phải
     # nằm chờ qua vài nhịp mới được quản lý — SL/hoà vốn phản ứng trễ hơn cả lúc vào
@@ -2001,7 +2011,10 @@ def _tham_so_dang_dung(doc):
         for st in ((doc or {}).get(tab) or {}).get("steps") or []:
             if not isinstance(st, dict):
                 continue
-            for c in st.get("conditions") or []:
+            # `dk_hop_le` cũng tham chiếu tham số bằng TÊN. Bỏ sót thì `zone_can_nen`
+            # và `zone_range_max` bị báo "không khối nào dùng tới" — một cảnh báo sai,
+            # và nút Lưu của hộp Tham số sẽ mời xoá đúng hai núm vặn đang chạy.
+            for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or []):
                 quet_toan_hang((c or {}).get("trai"))
                 p_ = (c or {}).get("phai")
                 if isinstance(p_, dict) and p_.get("ten"):

@@ -1842,6 +1842,21 @@ phép so (`_xet_dieu_kien`) — chép ra bản thứ hai là sớm muộn một 
 - Phần **đếm** quyết dòng chảy như mọi cổng: qua thì đi tiếp, trượt thì hết lượt.
 - Phần **hợp lệ** **không** chặn gì. Nó chỉ định nghĩa toán hạng `Zone hợp lệ`.
 
+⚠ **Nhãn mang chữ "HIỆN HÀNH" là cố ý.** Toán hạng này luôn hỏi về zone đang đếm lúc
+này. Đứng cạnh dòng `Lệnh này còn thuộc zone hiện hành` bên Manage, hai dòng phải cùng
+một chủ ngữ — gọi bằng hai tên thì đọc ra thành **hai zone khác nhau**, mà thật ra chỉ
+có một:
+
+```
+Lệnh này còn thuộc zone hiện hành là SAI      ← nó không phải zone của lệnh này
+và Zone hiện hành hợp lệ là ĐÚNG              ← và nó đã hợp lệ
+                                              ⇒ "đã có một zone khác, và zone đó hợp lệ"
+```
+
+Và **không** gọi là *"Zone mới"*: ở Entry, zone hiện hành chính là zone sắp vào lệnh,
+chẳng mới gì cả. Nó chỉ "mới" nhờ dòng phía trên nói ra điều đó — mà **một cái nhãn phải
+đúng khi đứng một mình**.
+
 Nhờ đó *"hợp lệ"* được viết ra **đúng một lần**. Trước đây phải chép `số nến ≥ K` và
 `bề rộng ≤ N` sang từng cổng cần hỏi — Entry `[3]` một bản, Manage `[1A]` một bản — và
 hai bản chép thì sớm muộn lệch nhau (đúng thứ §6.4 dựng bảng tham số ra để chống).
@@ -1849,11 +1864,11 @@ hai bản chép thì sớm muộn lệch nhau (đúng thứ §6.4 dựng bảng 
 ```
 [2]  ⬗ CỔNG ZONE · ĐẾM    atr < 7 · bề rộng ≤ zone_range_max
      ⬗ HỢP LỆ khi         số nến ≥ zone_can_nen
-[3]  Zone này đã sinh lệnh là SAI  và  Zone hợp lệ là ĐÚNG
+[3]  Zone hiện hành hợp lệ là ĐÚNG  và  Zone này đã sinh lệnh là SAI
 [4]  → sinh lệnh
 ```
 
-##### `Zone hợp lệ` KHÔNG mang máy trạng thái quay lại
+##### `Zone hiện hành hợp lệ` KHÔNG mang máy trạng thái quay lại
 
 §7.5 cố ý bỏ `IDLE/COUNTING/CONFIRMED/…`, nên phải nói rõ chỗ khác nhau:
 
@@ -1872,10 +1887,46 @@ tồn tại trong đúng lúc phần đếm đang cân nhắc có nuốt nến n
 
 | | |
 |---|---|
-| hỏi `Zone hợp lệ` mà chưa khai `dk_hop_le` | **lỗi** — hỏi một khái niệm chưa ai định nghĩa |
-| cổng zone tự hỏi `Zone hợp lệ` | **lỗi** — vòng tròn, đó là kết quả của chính nó |
+| hỏi `Zone hiện hành hợp lệ` mà chưa khai `dk_hop_le` | **lỗi** — hỏi một khái niệm chưa ai định nghĩa |
+| cổng zone tự hỏi `Zone hiện hành hợp lệ` | **lỗi** — vòng tròn, đó là kết quả của chính nó |
 | `dk_hop_le` trên cổng KHÔNG phải cổng zone | **lỗi** — và `normalize` cố ý **GIỮ** nó lại để validator nói được (bài học §13.0d: xoá trước thì validator không bao giờ thấy) |
 | `số nến ≥ K` đặt nhầm vào phần đếm | bài kiểm canh: **0 zone** |
+
+##### ⚠ 12.6g LỖI THẬT: `bool(NaN)` là **True**, nên "chưa có số" đọc thành ĐÚNG
+
+*"khi zone mới mới tạo được 1 nến mà 2 lệnh zone cũ đã bị huỷ."*
+
+`_so_sanh` hứa ngay ở dòng docstring đầu tiên: *"NaN ở bất kỳ vế nào → False (cổng
+trượt)"*. Nhưng hai nhánh đúng/sai chạy **TRƯỚC** phép kiểm NaN:
+
+```python
+if phep == "la_dung":
+    return bool(trai)          # ← bool(float("nan")) là True
+...
+if trai != trai: return False  # ← không bao giờ tới lượt
+```
+
+Đo trên một năm: `Zone hiện hành hợp lệ` trả `NaN` **6.295 lần**, và **cả 6.295 lần đều
+là lúc KHÔNG có zone nào**. Cổng Manage `… và Zone hiện hành hợp lệ là ĐÚNG` vì thế khớp
+giữa lúc chẳng có zone mới nào — huỷ sạch lệnh chờ, đúng thứ vế ấy sinh ra để ngăn.
+
+| | trước | sau |
+|---|---|---|
+| cổng `[1A]` khớp | 1391 | **662** |
+| zone nhỏ nhất lúc huỷ | **0 nến** (không có zone) | **10** = đúng ngưỡng |
+| huỷ khi zone chưa đủ ngưỡng | phần lớn | **0** |
+
+**Cả `là ĐÚNG` lẫn `là SAI` đều trả False khi chưa có số** — *chưa có số thì không trả
+lời được, chứ không phải trả lời ngược lại.*
+
+⚠ Đây **không** phải lỗi riêng của `zone_hop_le`: nó dính mọi toán hạng đúng/sai có thể
+"chưa có số", và luật §12.13 đã bị phá âm thầm ở nhánh này từ trước. `zone_hop_le` chỉ là
+cái đầu tiên trả NaN thật sự nên mới lộ ra. Bài kiểm nay canh thẳng `_so_sanh`, không đi
+vòng qua một chiến lược cụ thể.
+
+*(Số backtest xấu đi sau khi sửa — 2152 lệnh · −43,31 R → 1954 · −54,66 R — vì trước đó
+lệnh chờ bị huỷ sớm vô cớ, vô tình cắt bớt lệnh xấu. Một lợi thế đến từ LỖI, không phải
+từ chiến lược.)*
 
 **Đo:** cấu trúc mới cho ra **853 lệnh · −16,08 R** — **trùng khít** bản cũ đặt đúng hai
 điều kiện đó theo lối chép tay. Cơ chế không đổi kết quả, chỉ đổi chỗ viết. Và sơ đồ mẫu

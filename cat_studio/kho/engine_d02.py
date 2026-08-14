@@ -86,10 +86,16 @@ TOAN_HANG = [
     #
     # KHÔNG cất trạng thái: đây là hàm thuần của zone lúc này, tính lại mỗi lần được
     # hỏi. Máy trạng thái 5 giá trị của bản gốc vẫn không quay lại (§7.5).
-    {"key": "zone_hop_le", "nhan": "Zone hợp lệ", "nhom": "Zone",
+    {"key": "zone_hop_le", "nhan": "Zone hiện hành hợp lệ", "nhom": "Zone",
      "loai": "dung_sai", "dung_sai": True, "tham_so": [],
      "mo_ta": "Zone hiện hành có đạt phần \"hợp lệ\" của cổng zone không. Chưa có zone "
-              "→ CHƯA CÓ SỐ (cổng trượt), không phải SAI."},
+              "→ CHƯA CÓ SỐ (cổng trượt), không phải SAI. "
+              "⚠ Nhãn mang chữ HIỆN HÀNH là cố ý: nó luôn hỏi về zone đang đếm lúc "
+              "này. Cạnh dòng \"Lệnh này còn thuộc zone hiện hành\", hai dòng phải "
+              "cùng một chủ ngữ — gọi bằng hai tên thì đọc ra thành hai zone khác "
+              "nhau, mà thật ra chỉ có một. Và KHÔNG gọi là \"Zone mới\": ở Entry, "
+              "zone hiện hành chính là zone sắp vào lệnh, chẳng mới gì cả — một cái "
+              "nhãn phải đúng khi đứng một mình."},
     {"key": "zone_da_sinh_lenh", "nhan": "Zone này đã sinh lệnh", "nhom": "Zone",
      "loai": "dung_sai", "tham_so": [], "dung_sai": True,
      "mo_ta": "Thay cho `COMP_CONSUMED`. Không phải cờ ẩn: là phép tra sổ lệnh xem có "

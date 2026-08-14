@@ -53,8 +53,13 @@ def cong(tab, chua):
 
 
 def dk_cua(st):
-    """{tên toán hạng: điều kiện} của một cổng."""
-    return {c["trai"]["ten"]: c for c in st.get("conditions") or []}
+    """{tên toán hạng: điều kiện} của một cổng — gồm CẢ phần "hợp lệ".
+
+    Cổng zone mang hai danh sách (core.md §12.6f): `conditions` là điều kiện ĐẾM,
+    `dk_hop_le` là định nghĩa HỢP LỆ. Bài này soi LUẬT của D_02 chứ không soi cách chia
+    danh sách, nên gộp cả hai — luật nào rơi mất thì vẫn lộ ra ngay."""
+    return {c["trai"]["ten"]: c
+            for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or [])}
 
 
 def hd_cua(tab, chua):
@@ -65,8 +70,9 @@ def hd_cua(tab, chua):
 # ============================ PHÁT HIỆN NÉN ============================
 print("\n▸ FilterEngine::UpdateCompression — phát hiện nén")
 # ⭐ Luật nén giờ nằm ở HAI khối, không phải một:
-#   cổng ZONE  = điều kiện ĐẾM (atr_bps < ngưỡng) — chính nó định nghĩa zone;
-#   cổng sau   = hỏi về zone vừa được định nghĩa (đủ K nến, vừa khổ, chưa sinh lệnh).
+#   cổng ZONE  = điều kiện ĐẾM (atr_bps < ngưỡng) + định nghĩa HỢP LỆ (đủ K nến, vừa
+#                khổ) — chính nó định nghĩa cả zone lẫn "thế nào là zone dùng được";
+#   cổng sau   = hỏi `Zone hợp lệ` + `chưa sinh lệnh`.
 # Bài kiểm này soi LUẬT của D_02 chứ không soi cách chia khối, nên gộp hai bảng điều
 # kiện lại rồi soát — luật nào rơi mất thì vẫn lộ ra ngay.
 g_zone = next(s for s in doc["entry"]["steps"] if s.get("cong_zone"))
@@ -229,9 +235,13 @@ nhip = {t: next(x["nhip"] for x in doc[t]["steps"] if core.is_start_step(x))
         for t in core.TABS}
 kiem("R4", f"Entry M5 (quyết định) · Manage M1 (phản ứng, bản gốc chạy mỗi tick)",
      nhip == {"entry": "M5", "manage": "M1"}, f"— {nhip}")
-kiem("R5", "bề rộng vùng VẪN được kiểm ở cổng vào lệnh (khác bản gốc, cố ý)",
+# Luật vẫn nguyên, chỉ ĐỔI CHỖ Ở: bề rộng giờ nằm trong phần HỢP LỆ của cổng zone, mà
+# phần đó được tính lại MỖI LẦN `Zone hợp lệ` được hỏi — tức mỗi nến ở cổng vào lệnh.
+# Bản gốc kiểm đúng MỘT LẦN lúc CONFIRMED rồi cấp giấy phép vĩnh viễn (§12.6a).
+kiem("R5", "bề rộng vùng VẪN được kiểm mỗi nến (khác bản gốc, cố ý)",
      any(c["trai"]["ten"] == "zone_range"
-         for st in doc["entry"]["steps"] for c in st.get("conditions") or []))
+         for st in doc["entry"]["steps"]
+         for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or [])))
 
 # ============================ CỐ Ý KHÁC ============================
 # Cột cuối là thứ QUAN TRỌNG NHẤT của bảng này: khác bản gốc thì có làm ĐỔI SỐ không.

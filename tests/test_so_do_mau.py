@@ -116,9 +116,16 @@ kiem("điều kiện đếm so bằng đơn vị bps — cùng nghĩa trên mọ
 
 g_zone = next(s for s in doc["entry"]["steps"]
               if "zone" in core.step_title(s).lower() and not s.get("cong_zone"))
-kiem("cổng sau hỏi: đủ K nến + zone vừa khổ + ZONE CHƯA SINH LỆNH",
-     keys(g_zone) == ["zone_dem", "zone_range", "zone_da_sinh_lenh"],
-     f"— {keys(g_zone)}")
+g_cong_zone = next(s for s in doc["entry"]["steps"] if s.get("cong_zone"))
+# ⭐ ĐỔI CẤU TRÚC (core.md §12.6f): "đủ K nến" và "zone vừa khổ" giờ là ĐỊNH NGHĨA
+# HỢP LỆ, nằm trong phần `dk_hop_le` của chính cổng zone — viết một lần, mọi nơi gọi
+# bằng tên. Cổng này chỉ còn hỏi `Zone hợp lệ` + chuyện sổ lệnh.
+kiem("cổng sau hỏi: ZONE HỢP LỆ + ZONE CHƯA SINH LỆNH",
+     keys(g_zone) == ["zone_hop_le", "zone_da_sinh_lenh"], f"— {keys(g_zone)}")
+kiem("định nghĩa HỢP LỆ nằm ở cổng zone, gồm đủ K nến + vừa khổ",
+     [c["trai"]["ten"] for c in g_cong_zone.get("dk_hop_le") or []]
+     == ["zone_dem", "zone_range"],
+     f"— {[c['trai']['ten'] for c in g_cong_zone.get('dk_hop_le') or []]}")
 kiem("\"zone đã sinh lệnh\" là điều kiện ĐẢO — thay cho COMP_CONSUMED",
      g_zone["conditions"][-1]["phep"] == "la_sai")
 kiem("chỉ có ĐÚNG MỘT cổng zone",
@@ -206,7 +213,7 @@ print("\n▸ Thẻ vẽ lên hộp")
 cards = {c["id"]: c for c in doc["entry"]["cards"]}
 kiem("mọi khối Entry đều có thẻ", len(cards) == len(doc["entry"]["steps"]))
 kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
-     len(cards[g_zone["id"]]["lines"]) == 3,
+     len(cards[g_zone["id"]]["lines"]) == 2,
      f"— {len(cards[g_zone['id']]['lines'])}")
 # Chữ trên hộp hiện CẢ TÊN LẪN GIÁ TRỊ của tham số: tên nói ý nghĩa, số nói thực tế.
 # Thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ.
@@ -395,9 +402,13 @@ print("\n▸ Bảng số liệu — hàng, đơn vị tại chỗ đọc, cột 
 _d = core.normalize_process(api._so_do_mau())
 _th = core.toan_hang_dung(_d)
 
-_TEN = ["atr", "zone_dem", "zone_range", "atr", "zone_da_sinh_lenh", "so_lenh_cho",
-        "so_vi_the", "close", "ma", "zone_atr_tb", "zone_HH", "zone_LL"]
-kiem("sơ đồ mẫu sinh đúng 12 hàng, đúng thứ tự sơ đồ đọc",
+# Thứ tự = thứ tự sơ đồ ĐỌC. Cổng zone góp `atr` (phần đếm) rồi `zone_dem`, `zone_range`
+# (phần hợp lệ); `atr` thứ HAI là mẫu số ngầm của đơn vị `× ATR` trên `zone_range`
+# (`TINH_CAN_TOAN_HANG`), không phải trùng lặp — nó là ATR khung quyết định, khác cái
+# `atr(M5)` ở trên. Rồi mới tới cổng sau: `zone_hop_le`, `zone_da_sinh_lenh`.
+_TEN = ["atr", "zone_dem", "zone_range", "atr", "zone_hop_le", "zone_da_sinh_lenh",
+        "so_lenh_cho", "so_vi_the", "close", "ma", "zone_atr_tb", "zone_HH", "zone_LL"]
+kiem("sơ đồ mẫu sinh đúng 13 hàng, đúng thứ tự sơ đồ đọc",
      [x["ten"] for x in _th] == _TEN, f"— {len(_th)} hàng")
 
 _atr = [(i, x) for i, x in enumerate(_th) if x["ten"] == "atr"]
@@ -445,7 +456,7 @@ kiem("mọi đơn vị hiển thị đều nằm trong 4 nhánh `_quy_doi` cài 
 _cv = tuple(dict.fromkeys(x["ten"] for x in _th
                           if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
 kiem("danh sách cột engine `bo_chay` phải ghi KHÔNG đổi",
-     _cv == ("zone_dem", "zone_range", "zone_da_sinh_lenh",
+     _cv == ("zone_dem", "zone_range", "zone_hop_le", "zone_da_sinh_lenh",
              "zone_atr_tb", "zone_HH", "zone_LL"), f"— {_cv}")
 
 kiem("khung quyết định suy từ khối Bắt đầu, một chỗ duy nhất",

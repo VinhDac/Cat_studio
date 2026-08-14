@@ -431,6 +431,21 @@ def _so_sanh(trai, phep, phai):
     """Một phép so. NaN ở bất kỳ vế nào → False (cổng trượt), không nổ."""
     # ĐÚNG/SAI là một phép so, không phải một ô tick riêng — nhờ vậy mọi điều kiện
     # có cùng hình dạng và `_xet_cong` không còn nhánh ngoại lệ nào.
+    # ⚠ NaN PHẢI XÉT TRƯỚC, và đây là chỗ lời hứa ngay trên đầu hàm từng bị phá.
+    #
+    # `bool(float("nan"))` trong Python là **True**. Hai nhánh đúng/sai dưới đây trước
+    # kia chạy TRƯỚC phép kiểm NaN, nên một toán hạng "chưa có số" lại đọc thành ĐÚNG —
+    # ngược hẳn luật "không có nguồn thì điều kiện TRƯỢT" (core.md §12.13).
+    #
+    # Đo được trên một năm: `Zone hiện hành hợp lệ` trả NaN **6.295 lần**, và CẢ 6.295
+    # lần đều là lúc KHÔNG có zone nào. Cổng Manage `... và Zone hiện hành hợp lệ là
+    # ĐÚNG` vì thế khớp giữa lúc chẳng có zone mới nào, và huỷ sạch lệnh chờ — đúng thứ
+    # vế đó sinh ra để ngăn.
+    #
+    # Cả `la_dung` lẫn `la_sai` đều trả False: "chưa có số" thì KHÔNG trả lời được,
+    # không phải trả lời ngược lại.
+    if trai != trai:
+        return False
     if phep == "la_dung":
         return bool(trai)
     if phep == "la_sai":

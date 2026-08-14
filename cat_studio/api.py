@@ -2070,10 +2070,12 @@ def _so_do_mau():
         dem[0] += 1
         return f"mau{dem[0]:02d}"
 
-    def dk(ten, conds, x, y, cong_zone=False):
+    def dk(ten, conds, x, y, cong_zone=False, hop_le=None):
         a = {"id": _ma(), "type": core.CHECK_COND, "name": ten, "conditions": conds}
         if cong_zone:
             a["cong_zone"] = True
+        if hop_le:
+            a["dk_hop_le"] = hop_le
         s = core.make_action_step(a)
         s["pos"] = [x, y]
         return s
@@ -2127,13 +2129,31 @@ def _so_do_mau():
     #   khối này  = ĐIỀU KIỆN ĐẾM. Qua thì zone lớn thêm một nến, trượt thì zone chết.
     #   khối sau  = hỏi về zone VỪA ĐƯỢC ĐỊNH NGHĨA ở trên.
     # Không có khối này thì `zone_dem`, `zone_HH`… không có nghĩa gì cả.
+    # ⭐ CỔNG ZONE MANG HAI DANH SÁCH (core.md §12.6f).
+    #
+    #   ĐẾM    — nến này có được vào zone không. Trượt là zone CHẾT.
+    #   HỢP LỆ — zone đã dùng được chưa. Trượt thì zone VẪN SỐNG, chỉ là chưa chín.
+    #
+    # Ranh giới là câu "trượt vế này nghĩa là gì": `atr ≥ ngưỡng` nghĩa là NÉN HỎNG nên
+    # ở phần đếm; `chưa đủ K nến` chỉ nghĩa là CHƯA TỚI LÚC nên ở phần hợp lệ. Để nhầm
+    # `số nến ≥ K` xuống phần đếm là khoá chết: zone thử của nến đầu tiên luôn có 1 nến,
+    # nên cổng trượt ngay và zone KHÔNG BAO GIỜ hình thành (đo được: 0 zone cả năm).
+    #
+    # ⚠ BỀ RỘNG cố ý để ở phần HỢP LỆ, không phải phần đếm — giữ đúng hành vi cũ (§12.6a:
+    # kiểm lại mỗi nến ở cổng vào lệnh). Đẩy nó lên phần đếm thì zone chết khi vượt hạn
+    # mức, ra 853 lệnh thay vì 550 — một chiến lược KHÁC, không phải một cách viết khác.
     e_nen = dk("Nến này có nén không?", [
         ts_dv("atr", "<", "nguong_nen_bps", "bps", tf="M5", period="chu_ky_atr"),
-    ], 340, 300, cong_zone=True)
+    ], 340, 300, cong_zone=True, hop_le=[
+        ts("zone_dem", ">=", "zone_can_nen"),                 # đủ K nến liên tiếp
+        ts_dv("zone_range", "<=", "zone_range_max", "atr"),   # zone không quá rộng
+    ])
 
+    # "Hợp lệ" giờ là một KHÁI NIỆM có tên, khai một lần ở cổng zone — nên chỗ này chỉ
+    # còn đúng chuyện của SỔ LỆNH. Trước đây phải chép lại hai vế `số nến` và `bề rộng`
+    # vào đây, và chép lần nữa sang Manage nếu cần.
     e_zone = dk("Zone đã đủ điều kiện chưa?", [
-        ts("zone_dem", ">=", "zone_can_nen"),           # đủ K nến liên tiếp
-        ts_dv("zone_range", "<=", "zone_range_max", "atr"),  # zone không quá rộng
+        dung_sai("zone_hop_le"),                        # định nghĩa ở cổng zone
         dung_sai("zone_da_sinh_lenh", dao=True),        # = COMP_CONSUMED
     ], 640, 300)
 

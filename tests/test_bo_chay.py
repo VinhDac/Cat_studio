@@ -481,5 +481,30 @@ kiem("chuẩn hoá VỨT `shift` đi, không để lại trong file",
                          "phep": ">", "phai": {"value": 1}}],
      })["conditions"][0]["trai"])
 
+print("\n▸ CHƯA CÓ SỐ thì điều kiện TRƯỢT — kể cả toán hạng đúng/sai")
+# ⚠ LỖI THẬT, tìm ra khi người dùng thấy lệnh chờ bị huỷ lúc zone mới vừa được 1 nến.
+#
+# `bool(float("nan"))` trong Python là **True**. Hai nhánh `la_dung` / `la_sai` của
+# `_so_sanh` trước kia chạy TRƯỚC phép kiểm NaN, nên một toán hạng "chưa có số" lại đọc
+# thành ĐÚNG — ngược hẳn luật §12.13, và ngược cả lời hứa trong docstring của chính hàm.
+#
+# Đo được trên một năm: `Zone hiện hành hợp lệ` trả NaN 6.295 lần, CẢ 6.295 lần đều là
+# lúc không có zone nào; cổng Manage vì thế huỷ sạch lệnh chờ giữa lúc chẳng có zone mới.
+# Sau khi sửa: 662 lần huỷ, zone nhỏ nhất lúc huỷ = đúng 10 nến = đúng ngưỡng.
+_NAN = float("nan")
+kiem("`là ĐÚNG` trên NaN → TRƯỢT (không phải ĐÚNG vì bool(nan) là True)",
+     bc._so_sanh(_NAN, "la_dung", _NAN) is False)
+kiem("`là SAI` trên NaN → cũng TRƯỢT — chưa có số thì không trả lời được, "
+     "không phải trả lời ngược lại",
+     bc._so_sanh(_NAN, "la_sai", _NAN) is False)
+kiem("đúng/sai THẬT vẫn chạy nguyên: True→ĐÚNG khớp, →SAI trượt",
+     bc._so_sanh(True, "la_dung", _NAN) is True
+     and bc._so_sanh(True, "la_sai", _NAN) is False)
+kiem("và False→SAI khớp, →ĐÚNG trượt",
+     bc._so_sanh(False, "la_sai", _NAN) is True
+     and bc._so_sanh(False, "la_dung", _NAN) is False)
+kiem("phép so SỐ trên NaN vẫn trượt như cũ",
+     not any(bc._so_sanh(_NAN, p, 1.0) for p in ("<", "<=", ">", ">=", "==")))
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)
