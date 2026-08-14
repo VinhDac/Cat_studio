@@ -1133,8 +1133,14 @@ class PhienChay:
         # 7 cột × 71k nến × 8 B = 4 MB một năm. Rẻ hơn nhiều so với một buổi đi tìm nhầm.
         # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
         self.CV = CV = tuple(dict.fromkeys(
-            x["ten"] for x in core.toan_hang_dung(doc)
-            if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
+            [x["ten"] for x in core.toan_hang_dung(doc)
+             if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI]
+            # ⚠ `zone_hop_le` ghi cột NGAY KHI cổng zone có phần "hợp lệ", kể cả khi
+            # không cổng nào hỏi tới nó. CHART tô zone hợp lệ bằng cột này — mà chart
+            # thì không phải một điều kiện trong sơ đồ nên `toan_hang_dung` không thấy.
+            # Thiếu dòng này thì zone hợp lệ vẫn xám ở đúng những sơ đồ khai nó mà
+            # chưa dùng, và không có gì báo.
+            + (["zone_hop_le"] if ct.dk_hop_le else [])))
         self.cot_zone = {k: np.full(len(ct.nen5), NAN) for k in CV}
         self.dung_sai = {k for k in CV if k in core.TOAN_HANG_DUNG_SAI}
         self.zone_id = [None] * len(ct.nen5)

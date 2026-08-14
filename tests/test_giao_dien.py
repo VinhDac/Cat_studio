@@ -223,5 +223,27 @@ kiem("khoá được nhả trong `finally` — lùi hỏng một lần không đ
 kiem("nút ◀ và ▶ gọi đúng `lui` / `tien` mà phím tắt gọi",
      "() => void lui(), false, !kq" in ts and "'Tới 1 nến  (→)', tien," in ts)
 
+print("\n▸ Zone HỢP LỆ tô lam nhạt — không giẫm lên luật ba họ màu (§12.17)")
+# xám = nến (bối cảnh) · cam = mức lệnh ("chỗ TA đặt") · xanh lá/đỏ = kết quả.
+# Xanh DƯƠNG là màu duy nhất còn trống trên chart, nên zone hợp lệ mượn được mà không
+# cướp nghĩa của ai. Và phải RẤT nhạt: zone là phông, lệnh mới là nhân vật.
+ch = open(os.path.join(CSS, "tester", "Chart.tsx"), encoding="utf-8").read()
+kiem("có màu riêng cho zone hợp lệ", "ZONE_NEN_HL" in ch and "ZONE_VIEN_HL" in ch)
+
+
+def _alpha(ten):
+    kh = re.search(ten + r"\s*=\s*'rgba\([^)]*?,\s*([\d.]+)\)'", ch)
+    return float(kh.group(1)) if kh else None
+
+
+kiem("nền zone hợp lệ vẫn RẤT nhạt — dưới 0.1, không lấn át đường lệnh cam",
+     (_alpha("ZONE_NEN_HL") or 1) < 0.1
+     and (_alpha("ZONE_NEN_HL") or 0) >= (_alpha("ZONE_NEN") or 0),
+     f"— thường {_alpha('ZONE_NEN')} → hợp lệ {_alpha('ZONE_NEN_HL')}")
+kiem("KHÔNG mượn cam (mức lệnh), KHÔNG mượn xanh lá/đỏ (kết quả)",
+     not re.search(r"ZONE_(NEN|VIEN)_HL\s*=\s*'rgba\(\s*(255,\s*166|78,\s*201|229,\s*83)",
+                   ch))
+kiem("cả nền lẫn viền đều rẽ theo cờ hợp lệ", ch.count("hopLe ? ZONE_") == 2)
+
 print(f"\n{'─' * 60}\n  {dung} đúng · {sai} sai\n{'─' * 60}")
 sys.exit(1 if sai else 0)

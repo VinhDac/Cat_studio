@@ -437,13 +437,17 @@ export interface TrangThaiChay {
 export interface DoanPhat {
   j0: number; n: number
   t: number[]; o: number[]; h: number[]; l: number[]; c: number[]
-  /** ZONE lớn dần trong cửa sổ lô: `[t_zone_mở, t_nến, đáy, đỉnh]`.
+  /** ZONE lớn dần trong cửa sổ lô: `[t_zone_mở, t_nến, đáy, đỉnh, hợp_lệ]`.
+   *
+   *  `hợp_lệ` (1/0) đọc từ cột `zone_hop_le` GHI LÚC CHẠY, không tính lại ở JS — nên
+   *  lúc phát lại zone đổi màu đúng cây nến nó vừa hợp lệ. Sơ đồ chưa khai phần "hợp
+   *  lệ" thì luôn 0 và chart giữ màu trung tính.
    *
    *  ⚠ Lô phải mang zone vì lúc phát lại `nhip()` KHÔNG hỏi Python câu nào. Thiếu nó
    *  thì zone chỉ nhúc nhích ở đường NHẢY — bấm ▶ zone đứng yên, bấm "tới sự kiện" mới
    *  thấy nó nhảy một phát. Lệnh không bị vậy vì lô vốn mang cả sự kiện tương lai và
    *  `Chart` tự cắt theo `tBayGio`; giờ zone theo đúng luật đó. */
-  zone?: [number, number, number, number][]
+  zone?: [number, number, number, number, number][]
   /** BẢNG SỐ LIỆU: nhóm do `kho/` khai, hàng do SƠ ĐỒ quyết (`core.toan_hang_dung`),
    *  mỗi hàng một mảng giá trị theo TỪNG khung hình. Không nhóm nào viết cứng ở JS —
    *  thêm engine mới là bảng có ngay. */

@@ -2446,6 +2446,28 @@ bị kéo tới ngay. **Hướng mua/bán không dùng màu nữa — dùng HÌN
 | Đóng | **vạch nối vào→ra** xanh/đỏ + ô vuông `L-0007 −1.00R` |
 | Huỷ (nén tan) | `✕` **xám** — không thắng không thua, không đụng màu kết quả |
 
+**Phông ZONE — xám, và LAM RẤT NHẠT khi đã hợp lệ.** Zone không phải một mức lệnh, cũng
+không phải một kết quả, nên nó không được mượn màu của ai. Xanh **dương** là màu duy nhất
+còn trống trên chart (`#6cb6ff`, lấy từ `--group` sẵn có — không đẻ màu mới):
+
+```
+zone thường   nền rgba(255,255,255, 0.05)   viền rgba(255,255,255, 0.14)
+zone HỢP LỆ   nền rgba(108,182,255, 0.07)   viền rgba(108,182,255, 0.22)
+```
+
+⚠ **Giữ dưới 0.1 là ràng buộc, không phải gu.** Zone là phông; đậm lên một chút là nó
+tranh mắt với đường lệnh cam, mà cam mới là "chỗ TA đặt". `tests/test_giao_dien.py` đọc
+thẳng alpha trong `Chart.tsx` và chặn cả ba: quá đậm · mượn cam · mượn xanh lá/đỏ.
+
+Cờ hợp lệ đi kèm **từng bản ghi zone** (`[t_mở, t_nến, đáy, đỉnh, hợp_lệ]`), đọc từ cột
+`zone_hop_le` **ghi lúc chạy** chứ không tính lại ở JS — nên lúc phát lại, zone **đổi màu
+đúng cây nến nó vừa hợp lệ**, không phải tô sẵn. Sơ đồ chưa khai phần *hợp lệ* thì cột
+vắng mặt và mọi zone giữ nguyên màu trung tính: chưa định nghĩa thì không có gì để tô.
+
+⚠ `bo_chay` ghi cột này **ngay khi cổng zone có `dk_hop_le`**, kể cả khi không cổng nào
+hỏi tới nó — chart không phải một điều kiện trong sơ đồ nên `toan_hang_dung` không thấy
+nó. Thiếu dòng đó thì zone hợp lệ vẫn xám ở đúng những sơ đồ khai nó mà chưa dùng.
+
 **Hai thứ sửa được nhờ đổi `createPriceLine` → `LineSeries`:**
 
 1. **Đường không còn kéo suốt chart.** `PriceLine` luôn full-width, nên ba đường của một lệnh đặt

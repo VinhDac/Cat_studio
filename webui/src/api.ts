@@ -57,11 +57,11 @@ async function goi<T>(ten: string, ...args: unknown[]): Promise<Reply<T>> {
   }
 }
 
-/** Gói nến. `zone` là HỘP phông nền — `[t_đầu, t_cuối, đáy, đỉnh]`, mốc THỜI GIAN nên
+/** Gói nến. `zone` là HỘP phông nền — `[t_đầu, t_cuối, đáy, đỉnh, hợp_lệ]`, mốc THỜI GIAN nên
  *  đổi khung hiển thị vẫn nằm đúng chỗ. Python đã cắt ở con trỏ, không lộ tương lai. */
 export interface GoiNen {
   t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; j: number
-  zone?: [number, number, number, number][]
+  zone?: [number, number, number, number, number][]
 }
 
 export const py = {

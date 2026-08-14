@@ -1195,10 +1195,18 @@ class ApiTester(NenCuaSo):
             if b1 < lo0 or b0 > lo1:            # zone không chạm cửa sổ lô
                 continue
             t0 = int(n5["t"][b0])
+            # HỢP LỆ tại TỪNG nến — đọc cột đã ghi lúc chạy, không tính lại. Nhờ vậy
+            # lúc phát lại, zone đổi màu đúng cây nến nó vừa hợp lệ; và không có sơ đồ
+            # nào khai "hợp lệ" thì cột vắng mặt, chart giữ nguyên màu trung tính.
+            c_hl = (kq.cot_zone or {}).get("zone_hop_le")
             for b in range(max(b0, lo0), min(b1, lo1) + 1):
                 doan = n5[b0:b + 1]
+                hl = 0
+                if c_hl is not None and 0 <= b < len(c_hl):
+                    v_hl = c_hl[b]
+                    hl = 1 if (v_hl == v_hl and v_hl) else 0   # NaN → chưa biết → 0
                 ra.append([t0, int(n5["t"][b]),
-                           float(doan["l"].min()), float(doan["h"].max())])
+                           float(doan["l"].min()), float(doan["h"].max()), hl])
         return ra
 
     def _cot_toan_hang(self, kq, o, i5, a):

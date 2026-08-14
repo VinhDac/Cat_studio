@@ -58,7 +58,9 @@ type Diem = { time: UTCTimestamp; value: number }
 export type KieuChart = 'nen' | 'bar' | 'line'
 
 /** Một HỘP ZONE: `[t_đầu, t_cuối, đáy, đỉnh]` — Python gửi sang, đã cắt ở con trỏ. */
-export type HopZone = [number, number, number, number]
+/** `[t_zone_mở, t_nến, đáy, đỉnh, hợp_lệ]` — `hợp_lệ` là 1/0, đọc từ cột `zone_hop_le`
+ *  đã ghi LÚC CHẠY (không tính lại ở JS). Sơ đồ chưa khai phần "hợp lệ" thì luôn 0. */
+export type HopZone = [number, number, number, number, number]
 
 /* ---------------------------------------------------------------------------
    LỚP ZONE — phông nền, không phải nhân vật.
@@ -79,6 +81,12 @@ export type HopZone = [number, number, number, number]
 --------------------------------------------------------------------------- */
 const ZONE_NEN = 'rgba(255, 255, 255, 0.05)'
 const ZONE_VIEN = 'rgba(255, 255, 255, 0.14)'
+/* ZONE ĐÃ HỢP LỆ — lam rất nhạt. Lấy `--group` (#6cb6ff) đã có trong theme, không đẻ
+   màu mới. XANH DƯƠNG là màu DUY NHẤT còn trống trên chart: xám đã là nến, cam là mức
+   lệnh, xanh lá/đỏ là kết quả (luật ba họ màu §12.17) — nên nó không cướp nghĩa của ai.
+   Và cố ý giữ RẤT nhạt: zone vẫn là phông, lệnh mới là nhân vật. */
+const ZONE_NEN_HL = 'rgba(108, 182, 255, 0.07)'
+const ZONE_VIEN_HL = 'rgba(108, 182, 255, 0.22)'
 
 class LopZone implements ISeriesPrimitive<Time> {
   private _hop: HopZone[] = []
@@ -138,7 +146,7 @@ class LopZone implements ISeriesPrimitive<Time> {
     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: px,
                                       verticalPixelRatio: py, bitmapSize }) => {
       ctx.save()
-      for (const [t0, t1, day, dinh] of this._hop) {
+      for (const [t0, t1, day, dinh, hopLe] of this._hop) {
         const i0 = this._chiSo(bars, t0)
         const i1 = this._chiSo(bars, t1)
         if (i0 < 0 || i1 < 0) continue
@@ -152,11 +160,11 @@ class LopZone implements ISeriesPrimitive<Time> {
         const y0 = Math.round(ya * py)
         const y1 = Math.round(yb * py)
         if (x1 < 0 || x0 > bitmapSize.width) continue      // ngoài tầm nhìn
-        ctx.fillStyle = ZONE_NEN
+        ctx.fillStyle = hopLe ? ZONE_NEN_HL : ZONE_NEN
         ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0))
         // Gạch mảnh MÉP TRÊN và MÉP DƯỚI — cho cái băng có hình, mà không thành một
         // cái khung bốn cạnh bắt mắt.
-        ctx.fillStyle = ZONE_VIEN
+        ctx.fillStyle = hopLe ? ZONE_VIEN_HL : ZONE_VIEN
         ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, Math.round(py)))
         ctx.fillRect(x0, y1, Math.max(1, x1 - x0), Math.max(1, Math.round(py)))
       }
