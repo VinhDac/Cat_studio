@@ -3614,6 +3614,144 @@ Ngày nối, ba câu này phải có lời trước dòng code đầu tiên — 
 
 ---
 
+## 15. ⭐⭐ RL — HỌC CHỌN NHÁNH, KHÔNG HỌC LUẬT
+
+> Chốt **bản chất** ngày 2026-08-14. Chưa một dòng code. Đây là **ý đồ chính của cả dự
+> án** — lý do sơ đồ tồn tại, và lý do app không có (và sẽ không có) trình dò tham số.
+> Mọi thiết kế sau phải soi lại mục này trước khi đi tiếp.
+
+### 15.0 Một câu
+
+> **Người viết luật chơi, máy học cách chơi.** Sơ đồ do người vẽ và **không đổi**; ở chỗ
+> nhiều nhánh cùng hợp lệ, RL học **thử nhánh nào trước** cho hợp với cây nến đang đứng.
+
+### 15.1 ⭐ VÌ SAO SƠ ĐỒ, KHÔNG PHẢI CODE
+
+Không phải vì "dễ nhìn". Vì **sơ đồ là một không gian nước đi hợp lệ, còn code thì không**.
+
+Sửa một dòng MQL5 thì phần lớn ra thứ không chạy, hoặc chạy mà vô nghĩa — không search
+trên đó được. Đó đúng là lý do các hệ sinh chiến lược tự động thất bại suốt hai mươi năm:
+sinh một triệu chương trình rác để lấy một cái đọc không nổi.
+
+Sơ đồ của ta có ngữ pháp đóng, và ngữ pháp đó **đã viết xong từ trước khi có ý đồ này**:
+
+| Đã có sẵn | Thành cái gì cho RL |
+|---|---|
+| 2 loại khối · 3 hành động · 17 toán hạng × 8 phép so | **từ vựng đóng** — không đẻ ra ký hiệu lạ |
+| luật rẽ nhánh (§5) · Entry chỉ TẠO / Manage chỉ SỬA (§6.0) | **luật chơi** — mọi trạng thái hợp lệ đều chạy được |
+| bộ soát tĩnh của `core.py` | **trọng tài** — nói nước nào hợp lệ |
+| đánh số tự động (§3) | **dạng chuẩn** — hai sơ đồ cùng nghĩa thì cùng số |
+| nhật ký ghi khối nào nổ, nến nào, lệnh nào (§12.8) | **trajectory** — dữ liệu học, không phải dựng mới |
+
+Hệ quả mạnh nhất: **mọi trạng thái trong không gian đều là một sơ đồ người đọc được trong
+5 giây.** Biểu diễn trạng thái *chính là* lời giải thích. Không hệ nào bolt-on được thứ này
+về sau.
+
+### 15.2 ⭐ VÌ SAO KHÔNG DÒ THAM SỐ — tham số ĐỔI VAI, không biến mất
+
+`ATR_Period = 42`, `RR = 4.5` vẫn nằm nguyên trong Bảng tham số (§6.4). Khác ở chỗ:
+
+```
+hệ thường:   cấu trúc CỐ ĐỊNH   →  quét tham số   →  lấy đỉnh
+hệ của ta:   tham số CỐ ĐỊNH    →  học cách chọn  →  rồi LẮC tham số để THỬ cấu trúc
+```
+
+Tham số từ **trục tìm kiếm** thành **trục kiểm chứng**. Một cách xử lý chỉ sống ở
+`ATR_Period = 42` mà chết ở 30 thì nó là cách xử lý giả — và ta bắt được điều đó bằng
+chính thứ hệ khác dùng để fit.
+
+⚠ Cái làm chuyện này khả thi là luật đã khoá từ §6.3: **mọi khoảng cách là bội của ATR
+hoặc của R**. Nó không phải tiện lợi — nó là thứ khiến một cách xử lý mang **cùng một
+nghĩa** trên vàng và trên chỉ số, tức là thứ khiến kinh nghiệm học được **chuyển giao
+được** thay vì là một bản fit đội lốt. Cũng nhờ nó mà gộp dữ liệu nhiều symbol để học là
+hợp lệ, không phải trộn táo với cam.
+
+### 15.3 ⭐ THỨ ĐI TÌM LÀ CÁCH XỬ LÝ, ĐƠN VỊ LÀ **NHÁNH**
+
+Edge của một trader chuyên nghiệp không nằm ở `RSI < 30`. Nó nằm ở *"lý do tôi vào đã mất
+trước khi khớp → tôi rút"*, *"đi được 1R → tôi thôi mạo hiểm"*. Đó là **thủ tục xử lý tình
+huống**, và đơn vị của nó đúng bằng đơn vị app đang có: một **cổng → hành động**.
+
+Đổi `ATR_Period 14 → 42` không dạy chiến lược làm được thứ gì nó chưa làm — chỉ đổi *chỗ*
+nó làm. Thêm `[1A] chưa khớp mà nén đã tan → huỷ lệnh chờ` thì **đẻ ra một hành vi trước
+đó không tồn tại**. Hai việc khác **loại**, không phải khác mức.
+
+### 15.4 ⭐⭐ RANH GIỚI — CỔNG NÓI *ĐƯỢC PHÉP*, RL NÓI *NÊN CÁI NÀO*
+
+| | Ai quyết | Cứng hay học |
+|---|---|---|
+| **Cổng** — điều kiện, ngưỡng, toán hạng | **người** | cứng, RL không chạm |
+| **Hình dạng sơ đồ** — khối nào, nhánh nào, nối đi đâu | **người** | cứng, RL không chạm |
+| **Trong đám nhánh đang mở, thử cái nào trước** | **RL** | học |
+
+RL **không bao giờ mở được một nhánh mà cổng đang đóng**. Cổng lọc trước, RL chọn sau. Đó
+là cách "không cho nó động vào điều kiện" được bảo đảm bằng **cấu trúc**, không bằng kỷ luật
+— cùng một nếp với §12.1 (chặn nhìn lén tương lai bằng cấu trúc).
+
+⚠ **Chỉ ngã rẽ HOẶC mới có việc cho RL.** Ngã rẽ VÀ (mọi đầu nhánh là hành động, §5.1) thì
+bộ chạy làm **hết** các nhánh — không có gì để chọn. Ranh giới này đã có sẵn trong code:
+`core.la_nga_re_va`.
+
+### 15.5 ⭐ RL XẾP LẠI **THỨ TỰ THỬ**, KHÔNG PHẢI CHỌN LẤY MỘT
+
+Cách phát biểu này quan trọng, vì nó giữ nguyên mọi luật đã chốt:
+
+- Luật lùi (§12.5a) — cổng trượt thì lùi về ngã rẽ gần nhất còn nhánh chưa thử — **giữ y
+  nguyên**. RL chỉ đổi *thứ tự* của hàng đợi đó.
+- Cấm lùi sau khi đã chạm thị trường — **giữ y nguyên**.
+- Sơ đồ hôm nay = policy **π₀: "giữ đúng thứ tự người vẽ, trên xuống dưới"**. Tức app hiện
+  tại đã là một mốc so miễn phí, đo hơn kém được ngay từ ngày đầu.
+
+### 15.6 ⭐ HỆ QUẢ — THỨ TỰ NHÁNH ĐỔI NGHĨA
+
+| | Hôm nay | Với RL |
+|---|---|---|
+| Xếp nhánh trên/dưới | **là quyết định** của người vẽ | thành **gợi ý ban đầu** (π₀) |
+| Nhiều nhánh cùng mở một lúc | mơ hồ, dễ bị coi là vẽ ẩu | **cố ý** — chỗ người vẽ chừa ra cho máy |
+
+Người vẽ giành lại quyền quan trọng nhất: **quyết định chỗ nào có khoảng chừa.** Vẽ hai
+cổng loại trừ nhau thì không có gì để học — sơ đồ chạy đúng như hôm nay. Vẽ 5 nhánh có thể
+cùng mở là nói *"cả 5 đều chấp nhận được, học đi"*.
+
+### 15.7 Vì sao hình dạng này chạy được, mà "RL sửa sơ đồ" thì không
+
+Bản hiểu sai đầu tiên của tôi: để RL **sửa sơ đồ** (thêm khối, nối lại dây), chấm điểm bằng
+backtest. Ghi lại vì nó là cái bẫy trông rất hợp lý:
+
+| | RL sửa sơ đồ (**loại bỏ**) | RL chọn nhánh (**đã chốt**) |
+|---|---|---|
+| Không gian hành động | tổ hợp sửa đồ thị, khổng lồ | **đúng số nhánh đang mở** tại ngã rẽ đó |
+| Nước tệ nhất | một sơ đồ không ai bảo lãnh | một nhánh **người đã bảo lãnh** — rủi ro có trần |
+| Phần thưởng | tổng P&L một lượt backtest → **overfit nặng hơn cả optimizer**, vì cấu trúc biểu đạt mạnh hơn tham số | **R của một lệnh** — episode có thật |
+| Dữ liệu học | phải chạy lại hàng nghìn lượt | nhật ký **đã ghi sẵn** |
+| Mốc so | không có | app hôm nay = π₀ |
+
+### 15.8 Chưa chốt — bàn riêng từng cái
+
+- [ ] **Phần thưởng.** `R` của lệnh là gốc, nhưng một vị thế có nhiều quyết định Manage
+      trong đời nó — chia điểm cho từng quyết định thế nào.
+- [ ] **Policy được nhìn thấy gì.** Đề xuất: **đúng bộ toán hạng của `kho/`, không hơn** —
+      để lý do chọn luôn nói được bằng chính từ vựng sơ đồ, và để nó không thấy thứ mà một
+      cổng không được phép thấy.
+- [ ] **Đủ dữ liệu không.** Một năm M5 đẻ ra bao nhiêu ngã rẽ HOẶC *thật sự có ≥2 nhánh
+      mở*? Chưa đo. Con số này quyết định có phải gộp nhiều symbol / nhiều năm hay không.
+- [ ] **Bộ chạy phải xét HẾT cổng đầu nhánh** mới biết có mấy nhánh đang mở — hôm nay nó
+      dừng ở nhánh khớp đầu tiên. Đây là thay đổi có thật trong `bo_chay`, và phải đo giá
+      của nó.
+- [x] ~~Sơ đồ có cần đánh dấu "ngã rẽ học được" không~~ → **KHÔNG.** Hai loại ngã rẽ tự
+      phân biệt: *phân loại theo trạng thái* thì các nhánh loại trừ nhau nên luôn đúng một
+      nhánh mở (RL không được hỏi); *chọn nước đi* thì nhiều nhánh cùng mở được. Cấu trúc
+      tự lọc, không cần cờ. Xem `tai_lieu/trader_chuyen_nghiep.md` §6.
+
+### 15.9 Từ vựng tình huống · hành động
+
+`tai_lieu/trader_chuyen_nghiep.md` — bảng đầy đủ: người chuyên nghiệp gặp những tình huống
+nào, mỗi tình huống có những nước đi nào **cùng hợp lý**, và app còn thiếu hành động gì để
+vẽ được chúng. Đó là nguồn để dựng sơ đồ mẫu của §15, và nó chốt được rằng **chỉ có ba chỗ
+RL được nói**: cách vào lệnh · mốc 1R · cách giữ lãi lớn.
+
+---
+
 ## 13. Việc còn treo
 
 Tester (§12), bộ chạy (§12.13e), đóng gói (§13.1) và Live chế độ quan sát (§14) đều đã
@@ -3633,6 +3771,9 @@ xong và **đo trên dữ liệu thật** — chi tiết nằm ở từng mục,
 
 ### Thiết kế còn treo (không dính Live)
 
+- [ ] **RL — ý đồ chính, §15.** Bản chất đã chốt (máy chọn nhánh, không chạm điều kiện);
+      năm câu còn treo nằm ở **§15.8**. Đây là thứ cả app được dựng để phục vụ, nên nó
+      đứng trên mọi mục còn lại trong danh sách này.
 - [ ] **Chồng lệnh** — D_02: nhiều VỊ THẾ (`Max_Positions`) nhưng đúng MỘT lệnh chờ. Giữa
       hai lần vào lệnh bắt buộc có một đợt ATR bung ra (`CONSUMED` chỉ thoát bằng
       `atr_bps ≥ N`).
