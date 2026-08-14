@@ -72,4 +72,14 @@ TOAN_HANG = [
     {"key": "lenh_lai_R", "nhan": "Lãi của lệnh này (× R)", "nhom": "Lệnh này",
      "loai": "boi_R", "tham_so": [], "tabs": ["manage"],
      "mo_ta": "R = khoảng cách SL lúc VÀO LỆNH, chốt cứng theo lệnh — không tính lại."},
+    # ⚠ `can_zone`: hỏi câu này mà sơ đồ KHÔNG có cổng zone thì nó luôn trả SAI — đúng
+    # về mặt sự thật nhưng vô nghĩa về mặt câu hỏi. Khai ra để soát tĩnh chặn ngay, thay
+    # vì để người dùng vẽ xong rồi ngồi nghĩ vì sao cổng không bao giờ khớp.
+    {"key": "lenh_thuoc_zone", "nhan": "Lệnh này còn thuộc zone hiện hành",
+     "nhom": "Lệnh này", "loai": "dung_sai", "tham_so": [], "dung_sai": True,
+     "tabs": ["manage"], "can_zone": True,
+     "mo_ta": "Zone đẻ ra lệnh này CÓ CÒN là zone hiện hành không. Gộp cả ba ca vào "
+              "một câu: zone ấy chết mà chưa có zone mới · đã có zone mới · vẫn là nó. "
+              "Lệnh chờ neo vào MÉP một zone đã chết thì cái neo hết nghĩa — nên đây là "
+              "câu hỏi đúng để huỷ lệnh chờ, thay cho phép đoán gián tiếp qua ATR."},
 ]

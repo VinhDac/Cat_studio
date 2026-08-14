@@ -62,7 +62,13 @@ NHOM_LENH_NAY = "Lệnh này"
 #: `zone_range_atr`, một toán hạng đã bị gỡ khỏi kho từ lâu. Hai nơi cùng trả lời
 #: "cái nào cần zone" thì sớm muộn một nơi nói sai — mà `bo_chay` cũng đọc
 #: `ENGINE_TRA_LOI`, nên bản gõ tay là nguồn thứ hai không ai đồng bộ.
-CAN_ZONE = tuple(k for m in MODULE for k in getattr(m, "ENGINE_TRA_LOI", ()))
+#: Cộng thêm toán hạng TỰ KHAI `can_zone` — thứ không do engine trả lời nhưng vẫn vô
+#: nghĩa khi chưa có zone (`lenh_thuoc_zone` hỏi "zone đẻ ra lệnh này còn hiện hành
+#: không"). Khai tại nguồn, cùng chỗ với `don_vi` / `tabs` / `dung_sai`, để không sinh
+#: ra một danh sách gõ tay thứ hai — đúng cái bẫy chú thích ngay trên vừa kể.
+CAN_ZONE = tuple(dict.fromkeys(
+    [k for m in MODULE for k in getattr(m, "ENGINE_TRA_LOI", ())]
+    + [t["key"] for t in TOAN_HANG if t.get("can_zone")]))
 
 
 def nhan(key):

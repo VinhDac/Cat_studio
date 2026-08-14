@@ -726,6 +726,35 @@ cùng bảng đó. Từ đó:
 nhiêu nến"*. Nên toán hạng tự khai `don_vi` (`kho/*.py`) — bài kiểm bắt đúng chỗ này ngay
 lần chạy đầu.
 
+#### ⚠ 6.4a LỖI THẬT: hộp thoại CẤT bản nháp, trong khi HIỆN bản Python đã chuẩn hoá
+
+*"tại sao bị lỗi đơn vị, nến thành bps"* — ô trong hộp thoại ghi `Zone — số nến ≥ 10`
+đơn vị **nến**, mà thẻ trên canvas ghi `Zone — số nến ≥ 10 **bps của giá**`.
+
+Chuỗi hỏng, và cả bốn mắt xích đều "đúng phần việc của mình":
+
+1. Dòng điều kiện **MỚI** sinh ra với `{value: 7, tinh: "bps"}` (`ActionDialog.tsx`).
+2. Đổi vế trái sang `Zone — số nến` → **`tinh: "bps"` NẰM LẠI**. Không ai dọn.
+3. Ô đơn vị hiện đúng **"nến"** — nó hỏi `core.don_vi_cua_o`, không đọc `tinh`. Phần xem
+   trước cũng đúng — nó hỏi `api.save_action`, tức đi qua `normalize_action`.
+4. Nhưng nút **Lưu** gọi `onLuu(a)` — đẩy thẳng **bản nháp** ra canvas. Thẻ dựng lại từ
+   đó, và `action_display` thì đọc `tinh`.
+
+> **Hộp thoại nhờ Python chuẩn hoá, trình bày câu trả lời của Python, rồi cất đi bản của
+> chính nó.** Xem trước và dữ liệu cất đi là hai thứ khác nhau — mà cái người dùng tin là
+> cái nhìn thấy.
+
+`normalize_action` vốn **đã** vứt `tinh` không hợp lệ (`don_vi_cho("zone_dem")` rỗng nên
+`tinh` không được giữ). Nên bản vá chỉ là **dùng nốt thứ nó vừa trả về**: `save_action`
+trả cả `action` lẫn `display`, hộp thoại đang lấy mỗi `display` rồi bỏ `action`.
+
+⚠ **Gọi LẠI `save_action` lúc bấm Lưu**, không dùng kết quả của phần xem trước: xem trước
+hoãn 200 ms, gõ xong bấm Lưu ngay là nó chưa kịp chạy và ta cất một bản còn cũ hơn cả
+nháp. Hỏng đường truyền thì ngã về nháp — thà giữ nguyên thứ vừa gõ còn hơn mất.
+
+*(File đã lưu thì vẫn sạch, vì `normalize_process` chạy lúc ghi. Chỉ node trong bộ nhớ và
+cái thẻ là sai — tức nhìn sai suốt cả phiên làm việc, tới khi mở lại file mới hết.)*
+
 ⚠ Cột `don_vi` của bảng tham số **từng là chữ tự do**, và nó âm thầm mục: sơ đồ mẫu mang
 `"× ATR vùng"` — một chuỗi không tồn tại ở đâu, rác từ lần đổi tên vùng→zone, không ai
 bắt được vì chưa có gì đọc nó. File cũ đi qua `DON_VI_THAM_SO_CU`; chữ lạ thì **để trống
@@ -1776,6 +1805,92 @@ không bị đụng tới, đây thuần là tầng hiển thị. `tests/test_so
 hàng lẫn **danh sách cột engine không đổi** — trước lượt này không bài nào gọi
 `toan_hang_dung`, dù cả bảng lẫn bộ chạy đều treo vào nó.
 
+#### 12.6d ✅ MANAGE ĐỌC ĐƯỢC ZONE — định nghĩa và đọc là hai chuyện
+
+*"tại sao bên tab Manage, phần điều kiện không có điều kiện zone. Entry vẫn có."*
+
+Hai luật, mỗi luật đều đúng, cộng lại thành một cái bẫy:
+
+1. **Chỉ khối đã đi qua cổng zone mới được đọc toán hạng zone** — `khoi_sau_cong_zone`
+   tính trên khối của **từng tab**.
+2. **Manage không được có cổng zone** — nó chạy một lượt cho MỖI lệnh đang sống, đặt
+   cổng đếm ở đó là một cây nến bị đếm nhiều lần.
+
+⇒ `sau_cong_zone` của Manage **luôn rỗng**, nên Manage **vĩnh viễn không đọc được zone**.
+Ép một toán hạng zone vào thì soát tĩnh mắng *"Sơ đồ đọc Zone — đỉnh (HH) nhưng KHÔNG có
+cổng zone nào"* — một câu vô nghiệm, vì Manage không được phép có cổng.
+
+**Mà bộ chạy thì đọc được bình thường.** Zone nằm trong **sổ dùng chung** (`ctx.so`),
+không thuộc tab nào. Đo được: cho cổng `[1A]` của Manage đọc `Zone — đỉnh (HH)`, bỏ qua
+soát tĩnh, nó trả `2627.998` — một cái giá thật. Chỉ soát tĩnh và dropdown chặn.
+
+> **Chỗ luật bị lẫn:** *định nghĩa* zone và *đọc* zone bị gộp làm một. Cùng lý lẽ §5 đã
+> viết cho cổng rẽ nhánh — **đọc thì lặp lại bao nhiêu lần cũng vô hại, chỉ tác động mới
+> không rút lại được**. Cấm Manage ĐỊNH NGHĨA zone là đúng; cấm nó ĐỌC là quét nhầm.
+
+`core.khoi_doc_duoc_zone(doc)` nhìn **cả tài liệu** thay vì từng tab, và là nguồn duy
+nhất cho cả soát tĩnh lẫn giao diện:
+
+| tab | được đọc zone ở | |
+|---|---|---|
+| Entry | khối đi qua cổng zone (kể cả chính cổng — §12.6c) | như cũ |
+| Manage | **mọi khối**, nếu Entry có cổng zone | 🆕 |
+| Manage | không khối nào, nếu Entry không có cổng zone | không có zone thì không có gì để đọc |
+
+Luật *"cổng zone chỉ đặt ở Entry"* **giữ nguyên** — nó vẫn đúng, và bài kiểm canh cả hai
+chiều.
+
+⚠ **Manage đọc zone của lượt Entry TRƯỚC ĐÓ.** Trong một nến, Manage chạy trước Entry
+(§6.0), nên zone nó thấy là zone tính tới hết nến trước. Manage nhịp M1 còn thấy cùng một
+zone suốt 5 nhịp giữa hai lượt Entry. Đó là sự thật của thứ tự, không phải sai sót — nhưng
+ai viết *"zone lúc này"* ở Manage thì phải hiểu đúng nghĩa đó.
+
+#### 12.6e ✅ `Lệnh này còn thuộc zone hiện hành` — câu hỏi đúng để huỷ lệnh chờ
+
+Lệnh chờ neo vào **MÉP một zone**. Zone ấy chết là cái neo hết nghĩa — nên câu cần hỏi
+khi quyết định huỷ là *"zone đẻ ra lệnh này còn hiện hành không"*.
+
+Cổng `[1A]` của sơ đồ mẫu đang hỏi `atr ≥ 7 bps`: một phép **đoán gián tiếp** rằng zone
+đã chết. Từ §12.6c, zone chết được **trong khi `atr` vẫn < 7** (vượt hạn mức bề rộng), và
+còn chết vì lỗ hổng dữ liệu hay vì dòng chảy không tới cổng. Phép đoán ấy trượt hết những
+ca đó, lệnh chờ nằm lại treo trên một zone đã chết.
+
+```
+[1A]  KHÔNG  lệnh này đã khớp
+  và  KHÔNG  lệnh này còn thuộc zone hiện hành
+      → Kết thúc lệnh này
+```
+
+**Một phép so ID gộp trọn ba ca**, vì `so.zone_hien_hanh()` chỉ trả zone còn **sống**:
+
+| tình huống | trả lời |
+|---|---|
+| zone ấy chết, chưa có zone mới → `None` | ✘ không thuộc |
+| đã có zone khác | ✘ không thuộc |
+| vẫn là nó, vẫn sống | ✔ thuộc |
+
+⚠ **So ID, không so đối tượng.** Zone mutate liên tục; `Lenh.zone_id` thì chốt cứng lúc
+đặt. Id là chỗ duy nhất hai bên gặp nhau mà không ai đổi.
+
+⚠ **"Zone" ở đây là zone ĐANG ĐẾM, chưa xét hợp lệ.** `Zone` không có trường nào về tính
+hợp lệ — §7.5 cố ý bỏ máy trạng thái, `CONFIRMED` được thay bằng *"cổng [3] khớp"*, một
+thứ chỉ tồn tại trong khoảnh khắc dòng chảy đi qua. Đo được: **45 % zone chết non**, chưa
+bao giờ đủ số nến. Nên toán hạng này bắn **ngay khi zone chết**, không đợi có zone mới
+hợp lệ. Muốn đợi thì ghép thêm hai vế `Zone — số nến ≥ …` và `Zone — bề rộng ≤ …` vào
+chính cổng đó (Manage đọc được zone từ §12.6d), dùng lại **đúng tham số có tên** mà cổng
+`[3]` đang dùng nên không rơi vào bẫy "một số gõ hai chỗ" của §6.4.
+
+⚠ **Khai `can_zone` tại nguồn**, và `kho.CAN_ZONE` gom thêm từ đó. Hỏi câu này mà sơ đồ
+không có cổng zone thì nó luôn trả SAI — đúng sự thật nhưng vô nghĩa; soát tĩnh chặn ngay
+thay vì để người dùng ngồi nghĩ vì sao cổng không bao giờ khớp. Gom tại nguồn chứ không
+gõ tay danh sách thứ hai — đúng cái bẫy `CAN_ZONE` đã kể (`zone_range_atr` còn sót lại
+trong bản gõ tay sau khi toán hạng đó bị gỡ).
+
+> **Thay `[1A]` là ĐỔI CHIẾN LƯỢC, không chỉ dọn dẹp.** Đo trên "Compress updated" một
+> năm: huỷ đúng lúc thì ô `số lệnh chờ = 0` được giải phóng sớm hơn nhiều, nên số lệnh
+> nhảy **1.034 → 2.160**. Toán hạng đã cài; ghép nó vào cổng nào là quyết định của người
+> vẽ, sơ đồ mẫu **giữ nguyên** `atr ≥ 7`.
+
 ### 12.10 Chart — chỉ lệnh, không gì khác
 
 Tuyệt đối không indicator, không vẽ gì thêm. Ép bằng kiểu dữ liệu: component chart nhận đúng
@@ -2577,6 +2692,18 @@ không hai nơi sớm muộn cũng lệch nhau.
 
 `ContextMenu` nhận thêm trường `phim` để hiện nhãn phím tắt mờ, dạt phải. Nó CHỈ là nhãn — phím
 thật vẫn do chỗ nghe bàn phím lo, menu không tự gắn phím nào.
+
+⚠ **Bấm ▶ lần hai phải KÉO CỬA SỔ LÊN TRƯỚC.** *"tôi đang phải tắt hẳn window test đi
+nếu muốn chạy sơ đồ mới."* Cửa sổ còn sống thì §12.12 đã chốt là **giữ** (không huỷ đi
+tạo lại, để khỏi mất con trỏ · thu phóng · vị trí cuộn), và JS bắt `so_do_moi` rồi gọi
+`chay()` — nên nó **có chạy lại thật**. Chỉ là chạy **sau lưng cửa sổ vẽ**: không thấy gì
+nhúc nhích, và nút trông như hỏng.
+
+`mo_live` đã ghi đúng bài học này cho nút ● Live từ trước (*"không có dòng này thì bấm
+● Live lúc cửa sổ đang bị lấp sau trông y như nút hỏng"*) — tester bị sót. Thêm
+`_khung.keo_len_truoc()`, và **đặt TRƯỚC `_ban`**: `_ban` gọi `evaluate_js` đồng bộ nên
+lượt chạy bắt đầu ngay trong đó; đưa cửa sổ lên sau là người dùng mất đúng cái đáng xem
+nhất — thanh tiến trình chạy từ đầu.
 
 ⚠ **`Ctrl+R` bắt buộc `preventDefault()`**: mặc định của Chromium là **nạp lại trang**, tức mất
 trắng sơ đồ đang vẽ dở. Chặn nó lại còn là một cái lợi kèm theo. Đã bấm thật để kiểm chứ không

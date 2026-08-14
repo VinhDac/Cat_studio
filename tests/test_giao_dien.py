@@ -128,5 +128,62 @@ kiem("`luu` (Ctrl+S) KHÔNG tự hỏi tên — nó nhường cho `luuThanh` khi
 kiem("`tenTrenDia` là thứ quyết định — không dò kho template để đoán",
      than_luu is not None and "tenTrenDia" in than_luu.group(1))
 
+print("\n▸ Hộp thoại phải cất bản Python ĐÃ CHUẨN HOÁ, không cất bản nháp")
+# ⚠ Lỗi có thật. Dòng điều kiện MỚI sinh ra với `{value: 7, tinh: 'bps'}`; đổi vế trái
+# sang `Zone — số nến` thì `tinh: 'bps'` NẰM LẠI trong nháp. Ô đơn vị hiện đúng "nến"
+# (hỏi `don_vi_cua_o`), xem trước cũng đúng (hỏi Python) — nhưng thứ được CẤT ĐI vẫn còn
+# `bps`, nên thẻ trên canvas ghi `Zone — số nến ≥ 10 bps của giá`.
+# `normalize_action` vốn đã vứt `tinh` không hợp lệ; hộp thoại chỉ cần dùng nốt thứ nó
+# vừa nhận về thay vì bỏ đi.
+hd = open(os.path.join(CSS, "components", "ActionDialog.tsx"), encoding="utf-8").read()
+kiem("nút Lưu KHÔNG đẩy thẳng bản nháp `a` ra ngoài",
+     "onLuu(a)" not in bo_chu_thich(hd))
+kiem("nút Lưu đi qua `save_action` để lấy bản đã chuẩn hoá",
+     re.search(r"onLuu\(\s*\(?r\.ok && r\.value\?\.action", hd) is not None)
+
+print("\n▸ Bấm ▶ lần hai — cửa sổ tester phải NỔI LÊN rồi mới chạy lại")
+# ⚠ Triệu chứng người dùng gặp: bấm ▶ lần hai trông y như nút hỏng. Tester CÓ chạy lại
+# thật (JS bắt `so_do_moi` rồi gọi `chay()`), nhưng chạy SAU LƯNG cửa sổ vẽ nên không
+# thấy gì nhúc nhích — đành đóng hẳn cửa sổ tester để ép nó tạo lại.
+# `mo_live` đã ghi đúng bài học này cho nút ● Live từ trước; tester bị sót.
+from cat_studio import api  # noqa: E402
+
+_vet = []
+
+
+class _KhungGia:
+    def keo_len_truoc(self):
+        _vet.append("keo")
+
+
+class _CuaSoGia:
+    def __init__(self):
+        self.ten = None
+
+    def set_title(self, t):
+        self.ten = t
+
+
+class _ApiTesterGia:
+    def __init__(self):
+        self._khung = _KhungGia()
+
+    def _ban(self, ten, d):
+        _vet.append("ban:" + ten)
+
+
+_a = api.Api.__new__(api.Api)
+_a._tester, _a._api_tester, _a._doc_tester = _CuaSoGia(), _ApiTesterGia(), None
+api.Api._mo_cua_so_tester(_a, {"name": "Thử"})
+
+kiem("cửa sổ tester được KÉO LÊN TRƯỚC", "keo" in _vet, f"— {_vet}")
+kiem("và nhận sơ đồ mới để tự chạy lại", "ban:so_do_moi" in _vet)
+# Thứ tự có nghĩa: `_ban` gọi `evaluate_js` ĐỒNG BỘ và lượt chạy bắt đầu ngay trong đó,
+# nên đưa cửa sổ lên SAU là người dùng mất đúng cái đáng xem nhất — thanh tiến trình.
+kiem("kéo lên TRƯỚC khi bắn sơ đồ, không phải sau",
+     _vet == ["keo", "ban:so_do_moi"], f"— {_vet}")
+kiem("cửa sổ CŨ được giữ, không huỷ đi tạo lại", _a._tester is not None
+     and _a._tester.ten == "Thử — Strategy Tester", f"— {_a._tester.ten}")
+
 print(f"\n{'─' * 60}\n  {dung} đúng · {sai} sai\n{'─' * 60}")
 sys.exit(1 if sai else 0)

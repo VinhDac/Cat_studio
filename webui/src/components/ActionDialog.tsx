@@ -504,6 +504,27 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
     return () => clearTimeout(h)
   }, [a, tab, thamSo])
 
+  /** ⚠ GỬI ĐI BẢN PYTHON ĐÃ CHUẨN HOÁ, không phải bản nháp trong tay hộp thoại.
+   *
+   *  Bản trước bấm Lưu là `onLuu(a)` — tức canvas nhận đúng cái nháp thô. Mà nháp thì
+   *  mang rác của những lần sửa dở: dòng điều kiện MỚI sinh ra với `{value: 7, tinh:
+   *  'bps'}`, đổi vế trái sang `Zone — số nến` thì `tinh: 'bps'` NẰM LẠI. Ô đơn vị trong
+   *  hộp thoại hiện đúng "nến" (nó hỏi `don_vi_cua_o`), phần xem trước cũng đúng (nó hỏi
+   *  Python) — nhưng thứ được cất đi thì vẫn còn `bps`, và thẻ trên canvas dựng lại từ
+   *  đó nên ghi `Zone — số nến ≥ 10 bps của giá`. Người dùng gặp thật.
+   *
+   *  `normalize_action` vốn đã vứt `tinh` không hợp lệ (`don_vi_cho('zone_dem')` rỗng),
+   *  nên chỉ cần LẤY VỀ thứ nó vừa trả. Hộp thoại đã gọi `save_action` cho phần xem
+   *  trước rồi mà lại bỏ đi `action`, chỉ giữ `display` — sửa bằng cách dùng nốt.
+   *
+   *  Gọi LẠI ở đây chứ không dùng kết quả của phần xem trước: xem trước hoãn 200 ms, gõ
+   *  xong bấm Lưu ngay là nó chưa kịp chạy và ta cất một bản CŨ hơn cả bản nháp.
+   *  Hỏng đường nào thì ngã về `a` — thà giữ nguyên thứ người dùng vừa gõ còn hơn mất. */
+  async function luuRoiDong() {
+    const r = await py.save_action(a, tab, thamSo)
+    onLuu((r.ok && r.value?.action ? r.value.action : a) as HD)
+  }
+
   async function doiLoai(t: string) {
     // Lấy mặc định từ Python chứ không tự nặn ở JS: mấy con số mặc định
     // (ATR 14, ngưỡng 7 bps, SL 1.5×ATR) là kiến thức về chiến lược, thuộc về lõi.
@@ -554,7 +575,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
                  {xem || '…'}
                </div>
                <button className="nut" onClick={onDong}>Huỷ</button>
-               <button className="nut chinh" onClick={() => onLuu(a)}>Lưu</button>
+               <button className="nut chinh" onClick={() => void luuRoiDong()}>Lưu</button>
              </>
            }>
 

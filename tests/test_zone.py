@@ -30,6 +30,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 from cat_studio import bo_chay as bc  # noqa: E402
 from cat_studio import core  # noqa: E402
+from cat_studio import kho  # noqa: E402
 from cat_studio import so_lenh  # noqa: E402
 
 dung = sai = 0
@@ -291,6 +292,90 @@ kiem("khối Bắt đầu (đứng TRƯỚC cổng) cũng không",
 d8b = so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai")
 kiem("không có cổng zone thì danh sách RỖNG",
      core.khoi_sau_cong_zone(d8b["entry"]["steps"], d8b["entry"]["edges"]) == set())
+
+# ---- MANAGE ĐỌC ĐƯỢC ZONE (core.md §12.6d) -----------------------------------------
+#
+# ĐỊNH NGHĨA zone và ĐỌC zone là hai chuyện khác nhau. Manage cấm định nghĩa (nó chạy
+# một lượt cho MỖI lệnh đang sống → một cây nến bị đếm nhiều lần) — nhưng đọc thì vô
+# hại, và bộ chạy vốn đã đọc được: zone nằm trong SỔ DÙNG CHUNG, không thuộc tab nào.
+print("\n▸ 8c. Manage ĐỌC được zone, dù không được ĐỊNH NGHĨA zone")
+
+_dm = so_do(DK_NEN)
+_gm = core.make_action_step({
+    "id": "m1", "type": core.CHECK_COND, "name": "zone chết chưa",
+    "conditions": [{"trai": {"ten": "zone_HH"}, "phep": ">", "phai": {"value": 0}}]})
+_gm["pos"] = [1.0, 0.0]
+_dm["manage"]["steps"].append(_gm)
+_dm["manage"]["edges"] = [{"from": _dm["manage"]["steps"][0]["id"], "to": "m1"}]
+_dm = core.normalize_process(_dm)
+kiem("cổng Manage đọc `Zone — đỉnh (HH)` → KHÔNG lỗi", not loi(_dm),
+     f"— {(loi(_dm) or [''])[0][:70]}")
+_cho = core.khoi_doc_duoc_zone(_dm)
+kiem("mọi khối Manage đều được phép đọc zone",
+     _cho[core.TAB_MANAGE] == {s["id"] for s in _dm["manage"]["steps"]},
+     f"— {len(_cho[core.TAB_MANAGE])} khối")
+
+# Hai ca NGƯỢC — luật cũ đúng chỗ nào thì phải giữ nguyên chỗ đó.
+_d_khong = core.normalize_process(so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai"))
+kiem("Entry KHÔNG có cổng zone → Manage cũng KHÔNG đọc được (không có zone để mà đọc)",
+     core.khoi_doc_duoc_zone(_d_khong)[core.TAB_MANAGE] == set())
+
+_d_cong_m = so_do(DK_NEN)
+_gz = core.make_action_step({"id": "m2", "type": core.CHECK_COND, "name": "cổng ở Manage",
+                             "cong_zone": True, "conditions": DK_NEN})
+_gz["pos"] = [1.0, 0.0]
+_d_cong_m["manage"]["steps"].append(_gz)
+_d_cong_m = core.normalize_process(_d_cong_m)
+kiem("cổng zone đặt ở Manage → VẪN bị chặn (đếm một cây nến nhiều lần)",
+     any("chỉ đặt ở sơ đồ Entry" in m for m in loi(_d_cong_m)))
+
+# ---- `lenh_thuoc_zone` — câu hỏi đúng để huỷ lệnh chờ ------------------------------
+#
+# Lệnh chờ neo vào MÉP một zone. Zone ấy chết là cái neo hết nghĩa — nên câu cần hỏi là
+# "zone đẻ ra lệnh này còn hiện hành không", chứ không phải đoán gián tiếp qua ATR.
+# `zone_hien_hanh()` chỉ trả zone còn SỐNG, nên một phép so id gộp trọn ba ca.
+print("\n▸ 8d. `lenh_thuoc_zone` — zone đẻ ra lệnh này còn hiện hành không")
+
+kiem("là toán hạng ĐÚNG/SAI", "lenh_thuoc_zone" in core.TOAN_HANG_DUNG_SAI)
+kiem("CHỈ dùng được ở Manage",
+     kho.THEO_KEY["lenh_thuoc_zone"]["tabs"] == ["manage"])
+kiem("khai `can_zone` → gom vào `kho.CAN_ZONE`, không phải danh sách gõ tay thứ hai",
+     "lenh_thuoc_zone" in kho.CAN_ZONE)
+
+_so = so_lenh.SoLenh()
+_z1 = _so.mo_zone(0)
+_z1.them_nen(101.0, 99.0, 1.0)
+_l = _so.mo_lenh(zone_id=_z1.id, sinh_tai="x", huong="mua", loai="stop", lot=0.01,
+                  gia_dat=102.0, sl=101.0, tp=104.0, R=1.0, nen=1)
+
+
+class _CtxGia:
+    """Đủ để gọi `_lay_toan_hang` cho một toán hạng nhóm "Lệnh này".
+
+    `ct` chỉ mang đúng `COT_GIA` — thứ `_lay_toan_hang` phải hỏi để loại nhóm GIÁ trước
+    khi tới nhóm "Lệnh này". Cố ý không đưa gì thêm: nhánh này chỉ được hỏi SỔ LỆNH, đụng
+    tới chương trình đã biên dịch là `AttributeError` ngay tại đây chứ không im lặng."""
+    class _Ct:
+        COT_GIA = bc.ChuongTrinh.COT_GIA
+
+    def __init__(self, so, lenh):
+        self.so, self.lenh, self.ct = so, lenh, self._Ct()
+
+
+def _thuoc(so, lenh):
+    return bc._lay_toan_hang({"ten": "lenh_thuoc_zone"}, _CtxGia(so, lenh))
+
+
+kiem("zone còn sống và vẫn là nó → ĐÚNG", _thuoc(_so, _l) is True)
+_so.dong_zone()
+kiem("zone chết, chưa có zone mới → SAI", _thuoc(_so, _l) is False)
+_z2 = _so.mo_zone(9)
+_z2.them_nen(120.0, 118.0, 1.0)
+kiem("đã có zone MỚI → vẫn SAI (lệnh thuộc zone cũ)", _thuoc(_so, _l) is False)
+_l2 = _so.mo_lenh(zone_id=_z2.id, sinh_tai="x", huong="mua", loai="stop", lot=0.01,
+                   gia_dat=121.0, sl=120.0, tp=123.0, R=1.0, nen=10)
+kiem("lệnh của zone MỚI thì ĐÚNG — so theo id, không so đối tượng",
+     _thuoc(_so, _l2) is True)
 
 # ---- ZONE THỬ: cổng zone phán xét HẬU QUẢ nó sắp gây ra (core.md §12.6c) ------------
 #

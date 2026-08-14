@@ -382,6 +382,14 @@ def _lay_toan_hang(o, ctx):
         return bool(l.sl_o_hoa_von)
     if ten == "lenh_lai_R":
         return float(l.lai_R(_gia_thoat(l, ctx.bid, ct.cd)))
+    if ten == "lenh_thuoc_zone":
+        # `zone_hien_hanh()` CHỈ trả zone còn SỐNG, nên một phép so id gộp trọn ba ca:
+        # zone ấy đã chết mà chưa có zone mới (None) · đã có zone khác · vẫn là nó.
+        #
+        # ⚠ So ID chứ không so đối tượng: zone là thứ mutate liên tục, mà `Lenh.zone_id`
+        # thì chốt cứng lúc đặt. Id là chỗ duy nhất hai bên gặp nhau mà không ai đổi.
+        v = ctx.so.zone_hien_hanh()
+        return bool(v is not None and l.zone_id == v.id)
     raise LoiChay(f'Toán hạng "{ten}" chưa được cài trong bộ chạy.')
 
 

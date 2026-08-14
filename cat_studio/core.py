@@ -1628,7 +1628,44 @@ def khoi_sau_cong_zone(steps, edges):
     return toi
 
 
-def _soat_cong_zone(steps, edges, tab):
+def khoi_doc_duoc_zone(doc):
+    """`{tab: set(id)}` — khối nào được phép **ĐỌC** toán hạng zone. Nhìn CẢ tài liệu.
+
+    ⭐ ĐỊNH NGHĨA zone và ĐỌC zone là hai chuyện khác nhau — trước đây bị gộp làm một.
+
+    Luật cũ chỉ nhìn TỪNG TAB: `khoi_sau_cong_zone(steps, edges)` của tab nào tính trên
+    khối của tab đó. Manage thì **không được phép** có cổng zone (nó chạy một lượt cho
+    MỖI lệnh đang sống, đặt cổng đếm ở đó là một cây nến bị đếm nhiều lần) — nên
+    `sau_cong_zone` của Manage luôn RỖNG, và Manage **vĩnh viễn không đọc được zone**.
+    Hai luật đúng cộng lại thành một cái bẫy.
+
+    Mà bộ chạy thì đọc được bình thường: zone nằm trong **sổ dùng chung** (`ctx.so`),
+    không thuộc tab nào. Đo được — cho cổng `[1A]` của Manage đọc `Zone — đỉnh (HH)` thì
+    nó ra `2627.998`, một cái giá thật. Chỉ soát tĩnh và dropdown chặn.
+
+    Cùng lý lẽ §5 đã viết cho cổng rẽ nhánh: *đọc* thì lặp lại bao nhiêu lần cũng vô
+    hại, chỉ *tác động* mới không rút lại được. Cấm Manage ĐỊNH NGHĨA zone là đúng; cấm
+    nó ĐỌC là quét nhầm.
+
+    ⚠ Manage đọc zone của lượt Entry **TRƯỚC ĐÓ**, vì trong một nến thì Manage chạy
+    trước Entry (§6.0). Đó là sự thật của thứ tự, không phải sai sót — và Manage nhịp M1
+    còn thấy cùng một zone suốt 5 nhịp giữa hai lượt Entry. Ai hỏi "zone lúc này" ở
+    Manage thì phải hiểu là zone tính tới hết nến trước."""
+    ra = {}
+    entry = (doc or {}).get(TAB_ENTRY) or {}
+    st_e, ed_e = entry.get("steps") or [], entry.get("edges")
+    ra[TAB_ENTRY] = khoi_sau_cong_zone(
+        st_e, default_edges(st_e) if ed_e is None else ed_e)
+    # Entry đã định nghĩa zone thì tới lượt Manage chạy, zone ĐÃ TỒN TẠI — mọi khối
+    # Manage đọc được, không cần (và không thể) đi qua một cổng zone nào của riêng nó.
+    co_cong = any(isinstance(s, dict) and s.get("cong_zone") for s in st_e)
+    st_m = ((doc or {}).get(TAB_MANAGE) or {}).get("steps") or []
+    ra[TAB_MANAGE] = {s.get("id") for s in st_m if isinstance(s, dict)} if co_cong \
+        else set()
+    return ra
+
+
+def _soat_cong_zone(steps, edges, tab, cho_doc=None):
     """ZONE PHẢI ĐƯỢC MỘT CỔNG ĐỊNH NGHĨA, và cổng đó phải đứng TRƯỚC.
 
     ⚠ Đây là luật thay cho cỗ máy ẩn cũ. Trước đây zone tự có mặt vì một hàm chạy ngoài
@@ -1655,22 +1692,26 @@ def _soat_cong_zone(steps, edges, tab):
         loi(f"Có {len(cong)} cổng zone. Chỉ được MỘT — hai cổng cùng nuôi một zone thì "
             "cái sau đè cái trước, và không ai đọc ra được zone đang đếm theo luật nào.",
             cong[1])
-    if can and not cong:
+    # `cho_doc` = khối nào ĐƯỢC PHÉP đọc zone, do `khoi_doc_duoc_zone` tính trên CẢ tài
+    # liệu. Manage không có cổng zone của riêng nó nhưng vẫn đọc được — zone do Entry
+    # định nghĩa, và tới lượt Manage chạy thì nó đã tồn tại.
+    toi = khoi_sau_cong_zone(steps, edges) if cho_doc is None else cho_doc
+    if can and not toi:
         ten = ", ".join(sorted({v for _, v in can})[:3])
         loi(f"Sơ đồ đọc {ten} nhưng KHÔNG có cổng zone nào. Zone do một cổng điều kiện "
             f"định nghĩa — hãy đánh dấu cổng nào là điều kiện đếm (ví dụ "
             f'"ATR chuẩn hoá < ngưỡng"), rồi đặt các khối hỏi về zone SAU nó.')
         return ra
-    if not cong:
+    if not cong and tab != TAB_MANAGE:
         return ra
 
     # Khối hỏi về zone phải TỚI ĐƯỢC từ cổng zone — đứng trước hoặc ở nhánh khác thì
     # nó đang hỏi zone của nến TRƯỚC, một câu hỏi không ai định nghĩa.
-    toi = khoi_sau_cong_zone(steps, edges)
     for st, vs in can:
         if st.get("id") not in toi:
+            ten_cong = (cong[0].get("name") if cong else None) or "cổng zone"
             loi(f'Khối này đọc {vs} nhưng KHÔNG nằm sau cổng zone. Nối nó vào sau '
-                f'"{cong[0].get("name") or "cổng zone"}" — hỏi về zone trước khi zone '
+                f'"{ten_cong}" — hỏi về zone trước khi zone '
                 f"được định nghĩa thì không có câu trả lời nào đúng.", st)
     return ra
 
@@ -1831,10 +1872,13 @@ def validate_process(doc):
                 "message": f'Tham số "{ten}" bị khai {n} lần. Bộ chạy lấy dòng ĐẦU, chữ '
                            f"trên khối lấy dòng CUỐI — hai nơi nói hai số khác nhau. "
                            f"Lưu lại còn xoá mất những dòng sau. Hãy xoá bớt cho còn một."})
+    # MỘT phép duyệt cho cả hai tab, dùng chung với giao diện (`api.validate`).
+    cho_zone = khoi_doc_duoc_zone(doc)
     for tab in TABS:
         g = (doc or {}).get(tab) or {}
         ra += validate_so_do(g.get("steps") or [], g.get("edges"), tab, ten_ts)
-        ra += _soat_cong_zone(g.get("steps") or [], g.get("edges") or [], tab)
+        ra += _soat_cong_zone(g.get("steps") or [], g.get("edges") or [], tab,
+                              cho_zone.get(tab))
 
     # Manage phải chạy NHANH BẰNG HOẶC HƠN Entry. Chậm hơn nghĩa là lệnh vừa sinh phải
     # nằm chờ qua vài nhịp mới được quản lý — SL/hoà vốn phản ứng trễ hơn cả lúc vào

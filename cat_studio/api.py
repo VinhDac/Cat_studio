@@ -424,6 +424,10 @@ class Api(NenCuaSo):
         Soát cả hai tab chứ không chỉ tab đang mở: giấu lỗi của tab kia thì bấm ▶ Chạy
         mới lòi ra, mà lúc đó không ai hiểu vì sao."""
         probs = core.validate_process(doc)
+        # Khối nào ĐỌC được toán hạng zone — tính trên CẢ tài liệu, đúng một lần, và là
+        # CÙNG hàm mà `validate_process` vừa dùng. Manage không có cổng zone của riêng nó
+        # nhưng vẫn đọc được: zone do Entry định nghĩa, tới lượt Manage chạy đã có sẵn.
+        cho_zone = core.khoi_doc_duoc_zone(doc)
         luong = {}
         for tab in core.TABS:
             g = (doc or {}).get(tab) or {}
@@ -440,8 +444,7 @@ class Api(NenCuaSo):
                 # hạng zone và đơn vị `× ATR zone` ở chỗ zone chưa tồn tại. Trả kèm ở
                 # đây thay vì thêm một lệnh riêng: sơ đồ đổi là bảng này đổi theo, không
                 # có đường nào để hai bên lệch nhau.
-                "sau_cong_zone": sorted(core.khoi_sau_cong_zone(
-                    st, core.default_edges(st) if ed is None else ed)),
+                "sau_cong_zone": sorted(cho_zone.get(tab) or ()),
             }
         return _ok(probs,
                    so_loi=sum(1 for p in probs if p["severity"] == "error"),
@@ -633,6 +636,15 @@ class Api(NenCuaSo):
         self._doc_tester = doc
         if self._tester is not None:
             self._tester.set_title(f"{doc['name']} — Strategy Tester")
+            # ⚠ KÉO LÊN TRƯỚC, rồi mới bắn sơ đồ. Thiếu dòng này thì bấm ▶ lần hai trông
+            # y như nút hỏng: tester CÓ chạy lại thật, nhưng chạy sau lưng cửa sổ vẽ nên
+            # không thấy gì nhúc nhích — người dùng phải đóng hẳn cửa sổ tester để ép nó
+            # tạo lại. `mo_live` đã ghi đúng bài học này cho nút ● Live; tester bị sót.
+            #
+            # Trước khi bắn chứ không sau: `_ban` gọi `evaluate_js` ĐỒNG BỘ và lượt chạy
+            # bắt đầu ngay trong đó, nên đưa cửa sổ lên sau là người dùng mất đúng cái
+            # đáng xem nhất — thanh tiến trình chạy từ đầu.
+            self._api_tester._khung.keo_len_truoc()
             # Cửa sổ còn sống: đẩy sơ đồ mới xuống, nó TỰ CHẠY LẠI. Bấm ▶ là chạy, không
             # phải mở ra một bảng cài đặt nữa rồi bấm tiếp.
             self._api_tester._ban("so_do_moi", doc)
