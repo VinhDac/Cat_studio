@@ -334,6 +334,73 @@ kiem("cổng zone đặt ở Manage → VẪN bị chặn (đếm một cây n�
 # Lệnh chờ neo vào MÉP một zone. Zone ấy chết là cái neo hết nghĩa — nên câu cần hỏi là
 # "zone đẻ ra lệnh này còn hiện hành không", chứ không phải đoán gián tiếp qua ATR.
 # `zone_hien_hanh()` chỉ trả zone còn SỐNG, nên một phép so id gộp trọn ba ca.
+# ---- HỢP LỆ là một KHÁI NIỆM, viết MỘT lần (core.md §12.6f) -------------------------
+#
+# Ranh giới giữa hai danh sách của cổng zone là câu "trượt vế này nghĩa là gì":
+#     "nén HỎNG rồi"  → phần ĐẾM    → zone chết
+#     "chưa TỚI LÚC"  → phần HỢP LỆ → zone sống, đếm tiếp
+# Đặt nhầm `số nến ≥ K` vào phần đếm là khoá chết: nến đầu tiên của mọi zone đều có 1
+# nến, nên cổng trượt ngay và zone KHÔNG BAO GIỜ hình thành. Đo được: 0 zone cả năm.
+print("\n▸ 8c'. Cổng zone có HAI danh sách — đếm và hợp lệ")
+
+_DK_HL = [{"trai": {"ten": "zone_dem"}, "phep": ">=", "phai": {"value": 3}}]
+
+
+def so_do_hl(dk_hop_le=None, hoi_o=None):
+    """Sơ đồ zone, thêm phần `dk_hop_le` và (tuỳ chọn) một cổng hỏi `Zone hợp lệ`."""
+    d = so_do(DK_NEN)
+    g = next(s for s in d["entry"]["steps"] if s.get("cong_zone"))
+    if dk_hop_le is not None:
+        g["dk_hop_le"] = dk_hop_le
+    if hoi_o == "cong_zone":
+        g["conditions"] = list(g["conditions"]) + [
+            {"trai": {"ten": "zone_hop_le"}, "phep": "la_dung"}]
+    elif hoi_o == "sau":
+        v = next(s for s in d["entry"]["steps"] if s.get("type") == core.VAO_LENH)
+        h = core.make_action_step({"id": "h1", "type": core.CHECK_COND, "name": "hỏi",
+                                   "conditions": [{"trai": {"ten": "zone_hop_le"},
+                                                   "phep": "la_dung"}]})
+        h["pos"] = [1.5, 0.0]
+        d["entry"]["steps"].insert(2, h)
+        d["entry"]["edges"] = [e for e in d["entry"]["edges"] if e["to"] != v["id"]]
+        d["entry"]["edges"] += [{"from": "g1", "to": "h1"}, {"from": "h1", "to": v["id"]}]
+    return core.normalize_process(d)
+
+
+kiem("chuẩn hoá GIỮ `dk_hop_le`", so_do_hl(_DK_HL)["entry"]["steps"][1].get("dk_hop_le"))
+kiem("thẻ hiện CẢ HAI phần, có nhãn riêng",
+     sum(1 for x in core.dong_khoi(so_do_hl(_DK_HL)["entry"]["steps"][1], {}, "entry")
+         if x.startswith("⬗")) == 2)
+kiem("khai đúng + hỏi ở khối SAU → KHÔNG lỗi", not loi(so_do_hl(_DK_HL, "sau")),
+     f"— {(loi(so_do_hl(_DK_HL, 'sau')) or [''])[0][:60]}")
+kiem("hỏi `Zone hợp lệ` mà CHƯA khai → lỗi rõ ràng",
+     any("chưa khai phần HỢP LỆ" in m for m in loi(so_do_hl(None, "sau"))))
+kiem("cổng zone TỰ hỏi `Zone hợp lệ` → lỗi (vòng tròn)",
+     any("kết quả của chính nó" in m for m in loi(so_do_hl(_DK_HL, "cong_zone"))))
+
+# Ca thật: một CỔNG THƯỜNG mang phần hợp lệ (file sửa tay — giao diện chỉ bày ô đó ra ở
+# cổng zone). Phải KÊU chứ không vứt lặng, đúng bài học §13.0d: normalize xoá trước thì
+# validator không bao giờ được nhìn thấy để nói ra.
+_dkhac = so_do_hl(_DK_HL, "sau")
+next(s for s in _dkhac["entry"]["steps"]
+     if s.get("id") == "h1")["dk_hop_le"] = list(_DK_HL)
+kiem("`dk_hop_le` trên cổng THƯỜNG → lỗi (không vứt lặng)",
+     any("chỉ đặt được trên CỔNG ZONE" in m
+         for m in loi(core.normalize_process(_dkhac))))
+
+# CHẠY THẬT — phần hợp lệ KHÔNG chặn zone lớn lên, chỉ chặn chỗ nào hỏi tới nó.
+_kq_hl = chay(so_do_hl(_DK_HL), YEN + DONG)
+kiem("zone vẫn hình thành và lớn bình thường dù phần hợp lệ chưa đạt lúc đầu",
+     len(_kq_hl.so.zone) >= 1 and _kq_hl.so.zone[0].so_nen >= 3,
+     f"— {_kq_hl.so.zone[0].so_nen if _kq_hl.so.zone else 0} nến")
+# ⚠ Ca khoá chết: `số nến` để nhầm vào phần ĐẾM thì zone không bao giờ ra đời.
+_dchet = so_do(DK_NEN)
+_gz = next(s for s in _dchet["entry"]["steps"] if s.get("cong_zone"))
+_gz["conditions"] = list(_gz["conditions"]) + [
+    {"trai": {"ten": "zone_dem"}, "phep": ">=", "phai": {"value": 3}}]
+kiem("để `số nến ≥ K` vào phần ĐẾM → 0 zone (đòi zone lớn trước khi được phép lớn)",
+     len(chay(core.normalize_process(_dchet), YEN + DONG).so.zone) == 0)
+
 print("\n▸ 8d. `lenh_thuoc_zone` — zone đẻ ra lệnh này còn hiện hành không")
 
 kiem("là toán hạng ĐÚNG/SAI", "lenh_thuoc_zone" in core.TOAN_HANG_DUNG_SAI)

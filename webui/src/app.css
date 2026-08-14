@@ -1883,3 +1883,19 @@ select.o { cursor: pointer; }
 .lv-moc-lap { margin: 10px 0 2px; font-size: 11px; color: var(--dim);
               letter-spacing: .04em; border-top: 1px dashed var(--border);
               padding-top: 6px; }
+
+/* PHẦN HỢP LỆ của cổng zone — danh sách điều kiện THỨ HAI trong cùng hộp thoại.
+   Tách hẳn bằng một vạch và một dải nhuộm, vì hai danh sách nhìn giống hệt nhau mà
+   làm hai việc khác nhau: phần trên trượt là zone CHẾT, phần này trượt thì zone vẫn
+   sống. Trông giống nhau mà nghĩa khác nhau là chỗ đọc nhầm dễ nhất. */
+.khoi-hop-le {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 9px 10px;
+  border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}

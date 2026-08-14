@@ -533,6 +533,9 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
   }
 
   const conds: HD[] = a.conditions ?? []
+  /** Danh sách điều kiện THỨ HAI của cổng zone — định nghĩa "hợp lệ". Xem `dk_hop_le`
+   *  trong `core.normalize_action`. */
+  const hopLe: HD[] = (a.dk_hop_le as HD[] | undefined) ?? []
 
   /** Đổi CƠ CHẾ so sánh của cả khối — viết lại vế phải của MỌI dòng.
    *
@@ -645,6 +648,40 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
                 zone chết. Các khối hỏi về zone phải nối SAU nó.
               </span>
             </label>
+          )}
+
+          {/* ⭐ PHẦN HỢP LỆ — danh sách điều kiện THỨ HAI, chỉ hiện khi đã bật Cổng ZONE.
+              Nó KHÔNG chặn dòng chảy: trượt thì zone vẫn sống, chỉ là chưa dùng được.
+              Ranh giới với phần đếm ở trên là câu "trượt vế này nghĩa là gì" — nén HỎNG
+              thì để trên (zone chết), CHƯA TỚI LÚC thì để đây. */}
+          {tab === 'entry' && a.cong_zone && (
+            <div className="khoi-hop-le">
+              <div className="chu-dan">
+                <b>Zone thế nào là HỢP LỆ</b> — viết một lần ở đây, rồi mọi cổng khác
+                (kể cả bên Manage) chỉ việc hỏi <b>Zone hợp lệ</b>. Trượt phần này thì
+                zone <b>vẫn sống</b> và đếm tiếp, chỉ là chưa dùng được.
+                <br />
+                Ranh giới với phần trên: trượt nghĩa là <b>"nén hỏng rồi"</b> thì để ở
+                phần đếm (zone chết); trượt nghĩa là <b>"chưa tới lúc"</b> thì để ở đây.
+              </div>
+              {hopLe.map((c, i) => (
+                <DongDieuKien key={i} c={c} boot={boot} tab={tab} thamSo={thamSo}
+                              so={i + 1} coZone haiBen={false}
+                              dat={v => dat('dk_hop_le',
+                                hopLe.map((x, k) => (k === i ? v : x)))}
+                              xoa={() => dat('dk_hop_le',
+                                hopLe.filter((_, k) => k !== i))} />
+              ))}
+              {!hopLe.length && (
+                <div className="dong rong">
+                  chưa khai — hỏi "Zone hợp lệ" ở nơi khác sẽ báo lỗi
+                </div>
+              )}
+              <button className="nut"
+                      onClick={() => dat('dk_hop_le', [...hopLe, dongMoi()])}>
+                + Thêm điều kiện hợp lệ
+              </button>
+            </div>
           )}
         </div>
       )}

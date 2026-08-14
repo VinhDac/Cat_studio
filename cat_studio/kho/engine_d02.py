@@ -77,6 +77,19 @@ TOAN_HANG = [
     {"key": "zone_atr_tb", "nhan": "Zone — ATR trung bình", "nhom": "Zone",
      "loai": "khoang_cach", "tham_so": [],
      "mo_ta": "Đo mức nhiễu thật suốt cú nén → dùng nó định nghĩa 1R."},
+    # ⭐ HỢP LỆ là một KHÁI NIỆM, không phải một bộ điều kiện chép đi chép lại.
+    #
+    # Định nghĩa nằm ở phần "hợp lệ" của chính cổng zone (`dk_hop_le`), viết MỘT lần.
+    # Ở đây chỉ là cái tên để mọi nơi khác gọi tới — Entry hỏi trước khi sinh lệnh,
+    # Manage hỏi trước khi huỷ lệnh chờ. Trước đó phải chép hai vế `số nến ≥ K` và
+    # `bề rộng ≤ N` sang từng cổng, và hai bản chép thì sớm muộn lệch nhau.
+    #
+    # KHÔNG cất trạng thái: đây là hàm thuần của zone lúc này, tính lại mỗi lần được
+    # hỏi. Máy trạng thái 5 giá trị của bản gốc vẫn không quay lại (§7.5).
+    {"key": "zone_hop_le", "nhan": "Zone hợp lệ", "nhom": "Zone",
+     "loai": "dung_sai", "dung_sai": True, "tham_so": [],
+     "mo_ta": "Zone hiện hành có đạt phần \"hợp lệ\" của cổng zone không. Chưa có zone "
+              "→ CHƯA CÓ SỐ (cổng trượt), không phải SAI."},
     {"key": "zone_da_sinh_lenh", "nhan": "Zone này đã sinh lệnh", "nhom": "Zone",
      "loai": "dung_sai", "tham_so": [], "dung_sai": True,
      "mo_ta": "Thay cho `COMP_CONSUMED`. Không phải cờ ẩn: là phép tra sổ lệnh xem có "
@@ -175,6 +188,11 @@ class Engine:
         # zone SẼ THÀNH nếu nến này được nuốt (`bo_chay._dat_zone_thu`). Mọi khối khác
         # đọc zone thật. Nhờ nó mà cổng zone hỏi được về chính zone nó sắp tạo ra.
         thu = ctx.zone_thu
+        if ten == "zone_hop_le":
+            # Bộ chạy trả lời, không phải engine: nó phải đánh giá lại cả một danh sách
+            # điều kiện, mà phép so + quy đổi đơn vị nằm ở `bo_chay`. Engine hỏi qua
+            # `ctx` đúng như nó vẫn hỏi `ctx.so` và `ctx.chi_bao`.
+            return ctx.zone_hop_le()
         if ten == "zone_da_sinh_lenh":
             # ⚠ Phải tra theo ID CỦA BẢN THỬ. Bỏ id đi thì `zone_da_sinh_lenh()` tự lấy
             # zone hiện hành — mà lúc có lỗ hổng dữ liệu, zone hiện hành là zone CŨ (đã
@@ -197,4 +215,4 @@ class Engine:
 #: Toán hạng nào do Engine trả lời. `atr_bps` KHÔNG nằm đây — nó là chỉ báo thuần,
 #: `tinh_toan.py` tính, không cần biết vùng nén là gì.
 ENGINE_TRA_LOI = ("zone_dem", "zone_HH", "zone_LL", "zone_range",
-                  "zone_atr_tb", "zone_da_sinh_lenh")
+                  "zone_atr_tb", "zone_da_sinh_lenh", "zone_hop_le")

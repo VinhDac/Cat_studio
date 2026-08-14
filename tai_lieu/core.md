@@ -1805,6 +1805,82 @@ không bị đụng tới, đây thuần là tầng hiển thị. `tests/test_so
 hàng lẫn **danh sách cột engine không đổi** — trước lượt này không bài nào gọi
 `toan_hang_dung`, dù cả bảng lẫn bộ chạy đều treo vào nó.
 
+#### 12.6f ⭐⭐ CỔNG ZONE CÓ HAI DANH SÁCH — *đếm* và *hợp lệ*
+
+*"ta chưa định nghĩa ra thế nào là một zone chuẩn chỉ, khiến cả bài toán rối hơn."*
+
+Đúng, và nó vừa đẻ ra một sơ đồ **chết hẳn**: người dùng đưa `Zone — số nến ≥ 10` vào
+cổng zone, soát tĩnh báo SẠCH, chạy một năm ra **0 zone · 0 lệnh**.
+
+**Vì sao:** cổng zone hỏi *"nến này có được vào zone không"* và được xét trên **zone thử**
+(§12.6c) — zone thử của cây nến đầu tiên luôn có đúng **1** nến. `1 ≥ 10` sai ⇒ zone chết
+⇒ nến sau lại bắt đầu từ 1 ⇒ **không bao giờ chín được**. Đòi zone phải lớn trước khi nó
+được phép lớn.
+
+##### Luật phân loại — hỏi "TRƯỢT vế này nghĩa là gì"
+
+```
+"nén HỎNG rồi"   → phần ĐẾM      → zone CHẾT
+"chưa TỚI LÚC"   → phần HỢP LỆ   → zone SỐNG, đếm tiếp
+```
+
+| điều kiện | trượt nghĩa là | thuộc về |
+|---|---|---|
+| `bề rộng ≤ N × ATR` | giá đã bung ra khỏi khoảng — **nén hỏng** | **ĐẾM** |
+| `số nến ≥ K` | mới được 4 nến — **chưa tới lúc** | **HỢP LỆ** |
+
+⚠ Bề rộng **phải** ở phần ĐẾM mới ngắt được zone. Để nó ở phần HỢP LỆ thì zone vẫn sống,
+vẫn phình, chỉ là không dùng được — và vẫn **chặn zone mới** (mỗi lúc chỉ một zone). Đúng
+cảnh trước §12.6c: phình trung vị 1,93×, lớn nhất **17×**.
+
+##### Một khối, hai danh sách
+
+`dk_hop_le` là danh sách điều kiện **thứ hai** trên chính cổng zone, cùng hình dạng với
+`conditions` và đi qua **cùng một** phép chuẩn hoá (`_chuan_dieu_kien`) và **cùng một**
+phép so (`_xet_dieu_kien`) — chép ra bản thứ hai là sớm muộn một bản quên quy đổi đơn vị.
+
+- Phần **đếm** quyết dòng chảy như mọi cổng: qua thì đi tiếp, trượt thì hết lượt.
+- Phần **hợp lệ** **không** chặn gì. Nó chỉ định nghĩa toán hạng `Zone hợp lệ`.
+
+Nhờ đó *"hợp lệ"* được viết ra **đúng một lần**. Trước đây phải chép `số nến ≥ K` và
+`bề rộng ≤ N` sang từng cổng cần hỏi — Entry `[3]` một bản, Manage `[1A]` một bản — và
+hai bản chép thì sớm muộn lệch nhau (đúng thứ §6.4 dựng bảng tham số ra để chống).
+
+```
+[2]  ⬗ CỔNG ZONE · ĐẾM    atr < 7 · bề rộng ≤ zone_range_max
+     ⬗ HỢP LỆ khi         số nến ≥ zone_can_nen
+[3]  Zone này đã sinh lệnh là SAI  và  Zone hợp lệ là ĐÚNG
+[4]  → sinh lệnh
+```
+
+##### `Zone hợp lệ` KHÔNG mang máy trạng thái quay lại
+
+§7.5 cố ý bỏ `IDLE/COUNTING/CONFIRMED/…`, nên phải nói rõ chỗ khác nhau:
+
+> Máy trạng thái là **nhớ một trạng thái**. Cái này là **đặt tên cho một điều kiện**, rồi
+> tính lại mỗi lần được hỏi — `Ctx.zone_hop_le()` là hàm thuần của zone lúc này, không
+> cất gì cả. Cùng lý lẽ bảng tham số dùng cho những con số: đặt tên một lần, dùng nhiều
+> nơi, sửa một chỗ.
+
+Chưa có zone, hoặc chưa khai `dk_hop_le` → **NaN** (cổng trượt), không phải SAI. Trả SAI
+thì `KHÔNG Zone hợp lệ` hoá ĐÚNG giữa lúc chẳng có zone nào — đúng loại nói dối §12.13 cấm.
+
+⚠ **Đọc zone THẬT, không đọc zone thử.** "Hợp lệ" nói về cây zone đã chốt; zone thử chỉ
+tồn tại trong đúng lúc phần đếm đang cân nhắc có nuốt nến này không.
+
+##### Bốn phép soát
+
+| | |
+|---|---|
+| hỏi `Zone hợp lệ` mà chưa khai `dk_hop_le` | **lỗi** — hỏi một khái niệm chưa ai định nghĩa |
+| cổng zone tự hỏi `Zone hợp lệ` | **lỗi** — vòng tròn, đó là kết quả của chính nó |
+| `dk_hop_le` trên cổng KHÔNG phải cổng zone | **lỗi** — và `normalize` cố ý **GIỮ** nó lại để validator nói được (bài học §13.0d: xoá trước thì validator không bao giờ thấy) |
+| `số nến ≥ K` đặt nhầm vào phần đếm | bài kiểm canh: **0 zone** |
+
+**Đo:** cấu trúc mới cho ra **853 lệnh · −16,08 R** — **trùng khít** bản cũ đặt đúng hai
+điều kiện đó theo lối chép tay. Cơ chế không đổi kết quả, chỉ đổi chỗ viết. Và sơ đồ mẫu
+(chưa dùng `dk_hop_le`) vẫn **550 lệnh · −19,52 R · DD 1,08 %**, không lệch một con số.
+
 #### 12.6d ✅ MANAGE ĐỌC ĐƯỢC ZONE — định nghĩa và đọc là hai chuyện
 
 *"tại sao bên tab Manage, phần điều kiện không có điều kiện zone. Entry vẫn có."*

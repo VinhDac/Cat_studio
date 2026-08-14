@@ -737,7 +737,13 @@ def dong_khoi(a, tham_so=None, tab=None):
         # CỔNG ZONE phải nhìn thấy được trên hộp. Nó không chỉ hỏi — nó ĐỊNH NGHĨA
         # zone cho mọi khối phía sau, và đó là chuyện lớn nhất một cổng có thể làm.
         if a.get("cong_zone"):
-            ds.insert(0, "⬗ CỔNG ZONE — qua thì zone lớn, trượt thì zone chết")
+            ds.insert(0, "⬗ CỔNG ZONE · ĐẾM — qua thì zone lớn, trượt thì zone chết")
+            # ĐỊNH NGHĨA "hợp lệ" nằm ngay dưới phần đếm, trong CÙNG một khối. Hai danh
+            # sách, hai việc, và ranh giới là "trượt vế này nghĩa là gì": nén HỎNG thì ở
+            # trên (zone chết), CHƯA TỚI LÚC thì ở dưới (zone sống, chờ tiếp).
+            if a.get("dk_hop_le"):
+                ds.append("⬗ HỢP LỆ khi — zone vẫn sống dù chưa đạt")
+                ds += [cond_display(c, tham_so) for c in a["dk_hop_le"]]
         return ds
 
     def khoang(k):
@@ -1705,6 +1711,36 @@ def _soat_cong_zone(steps, edges, tab, cho_doc=None):
     if not cong and tab != TAB_MANAGE:
         return ra
 
+    # ---- ĐỊNH NGHĨA "hợp lệ" (`dk_hop_le`) ------------------------------------
+    # `normalize_action` chỉ giữ `dk_hop_le` trên cổng zone, nên khối khác mang nó là
+    # file sửa tay — im lặng vứt đi thì người dùng mất một định nghĩa mà không hay.
+    for st in steps:
+        if isinstance(st, dict) and st.get("dk_hop_le") and not st.get("cong_zone"):
+            loi("Phần \"hợp lệ\" chỉ đặt được trên CỔNG ZONE — chính cổng định nghĩa "
+                "zone mới định nghĩa được thế nào là zone dùng được.", st)
+
+    def _hoi_hop_le(st, khoa="conditions"):
+        """Khối này có hỏi `Zone hợp lệ` trong danh sách `khoa` không."""
+        return any((c.get("trai") or {}).get("ten") == "zone_hop_le"
+                   or ((c.get("phai") or {}).get("ten") == "zone_hop_le"
+                       if isinstance(c.get("phai"), dict) else False)
+                   for c in st.get(khoa) or [] if isinstance(c, dict))
+
+    co_dinh_nghia = any(s.get("dk_hop_le") for s in cong)
+    dung_hop_le = [s for s in steps if isinstance(s, dict) and _hoi_hop_le(s)]
+    if dung_hop_le and not co_dinh_nghia:
+        loi("Sơ đồ hỏi \"Zone hợp lệ\" nhưng cổng zone chưa khai phần HỢP LỆ — đang hỏi "
+            "một khái niệm chưa ai định nghĩa. Mở cổng zone ra và điền điều kiện hợp lệ "
+            "(ví dụ \"Zone — số nến ≥ ngưỡng\").", dung_hop_le[0])
+    # ⚠ VÒNG TRÒN. Phần ĐẾM của cổng zone chạy trước khi zone được chốt, mà "hợp lệ" lại
+    # đo trên zone đã chốt — nên hỏi `Zone hợp lệ` ngay trong phần đếm là hỏi kết quả của
+    # chính cây nến đang được cân nhắc. Bộ chạy trả NaN nên cổng trượt vĩnh viễn: zone
+    # không bao giờ hình thành, và không có gì báo.
+    for s in cong:
+        if _hoi_hop_le(s) or _hoi_hop_le(s, "dk_hop_le"):
+            loi("Cổng zone không hỏi được \"Zone hợp lệ\" — đó là kết quả của chính nó. "
+                "Điều kiện hợp lệ viết thẳng vào phần HỢP LỆ, đừng hỏi vòng lại.", s)
+
     # Khối hỏi về zone phải TỚI ĐƯỢC từ cổng zone — đứng trước hoặc ở nhánh khác thì
     # nó đang hỏi zone của nến TRƯỚC, một câu hỏi không ai định nghĩa.
     for st, vs in can:
@@ -2057,7 +2093,10 @@ def toan_hang_dung(doc):
 
     for tab in TABS:
         for st in (doc.get(tab) or {}).get("steps") or []:
-            for c in st.get("conditions") or []:
+            # `dk_hop_le` cũng đọc toán hạng thật — bảng số liệu phải thấy chúng, và
+            # `bo_chay` lấy danh sách cột engine từ chính hàm này (§12.9b). Bỏ sót thì
+            # engine không ghi cột, hàng trống, và không ai hiểu vì sao.
+            for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or []):
                 p_ = c.get("phai")
                 dv = don_vi_tai_cho_doc(c.get("trai"), p_)
                 them(c.get("trai"), dv)
@@ -2200,9 +2239,12 @@ def normalize_action(a):
             hai_ben = any(isinstance(c, dict) and isinstance(c.get("phai"), dict)
                           and c["phai"].get("ten")
                           for c in a.get("conditions") or [])
-        for c in a.get("conditions") or []:
+        def _chuan_dieu_kien(c, hai_ben):
+            """MỘT điều kiện → hình dạng chuẩn. Dùng chung cho `conditions` và
+            `dk_hop_le` — hai danh sách cùng hình dạng thì phải cùng một phép chuẩn hoá,
+            chép ra hai bản là sớm muộn một bản quên `DON_VI_CU` hoặc quên `PHEP_CU`."""
             if not isinstance(c, dict):
-                continue
+                return None
             m = {"trai": _chuan_toan_hang(c.get("trai")),
                  "phep": PHEP_CU.get(c.get("phep"), c.get("phep")) or "<"}
             ten = (m["trai"] or {}).get("ten")
@@ -2215,16 +2257,14 @@ def normalize_action(a):
                 p_ = c.get("phai")
                 m["phai"] = (_chuan_toan_hang(p_)
                              if isinstance(p_, dict) and p_.get("ten") else {"ten": ""})
-                ds.append(m)
-                continue
+                return m
 
             # ĐÚNG/SAI: `dao` cũ thành một PHÉP SO. Hết ô tick ngoại lệ — mọi điều kiện
             # từ đây có cùng một hình dạng `[đại lượng] [phép] [lượng]`.
             if _la_toan_hang_dung_sai(ten):
                 m["phep"] = ("la_sai" if (c.get("dao") or m["phep"] == "la_sai")
                              else "la_dung")
-                ds.append(m)
-                continue
+                return m
             if m["phep"] in PHEP_DUNG_SAI:
                 m["phep"] = "<"          # toán hạng số mà mang phép đúng/sai → vô nghĩa
 
@@ -2257,10 +2297,33 @@ def normalize_action(a):
                 if dv and dv != "gia" and dv in DON_VI and dv in don_vi_cho(ten):
                     q["tinh"] = dv
                 m["phai"] = q
-            ds.append(m)
+            return m
+
+        ds = [x for x in (_chuan_dieu_kien(c, hai_ben)
+                          for c in a.get("conditions") or []) if x]
         ra["conditions"] = ds
         if hai_ben:
             ra["so_dai_luong"] = True
+        # ⭐ DANH SÁCH ĐIỀU KIỆN THỨ HAI: định nghĩa "zone HỢP LỆ" (core.md §12.6f).
+        #
+        # Cùng hình dạng với `conditions`, nhưng KHÁC VIỆC — và ranh giới là câu hỏi
+            # "trượt vế này nghĩa là gì":
+        #     trượt = "nén HỎNG rồi"  → thuộc `conditions` → zone CHẾT
+        #     trượt = "chưa TỚI LÚC"  → thuộc `dk_hop_le`  → zone SỐNG, chờ tiếp
+        # Nên `bề rộng ≤ N` thuộc nhóm trên (giá bung ra là nén hỏng), còn
+        # `số nến ≥ K` thuộc nhóm dưới (mới 4 nến chỉ là chưa chín).
+        # `hai_ben=False`: danh sách này luôn so với một LƯỢNG. Cờ "so hai đại
+        # lượng" là của KHỐI và thuộc về phần ĐẾM; để nó lan sang đây thì bật cờ ở
+        # phần đếm sẽ âm thầm viết lại vế phải của định nghĩa hợp lệ.
+        dk = [x for x in (_chuan_dieu_kien(c, False)
+                          for c in a.get("dk_hop_le") or []) if x]
+        if dk:
+            # ⚠ GIỮ kể cả trên cổng KHÔNG phải cổng zone, rồi để soát tĩnh mắng.
+            # Vứt ở đây là xoá lặng một thứ người dùng đã gõ, và validator không bao
+            # giờ được nhìn thấy nó để nói ra — đúng bẫy §13.0d ("normalize đã xoá khối
+            # trước khi validator nhìn thấy"). Chuẩn hoá ép HÌNH DẠNG, soát tĩnh nói về
+            # NGHĨA (§6.4).
+            ra["dk_hop_le"] = dk
         # CỔNG ZONE — chính cổng này ĐỊNH NGHĨA zone. Xem `bo_chay._chay_so_do`.
         if a.get("cong_zone"):
             ra["cong_zone"] = True

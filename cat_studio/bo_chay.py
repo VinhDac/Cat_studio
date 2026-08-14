@@ -102,6 +102,29 @@ class Ctx:
         #: đúng lúc CỔNG ZONE đang được đánh giá; mọi khối khác đọc zone thật.
         self.zone_thu = None
 
+    def zone_hop_le(self):
+        """Zone hiện hành có đạt phần "hợp lệ" của cổng zone không.
+
+        HÀM THUẦN, tính lại mỗi lần được hỏi — không cất trạng thái, nên máy trạng thái
+        5 giá trị của bản gốc vẫn không quay lại (core.md §7.5).
+
+        Ba câu trả lời, và ca giữa mới là ca dễ sai:
+          chưa có zone            → NaN  (cổng trượt; trả SAI thì `KHÔNG hợp lệ` hoá
+                                          ĐÚNG giữa lúc chẳng có zone nào)
+          chưa khai `dk_hop_le`   → NaN  (hỏi một khái niệm chưa ai định nghĩa)
+          có zone, có định nghĩa  → đúng/sai
+
+        ⚠ Đọc zone THẬT, không đọc zone thử: "hợp lệ" nói về cây zone đã chốt, còn zone
+        thử chỉ tồn tại trong đúng lúc cổng đếm đang cân nhắc có nuốt nến này không."""
+        if not self.ct.dk_hop_le or self.so.zone_hien_hanh() is None:
+            return NAN
+        thu, self.zone_thu = self.zone_thu, None
+        try:
+            khop, _ = _xet_dieu_kien(self.ct.dk_hop_le, self)
+        finally:
+            self.zone_thu = thu
+        return bool(khop)
+
     # -- giá --
     @property
     def bid(self):
@@ -216,7 +239,10 @@ class ChuongTrinh:
         là phí đúng gấp đôi, mà kết quả bắt buộc phải giống nhau."""
         for tab in core.TABS:
             for st in (self.doc.get(tab) or {}).get("steps") or []:
-                for c in st.get("conditions") or []:
+                # `dk_hop_le` (phần "hợp lệ" của cổng zone) cũng đọc toán hạng, nên
+                # cũng phải xin cột — quên nó thì `Zone hợp lệ` nổ "chưa có cột" giữa
+                # lúc chạy, và nổ ở một chỗ chẳng liên quan gì tới cổng zone.
+                for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or []):
                     for o in (c.get("trai"), c.get("phai")):
                         if isinstance(o, dict) and o.get("ten"):
                             self._xin_cot(o, tab, st)
@@ -230,6 +256,14 @@ class ChuongTrinh:
         # dồn nó để tính `zone_atr_tb`, và đơn vị `× ATR` chia cho nó.
         self._xin_cot({"ten": "atr", "tf": self.tf5,
                        "period": self.ts["chu_ky_atr"]}, None, None)
+        # ĐỊNH NGHĨA "hợp lệ" — lấy từ cổng zone của ENTRY, đúng một cái (soát tĩnh đã
+        # bắt ca nhiều hơn một). Giữ ở đây chứ không đi tìm lại mỗi lần `zone_hop_le`
+        # được hỏi: nó bị hỏi trong vòng lặp nến, mà đi lại danh sách khối mỗi lần là
+        # phí đúng cái `bien_dich` sinh ra để tránh.
+        self.dk_hop_le = next(
+            (st.get("dk_hop_le") for st in
+             (self.doc.get(core.TAB_ENTRY) or {}).get("steps") or []
+             if st.get("cong_zone") and st.get("dk_hop_le")), None)
 
     #: Chu kỳ mặc định khi ô để trống. Trùng mặc định của hộp thoại hành động.
     CHU_KY_MAC_DINH = 14
@@ -494,12 +528,21 @@ def quy_doi_cot(kq, o, cot, don_vi):
 
 
 def _xet_cong(st, ctx):
-    """Một cổng: trả `(khớp?, [vết từng điều kiện])`.
+    """Một cổng: trả `(khớp?, [vết từng điều kiện])`."""
+    return _xet_dieu_kien(st.get("conditions"), ctx)
+
+
+def _xet_dieu_kien(ds, ctx):
+    """Một DANH SÁCH điều kiện: trả `(khớp?, [vết từng điều kiện])`.
+
+    Tách khỏi `_xet_cong` để phần "hợp lệ" của cổng zone (`dk_hop_le`) đi qua ĐÚNG phép
+    so này — chép ra bản thứ hai là sớm muộn một bản quên quy đổi đơn vị, quên NaN, hoặc
+    quên luật "đại lượng hay lượng suy từ khoá `ten`".
 
     LUÔN tính đủ mọi điều kiện, không ngắt ở cái sai đầu tiên — vết đó là thứ duy nhất
     trả lời được "cổng trượt vì con số nào" khi nhật ký được đọc lại."""
     vet, khop = [], True
-    for c in st.get("conditions") or []:
+    for c in ds or []:
         phep = c.get("phep") or "<"
         p_ = c.get("phai")
         # KIỂU SUY RA, không khai: có khoá `ten` là một đại lượng khác, còn lại là
