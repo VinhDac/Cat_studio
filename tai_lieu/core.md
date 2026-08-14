@@ -1061,6 +1061,39 @@ cố ý chọn nhiều rồi mới bấm phải, phá nhóm đi là làm hỏng 
 `Ctrl+Z` hoàn tác · `Ctrl+Y` làm lại · `Ctrl+D` nhân bản · `Ctrl+C`/`Ctrl+V` chép/dán khối ·
 `Ctrl+S` lưu · **`Ctrl+Shift+S` lưu thành…** · **`Ctrl+G` ghim số** · `Delete` xoá · `F2` đổi tên.
 
+**Cửa sổ Tester: `Space` = phát / dừng · `←` `→` = lùi / tới một nến.** Phím quen của mọi trình phát, và ở đó tay đang
+cầm chuột để rê crosshair nên với sang nút ▶ là mất chỗ đang chỉ. Ba chỗ phải né, không
+né thì phím này phá nhiều hơn nó giúp — và **`tsc` không bắt được cái nào**:
+
+| né gì | vì sao |
+|---|---|
+| `INPUT` · `TEXTAREA` · `SELECT` · `contentEditable` | Space trong ô nhập là ký tự / là bật tắt. Bắt theo **THẺ** đang có tiêu điểm chứ không theo danh sách id — thêm ô mới sau này là tự động được bảo vệ |
+| `BUTTON` đang có tiêu điểm | trình duyệt vốn đã bắn `click` khi nhấn Space trên `<button>`; vừa bấm ▶ bằng chuột xong thì nút GIỮ tiêu điểm → Space toggle **hai lần** → trông như phím chết |
+| `preventDefault` cho phần còn lại | Space mặc định là **cuộn trang**, mà bảng nhật ký cuộn được — không chặn thì mỗi lần dừng phát màn hình lại nhảy |
+
+⚠ `preventDefault` phải đứng **SAU** mọi phép né, không phải đầu hàm — chặn sớm là nuốt
+luôn Space của ô nhập. Và phím tắt **chết ở đúng chỗ cái nút chết** (`if (!kq) return`,
+đúng lúc nút ▶ đang `disabled`); nếu không nó là một cửa sau.
+
+**GIỮ PHÍM đã có sẵn, không cần hẹn giờ.** Trình duyệt tự bắn lại `keydown` (`ev.repeat`)
+theo nhịp lặp của hệ điều hành, nên `←` `→` giữ là đi liên tiếp. Nhưng **Space phải BỎ
+nhịp lặp**: giữ Space mà toggle ~30 lần/giây thì phát/dừng nhấp nháy, thả tay ra không
+đoán nổi nó đang ở trạng thái nào.
+
+⚠ **TỚI và LÙI không đối xứng về GIÁ**, dù trên thanh công cụ là hai nút giống nhau.
+`nhip()` đọc khung hình kế **từ lô đã nạp** — không hỏi Python câu nào. Còn lùi phải
+`veDau()`: **hai** lời gọi cầu nối (`test_doan` + `test_nen_tf`) và dựng lại chart. Giữ
+`←` ở nhịp lặp bàn phím là ~60 lời gọi/giây qua một cầu nối **đồng bộ, mã hoá payload hai
+lần** (§12.16) — chắc chắn nghẽn.
+
+→ Lùi có **khoá**: đang lùi thì **bỏ** nhịp lặp mới, và nhả khoá trong `finally` (lùi
+hỏng một lần không được khoá chết vĩnh viễn). Giữ phím vẫn lùi liên tục, chỉ theo nhịp
+cầu nối trả lời được. **Bỏ** nhịp thừa đúng hơn **xếp hàng** chúng — xếp hàng thì thả tay
+rồi màn hình còn chạy tiếp.
+
+Nút ◀ ▶ và phím tắt gọi **cùng một hàm** (`lui` / `tien`), đúng luật §12.22.
+`tests/test_giao_dien.py` canh cả 11 điều trên, kể cả **thứ tự** `preventDefault`.
+
 #### 8.5a ✅ LƯU — cơ chế của Word, và một trạng thái mới để có nó
 
 Trước đây `Ctrl+S` **lúc nào cũng hỏi tên**, kể cả một chiến lược đã lưu hai mươi lần.

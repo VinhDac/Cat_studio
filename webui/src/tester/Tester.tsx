@@ -215,6 +215,75 @@ export default function Tester() {
     return () => clearTimeout(id)
   }, [phat, j, toc, kq, nhip])
 
+  /* MỘT hàm cho MỘT việc, nút và phím tắt cùng gọi — luật §12.22, không đẻ hành động
+   * thứ hai cho một lối vào mới.
+   *
+   * ⚠ TIẾN và LÙI KHÔNG ĐỐI XỨNG VỀ GIÁ, dù trên thanh công cụ chúng là hai nút giống
+   * nhau. `nhip()` đọc khung hình kế TỪ LÔ đã nạp — không hỏi Python câu nào. Còn lùi
+   * thì phải `veDau()`, tức HAI lời gọi cầu nối (`test_doan` + `test_nen_tf`) và dựng
+   * lại chart. Giữ phím ← ở tốc độ lặp của Windows (~30 lần/giây) là ~60 lời gọi mỗi
+   * giây qua một cầu nối ĐỒNG BỘ, mã hoá payload hai lần (§12.16) — chắc chắn nghẽn.
+   *
+   * Nên lùi có KHOÁ: đang lùi thì bỏ qua nhịp lặp mới. Giữ phím vẫn lùi liên tục, chỉ
+   * là theo nhịp cầu nối trả lời được, chứ không phải nhịp bàn phím bắn ra. Bỏ nhịp
+   * thừa đúng hơn xếp hàng chúng lại — xếp hàng thì thả tay rồi màn hình còn chạy tiếp. */
+  const dangLui = useRef(false)
+
+  const lui = useCallback(async () => {
+    if (!kq || dangLui.current) return
+    dangLui.current = true
+    setPhat(false)
+    try { await veDau(Math.max(0, j - 1)) } finally { dangLui.current = false }
+  }, [kq, j, veDau])
+
+  const tien = useCallback(() => {
+    if (!kq) return
+    setPhat(false)
+    nhip()
+  }, [kq, nhip])
+
+  /* SPACE = phát / dừng. Phím quen của mọi trình phát, và ở đây tay đang cầm chuột để
+   * rê crosshair nên với sang ▶ là mất chỗ đang chỉ.
+   *
+   * ⚠ BA CHỖ PHẢI NÉ, không né thì phím này phá nhiều hơn nó giúp:
+   *
+   * 1. Ô `datetime-local` (nhảy tới mốc) và ô tick "chỉ dòng có việc" — Space trong ô
+   *    nhập là ký tự / là bật tắt, cướp nó đi là ô hoá hỏng. Bắt theo THẺ đang có tiêu
+   *    điểm, không theo danh sách id: thêm một ô mới sau này là tự động được bảo vệ.
+   * 2. Nút đang có tiêu điểm — trình duyệt vốn đã bắn `click` khi nhấn Space trên
+   *    `<button>`. Vừa bấm ▶ bằng chuột thì nút GIỮ tiêu điểm, nên Space sau đó sẽ
+   *    toggle HAI lần và trông như phím chết. Để nguyên hành vi mặc định của nút, ta
+   *    không xen vào.
+   * 3. `preventDefault` cho phần còn lại: Space mặc định của trang là CUỘN XUỐNG, mà
+   *    bảng nhật ký thì cuộn được — không chặn là mỗi lần dừng phát màn hình lại nhảy.
+   */
+  useEffect(() => {
+    const nghe = (ev: KeyboardEvent) => {
+      const la = ev.code === 'Space' || ev.key === ' ' ? 'phat'
+               : ev.key === 'ArrowRight' ? 'tien'
+               : ev.key === 'ArrowLeft' ? 'lui' : null
+      if (!la) return
+      const el = document.activeElement as HTMLElement | null
+      const the = el?.tagName
+      if (the === 'INPUT' || the === 'TEXTAREA' || the === 'SELECT'
+          || the === 'BUTTON' || el?.isContentEditable) return
+      // Chưa chạy xong thì không có gì để phát — đúng như nút ▶ đang `disabled`.
+      // Phím tắt phải chết ở đúng chỗ cái nút chết, không thì nó là một cửa sau.
+      if (!kq) return
+      // ⚠ GIỮ PHÍM: trình duyệt TỰ bắn lại `keydown` (`ev.repeat`), nên "giữ = bấm liên
+      // tiếp" có sẵn, không cần hẹn giờ nào. Nhưng chỉ đúng với ←/→.
+      // Space thì phải BỎ nhịp lặp: giữ Space mà toggle ~30 lần/giây thì phát/dừng
+      // nhấp nháy và thả tay ra không đoán nổi nó đang ở trạng thái nào.
+      if (ev.repeat && la === 'phat') return
+      ev.preventDefault()
+      if (la === 'phat') setPhat(v => !v)
+      else if (la === 'tien') tien()
+      else void lui()
+    }
+    window.addEventListener('keydown', nghe)
+    return () => window.removeEventListener('keydown', nghe)
+  }, [kq, tien, lui])
+
   /* Đổi khung hiển thị → nạp lại TOÀN BỘ nến ở khung mới. Không đụng kết quả chạy. */
   const doiTf = (p: number) => { setTfVe(p); setPhat(false); void veDau(j, p) }
 
@@ -347,13 +416,13 @@ export default function Tester() {
                 disabled={!kq} title="Nhảy tới cuối lượt chạy">⇥ Về cuối</button>
         <span className="tb-ngan" />
         {nut('dau', 'Về SỰ KIỆN trước', () => void luiSuKien(), false, !kq)}
-        {nut('undo', 'Lùi 1 nến',
-             () => { setPhat(false); void veDau(Math.max(0, j - 1)) }, false, !kq)}
+        {nut('undo', 'Lùi 1 nến  (←)', () => void lui(), false, !kq)}
         <button className="tb-nut rong" disabled={!kq} onClick={() => setPhat(v => !v)}
-                title={phat ? 'Dừng' : 'Phát — nến hình thành từng cây như live'}>
+                title={(phat ? 'Dừng' : 'Phát — nến hình thành từng cây như live')
+                       + '  (Space)'}>
           {phat ? '❚❚' : '▶'}
         </button>
-        {nut('redo', 'Tới 1 nến', () => { setPhat(false); nhip() }, false, !kq)}
+        {nut('redo', 'Tới 1 nến  (→)', tien, false, !kq)}
         {nut('cuoi', 'Tới SỰ KIỆN kế tiếp', () => void toiSuKien(), false, !kq)}
         <select className="o nho" value={toc} onChange={e => setToc(+e.target.value)}
                 title="Tốc độ phát">

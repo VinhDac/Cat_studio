@@ -185,5 +185,43 @@ kiem("kéo lên TRƯỚC khi bắn sơ đồ, không phải sau",
 kiem("cửa sổ CŨ được giữ, không huỷ đi tạo lại", _a._tester is not None
      and _a._tester.ten == "Thử — Strategy Tester", f"— {_a._tester.ten}")
 
+print("\n▸ SPACE ở cửa sổ Tester — phát / dừng")
+# ⚠ Ba chỗ phím này phá nếu không né, và không cái nào `tsc` bắt được:
+#   · ô nhập (`datetime-local` nhảy tới mốc, ô tick lọc nhật ký) — Space là ký tự / là
+#     bật tắt, cướp nó đi là ô hoá hỏng;
+#   · nút đang có tiêu điểm — trình duyệt vốn đã bắn `click` khi nhấn Space trên
+#     `<button>`, nên vừa bấm ▶ bằng chuột xong thì Space sẽ toggle HAI lần;
+#   · `preventDefault` — Space mặc định là CUỘN TRANG, mà bảng nhật ký cuộn được.
+ts = open(os.path.join(CSS, "tester", "Tester.tsx"), encoding="utf-8").read()
+than = re.search(r"const nghe = \(ev: KeyboardEvent\) => \{(.*?)\n    \}", ts, re.S)
+kiem("có bắt phím Space", than is not None)
+if than:
+    b = than.group(1)
+    kiem("né ô nhập — INPUT · TEXTAREA · SELECT · contentEditable",
+         all(x in b for x in ("INPUT", "TEXTAREA", "SELECT", "isContentEditable")))
+    kiem("né cả BUTTON đang có tiêu điểm — không thì Space toggle HAI lần", "BUTTON" in b)
+    kiem("chặn cuộn trang mặc định", "preventDefault" in b)
+    # Phím tắt phải chết ở đúng chỗ cái nút chết, không thì nó là một cửa sau.
+    kiem("chưa có kết quả thì Space không làm gì — như nút ▶ đang `disabled`",
+         re.search(r"if \(!kq\) return", b) is not None)
+    kiem("`preventDefault` đứng SAU mọi phép né — chặn sớm là nuốt Space của ô nhập",
+         b.index("preventDefault") > max(b.index("INPUT"), b.index("BUTTON")))
+    # ← → đi từng nến. GIỮ phím thì trình duyệt TỰ bắn lại `keydown` — "giữ = bấm liên
+    # tiếp" có sẵn, không cần hẹn giờ. Nhưng Space thì phải BỎ nhịp lặp, nếu không giữ
+    # Space là phát/dừng nhấp nháy ~30 lần/giây và thả tay ra không biết đang ở đâu.
+    kiem("có bắt ← và →", "ArrowLeft" in b and "ArrowRight" in b)
+    kiem("GIỮ phím: chỉ Space bỏ nhịp lặp, ←/→ thì không",
+         re.search(r"ev\.repeat && la === 'phat'", b) is not None)
+
+# Lùi ĐẮT hơn tiến: `nhip()` đọc từ lô đã nạp, còn lùi phải gọi cầu nối HAI lần và dựng
+# lại chart. Giữ ← ở nhịp lặp bàn phím là ~60 lời gọi/giây qua cầu nối ĐỒNG BỘ → nghẽn.
+kiem("`lui` có KHOÁ chống dồn nhịp khi giữ phím",
+     re.search(r"if \(!kq \|\| dangLui\.current\) return", ts) is not None)
+kiem("khoá được nhả trong `finally` — lùi hỏng một lần không được khoá chết vĩnh viễn",
+     re.search(r"finally \{ dangLui\.current = false \}", ts) is not None)
+# Luật §12.22: một hành động, một hàm — nút và phím tắt phải gọi CÙNG chỗ.
+kiem("nút ◀ và ▶ gọi đúng `lui` / `tien` mà phím tắt gọi",
+     "() => void lui(), false, !kq" in ts and "'Tới 1 nến  (→)', tien," in ts)
+
 print(f"\n{'─' * 60}\n  {dung} đúng · {sai} sai\n{'─' * 60}")
 sys.exit(1 if sai else 0)
