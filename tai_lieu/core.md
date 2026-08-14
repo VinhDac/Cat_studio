@@ -1030,7 +1030,50 @@ cố ý chọn nhiều rồi mới bấm phải, phá nhóm đi là làm hỏng 
 ### 8.5 Phím tắt
 
 `Ctrl+Z` hoàn tác · `Ctrl+Y` làm lại · `Ctrl+D` nhân bản · `Ctrl+C`/`Ctrl+V` chép/dán khối ·
-`Ctrl+S` lưu · **`Ctrl+G` ghim số** · `Delete` xoá · `F2` đổi tên.
+`Ctrl+S` lưu · **`Ctrl+Shift+S` lưu thành…** · **`Ctrl+G` ghim số** · `Delete` xoá · `F2` đổi tên.
+
+#### 8.5a ✅ LƯU — cơ chế của Word, và một trạng thái mới để có nó
+
+Trước đây `Ctrl+S` **lúc nào cũng hỏi tên**, kể cả một chiến lược đã lưu hai mươi lần.
+Người dùng yêu cầu đúng nếp Word:
+
+| | điều kiện | làm gì |
+|---|---|---|
+| `Ctrl+S` | tài liệu **đã có chỗ trên đĩa** | ghi đè, **không hỏi gì** |
+| `Ctrl+S` | tài liệu **mới tinh** | hoá thành *Lưu thành…* |
+| `Ctrl+Shift+S` | luôn luôn | hỏi tên → template mới, bản đang mở **chuyển sang** tên đó |
+
+**Thứ phải thêm là một TRẠNG THÁI, không phải một cái nút:** `tenTrenDia` — tên template
+mà tài liệu đang nằm dưới, `null` là chưa có nhà. Đây chính là *"đường dẫn file"* của Word.
+
+⚠ **Không suy ra được từ `ten`**: sơ đồ mới tinh cũng đã có sẵn tên `"Chiến lược 1"`.
+⚠ **Và không được dò kho để đoán** (`ten` có trong `list_templates()` chưa) — một sơ đồ
+mới trùng tên với template cũ sẽ **lặng lẽ đè mất nó**.
+
+`nap(doc, loi, nha)` bắt buộc truyền `nha`, **không cho mặc định**: mỗi lần nạp một tài
+liệu là một lần phải trả lời *"cái này có nhà chưa"*. Để mặc định thì chỗ quên sẽ im lặng
+thừa hưởng nhà của tài liệu trước, và `Ctrl+S` đè lên một template chẳng liên quan.
+`tsc` bắt được mọi chỗ quên — đó là lý do bắt buộc thay vì tuỳ chọn.
+
+| Nạp từ đâu | `nha` | vì sao |
+|---|---|---|
+| mở một template | tên template | đúng chỗ nó đang nằm |
+| vừa lưu xong | tên vừa lưu | |
+| `File → Mới` · sơ đồ mẫu | `null` | sơ đồ mẫu do Python **sinh ra**, không nằm trong kho |
+| `Mở từ file khác…` | `null` | file ngoài kho, mà `save_process` chỉ biết ghi **vào** kho |
+
+**Ghi theo tên ĐANG HIỆN trong ô ribbon, không theo `tenTrenDia`.** Ô đó sửa được và nhìn
+thấy được, nên sửa xong mà `Ctrl+S` vẫn đè lên tên cũ là ô tên nói dối. Sửa tên rồi
+`Ctrl+S` ⇒ ra một template mới, bản cũ còn nguyên.
+
+⚠ **`Ctrl+Shift+S` gõ trúng tên đã có thì PHẢI hỏi.** `save_process` ghi đè không nói một
+lời, mà đây là cửa duy nhất người dùng tự tay gõ ra một cái tên — gõ trùng là chuyện thường.
+
+⚠ **Thứ tự hai nhánh phím tắt là thứ `tsc` KHÔNG bắt được.** Chuỗi `else if` xét lần lượt,
+mà nhánh `Ctrl+S` trần khớp cả khi Shift đang giữ. Để nó đứng trước thì `Ctrl+Shift+S`
+không bao giờ tới lượt — *Lưu thành* lặng lẽ hoá thành *Lưu*, **ghi đè luôn bản gốc thay
+vì tạo bản sao**, và chỉ lộ ra khi bản gốc đã mất. `tests/test_giao_dien.py` canh đúng
+thứ tự đó bằng cách so vị trí hai chuỗi trong `App.tsx`.
 Hộp thoại đang mở (`.lop-phu` tồn tại) thì phím tắt canvas **phải im** — nếu không, `Delete` trong hộp
 thoại vừa xoá hành động vừa xoá luôn cả khối phía sau.
 

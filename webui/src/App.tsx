@@ -104,6 +104,8 @@ function Ung() {
   const [tab, setTab] = useState<Tab>('entry')
   const kho = useRef<Record<Tab, DoThi>>({ entry: RONG, manage: RONG })
   const [ten, setTen] = useState('Chiến lược 1')
+  /** Tên template mà tài liệu đang mở NẰM DƯỚI. `null` = chưa lưu bao giờ. Xem `nap`. */
+  const [tenTrenDia, setTenTrenDia] = useState<string | null>(null)
   const [symbol, setSymbol] = useState('XAUUSD')
   const [vanDe, setVanDe] = useState<Problem[]>([])
   /* Khối nào đã đi QUA cổng zone. Python tính (`core.khoi_sau_cong_zone`) rồi gửi kèm
@@ -277,7 +279,8 @@ function Ung() {
         // mẫu. Mẫu chỉ để xem thử; mở app ra đã thấy sẵn 8 khối lạ thì lần nào cũng
         // phải xoá đi mới bắt đầu làm được. Vẫn mở lại được từ menu "Mở ▾".
         const r = co ? await py.load_process(ds.value![0]) : await py.new_process()
-        if (r.ok && r.value) nap(r.value, co ? `mở "${ds.value![0]}"` : 'sơ đồ mới')
+        if (r.ok && r.value) nap(r.value, co ? `mở "${ds.value![0]}"` : 'sơ đồ mới',
+                                co ? ds.value![0] : null)
         setSanSang(true)
         setTrangThai('sẵn sàng')
       } catch (e) {
@@ -310,12 +313,23 @@ function Ung() {
     fitView({ padding: 0.2, duration: 300, maxZoom: 1 })
   }, [daDo, nodes, fitView])
 
-  const nap = useCallback((doc: ProcessDoc, loi: string) => {
+  /** `nha` = tên template mà tài liệu này ĐANG NẰM DƯỚI, `null` là chưa có chỗ nào.
+   *
+   *  Đây là "đường dẫn file" của Word, và là thứ DUY NHẤT phân biệt được Ctrl+S "lưu
+   *  luôn" với Ctrl+S "hỏi tên". Không suy ra được từ `ten`: sơ đồ mới tinh cũng đã có
+   *  sẵn tên "Chiến lược 1". Và cũng KHÔNG được suy bằng cách dò xem tên đó có trong kho
+   *  chưa — một sơ đồ mới trùng tên với template cũ sẽ lặng lẽ đè mất nó.
+   *
+   *  Bắt buộc truyền, không cho mặc định: mỗi lần nạp một tài liệu là một lần phải trả
+   *  lời "cái này có nhà chưa". Để mặc định thì chỗ quên sẽ im lặng thừa hưởng nhà của
+   *  tài liệu trước, và Ctrl+S đè lên một template chẳng liên quan. */
+  const nap = useCallback((doc: ProcessDoc, loi: string, nha: string | null) => {
     kho.current = { entry: so_do_sang_rf(doc.entry), manage: so_do_sang_rf(doc.manage) }
     setTab('entry')
     setNodes(kho.current.entry.nodes); setEdges(kho.current.entry.edges)
     setTen(doc.name); setSymbol(doc.symbol)
     setThamSo(doc.tham_so ?? [])
+    setTenTrenDia(nha)
     canFit.current = true
     ghi(loi)
   }, [setNodes, setEdges, ghi])
@@ -681,36 +695,65 @@ function Ung() {
     const r = await py.new_process()
     if (!r.ok || !r.value) { ghi('không tạo được sơ đồ mới: ' + r.error, 'err'); return }
     chup()
-    nap(r.value, 'sơ đồ mới — chỉ có khối Bắt đầu')
+    nap(r.value, 'sơ đồ mới — chỉ có khối Bắt đầu', null)
   }, [chup, nap, ghi])
 
   const moMau = useCallback(async () => {
     const r = await py.demo_process()
     if (!r.ok || !r.value) { ghi('không mở được sơ đồ mẫu: ' + r.error, 'err'); return }
     chup()
-    nap(r.value, 'mở sơ đồ mẫu Compress')
+    nap(r.value, 'mở sơ đồ mẫu Compress', null)
   }, [chup, nap, ghi, fitView])
 
-  const luu = useCallback(async () => {
-    const t = window.prompt('Lưu chiến lược với tên:', ten)
-    if (!t) return
+  /** Ghi thật xuống kho template. Trả `true` nếu xong. */
+  const ghiTemplate = useCallback(async (t: string) => {
     const r = await py.save_process({ ...layDoc(), name: t })
-    if (r.ok) { setTen(t); ghi(`đã lưu "${t}"`, 'ok'); setTrangThai('đã lưu') }
-    else ghi('lưu hỏng: ' + r.error, 'err')
-  }, [ten, layDoc, ghi])
+    if (!r.ok) { ghi('lưu hỏng: ' + r.error, 'err'); return false }
+    setTen(t); setTenTrenDia(t)
+    ghi(`đã lưu "${t}"`, 'ok'); setTrangThai('đã lưu')
+    return true
+  }, [layDoc, ghi])
+
+  /** `Ctrl+Shift+S` — LƯU THÀNH: luôn hỏi tên, tạo một template mới.
+   *
+   *  Sau đó bản đang mở CHUYỂN sang sống dưới tên mới, đúng như Word: bạn đang sửa tiếp
+   *  bản sao, không phải bản gốc. Bản gốc nằm nguyên chỗ cũ. */
+  const luuThanh = useCallback(async () => {
+    const t = window.prompt('Lưu chiến lược thành tên:', ten)?.trim()
+    if (!t) return
+    // ⚠ Gõ trúng tên đã có thì PHẢI hỏi. `save_process` ghi đè không nói một lời, mà đây
+    // là cửa duy nhất người dùng tự tay gõ ra một cái tên — gõ trùng là chuyện thường.
+    if (t !== tenTrenDia) {
+      const ds = await py.list_templates()
+      if (ds.ok && (ds.value ?? []).includes(t)
+          && !window.confirm(`Đã có chiến lược "${t}". Ghi đè lên nó?`)) return
+    }
+    await ghiTemplate(t)
+  }, [ten, tenTrenDia, ghiTemplate])
+
+  /** `Ctrl+S` — LƯU. Đã có nhà thì ghi thẳng, không hỏi gì; chưa có thì hoá thành
+   *  "Lưu thành". Đúng cơ chế Word, và đó là cả điểm của `tenTrenDia`.
+   *
+   *  ⚠ Ghi theo tên ĐANG HIỆN trong ô trên ribbon, không theo `tenTrenDia`. Ô đó sửa
+   *  được và nhìn thấy được, nên sửa xong mà Ctrl+S vẫn đè lên tên cũ là ô tên nói dối.
+   *  Sửa tên rồi Ctrl+S ⇒ ra một template mới, bản cũ còn nguyên. */
+  const luu = useCallback(async () => {
+    if (!tenTrenDia) { await luuThanh(); return }
+    await ghiTemplate(ten)
+  }, [tenTrenDia, ten, luuThanh, ghiTemplate])
 
   const moChienLuoc = useCallback(async (t: string) => {
     const r = await py.load_process(t)
     if (!r.ok || !r.value) { ghi('mở hỏng: ' + r.error, 'err'); return }
     chup()
-    nap(r.value, `mở "${t}"`)
+    nap(r.value, `mở "${t}"`, t)
   }, [chup, nap, ghi, fitView])
 
   const moFile = useCallback(async () => {
     const r = await py.open_process_file()
     if (!r.ok) { if (r.error) ghi('mở hỏng: ' + r.error, 'err'); return }
     chup()
-    nap(r.value!, 'mở từ file ngoài')
+    nap(r.value!, 'mở từ file ngoài', null)
   }, [chup, nap, ghi, fitView])
 
   const luuRaFile = useCallback(async () => {
@@ -1026,6 +1069,9 @@ function Ung() {
       else if (ctrl && ev.key.toLowerCase() === 'd') { ev.preventDefault(); nhanBan() }
       else if (ctrl && ev.key.toLowerCase() === 'c') { ev.preventDefault(); chepKhoi() }
       else if (ctrl && ev.key.toLowerCase() === 'v') { ev.preventDefault(); danKhoi() }
+      else if (ctrl && ev.shiftKey && ev.key.toLowerCase() === 's') {
+        ev.preventDefault(); luuThanh()
+      }
       else if (ctrl && ev.key.toLowerCase() === 's') { ev.preventDefault(); luu() }
       else if (ctrl && ev.key.toLowerCase() === 'g') { ev.preventDefault(); doiGhim() }
       // Ctrl+R: `preventDefault` BẮT BUỘC — mặc định của Chromium là nạp lại trang, tức
@@ -1037,7 +1083,8 @@ function Ung() {
     }
     window.addEventListener('keydown', f)
     return () => window.removeEventListener('keydown', f)
-  }, [hoanTac, lamLai, nhanBan, luu, xoa, doiTen, chepKhoi, danKhoi, doiGhim, chay])
+  }, [hoanTac, lamLai, nhanBan, luu, luuThanh, xoa, doiTen, chepKhoi, danKhoi, doiGhim,
+      chay])
 
   /* Kéo hộp: chụp ảnh MỘT lần lúc bắt đầu kéo, không phải mỗi frame — nếu không thì một
      cú kéo tạo ra 60 bước undo và Ctrl+Z thành vô dụng. */
@@ -1101,7 +1148,8 @@ function Ung() {
       : e)), [edges, quayLai])
 
   const mucLuu: MucMenu[] = [
-    { nhan: 'Lưu cả chiến lược thành template', chay: luu },
+    { nhan: 'Lưu', chay: luu },
+    { nhan: 'Lưu thành…', chay: luuThanh },
     { nhan: 'Lưu ra file khác…', chay: luuRaFile },
   ]
   const mucMo: MucMenu[] = [
@@ -1137,7 +1185,8 @@ function Ung() {
       { ten: 'Mở Live…', icon: 'chay', phim: 'Ctrl+L',
         onClick: moLive },
       { ngan: true },
-      { ten: 'Lưu thành template…', icon: 'save', onClick: luu },
+      { ten: 'Lưu', icon: 'save', phim: 'Ctrl+S', onClick: luu },
+      { ten: 'Lưu thành…', icon: 'save', phim: 'Ctrl+Shift+S', onClick: luuThanh },
       { ten: 'Lưu ra file khác…', onClick: luuRaFile },
       { ngan: true },
       { ten: 'Tham số chiến lược…', icon: 'edit', onClick: () => setMoThamSo(true) },
@@ -1177,7 +1226,7 @@ function Ung() {
       { ten: `Cat Studio ${boot?.phien_ban ?? ''}`.trim(), tat: true,
         viSao: 'chỉ để xem phiên bản' },
     ] },
-  ], [soDoMoi, moFile, moMau, luu, luuRaFile, moChienLuoc, hoanTac, lamLai, coLui, coToi,
+  ], [soDoMoi, moFile, moMau, luu, luuThanh, luuRaFile, moChienLuoc, hoanTac, lamLai, coLui, coToi,
       chepKhoi, danKhoi, nhanBan, doiGhim, xoa, dangChon, zoomIn, zoomOut, fitView,
       panelGap, boot, setMoKho, setMoThamSo, chay, themKhoiTu])
 

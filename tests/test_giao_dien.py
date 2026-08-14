@@ -108,5 +108,25 @@ for lop in (r"\.o\.phep", r"\.o\.nho\.don-vi"):
     kiem(f"`{lop.replace(chr(92), '')}` không tự đặt width bằng px — phải vừa cột của nó",
          px is None, f"— đang là {px.group(0)}" if px else "")
 
+print("\n▸ Ctrl+S / Ctrl+Shift+S — thứ tự nhánh, thứ `tsc` không bắt được")
+# ⚠ Chuỗi `else if` xét lần lượt. Nhánh `Ctrl+S` trần khớp CẢ khi Shift đang giữ, nên nó
+# mà đứng trước thì `Ctrl+Shift+S` không bao giờ tới lượt — "Lưu thành" lặng lẽ hoá
+# thành "Lưu", ghi đè luôn bản gốc thay vì tạo bản sao. Kiểu hỏng không có lỗi nào báo,
+# và chỉ lộ ra khi người dùng đã mất bản gốc.
+tsx = open(os.path.join(CSS, "App.tsx"), encoding="utf-8").read()
+i_shift = tsx.find("ev.shiftKey && ev.key.toLowerCase() === 's'")
+i_tran = tsx.find("ctrl && ev.key.toLowerCase() === 's'")
+kiem("có nhánh Ctrl+Shift+S", i_shift > 0)
+kiem("Ctrl+Shift+S xét TRƯỚC Ctrl+S trần", 0 < i_shift < i_tran,
+     f"— shift@{i_shift} · trần@{i_tran}")
+
+# Cả điểm của cơ chế: đã có nhà thì Ctrl+S KHÔNG hỏi gì. Hỏi tên là việc của `luuThanh`.
+than_luu = re.search(r"const luu = useCallback\(async \(\) => \{(.*?)\n  \}, \[",
+                     tsx, flags=re.S)
+kiem("`luu` (Ctrl+S) KHÔNG tự hỏi tên — nó nhường cho `luuThanh` khi chưa có nhà",
+     than_luu is not None and "window.prompt" not in than_luu.group(1))
+kiem("`tenTrenDia` là thứ quyết định — không dò kho template để đoán",
+     than_luu is not None and "tenTrenDia" in than_luu.group(1))
+
 print(f"\n{'─' * 60}\n  {dung} đúng · {sai} sai\n{'─' * 60}")
 sys.exit(1 if sai else 0)
