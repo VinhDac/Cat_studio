@@ -25,11 +25,21 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
   const [tSymbol, setTSymbol] = useState(String(t.symbol ?? 'XAUUSD'))
   const [tu, setTu] = useState(String(t.tu ?? ''))
   const [den, setDen] = useState(String(t.den ?? ''))
-  const [spread, setSpread] = useState(Number(t.spread_diem ?? 20))
+  const [spread, setSpread] = useState(Number(t.spread_diem ?? 0))
+  const [truot, setTruot] = useState(Number(t.truot_diem ?? 0))
   const [deposit, setDeposit] = useState(Number(t.deposit ?? 10000))
   const [phi, setPhi] = useState(Number(t.commission ?? 0))
   const [donBay, setDonBay] = useState(Number(t.don_bay ?? 100))
   const [delay, setDelay] = useState(Number(t.delay_ms ?? 60))
+
+  // ---- LUẬT SÀN (core.md §16.1) — mấy ô này là DỰ PHÒNG ----
+  // Có hồ sơ hiệu chuẩn cho symbol này thì HỒ SƠ THẮNG, và ô ở đây chỉ còn để xem.
+  // Đo được luôn đúng hơn gõ tay; §14.9 đã chốt hồ sơ là *cache của phép đo*.
+  const [lotMin, setLotMin] = useState(Number(t.lot_min ?? 0.01))
+  const [lotBuoc, setLotBuoc] = useState(Number(t.lot_buoc ?? 0.01))
+  const [lotMax, setLotMax] = useState(Number(t.lot_max ?? 200))
+  const [stops, setStops] = useState(Number(t.stops_level ?? 0))
+  const doDuoc = boot.luat_san?.[tSymbol]
 
   const [nguon, setNguon] = useState<BoNen[]>(boot.nguon ?? [])
   const [ketNoi, setKetNoi] = useState<{
@@ -60,8 +70,9 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
     for (const r of [
       await py.save_settings({ symbol, accent }),
       await py.save_test_settings({
-        symbol: tSymbol, tu, den, spread_diem: spread,
+        symbol: tSymbol, tu, den, spread_diem: spread, truot_diem: truot,
         deposit, commission: phi, don_bay: donBay, delay_ms: delay,
+        lot_min: lotMin, lot_buoc: lotBuoc, lot_max: lotMax, stops_level: stops,
       }),
     ]) {
       if (!r.ok) return setLoiLuu(r.error ?? 'không lưu được cài đặt')
@@ -179,9 +190,18 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       )}
 
       <div className="hang cd-hang">
-        <label title="Nến là giá Bid; Ask = Bid + spread">
+        {/* ⚠ Mặc định 0 = TỰ LẤY SỐ ĐO ĐƯỢC từ kho nến. Số cũ là 20 và nó là con số
+            nguy hiểm nhất trong app: đo trên sơ đồ mẫu 2025, spread 20 cho +12,78 R
+            còn spread thật (97) cho +6,66 R — gần gấp đôi. Xem core.md §16.2. */}
+        <label title="Nến là giá Bid; Ask = Bid + spread. 0 = dùng số đo được từ kho nến.">
           Spread<input className="o nho" type="number" value={spread}
                  onChange={e => setSpread(+e.target.value)} />points
+          {!spread && <span className="goi-y">
+            {bo?.spread_tb ? `= ${bo.spread_tb} (đo được)` : 'chưa đo được'}</span>}
+        </label>
+        <label title="LUÔN theo chiều bất lợi — lệnh Stop ngoài đời khớp bằng hoặc xấu hơn giá kích hoạt. 0 = không mô hình hoá.">
+          Trượt giá<input className="o nho" type="number" value={truot}
+                 onChange={e => setTruot(+e.target.value)} />points
         </label>
         <label>Vốn<input className="o nho" type="number" value={deposit}
                onChange={e => setDeposit(+e.target.value)} />USD</label>
@@ -191,6 +211,43 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
         </label>
         <label>Đòn bẩy 1:<input className="o nho" type="number" value={donBay}
                onChange={e => setDonBay(+e.target.value)} /></label>
+      </div>
+
+      {/* ⭐ LUẬT SÀN — backtest phải chơi theo đúng luật live đã đo (core.md §16.1).
+          Thiếu chúng thì backtest chơi trò DỄ HƠN live: đo được trên chiến lược thật,
+          862 lot với SL cách 0,0004 $ — hai thứ sàn từ chối thẳng. */}
+      <div className="cd-muc">Luật sàn</div>
+      <div className="chu-dan">
+        {doDuoc
+          ? <>Đang dùng <b>số ĐO ĐƯỢC</b> từ <b>{doDuoc.nguon}</b> ({doDuoc.do_luc}).
+              Mấy ô dưới là dự phòng, hồ sơ hiệu chuẩn thắng — đo được luôn đúng hơn gõ tay.</>
+          : <>Chưa hiệu chuẩn <b>{tSymbol}</b> lần nào, nên đang dùng <b>số gõ tay</b> dưới
+              đây. Nối sàn rồi chạy hiệu chuẩn thì app tự lấy số thật.</>}
+      </div>
+      <div className="hang cd-hang">
+        <label title="Sàn không nhận lệnh nhỏ hơn mức này">
+          Lot nhỏ nhất<input className="o nho" type="number" step="0.01" value={lotMin}
+                 disabled={!!doDuoc}
+                 onChange={e => setLotMin(+e.target.value)} />
+        </label>
+        <label title="Khối lượng làm tròn XUỐNG theo bước này">
+          Bước<input className="o nho" type="number" step="0.01" value={lotBuoc}
+                 disabled={!!doDuoc}
+                 onChange={e => setLotBuoc(+e.target.value)} />
+        </label>
+        <label title="Sàn không nhận lệnh lớn hơn mức này">
+          Lot lớn nhất<input className="o nho" type="number" value={lotMax}
+                 disabled={!!doDuoc}
+                 onChange={e => setLotMax(+e.target.value)} />
+        </label>
+        <label title="Khoảng cách tối thiểu từ giá lệnh tới SL/TP. 0 = không chặn.">
+          SL tối thiểu<input className="o nho" type="number" value={stops}
+                 disabled={!!doDuoc}
+                 onChange={e => setStops(+e.target.value)} />points
+        </label>
+      </div>
+
+      <div className="hang cd-hang">
         <label title="Nhịp PHÁT LẠI — không phải tốc độ mô phỏng">
           Delay<input className="o nho" type="number" value={delay}
                 onChange={e => setDelay(+e.target.value)} />ms

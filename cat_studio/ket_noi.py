@@ -80,6 +80,41 @@ def doc_ho_so(san, symbol):
     return _doc_tat_ca().get(_khoa(san, symbol))
 
 
+#: Bốn luật sàn mà BACKTEST cũng phải tuân — core.md §16.1. Đây là những thứ sàn thật
+#: TỪ CHỐI, nên backtest cho qua là đang chơi một trò dễ hơn live (§14.1).
+LUAT_SAN = ("lot_min", "lot_buoc", "lot_max", "stops_level")
+
+
+def luat_san(symbol):
+    """Luật sàn ĐÃ ĐO cho symbol này, hoặc `None` nếu chưa từng hiệu chuẩn.
+
+    Tra theo SYMBOL thôi, không theo sàn — lúc backtest ta không nối sàn nào cả, nên
+    không biết hỏi sàn nào. Nhiều sàn cùng có symbol đó thì lấy hồ sơ ĐO GẦN ĐÂY NHẤT:
+    một con số cũ của sàn khác vẫn hơn không có gì, và `nguon` nói rõ nó từ đâu để
+    người dùng thấy mà đổi.
+
+    ⚠ `stops_level_that` chứ KHÔNG phải `stops_level`. Sàn khai `stops_level = 0` (nghĩa
+    là "không giới hạn") trong khi thực tế từ chối SL gần hơn 410 điểm — chính vì thế
+    vòng hiệu chuẩn mới đi ĐO lấy, và số đo mới là số đúng (§14.8c).
+    """
+    ra, moi_nhat = None, ""
+    for khoa, hs in _doc_tat_ca().items():
+        if not isinstance(hs, dict) or khoa.rsplit("|", 1)[-1] != (symbol or "").upper():
+            continue
+        if (hs.get("do_luc") or "") < moi_nhat:
+            continue
+        moi_nhat = hs.get("do_luc") or ""
+        ra = {
+            "lot_min": hs.get("lot_min"),
+            "lot_buoc": hs.get("lot_buoc"),
+            "lot_max": hs.get("lot_max"),
+            "stops_level": hs.get("stops_level_that") or hs.get("stops_level"),
+            "nguon": khoa.rsplit("|", 1)[0],
+            "do_luc": hs.get("do_luc") or "",
+        }
+    return ra
+
+
 def ghi_ho_so(san, symbol, du_lieu):
     """Ghi đè hồ sơ của sàn+symbol này, giữ nguyên hồ sơ của sàn khác."""
     from . import luu_tru

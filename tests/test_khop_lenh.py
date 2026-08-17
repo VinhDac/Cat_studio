@@ -13,6 +13,7 @@ Năm thứ được canh:
   4. **Khớp rồi chết trong CÙNG một nến** phải ra hai sự kiện đúng thứ tự.
   5. **SL/TP chỉ được xét TỪ lúc khớp trở đi** — không cho một cái SL chưa tồn tại giết
      một vị thế chưa mở.
+  6. **Trượt giá LUÔN theo chiều bất lợi** (§16.2) — cả bốn ca vào/ra × mua/bán.
 
 Chạy:  python tests\\test_khop_lenh.py
 """
@@ -157,6 +158,52 @@ kiem("đọc được cả dict lẫn đối tượng",
      kl.trong_nen(type("L", (), {"huong": "mua", "da_khop": True,
                                  "sl": 95, "tp": None})(),
                   nen(100, 101, 94, 96), 0) != [])
+
+# ======================= 6. TRƯỢT GIÁ — core.md §16.2 =======================
+#
+# ⚠ LUÔN THEO CHIỀU BẤT LỢI, cả bốn ca. Ngoài đời một lệnh Stop khớp BẰNG HOẶC XẤU HƠN
+# giá kích hoạt, không bao giờ tốt hơn: lúc giá phá qua mức là lúc sổ lệnh mỏng nhất.
+# Mô hình đối xứng ("khi tốt khi xấu, trung bình 0") nghe công bằng nhưng sai bản chất,
+# và nó sai đúng về phía làm backtest ĐẸP LÊN.
+print("\n▸ Trượt giá luôn theo chiều bất lợi")
+
+_S, _T = 0.2, 0.05          # spread · trượt, đơn vị giá
+
+
+def _gia(su_kien):
+    return su_kien[0]["gia"] if su_kien else None
+
+
+# VÀO — Mua vào ở Ask nên trượt đẩy giá LÊN; Bán vào ở Bid nên trượt kéo XUỐNG.
+_v_mua = _gia(kl.trong_nen(cho(kl.MUA, 100), nen(100, 101, 99, 100.5), _S, _T))
+_v_ban = _gia(kl.trong_nen(cho(kl.BAN, 100), nen(100, 101, 99, 99.5), _S, _T))
+kiem("VÀO Mua: trượt đẩy giá khớp LÊN (mua đắt hơn)",
+     gan(_v_mua, _gia(kl.trong_nen(cho(kl.MUA, 100), nen(100, 101, 99, 100.5), _S)) + _T),
+     f"— {_v_mua}")
+kiem("VÀO Bán: trượt kéo giá khớp XUỐNG (bán rẻ hơn)",
+     gan(_v_ban, _gia(kl.trong_nen(cho(kl.BAN, 100), nen(100, 101, 99, 99.5), _S)) - _T),
+     f"— {_v_ban}")
+
+# RA — vị thế Mua đóng ở Bid nên trượt kéo XUỐNG; vị thế Bán đóng ở Ask nên đẩy LÊN.
+_r_mua = kl.trong_nen(mo(kl.MUA, sl=95), nen(100, 101, 94, 96), _S, _T)
+_r_ban = kl.trong_nen(mo(kl.BAN, sl=105), nen(100, 106, 99, 104), _S, _T)
+kiem("RA Mua (chạm SL): trượt kéo giá đóng XUỐNG (lỗ thêm)",
+     gan(_r_mua[0]["gia"],
+         kl.trong_nen(mo(kl.MUA, sl=95), nen(100, 101, 94, 96), _S)[0]["gia"] - _T),
+     f"— {_r_mua[0]['gia']}")
+kiem("RA Bán (chạm SL): trượt đẩy giá đóng LÊN (lỗ thêm)",
+     gan(_r_ban[0]["gia"],
+         kl.trong_nen(mo(kl.BAN, sl=105), nen(100, 106, 99, 104), _S)[0]["gia"] + _T),
+     f"— {_r_ban[0]['gia']}")
+
+# Trượt KHÔNG được đụng NGƯỠNG kích hoạt: sàn nhìn giá thật để quyết lệnh có nổ hay
+# không; trượt là chuyện xảy ra SAU đó, lúc đi tìm thanh khoản.
+kiem("trượt KHÔNG làm lệnh khớp sớm/muộn hơn — chỉ đổi GIÁ",
+     [e["buoc"] for e in kl.trong_nen(cho(kl.MUA, 100), nen(99, 101, 98, 100.5), _S, _T)]
+     == [e["buoc"] for e in kl.trong_nen(cho(kl.MUA, 100), nen(99, 101, 98, 100.5), _S)])
+kiem("trượt 0 → trùng khít bản không có trượt",
+     kl.trong_nen(mo(kl.MUA, sl=95, tp=110), nen(100, 111, 94, 96), _S, 0.0)
+     == kl.trong_nen(mo(kl.MUA, sl=95, tp=110), nen(100, 111, 94, 96), _S))
 
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

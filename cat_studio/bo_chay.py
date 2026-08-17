@@ -59,7 +59,9 @@ class CaiDat:
 
     def __init__(self, symbol="XAUUSD", tu=None, den=None, spread_diem=20.0,
                  point=0.01, contract_size=100.0, digits=2,
-                 deposit=10_000.0, commission=0.0, don_bay=100):
+                 deposit=10_000.0, commission=0.0, don_bay=100,
+                 lot_min=0.01, lot_buoc=0.01, lot_max=200.0, stops_level=0,
+                 truot_diem=0.0):
         self.symbol = symbol
         self.tu, self.den = tu, den
         self.spread_diem = float(spread_diem)
@@ -70,10 +72,65 @@ class CaiDat:
         self.commission = float(commission)     # USD mỗi lot, tính ROUND-TURN
         self.don_bay = don_bay
 
+        # ---- LUẬT SÀN — core.md §16.1 ----
+        # Backtest phải chơi theo ĐÚNG luật live đã đo (§14.1 "một đoạn code cho cả
+        # hai"). Thiếu chúng thì backtest chơi trò DỄ HƠN: đo được trên chiến lược thật
+        # của người dùng — 862 lot với SL cách 0,0004 $, hai thứ sàn từ chối thẳng.
+        self.lot_min = float(lot_min)
+        self.lot_buoc = float(lot_buoc)
+        self.lot_max = float(lot_max)
+        #: Khoảng cách TỐI THIỂU (điểm) giữa giá lệnh và SL/TP, và giữa giá thị trường
+        #: và giá đặt của một lệnh chờ. `0` = không chặn (chưa đo được sàn nào).
+        self.stops_level = float(stops_level or 0)
+
+        #: TRƯỢT GIÁ (điểm) — LUÔN theo chiều bất lợi. core.md §16.2.
+        #:
+        #: Lệnh Stop ngoài đời khớp BẰNG HOẶC XẤU HƠN giá kích hoạt, không bao giờ tốt
+        #: hơn: lúc giá phá qua mức chính là lúc sổ lệnh mỏng nhất. Mô hình đối xứng
+        #: ("khi tốt khi xấu, trung bình 0") nghe công bằng nhưng sai bản chất, và sai
+        #: đúng về phía làm backtest đẹp lên.
+        #:
+        #: Mặc định 0 = KHÔNG mô hình hoá. Cố ý không bịa một con số: hồ sơ hiệu chuẩn
+        #: đo được `p95 = 0` nhưng chỉ với n = 3 — quá ít để tin, mà bịa thì tệ hơn.
+        #: Bằng 0 thì bảng số liệu nói thẳng là backtest đang LẠC QUAN ở khoản này.
+        self.truot_diem = float(truot_diem or 0)
+
     @property
     def spread_gia(self):
         """Spread quy ra ĐƠN VỊ GIÁ. `khop_lenh` cố ý không biết `point` là gì."""
         return self.spread_diem * self.point
+
+    @property
+    def truot_gia(self):
+        """Trượt giá quy ra ĐƠN VỊ GIÁ."""
+        return self.truot_diem * self.point
+
+    @property
+    def stops_gia(self):
+        """`stops_level` quy ra ĐƠN VỊ GIÁ. 0 = không chặn."""
+        return self.stops_level * self.point
+
+    def lam_tron_lot(self, lot):
+        """Khối lượng → khối lượng SÀN NHẬN, hoặc `None` nếu sàn từ chối.
+
+        Làm tròn XUỐNG theo `lot_buoc` — làm tròn lên là mạo hiểm nhiều hơn mức người
+        dùng khai, mà con số họ khai là một cam kết chứ không phải gợi ý.
+
+        ⚠ Tôi từng chốt "KHÔNG làm tròn lot, làm tròn là bịa thêm sai số" (§15.13).
+        **Sai** — bước lot 0,01 là LUẬT THẬT của sàn, đo được trong hồ sơ kết nối, không
+        phải sai số tôi thêm vào.
+
+        Dưới `lot_min` → `None`, KHÔNG kẹp lên: tài khoản quá nhỏ cho mức rủi ro đó thì
+        câu trả lời đúng là *không vào lệnh*, chứ không phải *vào với rủi ro gấp mấy lần
+        mức đã khai*.
+        """
+        if lot != lot or lot <= 0 or self.lot_buoc <= 0:
+            return None
+        lot = math.floor(lot / self.lot_buoc + 1e-9) * self.lot_buoc
+        lot = round(lot, 8)
+        if lot < self.lot_min:
+            return None
+        return min(lot, self.lot_max)
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +212,16 @@ class ChuongTrinh:
     def __init__(self, doc, nen1, cd):
         self.doc, self.nen1, self.cd = doc, nen1, cd
         self.ts = core.bang_tham_so(doc)
-        self.engine = kho.engine_d02.Engine()
+        self.engine = kho.zone.Engine()
         self._cot = {}
         self.nhip = {}
+        # Mặc định AN TOÀN cho hai móc mà `PhienChay` gắn đè lên (`ghi_tien`,
+        # `drawdown_pt`). Không có chúng thì ai dựng `ChuongTrinh` một mình — bộ test,
+        # hộp thoại xem trước — sẽ chết bằng `AttributeError` ở tận trong `_lay_toan_hang`,
+        # một chỗ chẳng liên quan gì tới nguyên nhân.
+        self.ghi_tien = lambda l: None
+        self.drawdown_pt = lambda: 0.0
+        self.von = lambda: cd.deposit
         self._kiem_tham_so()
         self._dung_truc()
         self._dung_cot()
@@ -246,16 +310,23 @@ class ChuongTrinh:
                     for o in (c.get("trai"), c.get("phai")):
                         if isinstance(o, dict) and o.get("ten"):
                             self._xin_cot(o, tab, st)
-                    # Đơn vị `bps` / `%` chia cho GIÁ ĐÓNG cùng khung — cột đó phải có
-                    # sẵn dù sơ đồ không hỏi `close` ở đâu cả.
-                    tr = c.get("trai")
-                    dv = (c.get("phai") or {}).get("tinh")                         if isinstance(c.get("phai"), dict) else None
-                    if isinstance(tr, dict) and dv in ("bps", "pt"):
-                        self._xin_cot({"ten": "close", "tf": tr.get("tf")}, tab, st)
-        # Engine cần `atr` trên khung quyết định dù sơ đồ có hỏi hay không: zone cộng
+                # MỐC NEO là một TOÁN HẠNG mức giá (core.md §15.8) — cột của nó phải có
+                # sẵn y như cột của một vế điều kiện. Quên chỗ này thì `_vao_lenh` ném
+                # "chưa được tính trước" ở đúng cây nến đầu tiên khối được chạy tới.
+                for moc in ((st.get("entry") or {}).get("moc"), st.get("moc")):
+                    if moc in self.COT_GIA:
+                        self._xin_cot({"ten": moc, "tf": self.tf5}, tab, st)
+        # Máy vùng cần `atr` trên khung quyết định dù sơ đồ có hỏi hay không: zone cộng
         # dồn nó để tính `zone_atr_tb`, và đơn vị `× ATR` chia cho nó.
         self._xin_cot({"ten": "atr", "tf": self.tf5,
                        "period": self.ts["chu_ky_atr"]}, None, None)
+        # ATR NỀN — mẫu số của đơn vị `× ATR nền`. Xin VÔ ĐIỀU KIỆN, cùng lý do với dòng
+        # trên: nó có thể được hỏi từ điều kiện, từ `dk_hop_le`, từ SL, TP, đệm, hay từ ô
+        # khoảng của khối Sửa lệnh. Đi quét đủ sáu chỗ đó để tiết kiệm MỘT cột là đổi một
+        # khoản rẻ lấy một chỗ chắc chắn có ngày bỏ sót — mà bỏ sót thì `_quy_doi` ném
+        # "chưa được tính trước" giữa lúc backtest.
+        self._xin_cot({"ten": "atr", "tf": self.tf5,
+                       "period": core.CHU_KY_ATR_NEN}, None, None)
         # ĐỊNH NGHĨA "hợp lệ" — lấy từ cổng zone của ENTRY, đúng một cái (soát tĩnh đã
         # bắt ca nhiều hơn một). Giữ ở đây chứ không đi tìm lại mỗi lần `zone_hop_le`
         # được hỏi: nó bị hỏi trong vòng lặp nến, mà đi lại danh sách khối mỗi lần là
@@ -389,7 +460,7 @@ def _lay_toan_hang(o, ctx):
 
     if ten in tt.BANG:
         return ct.doc_cot(o, ctx.i, o.get("shift", 0))
-    if ten in kho.engine_d02.ENGINE_TRA_LOI:
+    if ten in kho.ZONE_TRA_LOI:
         return ct.engine.doc(ten, ctx)
 
     # ⚠ LỖI ĐÃ SỬA (lần hai — lần đầu vá hụt). Trước đây chỗ này gọi `ctx.gia_nen`, mà
@@ -407,11 +478,22 @@ def _lay_toan_hang(o, ctx):
         return float(ctx.so.so_vi_the())
     if ten == "so_lenh_cho":
         return float(ctx.so.so_lenh_cho())
+    if ten == "drawdown_pt":
+        # Vốn ĐÃ CHỐT, không tính lãi nổi — xem `PhienChay.__init__`. Đây là cầu dao
+        # rủi ro ("sụt quá 5 % thì ngừng vào lệnh"), nên nó phải là một con số ổn định
+        # chứ không phải thứ giật theo từng nến M1.
+        return float(ct.drawdown_pt())
     l = ctx.lenh
     if l is None:
         return NAN                              # "lệnh này" ở Entry — soát tĩnh đã chặn
     if ten == "lenh_da_khop":
         return bool(l.da_khop)
+    if ten == "lenh_la_mua":
+        return l.huong == sl.MUA
+    if ten == "lenh_so_nen_song":
+        # `ctx.i` là chỉ số nến TRỤC, cùng thang với `Lenh.nen_dat` — nên hiệu của chúng
+        # đếm đúng số nến trục lệnh đã sống, không phải số nhịp M1.
+        return float(l.so_nen_song(ctx.i))
     if ten == "lenh_sl_hoa_von":
         return bool(l.sl_o_hoa_von)
     if ten == "lenh_lai_R":
@@ -470,28 +552,28 @@ def _so_sanh(trai, phep, phai):
 
 
 def _quy_doi(x, don_vi, o, ctx):
-    """Đổi giá trị vế trái sang ĐƠN VỊ được chọn. Đây là chỗ `atr_bps` sống tiếp.
+    """Đổi giá trị vế trái sang ĐƠN VỊ được chọn — ba cái thước, ba mẫu số:
 
-    Công thức phải TRÙNG KHÍT bản cũ, nếu không mọi sơ đồ đã lưu đổi hành vi âm thầm:
+      × ATR       =  x / atr(chu_ky_atr)      ATR nến vừa đóng, khung QUYẾT ĐỊNH
+      × ATR nền   =  x / atr(CHU_KY_ATR_NEN)  ATR dài hạn của CHÍNH thị trường đó
+      × ATR zone  =  x / zone_atr_tb          ATR trung bình cả zone — thước của RỦI RO
 
-      bps  =  x / close × 10⁴   — `close` CÙNG khung, CÙNG shift với vế trái, đúng
-                                  `iClose(signal_tf, 1)` của D_02 (FilterEngine.mqh:202)
-      × ATR       =  x / atr(chu_ky_atr)   — ATR nến vừa đóng, giống `rong_atr` cũ
-                                             (`so_lenh.Zone.rong_atr` chia `atr_hien_tai`)
-      × ATR zone  =  x / zone_atr_tb       — ATR trung bình cả zone, thước của RỦI RO
+    ⚠ `bps` (x / close × 10⁴) ĐÃ BỎ — core.md §15.7. Nó chia cho MỨC GIÁ, mà thứ trôi
+    qua thời gian là chế độ biến động chứ không phải mức giá: đo trên XAUUSD 2021–2026,
+    cùng cổng `atr < 7 [bps]` khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026. `atr_nen`
+    chia cho chính thị trường đó nên nó đứng yên (độ trôi 68 điểm → 7,4 điểm).
 
     Không có mẫu số → NaN, và NaN làm cổng TRƯỢT. Trả 0 thì cổng KHỚP giữa lúc chưa
     biết gì — đúng loại lỗi im lặng cả kiến trúc này dựng lên để tránh."""
     if don_vi in (None, "", "gia") or isinstance(x, bool) or x != x:
         return x
-    if don_vi == "bps":
-        c = ctx.ct.doc_cot({"ten": "close", "tf": o.get("tf")}, ctx.i,
-                           o.get("shift", 0))
-        if c != c or not c:
-            return NAN
-        return x / c * 10000.0
     if don_vi == "atr":
         a = ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+        return x / a if a == a and a else NAN
+    if don_vi == "atr_nen":
+        # Chu kỳ CỐ ĐỊNH, không đọc bảng tham số — cái thước không được là tham số
+        # (core.md §15.1). Cột này `_dung_cot` xin sẵn vô điều kiện.
+        a = ctx.chi_bao("atr", period=core.CHU_KY_ATR_NEN)
         return x / a if a == a and a else NAN
     if don_vi == "atr_zone":
         v = ctx.so.zone_hien_hanh()
@@ -520,14 +602,16 @@ def quy_doi_cot(kq, o, cot, don_vi):
     if don_vi in (None, "", "gia") or cot is None:
         return cot
     ct = kq._ct
-    if don_vi == "bps":
-        # `close` CÙNG khung với VẾ TRÁI — y hệt `_quy_doi`, không phải khung quyết định.
-        mau, he = ct._cot.get(ct.khoa({"ten": "close", "tf": o.get("tf")})), 10000.0
-    elif don_vi == "atr":
+    if don_vi == "atr":
         # ATR khung QUYẾT ĐỊNH, chu kỳ `chu_ky_atr` — khoá này khớp khít
         # `ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])` mà `_quy_doi` gọi.
         mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": ct.tf5,
                                        "period": ct.ts["chu_ky_atr"]})), 1.0
+    elif don_vi == "atr_nen":
+        # Chu kỳ CỐ ĐỊNH — khoá phải khớp khít `ctx.chi_bao("atr", period=…)` ở
+        # `_quy_doi`, nếu không bảng số liệu để trống cả hàng mà không có gì báo.
+        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": ct.tf5,
+                                       "period": core.CHU_KY_ATR_NEN})), 1.0
     elif don_vi == "atr_zone":
         mau, he = kq.cot_zone.get("zone_atr_tb"), 1.0
     else:
@@ -610,6 +694,9 @@ def _khoang(k, ctx, neo=None, R=None):
     tinh = k.get("tinh")
     if tinh == "atr":
         return v * ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+    if tinh == "atr_nen":
+        # Chu kỳ CỐ ĐỊNH — xem `core.CHU_KY_ATR_NEN`.
+        return v * ctx.chi_bao("atr", period=core.CHU_KY_ATR_NEN)
     if tinh == "atr_zone":
         vung = ctx.so.zone_hien_hanh()
         return v * vung.atr_tb if vung else NAN
@@ -617,11 +704,6 @@ def _khoang(k, ctx, neo=None, R=None):
         return v * (R if R is not None else NAN)
     if tinh == "gia":
         return v
-    # ⚠ `bps` từng được BÀY RA cho SL/TP/đệm (`DON_VI_CHO`) mà KHÔNG cài ở đây: chọn nó
-    # là ném `LoiChay` giữa lúc backtest. Nó chính là `pt` cũ đổi mẫu số — `pt` đã bỏ vì
-    # trùng ý nghĩa với `bps` (chênh đúng 100 lần), giữ hai tên cho một phép là rác.
-    if tinh == "bps":
-        return v / 10000.0 * (neo if neo is not None else NAN)
     if tinh == "bien_zone":
         vung = ctx.so.zone_hien_hanh()
         if vung is None or neo is None:
@@ -648,22 +730,22 @@ def _vao_lenh(st, ctx):
     ct, so_ = ctx.ct, ctx.so
     huong = st.get("huong", sl.MUA)
     loai = st.get("loai", "stop")
-    lot = ct.so(st.get("lot", 0.01))
     vung = so_.zone_hien_hanh()
 
-    moc = (st.get("entry") or {}).get("moc") or (
-        "gia_hien_tai" if loai == "market" else
-        ("zone_HH" if huong == sl.MUA else "zone_LL"))
-    if moc == "zone_HH":
-        if vung is None:
-            return None                 # chưa có zone → chưa có mốc để neo
-        mep = vung.dinh
-    elif moc == "zone_LL":
-        if vung is None:
-            return None
-        mep = vung.day
-    else:
+    if loai == "market":
+        # LỆNH THỊ TRƯỜNG khớp ở GIÁ THỊ TRƯỜNG — mốc neo không có nghĩa với nó, và
+        # bịa ra một cái mốc rồi khớp ở chỗ khác mới là nói dối. Đệm vẫn được áp: đó
+        # là lựa chọn của người vẽ ("vào cao/thấp hơn thị trường một chút").
         mep = ctx.ask if huong == sl.MUA else ctx.bid
+    else:
+        # MỐC NEO = MỘT TOÁN HẠNG MỨC GIÁ, đọc qua đúng cây cầu mà điều kiện đi
+        # (core.md §15.8). Trước đây chỗ này là ba nhánh `if` gõ tay, nên thêm một mốc
+        # phải sửa cả `core.MOC_ENTRY` lẫn đoạn này — hai nơi, sớm muộn lệch.
+        moc = (st.get("entry") or {}).get("moc") or (
+            "zone_HH" if huong == sl.MUA else "zone_LL")
+        mep = _lay_toan_hang({"ten": moc, "tf": ct.tf5}, ctx)
+        if mep != mep:
+            return None         # chưa có zone / chưa có nến → chưa có mốc để neo
     # ĐỆM là tuỳ chọn. Không có thì lệnh nằm đúng mốc — hợp lệ, chỉ dễ dính một nhịp
     # phá giả hơn. Đó là lựa chọn của người vẽ, không phải lỗi.
     dem = _khoang(st.get("dem"), ctx, neo=mep) if st.get("dem") else 0.0
@@ -671,10 +753,39 @@ def _vao_lenh(st, ctx):
         return None
     gia_dat = mep + dem if huong == sl.MUA else mep - dem
 
+    # LUẬT SÀN — lệnh CHỜ phải cách giá thị trường ít nhất `stops_level`, nếu không sàn
+    # từ chối. Đây cũng là câu trả lời thật cho "lệnh chờ không đệm thì khớp ngay".
+    if loai == "stop" and cd_stops(ct) and abs(gia_dat - ctx.bid) < cd_stops(ct):
+        return None
+
     R = _khoang(st.get("sl"), ctx, neo=gia_dat)
     if R != R or R <= 0:
         return None                     # chưa có vùng nén → chưa định nghĩa được 1R
+    # LUẬT SÀN — SL gần hơn `stops_level` là sàn TỪ CHỐI cả cái lệnh. Backtest cho qua
+    # thì nó đang mô phỏng một cái lệnh không tồn tại được ngoài đời — và đúng chỗ này
+    # đẻ ra ca 862 lot (§15.13a): SL 0,0004 $ trong khi sàn đòi tối thiểu 0,41 $.
+    if cd_stops(ct) and R < cd_stops(ct):
+        return None
     slg = gia_dat - R if huong == sl.MUA else gia_dat + R
+
+    # ⭐ KHỐI LƯỢNG SUY RA TỪ RỦI RO, không phải một con số gõ tay — core.md §15.13.
+    #
+    #     tiền mạo hiểm = vốn × rủi_ro%        (vốn ĐÃ CHỐT, cùng nguồn `drawdown_pt`)
+    #     lot           = tiền mạo hiểm ÷ (R × contract_size)
+    #
+    # Nhờ đó MỌI lệnh mạo hiểm đúng một R bằng nhau tính theo % vốn, nên `tong_R` và
+    # đường tiền cuối cùng nói CÙNG một chuyện — với lot cố định thì hai cái rời nhau:
+    # một lệnh SL rộng và một lệnh SL hẹp cùng ghi −1R mà mất số tiền khác hẳn.
+    #
+    # ⚠ KHÔNG làm tròn về bước lot 0,01. Trong backtest, làm tròn là bịa thêm sai số vào
+    # đúng cái vừa dựng lên để chính xác; còn ở LIVE thì `gui_lenh` mới là chỗ biết bước
+    # lot thật của sàn, và nó đã có tầng phòng vệ riêng (§14.7).
+    ru = ct.so(st.get("rui_ro"), "rủi ro")
+    if ru != ru or ru <= 0:
+        return None
+    lot = ct.cd.lam_tron_lot(ct.von() * ru / 100.0 / (R * ct.cd.contract_size))
+    if lot is None:
+        return None     # vốn cháy sạch, hoặc lot dưới `lot_min` → sàn không nhận
     tpg = None
     if st.get("tp"):
         d = _khoang(st["tp"], ctx, neo=gia_dat, R=R)
@@ -687,14 +798,78 @@ def _vao_lenh(st, ctx):
     # này thì nó nằm treo như một lệnh chờ và có thể không bao giờ khớp — sai hẳn bản
     # chất, dù sơ đồ mẫu D_02 không dùng tới nên bài kiểm cũ không thấy.
     if loai == "market":
-        so_.khop(l, gia_dat, ctx.i, ctx.j)
+        # TRƯỢT GIÁ cũng áp cho lệnh thị trường, cùng chiều bất lợi (§16.2). Bỏ qua ở
+        # đây thì lệnh Market thành rẻ hơn lệnh Stop một cách giả tạo, và bộ tìm kiếm
+        # sẽ học đúng cái chênh lệch giả đó.
+        so_.khop(l, gia_dat + (ct.cd.truot_gia if huong == sl.MUA
+                               else -ct.cd.truot_gia), ctx.i, ctx.j)
     return {"loai": "lenh_dat", "lenh_id": l.id, "huong": huong,
             "khop_ngay": loai == "market",
             "gia_dat": _js(gia_dat), "sl": _js(slg), "tp": _js(tpg), "R": _js(R)}
 
 
+def cd_stops(ct):
+    """`stops_level` quy ra giá, đọc qua `ct` — một chỗ duy nhất, để `_vao_lenh` và
+    `_sua_lenh` không thể hiểu khác nhau. `0` = chưa đo được sàn nào → không chặn."""
+    return ct.cd.stops_gia
+
+
+def _siet_sl(l, moi):
+    """SL CHỈ ĐƯỢC SIẾT, KHÔNG ĐƯỢC NỚI. Trả SL mới, hoặc `None` nếu nó nới ra.
+
+    ⚠ LỖI THẬT, sửa ở core.md §15.10. `doi_sl` đặt SL cách GIÁ HIỆN TẠI một khoảng rồi
+    gán thẳng, không so với SL cũ. Mua ở 2400 với luật "SL cách giá 10":
+
+        giá 2410 → SL 2400   ✔ siết
+        giá 2405 → SL 2395   ✘ SL LÙI RA
+        giá 2395 → SL 2385   ✘ lùi tiếp
+
+    SL chạy theo giá đi xuống nên lệnh **không bao giờ chạm SL** — lỗ mở rộng không giới
+    hạn. Người vẽ tay chưa ai vấp phải vì không ai cố tình viết một cái SL chạy trốn;
+    một BỘ TÌM KIẾM thì không có ý định gì cả, nó chỉ leo lên chỗ điểm cao — và đây là
+    một chiến lược "không bao giờ thua" trong backtest.
+
+    Nới SL sau khi vào lệnh còn **phá luôn định nghĩa 1R** mà mọi con số của hệ thống đo
+    bằng nó: lệnh không còn rủi ro một R nữa, mà `tong_R` thì vẫn cộng như thường.
+
+    ⚠ BẤT ĐỐI XỨNG, và đó là chủ ý: **TP để tự do**. Dời TP xa ra không tăng rủi ro một
+    xu nào. Cùng lý lẽ ba luật bất đối xứng của `gui_lenh` (§14.7b).
+
+    Chưa có SL (`None`/`0`) thì mọi SL đều là siết — từ rủi ro vô hạn xuống hữu hạn.
+    """
+    if l.sl in (None, 0):
+        return moi
+    chat_hon = moi > l.sl if l.huong == sl.MUA else moi < l.sl
+    return moi if chat_hon else None
+
+
+def _sl_moi(l, moi, ctx):
+    """SL mới có ĐẶT ĐƯỢC không. Trả SL, hoặc `None` nếu sàn/thị trường không nhận.
+
+    Ba phép, theo đúng thứ tự sàn thật kiểm:
+
+    1. **ĐÚNG PHÍA.** SL của lệnh Mua phải nằm DƯỚI giá thị trường, của lệnh Bán phải
+       nằm TRÊN. Đặt sai phía không phải là "dời SL" — nó là ĐÓNG LỆNH NGAY, và đóng ở
+       một mức tệ hơn cả thị trường đang có.
+
+       ⚠ LỖI THẬT, có từ trước. `hoa_von` đặt `SL = giá vào` mà không hỏi giá đang ở
+       đâu: lệnh đang lỗ thì giá vào nằm TRÊN thị trường, nên "dời SL về hoà vốn" hoá
+       thành "cắt lỗ ngay bây giờ". Sơ đồ mẫu che được nhờ cổng `lãi ≥ 1R` ở phía trước,
+       nhưng bộ chạy chưa bao giờ tự kiểm — và một sơ đồ không vẽ cái cổng ấy thì không
+       có gì chặn.
+
+    2. **ĐỦ XA** — cách thị trường ít nhất `stops_level` (§16.1).
+    3. **CHỈ SIẾT, KHÔNG NỚI** — `_siet_sl` (§15.10).
+    """
+    gia = ctx.bid if l.huong == sl.MUA else ctx.ask
+    xa = cd_stops(ctx.ct)
+    if (moi >= gia - xa) if l.huong == sl.MUA else (moi <= gia + xa):
+        return None
+    return _siet_sl(l, moi)
+
+
 def _sua_lenh(st, ctx):
-    """Sửa lệnh đang xét. Bảy chế độ. Trả bản ghi `viec`, hoặc None nếu không đổi gì."""
+    """Sửa lệnh đang xét. Bốn chế độ. Trả bản ghi `viec`, hoặc None nếu không đổi gì."""
     l, so_ = ctx.lenh, ctx.so
     if l is None or not l.con_song:
         return None
@@ -704,13 +879,52 @@ def _sua_lenh(st, ctx):
     if cd == "hoa_von":
         if l.gia_khop is None:
             return None
-        l.sl = l.gia_khop
+        # ⭐ HOÀ VỐN THẬT = VỀ ĐÚNG SỐ 0, không phải "về đúng giá vào" — core.md §17.6.
+        #
+        # `SL = giá vào` nghe như hoà vốn nhưng KHÔNG phải: chạm nó thì phần giá đúng là
+        # 0, mà HOA HỒNG vẫn bị trừ. Lệnh "hoà vốn" ấy thật ra lỗ đúng một khoản phí, và
+        # nó lỗ như thế ở MỌI lệnh được dời — âm thầm, có hệ thống.
+        #
+        #     tiền = (giá đóng − giá vào) × lot × contract − hoa_hồng × lot  =  0
+        #  ⇒  giá đóng = giá vào + hoa_hồng / contract          (lot TỰ TRIỆT TIÊU)
+        #
+        # Cộng thêm TRƯỢT GIÁ: chạm SL thì khớp xấu hơn đúng `truot`, nên mốc phải đẩy ra
+        # thêm chừng ấy nữa. Spread thì KHÔNG cộng — nó đã nằm trong `gia_khop` (lệnh Mua
+        # vào ở Ask) và trong ngưỡng ra (`_muc_ra` dịch sẵn), cộng lần nữa là tính hai lần.
+        c = ctx.ct.cd
+        dem = c.truot_gia + (c.commission / c.contract_size if c.contract_size else 0.0)
+        # Qua CÙNG cái kẹp `_sl_moi` với `doi_sl`: đúng phía · đủ xa · chỉ siết. Sơ đồ
+        # mẫu chặn ca "chưa đủ lãi" bằng cổng `lãi ≥ 1R`, nhưng một sơ đồ không vẽ cái
+        # cổng ấy thì không có gì chặn — nên phép kiểm phải nằm ở bộ chạy.
+        moi = _sl_moi(l, l.gia_khop + dem if l.huong == sl.MUA else l.gia_khop - dem,
+                      ctx)
+        if moi is None:
+            return None
+        l.sl = moi
     elif cd in ("doi_sl", "doi_tp"):
-        d = _khoang(st.get("khoang"), ctx, neo=ctx.bid, R=l.R)
+        # MỐC NEO — cùng danh sách với khối Vào lệnh (§15.10). Bỏ trống thì đo từ giá
+        # hiện tại, đúng hành vi cũ. Có mốc thì viết được `SL tại [đáy zone] − 0,2 ATR`,
+        # thứ trước đây không nói được vì SL luôn tính từ `ctx.bid`.
+        neo = ctx.bid
+        if st.get("moc"):
+            neo = _lay_toan_hang({"ten": st["moc"], "tf": ctx.ct.tf5}, ctx)
+            if neo != neo:
+                return None         # chưa có zone / chưa có nến → chưa có mốc để đo
+        d = _khoang(st.get("khoang"), ctx, neo=neo, R=l.R)
         if d != d:
             return None
-        moi = ctx.bid - d if (l.huong == sl.MUA) == (cd == "doi_sl") else ctx.bid + d
-        setattr(l, "sl" if cd == "doi_sl" else "tp", moi)
+        moi = neo - d if (l.huong == sl.MUA) == (cd == "doi_sl") else neo + d
+        if cd == "doi_sl":
+            moi = _sl_moi(l, moi, ctx)      # đúng phía · đủ xa · chỉ siết
+            if moi is None:
+                return None
+            l.sl = moi
+        else:
+            # LUẬT SÀN — TP mới cách giá thị trường gần hơn `stops_level` là sàn từ
+            # chối lệnh sửa. TP không có luật "chỉ siết": dời TP xa ra không tăng rủi ro.
+            if cd_stops(ctx.ct) and abs(moi - ctx.bid) < cd_stops(ctx.ct):
+                return None
+            l.tp = moi
     elif cd == "ket_thuc":
         # MỘT chế độ thay cho `dong_han` + `huy_cho`. Manage chạy một lượt cho MỖI
         # lệnh, nên "lệnh này" là duy nhất và ta TỰ BIẾT nó đã khớp hay chưa — bắt
@@ -1107,6 +1321,11 @@ class PhienChay:
         ct.drawdown_pt = lambda: (0.0 if not self.tien["dinh"] else
                                   (self.tien["dinh"] - self.tien["von"])
                                   / self.tien["dinh"] * 100.0)
+        # VỐN ĐÃ CHỐT — mẫu số của phép tính khối lượng theo rủi ro (§15.13). Cùng một
+        # nguồn với `drawdown_pt`, cố ý: hai con số nói về vốn mà lấy từ hai chỗ thì sớm
+        # muộn một chỗ nói sai. Lãi nổi KHÔNG tính vào — cỡ lệnh mà nhảy theo lãi nổi
+        # của lệnh đang mở là một vòng phản hồi, và nó phóng đại đúng lúc đang thua.
+        ct.von = lambda: self.tien["von"]
 
         self.nhat_ky = []
         nhip_m = core.TF_PHUT[ct.nhip[core.TAB_MANAGE]]
@@ -1134,7 +1353,7 @@ class PhienChay:
         # Danh sách suy TỪ SƠ ĐỒ, không viết cứng: thêm một engine khác là bảng có ngay.
         self.CV = CV = tuple(dict.fromkeys(
             [x["ten"] for x in core.toan_hang_dung(doc)
-             if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI]
+             if x["ten"] in kho.ZONE_TRA_LOI]
             # ⚠ `zone_hop_le` ghi cột NGAY KHI cổng zone có phần "hợp lệ", kể cả khi
             # không cổng nào hỏi tới nó. CHART tô zone hợp lệ bằng cột này — mà chart
             # thì không phải một điều kiện trong sơ đồ nên `toan_hang_dung` không thấy.
@@ -1176,7 +1395,7 @@ class PhienChay:
 
         # ---- 1. SÀN ----
         for l in list(self.song):
-            for e in khop_lenh.trong_nen(l, nen, cd.spread_gia):
+            for e in khop_lenh.trong_nen(l, nen, cd.spread_gia, cd.truot_gia):
                 if e["loai"] == "khop":
                     so.khop(l, e["gia"], ctx.i, ctx.j)
                 else:

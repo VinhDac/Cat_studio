@@ -51,11 +51,40 @@ CAI_DAT_MAC_DINH = {
         # là chưa ai đặt khoảng. Mặc định TÍNH THEO HÔM NAY (một năm gần nhất), không ghi
         # cứng một mốc — ghi cứng thì sang năm là mặc định thành vô nghĩa.
         "symbol": "XAUUSD", "tu": _KHOANG_MAC_DINH[0], "den": _KHOANG_MAC_DINH[1],
-        "spread_diem": 20.0,      # nến là giá Bid; Ask = Bid + spread
+        # ⚠ 0 = TỰ LẤY SỐ ĐO ĐƯỢC từ kho nến (`spread_tb`). Đừng đặt lại một con số
+        # cứng ở đây — core.md §16.2.
+        #
+        # Mặc định cũ là 20, và nó là CON SỐ NGUY HIỂM NHẤT trong app: kho nến đo được
+        # 97 cho XAUUSD, mà đo trên sơ đồ mẫu 2025 thì spread 20 cho **+12,78 R** còn
+        # spread thật cho **+6,66 R** — gần gấp đôi. Một con số bịa làm chiến lược thua
+        # trông như đang thắng, và nó nằm ở chỗ không ai nghĩ phải kiểm.
+        #
+        # Không đo được và cũng không gõ tay thì `mo_tester` BÁO LỖI chứ không đoán:
+        # thà không chạy còn hơn chạy ra một con số không ai truy được nguồn.
+        "spread_diem": 0,
+        # TRƯỢT GIÁ (điểm), LUÔN theo chiều bất lợi. 0 = không mô hình hoá, và khi đó
+        # backtest đang LẠC QUAN ở khoản này — xem §16.2.
+        "truot_diem": 0,
         "deposit": 10000.0,
         "commission": 0.0,        # USD mỗi lot, ROUND-TURN
         "don_bay": 100,
         "delay_ms": 60,           # nhịp PHÁT LẠI, không phải tốc độ mô phỏng
+
+        # ---- LUẬT SÀN (core.md §16.1) ----
+        # Backtest phải chơi theo ĐÚNG luật mà live đã đo — §14.1 "một đoạn code cho cả
+        # hai". Thiếu chúng thì backtest chơi một trò DỄ HƠN live: đặt được 862 lot với
+        # SL cách 0,0004 $, hai thứ sàn thật từ chối thẳng.
+        #
+        # ⚠ Mấy ô này là DỰ PHÒNG. Có hồ sơ kết nối đã đo cho symbol này thì hồ sơ
+        # THẮNG — đo được luôn đúng hơn gõ tay, và §14.9 đã chốt hồ sơ là *cache của
+        # phép đo*, không phải cài đặt. Ô ở đây để chạy được khi chưa từng nối sàn.
+        "lot_min": 0.01,
+        "lot_buoc": 0.01,
+        "lot_max": 200.0,
+        # 0 = KHÔNG chặn. Cố ý không bịa một con số cho sàn lạ: 410 điểm là của Exness
+        # XAUUSD, sàn khác khác hẳn. Chưa đo thì nói thẳng là chưa có chốt chặn, hơn là
+        # âm thầm áp một ngưỡng của sàn người khác.
+        "stops_level": 0,
     },
 }
 

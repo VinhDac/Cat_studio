@@ -84,15 +84,17 @@ kiem("F1", "đọc ATR ở nến ĐÃ ĐÓNG [1], không repaint",
      all(x.get("shift", 1) != 0
          for s in doc["entry"]["steps"] for cc in s.get("conditions") or []
          for x in (cc["trai"], cc.get("phai")) if isinstance(x, dict)))
-# Luật F2 vẫn còn nguyên, chỉ ĐỔI CHỖ Ở: chuẩn hoá không còn là một toán hạng riêng
-# (`atr_bps`) mà là một ĐƠN VỊ của `atr`. Cùng một phép chia, đọc ra rõ hơn.
-kiem("F2", "chuẩn hoá ATR theo giá = đơn vị `bps`, không phải một chỉ báo riêng",
+# Luật F2 CỐ Ý LỆCH BẢN GỐC. D_02 chuẩn hoá ATR theo GIÁ (`atr_bps`); ta chuẩn hoá theo
+# ATR NỀN của chính thị trường đó. Lý do đo được (core.md §15.1): chia cho giá thì cùng
+# một cổng khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026 — ngưỡng trôi theo giá vàng.
+# Và chuẩn hoá không còn là một toán hạng riêng mà là một ĐƠN VỊ của `atr`.
+kiem("F2", "chuẩn hoá ATR = ĐƠN VỊ của `atr`, và thước là ATR NỀN chứ không phải giá",
      "atr_bps" not in kho.TOAN_HANG_KEYS
-     and "bps" in core.DON_VI
+     and "bps" not in core.DON_VI and "atr_nen" in core.DON_VI
      and core.TOAN_HANG_LOAI["atr"] == core.LOAI_CO_DON_VI)
-kiem("F3", "nén khi ATR (đơn vị bps) < ngưỡng N",
-     c["atr"]["phep"] == "<" and c["atr"]["phai"]["value"] == "nguong_nen_bps"
-     and c["atr"]["phai"].get("tinh") == "bps")
+kiem("F3", "nén khi ATR (× ATR nền) < ngưỡng N",
+     c["atr"]["phep"] == "<" and c["atr"]["phai"]["value"] == "nguong_nen"
+     and c["atr"]["phai"].get("tinh") == "atr_nen")
 kiem("F4", "đủ K nến nén LIÊN TIẾP",
      c["zone_dem"]["phep"] == ">=" and TS[c["zone_dem"]["phai"]["value"]] == 10)
 kiem("F5", "vùng không rộng quá Range_Max × ATR (luôn bật, không tắt được)",
@@ -145,10 +147,14 @@ kiem("V3", "R = SL_ATR_Avg × ATR TRUNG BÌNH VÙNG  (hai chữ ATR khác nhau!)
 kiem("V4", "TP = RR_Ratio × R",
      mua["tp"]["tinh"] == "R" and TS[mua["tp"]["value"]] == 2.0)
 kiem("V5", "hai chiều dùng CÙNG một bộ số",
-     (mua["dem"], mua["sl"], mua["tp"], mua["lot"])
-     == (ban["dem"], ban["sl"], ban["tp"], ban["lot"]))
-kiem("V6", "lot cố định (Fixed_Lot), không sizing theo rủi ro",
-     TS[mua["lot"]] == 0.01)
+     (mua["dem"], mua["sl"], mua["tp"], mua["rui_ro"])
+     == (ban["dem"], ban["sl"], ban["tp"], ban["rui_ro"]))
+# ⚠ V6 CỐ Ý LỆCH BẢN GỐC. D_02 dùng `Fixed_Lot = 0.01`; ta dùng RỦI RO % VỐN và để bộ
+# chạy suy ra khối lượng (core.md §15.13). Lý do: lot là con số tuyệt đối — 0,01 lot
+# trên $10.000 khác hẳn trên $100.000, nên tổng R và đường tiền rời nhau, mà sụt vốn
+# lại đúng là thứ sắp dùng để chấm điểm. Và để lot tự do là mời bộ tìm kiếm kéo đòn bẩy.
+kiem("V6", "KHÔNG chép `Fixed_Lot` — sizing theo rủi ro % vốn, có chủ ý",
+     "lot" not in mua and TS[mua["rui_ro"]] == 0.5)
 
 # ============================ QUẢN LÝ LỆNH ============================
 print("\n▸ TradeManager — quản lý lệnh")
@@ -167,11 +173,11 @@ kiem("M5", "huỷ lệnh chờ khi nén tan, và CHỈ khi chưa khớp",
      g_huy["lenh_da_khop"]["phep"] == "la_sai"
      and g_huy["atr"]["phep"] == ">=")
 kiem("M6", "huỷ dùng CÙNG ngưỡng với lúc vào — một tham số, hai nơi hỏi",
-     g_huy["atr"]["phai"]["value"] == "nguong_nen_bps"
-     and dk_cua(g_zone)["atr"]["phai"]["value"] == "nguong_nen_bps"
+     g_huy["atr"]["phai"]["value"] == "nguong_nen"
+     and dk_cua(g_zone)["atr"]["phai"]["value"] == "nguong_nen"
      # CÙNG đơn vị nữa — cùng tham số mà khác thước thì vẫn là hai ngưỡng khác nhau.
      and g_huy["atr"]["phai"].get("tinh")
-     == dk_cua(g_zone)["atr"]["phai"].get("tinh") == "bps")
+     == dk_cua(g_zone)["atr"]["phai"].get("tinh") == "atr_nen")
 # `Kết thúc lệnh này` gộp đóng-hẳn và huỷ-chờ: bộ chạy tự biết lệnh đã khớp hay chưa.
 # D_02 chỉ HUỶ lệnh chờ khi nén tan, không bao giờ chủ động đóng một vị thế đã khớp —
 # nên khối kết thúc phải nằm sau cổng "CHƯA khớp".

@@ -703,29 +703,48 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
               {Object.entries(boot.loai_lenh).map(([k, v]) =>
                 <option key={k} value={k}>{v}</option>)}
             </select>
-            <span className="nhan-o phu">Lot</span>
-            <OSo v={a.lot} thamSo={thamSo} donVi={boot.don_vi_o.lot}
-                 dat={x => dat('lot', x)}
-                 title="Khối lượng lệnh, tính bằng lot." />
+            {/* ⭐ RỦI RO % VỐN thay cho LOT — core.md §15.13.
+                Lot là con số TUYỆT ĐỐI: 0,01 lot trên $10.000 khác hẳn trên $100.000,
+                nên đổi tài khoản là tiền và sụt vốn đổi nghĩa. Khối lượng nay do bộ
+                chạy suy ra từ rủi ro và khoảng cách SL. */}
+            <span className="nhan-o phu">Rủi ro</span>
+            <OSo v={a.rui_ro} thamSo={thamSo} donVi={boot.don_vi_o.rui_ro}
+                 dat={x => dat('rui_ro', x)}
+                 title="Phần trăm VỐN mạo hiểm cho mỗi lệnh. Khối lượng suy ra từ đây và khoảng cách SL." />
+          </div>
+
+          <div className="chu-dan">
+            Khối lượng <b>không phải một ô nhập</b> nữa — bộ chạy tính
+            <code> lot = vốn × rủi ro% ÷ (khoảng cách SL × contract size)</code>.
+            Nhờ đó mọi lệnh mạo hiểm <b>một R bằng nhau</b>, và đường tiền nói cùng một
+            chuyện với tổng R.
           </div>
 
           {/* ⭐ MỐC NEO — thứ QUYẾT ĐỊNH lệnh nằm ở đâu, nên nó đứng TRƯỚC đệm.
               Trước đây trường này không tồn tại: việc "neo vào mép zone thuận chiều"
               bị viết cứng trong bộ chạy, nên trên hộp thoại chỉ hiện mỗi ô Đệm — và
-              cái đệm, vốn chỉ là tấm khiên mỏng, hoá thành nhân vật chính. */}
-          <div className="hang">
-            <span className="nhan-o">Đặt tại</span>
-            <select className="o" value={a.entry?.moc ?? ''}
-                    onChange={e => dat('entry', { moc: e.target.value })}>
-              {Object.entries(boot.moc_entry).map(([k, v]) =>
-                <option key={k} value={k}>{v}</option>)}
-            </select>
-            <span className="goi-y">
-              {boot.moc_can_zone.includes(a.entry?.moc ?? '')
-                ? 'cần một cổng ZONE ở phía trên — entry = mốc này ± đệm'
-                : 'entry = mốc này ± đệm'}
-            </span>
-          </div>
+              cái đệm, vốn chỉ là tấm khiên mỏng, hoá thành nhân vật chính.
+              Danh sách nay lấy THẲNG TỪ KHO (core.md §15.8), không còn gõ tay ba dòng.
+
+              ⚠ ẨN với lệnh THỊ TRƯỜNG: nó khớp ở giá thị trường, mốc neo không có
+              nghĩa gì với nó. Bày ra một ô mà bộ chạy bỏ qua là đúng thứ `DON_VI_CHO`
+              đã cấm — "bày ra một lựa chọn vô nghĩa rồi soát tĩnh mắng là tệ hơn không
+              bày". */}
+          {a.loai !== 'market' && (
+            <div className="hang">
+              <span className="nhan-o">Đặt tại</span>
+              <select className="o" value={a.entry?.moc ?? ''}
+                      onChange={e => dat('entry', { moc: e.target.value })}>
+                {Object.entries(boot.moc_entry).map(([k, v]) =>
+                  <option key={k} value={k}>{v}</option>)}
+              </select>
+              <span className="goi-y">
+                {boot.moc_can_zone.includes(a.entry?.moc ?? '')
+                  ? 'cần một cổng ZONE ở phía trên — entry = mốc này ± đệm'
+                  : 'entry = mốc này ± đệm'}
+              </span>
+            </div>
+          )}
 
           {/* ĐỆM là TUỲ CHỌN. Bỏ trống thì lệnh nằm đúng mốc — hợp lệ, chỉ dễ dính
               một nhịp phá giả hơn. */}
@@ -758,10 +777,42 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
             </select>
           </div>
 
+          {/* ⭐ MỐC NEO cho Sửa lệnh — CÙNG danh sách với khối Vào lệnh.
+              Trước đây SL/TP luôn đo từ giá hiện tại (`ctx.bid` viết cứng trong bộ
+              chạy), nên không viết được `SL tại đáy zone − 0,2 ATR`. Hai khối cùng nói
+              về MỘT vị trí giá thì phải nói bằng cùng một cách — core.md §15.10.
+              Khác khối Vào lệnh đúng một chỗ: ở đây mốc là TUỲ CHỌN. Bỏ trống = đo từ
+              giá hiện tại, đúng hành vi cũ, nên file cũ mở ra không đổi gì. */}
+          {boot.sua_can_gia.includes(a.che_do) && (
+            <div className="hang">
+              <span className="nhan-o">Đo từ</span>
+              <select className="o" value={a.moc ?? ''}
+                      onChange={e => dat('moc', e.target.value || undefined)}>
+                <option value="">Giá hiện tại</option>
+                {Object.entries(boot.moc_entry).map(([k, v]) =>
+                  <option key={k} value={k}>{v}</option>)}
+              </select>
+              <span className="goi-y">
+                {boot.moc_can_zone.includes(a.moc ?? '')
+                  ? 'cần một cổng ZONE ở phía trên'
+                  : 'mốc mới = chỗ này ± khoảng cách dưới'}
+              </span>
+            </div>
+          )}
+
           {boot.sua_can_gia.includes(a.che_do) && (
             <OKhoang nhan="Khoảng cách mới" k={a.khoang} boot={boot}
                      thamSo={thamSo} oDau="sua" coZone={coZone}
                      dat={v => dat('khoang', v)} />
+          )}
+
+          {a.che_do === 'doi_sl' && (
+            <div className="chu-dan">
+              <b>SL chỉ được SIẾT, không được nới.</b> Mốc mới xa hơn SL đang có thì bộ
+              chạy bỏ qua, không sửa gì. Nới SL sau khi vào lệnh là phá luôn định nghĩa
+              1R mà mọi con số đang đo bằng nó. TP thì tự do — dời TP xa ra không tăng
+              rủi ro.
+            </div>
           )}
 
           {a.che_do === 'hoa_von' && (

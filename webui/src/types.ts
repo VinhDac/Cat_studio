@@ -103,7 +103,7 @@ export interface ProcessDoc {
 /** Danh mục kho — mọi thứ app tính được, do `kho/` tự gom từ các module con. */
 export interface KhoDanhMuc {
   module: {
-    ma_so: string; ten: string; mo_ta: string; la_engine: boolean; nguon: string
+    ma_so: string; ten: string; mo_ta: string; nguon: string
     so_chi_bao: number; so_toan_hang: number; so_bang: number
   }[]
   chi_bao: { key: string; nhan: string; tham_so: string[]; cong_thuc?: string
@@ -176,7 +176,8 @@ export interface Bootstrap {
   don_vi_cho: Record<string, string[]>
   huong: Record<string, string>
   loai_lenh: Record<string, string>
-  /** Mốc neo của khối Vào lệnh — `zone_HH` · `zone_LL` · `gia_hien_tai`. */
+  /** Mốc neo — dùng chung cho khối Vào lệnh VÀ khối Sửa lệnh. Danh sách do Python gom
+   *  từ kho (mọi toán hạng MỨC GIÁ không cần hỏi thêm con số), không gõ tay. */
   moc_entry: Record<string, string>
   /** Mốc nào chỉ có nghĩa khi phía trên có cổng zone. */
   moc_can_zone: string[]
@@ -203,6 +204,12 @@ export interface Bootstrap {
   /** Bộ nến đã tải — hộp thoại Cài đặt quản lý (tải thêm · xoá · số MB). */
   nguon: BoNen[]
   co_mt5: boolean
+
+  /** LUẬT SÀN đã ĐO ĐƯỢC, theo symbol. Có mặt = hồ sơ hiệu chuẩn thắng ô gõ tay. */
+  luat_san?: Record<string, {
+    lot_min: number; lot_buoc: number; lot_max: number; stops_level: number
+    nguon: string; do_luc: string
+  }>
 
   /** Đơn vị của những ô CỐ ĐỊNH ngoài điều kiện: `chu_ky` → nến, `lot` → lot. */
   don_vi_o: Record<string, string>

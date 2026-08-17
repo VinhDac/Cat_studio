@@ -5,9 +5,16 @@
 >
 > File này là **nguồn sự thật về Ý ĐỊNH**. Code là nguồn sự thật về hành vi.
 > Sửa cơ chế → sửa file này cùng lúc, đừng để hai bên nói khác nhau.
+>
+> ⚠ **VÍ DỤ TRONG CÁC MỤC TRƯỚC §15 CÓ THỂ DÙNG TỪ VỰNG CŨ** — `atr < 7 [bps]`,
+> `lot = 0,01`, `kho/engine_d02.py`, `gia_hien_tai`. Chúng được **giữ nguyên có chủ ý**:
+> mỗi mục kể lại chuyện lúc nó được quyết, và xoá đi là mất phần *vì sao*. Bộ đồ nghề
+> HIỆN TẠI nằm ở **§6.3** (bảng toán hạng · đơn vị · phép so) và **§15** (lý do đổi).
+> Chỗ nào hai bên đá nhau thì **§15 thắng**.
 
-Cập nhật: 2026-08-13 · Trạng thái: **P0–P7 + P9 xong** · 14/14 bài kiểm qua · đã đóng gói và chạy thật
-Tester + bộ chạy đã đo trên một năm dữ liệu thật (§12). **P8 · Live** nối sàn ở **chế độ QUAN SÁT** — §14.
+Cập nhật: 2026-08-17 · Trạng thái: **P0–P7 + P9 xong** · 14/14 bài kiểm qua · đã đóng gói và chạy thật
+Tester + bộ chạy đã đo trên nhiều năm dữ liệu thật (§12). **P8 · Live** nối sàn ở **chế độ QUAN SÁT** — §14.
+🆕 **§15 · Dọn kho đồ cho việc TÌM CHIẾN LƯỢC TỰ ĐỘNG** — 6/7 đợt đã cài, hạng mục 10 hoãn có chủ ý.
 
 ---
 
@@ -33,10 +40,11 @@ Ba tầng, mỗi tầng biết đúng việc của mình. Đây là thứ làm a
 
 ```
 core.py          lõi — đồ thị, đánh số, soát lỗi. Không phụ thuộc giao diện.
-kho/             DANH MỤC mọi thứ app tính được, chia theo NGUỒN
-  nen_tang.py      giá · thời gian · tài khoản · lệnh này   (không thuộc engine nào)
-  chi_bao.py       ATR · MA · Donchian · Volume MA          (chỉ báo phổ thông)
-  engine_d02.py    atr_bps · bảng vùng nén                  (ý tưởng riêng của D_02)
+kho/             DANH MỤC mọi thứ app tính được, chia theo LOẠI
+  nen_tang.py      giá · sổ lệnh · lệnh này      LUÔN có
+  chi_bao.py       ATR · MA                      ai gọi thì có
+  zone.py          vùng giá + máy nuôi vùng      có khi SƠ ĐỒ định nghĩa nó
+mau/compress.json  sơ đồ mẫu — một chiến lược, nên nó là JSON như mọi chiến lược khác
 so_lenh.py       bảng `lệnh` + `vùng nén`, id của CHÍNH TA
 luu_tru.py       MỘT chỗ duy nhất biết file nằm ở đâu
 api.py           bề mặt DUY NHẤT giao diện gọi tới   (JS → api.py → core.py)
@@ -47,14 +55,20 @@ webui/           React + TypeScript + React Flow (@xyflow/react)
 
 ### Vì sao `kho/` tách khỏi `core.py`
 
-`so_nen_nen` **chỉ có nghĩa khi engine D_02 đang nạp**. Để nó chung một danh sách phẳng
-với `close` là nói dối về việc thứ gì luôn có, thứ gì đến từ một chiến lược cụ thể.
+`zone_dem` **chỉ có nghĩa khi sơ đồ có cổng zone**. Để nó chung một danh sách phẳng với
+`close` là nói dối về việc thứ gì luôn có, thứ gì phải được định nghĩa ra mới có.
 
-- Thêm một chiến lược = thêm **một file** vào `kho/`, không sờ `core.py`.
+- Thêm một cơ chế = thêm **một file** vào `kho/`, không sờ `core.py`.
 - Hộp thoại **Kho** (menu File) đọc thẳng `kho.danh_muc()` — không có danh sách nào
   chép tay, nên nó không thể nói khác thực tế.
-- **Trùng khoá giữa hai module là lỗi CHẾT NGƯỜI** (hai engine cùng khai `atr` với hai
+- **Trùng khoá giữa hai module là lỗi CHẾT NGƯỜI** (hai module cùng khai `atr` với hai
   nghĩa) → `kho/__init__.py` nổ ngay lúc import, không để nó âm thầm.
+
+⚠ **Khái niệm "ENGINE" đã TAN — §15.3.** `engine_d02.py` bị xoá. Cơ chế vùng vốn là ý
+tưởng riêng của D_02, nhưng nó đã tổng quát hoá xong từ lâu (`moi_nen()` rỗng, điều kiện
+đếm nằm ở cổng người dùng vẽ) — giữ một module mang tên một chiến lược cụ thể chỉ khiến
+người đọc tưởng phải "chọn engine". Bảng số của D_02 đi theo sơ đồ mẫu, vào
+`mau/compress.json`.
 
 ### Vì sao `so_lenh.py` dùng id của ta
 
@@ -580,20 +594,27 @@ Hệ quả, và nó gỡ được rất nhiều thứ:
 *(Từng có `dat_co` — Đặt cờ — để dành làm bộ nhớ. Bỏ: D_02 không cần, và giữ một cơ
 chế không ai dùng chỉ tổ rác. Cần thì thêm lại lúc có ca dùng thật.)*
 
-**Toán hạng của `check_cond`** — 32 cái, 6 nhóm, đủ tái lập Compress EA 100%:
+**Toán hạng của `check_cond`** — **22 cái, 5 nhóm**, đủ tái lập Compress EA 100 %:
 
 | Nhóm | Toán hạng |
 |---|---|
-| Giá | `Close[n]`, `Open[n]`, `High[n]`, `Low[n]`, `Bid`, `Ask`, `Spread` |
-| Chỉ báo | `ATR(tf, period)`, `MA(tf, period, method)`, `Donchian(tf, period).upper/lower`, `Volume_MA(tf, period)` |
-| Chuẩn hoá | `ATR_bps = ATR/Close × 10000`, `X theo bội ATR`, `X theo R` |
-| Vùng nén | `số_nến_nén`, `đỉnh_vùng`, `đáy_vùng`, `bề_rộng_vùng÷ATR`, `ATR_TB_vùng`, **`vùng_này_đã_sinh_lệnh`** |
-| Tài khoản | `số_vị_thế`, `số_lệnh_chờ`, `số_lệnh_hôm_nay`, `drawdown_%` |
-| **Lệnh này** *(chỉ Manage)* | `đã_khớp`, `là_lệnh_Mua`, `SL_đã_ở_hoà_vốn`, `lãi (×R)`, `số_nến_đã_sống`, `giá_vào` |
-| Thời gian | `giờ`, `thứ` |
+| Giá (4) | `close`, `open`, `high`, `low` — mỗi cái chọn khung |
+| Chỉ báo (2) | `atr(tf, period)`, `ma(tf, period, method)` |
+| Sổ lệnh (3) | `so_vi_the`, `so_lenh_cho`, `drawdown_pt` |
+| Zone (7) | `zone_dem`, `zone_HH`, `zone_LL`, `zone_range`, `zone_atr_tb`, `zone_hop_le`, **`zone_da_sinh_lenh`** |
+| **Lệnh này** (6) *(chỉ Manage)* | `lenh_da_khop`, `lenh_la_mua`, `lenh_sl_hoa_von`, `lenh_lai_R`, `lenh_so_nen_song`, `lenh_thuoc_zone` |
 
-**Phép so dùng KÝ HIỆU, không dùng chữ:**
-`<` `≤` `>` `≥` `=` `≠` · `cắt lên ↗` · `cắt xuống ↘` · `trong khoảng`.
+⚠ **Bảng này TỪNG hứa 32 cái / 6 nhóm, trong đó 13 cái chưa bao giờ tồn tại** (`Bid` ·
+`Ask` · `Spread` · `Donchian` · `Volume_MA` · `số lệnh hôm nay` · `giá vào` · `giờ` ·
+`thứ` …). Ai đọc file này để thiết kế sẽ thiết kế cho một cái kho không có thật — nguy hơn
+hẳn một con số sai. Lý do bỏ từng cái: **§15.6**. Nhóm "Chuẩn hoá" cũ đã **hoà tan thành
+ĐƠN VỊ** (`atr_bps` → `atr [× ATR nền]`), đúng thiết kế.
+**Số lượng lấy từ `len(kho.TOAN_HANG)`, đừng gõ tay lần nữa** — chính cái gõ tay là thứ đã
+lệch ba chỗ (core.md 32 · README 17 · thực tế 19).
+
+**Phép so dùng KÝ HIỆU, không dùng chữ — 8 cái:**
+`<` `≤` `>` `≥` `=` `≠` · `là ĐÚNG` · `là SAI`.
+*(`cắt lên ↗` · `cắt xuống ↘` · `trong khoảng` KHÔNG có, và không thêm lại — **§15.9**.)*
 Một cổng của Compress mang 4–5 điều kiện; viết *"lớn hơn hoặc bằng"* thì mỗi dòng dài
 gấp đôi và mắt phải **đọc chữ** thay vì **liếc thấy quan hệ**.
 
@@ -611,21 +632,33 @@ Compress EA (§7.1):
 | `tinh` | Nghĩa |
 |---|---|
 | `atr` | × **ATR hiện tại** |
+| `atr_nen` | × **ATR NỀN** — ATR dài hạn (100 nến) của chính thị trường đó |
 | `atr_zone` | × **ATR trung bình của zone** |
 | `R` | × R (rủi ro) |
 | `bien_zone` | mép zone đối diện |
-| `bps` | bps của giá (1 bps = 1/10 000) |
 | `gia` | giá tuyệt đối |
 
 ⚠ **`pt` ("% của giá") đã bỏ.** Nó là `bps` chia 100 — hai cái tên cho đúng một phép
 chuẩn hoá, nên người dùng phải đoán xem chúng khác nhau chỗ nào (không khác). Không có
-phép chuyển tự động: đổi sang `bps` phải **nhân giá trị với 100**, mà giá trị có thể là
-một *tên tham số* — lúc đó không nhân được. Một phép đổi đúng-một-nửa là loại hỏng tệ
-nhất (file vẫn chạy, chỉ sai 100 lần), nên gặp `pt` thì soát tĩnh nói to.
+phép chuyển tự động, nên gặp `pt` thì soát tĩnh nói to. Một phép đổi đúng-một-nửa là loại
+hỏng tệ nhất: file vẫn chạy, chỉ sai.
 
-⚠ **`bps` từng được bày ra cho SL/TP/đệm mà `bo_chay._khoang` CHƯA CÀI** — chọn vào là
-ném `LoiChay` giữa lúc backtest. Nay đã cài (`v / 10⁴ × neo`), và `tests/test_zone.py`
-canh đúng chỗ đó.
+⚠ **`bps` ("phần vạn của giá") CŨNG ĐÃ BỎ — §15.7.** Nó chuẩn hoá theo **mức giá**, mà thứ
+trôi qua thời gian là **chế độ biến động**. Đo trên XAUUSD 2021–2026: cùng cổng
+`atr < 7 [bps]` khớp **74,3 %** số nến năm 2023 và **7,8 %** năm 2026 — chiến lược tự tắt
+dần theo giá vàng mà sơ đồ không nói một câu nào. `atr_nen` chia cho chính thị trường đó
+nên nó đứng yên (độ trôi 68 điểm → 7,4 điểm). Cũng **không đổi tự động** được: `7 bps` và
+`0,75 × ATR nền` là hai con số khác hẳn nhau.
+
+⚠ **CÁI THƯỚC KHÔNG ĐƯỢC LÀ THAM SỐ.** `core.CHU_KY_ATR_NEN = 100`, cố định, không đưa vào
+bảng tham số và không đưa vào không gian tìm kiếm. **Ngưỡng** thì ngược lại — đó là quyết
+định của chiến lược.
+
+⚠ **`lot` ĐÃ BỎ khỏi khối Vào lệnh — §15.13.** Nó là đơn vị tuyệt đối cuối cùng còn sót:
+0,01 lot trên $10.000 khác hẳn trên $100.000. Nay khối Vào lệnh khai **rủi ro % vốn**, còn
+khối lượng do bộ chạy suy ra từ đó và khoảng cách SL. Đo được: số lệnh và tổng R không đổi
+một chút nào, nhưng **sụt vốn đổi 20–30 lần** — vì con số cũ (`DD 0,66 %`) nói về việc cỡ
+lệnh quá bé chứ không nói gì về chiến lược.
 
 ⚠ **`bien_zone` KHÔNG dùng con số bạn gõ.** `_khoang` tính `v` rồi vứt — nó trả thẳng
 khoảng cách tới mép zone đối diện, nên `SL = 1 [mép zone đối diện]` và `SL = 99 […]` ra y
@@ -3611,6 +3644,1103 @@ Ngày nối, ba câu này phải có lời trước dòng code đầu tiên — 
    khác backtest" vĩnh viễn không trả lời được.
 3. **Đóng cửa sổ = dừng phiên, còn đúng nữa không?** §14.4 chọn thế vì chưa có gì phải giữ.
    Có lệnh thật rồi thì đóng cửa sổ mà bỏ mặc vị thế là chuyện khác hẳn.
+
+---
+
+## 15. ⭐⭐ TÌM CHIẾN LƯỢC TỰ ĐỘNG — kho đồ phải chuẩn hoá TRƯỚC
+
+> **Trạng thái: đang duyệt từng hạng mục một.** Mục ghi ✅ là **đã duyệt nhưng CHƯA CÀI** —
+> code vẫn là bản cũ cho tới khi có dòng "đã cài" kèm số đo. Đây là chỗ duy nhất ghi ý
+> định của đợt này; đừng sửa §6.3 trước khi cài, để tài liệu không nói về một cơ chế
+> chưa tồn tại.
+
+### 15.0 Vì sao CHUẨN HOÁ là việc đầu tiên, không phải thuật toán
+
+Đợt này **không tinh chỉnh tham số**. Đó là quyết định, không phải thiếu sót:
+
+> **Không dò số ⇒ số phải tự đúng.**
+
+Gánh nặng chuyển từ *thuật toán tìm* sang *bộ từ vựng*. Nếu được mài số cho khớp dữ liệu
+thì kho đồ bẩn cũng không sao — thuật toán sẽ bù. Ta không làm thế, nên một luật tìm ra
+phải là **một câu nói về thị trường**, không phải một con số vừa vặn với mấy năm XAUUSD.
+
+**Phép thử nghiệm thu của kho đồ, một câu:**
+
+> Một luật viết ra phải đọc được nguyên vẹn trên XAU, EUR, BTC và chỉ số —
+> **không đổi một con số nào.**
+
+Cái nào trượt phép thử đó chính là chỗ chiến lược sẽ chết khi đổi thị trường.
+
+⚠ **PHÉP THỬ NÀY CÓ ĐIỂM MÙ, và nó đã cắn thật — §15.13b.** Nó ngầm giả định **cái thước
+luôn khác 0**. Khi biến động thật sự bằng 0 (chợ chết lặng, nến phẳng), mọi tỉ số hoá
+`0/0` hoặc luôn đúng, và **chuẩn hoá càng triệt để thì càng không còn gì bám vào**. Phải
+có đúng một cái mốc **không co lại được** — và cái duy nhất như vậy là **chi phí giao
+dịch**.
+
+⭐ **MỘT KHO DUY NHẤT — không có thứ NGƯỜI dùng được mà MÁY không được.**
+
+Từng có lúc tôi đề nghị chia hai (giữ `bps` cho người vẽ, cấm bộ sinh chọn). Người dùng bác,
+và bác đúng:
+
+> Nếu một món đồ không đủ rõ để giao cho máy, thì nó **cũng sẽ lừa người** — chỉ chậm hơn,
+> nên khó bắt hơn. Sửa món đồ, đừng chia đối tượng.
+
+Chia hai còn đẻ ra thứ tệ hơn: hai danh sách phải đồng bộ tay, đúng cái bẫy `CAN_ZONE` đã
+cắn một lần. Và nó phá luôn lời hứa cuối cùng của dự án — *thứ máy tìm ra phải là thứ người
+vẽ được* — vì hai bên không còn cùng một bộ đồ nghề. **Phép thử §15.0 là cổng DUY NHẤT:
+món nào trượt thì ra khỏi kho, với ai cũng vậy.**
+
+⚠ **KHO NẾN NÓI DỐI VỀ CHÍNH NÓ — mọi phép đo phải bỏ phần đầu.** `du_lieu/nen/XAUUSD.json`
+ghi `tu: 2016-08-09` · `so_nen: 1.770.149`, nhìn như **10 năm M1**. Thật ra 2016–2020 chỉ
+có **1 nến MỖI NGÀY** (1.789 nến — chắc một lần tải nhầm khung D1). M1 thật bắt đầu từ
+**giữa 2021**, tức khoảng **5 năm rưỡi**. Chia train/test theo ngày mà không soi mật độ là
+train trên rác. Soi trước khi đo bất cứ thứ gì: `số nến ÷ số ngày` phải ≈ **1.130** cho M1;
+mấy năm đầu ra **1**.
+
+### 15.1 ✅ Hạng mục 1 — THƯỚC ĐO NÉN: `atr_bps` → `ATR / ATR nền`
+
+`atr_bps` **không phải phép chuẩn hoá ổn định**. Người dùng rút ra từ chạy thật, và đo
+được trên toàn bộ M1 thật (353.821 nến M5, 2021–2026, ATR(14)):
+
+| năm | giá TB | `atr_bps` trung vị | **% nến khớp cổng `atr < 7`** |
+|---|---|---|---|
+| 2021 | 1.794 | 5,18 | **69,9 %** |
+| 2022 | 1.804 | 6,17 | 60,2 % |
+| 2023 | 1.945 | 5,03 | **74,3 %** |
+| 2024 | 2.381 | 6,11 | 62,4 % |
+| 2025 | 3.345 | 7,84 | 40,7 % |
+| 2026 | 4.676 | 12,48 | **7,8 %** |
+
+Cùng một cái cổng, không đổi một con số: **2023 khớp 74 % số nến, 2026 khớp 7,8 %** —
+chênh gần **10 lần**. Chiến lược tự tắt dần theo thời gian mà sơ đồ không nói một câu nào.
+
+**Vì sao hỏng.** `atr_bps = ATR/close × 10⁴` chuẩn hoá theo **MỨC GIÁ**. Nhưng thứ trôi
+không phải mức giá — mà là **CHẾ ĐỘ BIẾN ĐỘNG**. Vàng lên 2,6 lần (1.794 → 4.676) trong
+khi ATR lên **6 lần**. Chia cho giá không chạm được vào phần chênh đó.
+
+*(Đừng đọc nhầm §Engine `atr_bps` là "một ngưỡng cho mọi thang giá". Câu đó đúng về
+**thang giá** — vàng $2.400 và EURUSD 1,10 — nhưng sai về **thời gian**: cùng một thị
+trường, giá đi lên là ngưỡng trôi.)*
+
+**Thước mới: đo ATR bằng ATR DÀI HẠN CỦA CHÍNH THỊ TRƯỜNG ĐÓ** — `ATR(14) / ATR(100)`.
+"Nén" đúng nghĩa là *nhỏ so với chính nó dạo này*, không phải *nhỏ so với cái giá đang là
+bao nhiêu*.
+
+Tỉ số dao động quanh **1,00** (ATR ngắn xoay quanh ATR dài). **90 % số nến nằm trong
+0,44 – 1,71**; thấp nhất 0,17 · cao nhất 5,20. Phân vị gần như không nhúc nhích:
+
+| | 2021 | 2023 | 2026 |
+|---|---|---|---|
+| 10 % yên nhất | 0,45 | 0,47 | 0,63 |
+| trung vị | 1,00 | 0,99 | 0,95 |
+| 90 % | 1,60 | 1,57 | 1,47 |
+
+Và đây là con số quyết định — **độ trôi của tỉ lệ khớp cổng qua các năm**:
+
+| thước | ngưỡng | % nến khớp (năm thấp nhất .. cao nhất) | lệch |
+|---|---|---|---|
+| `atr_bps` | 7 | 7,8 % .. 75,8 % | **68 điểm** |
+| tỉ số | 0,60 | 7,9 % .. 21,0 % | 13,1 điểm |
+| tỉ số | 0,70 | 17,1 % .. 26,9 % | 9,9 điểm |
+| **tỉ số** | **0,75** | **22,6 % .. 30,0 %** | **7,4 điểm** |
+| tỉ số | 0,80 | 28,1 % .. 33,4 % | 5,3 điểm |
+
+**Ổn định hơn khoảng 9 lần.**
+
+**Cài bằng ĐƠN VỊ, không bằng toán hạng mới.** Thêm `× ATR nền` vào `core.DON_VI`, dùng
+cho mọi toán hạng `khoang_cach`. Đúng con đường `atr_bps` đã đi khi nó tan thành đơn vị
+`bps` (§`THANH_DON_VI`): **chuẩn hoá thuộc về CÁI THƯỚC, không thuộc về CÁI TÊN**. Không
+đi đường này thì mỗi engine mới lại đẻ một `*_ti_so` của riêng nó và kho phình gấp đôi ở
+mỗi đại lượng.
+
+⚠ **CÁI THƯỚC KHÔNG ĐƯỢC LÀ THAM SỐ.** ATR nền **cố định 100 nến** — không cho chỉnh,
+không đưa vào không gian tìm kiếm. Thước mà co giãn được thì nó không còn là thước, và một
+bộ tìm kiếm được phép chỉnh thước sẽ chỉnh nó cho vừa dữ liệu — đúng thứ §15.0 vừa cấm.
+**Ngưỡng** (`0,75`) thì ngược lại: đó là quyết định của chiến lược, vẫn nằm trong không
+gian tìm.
+
+**Hai chỗ nói thật, không giấu:**
+
+1. **Càng siết càng kém ổn định.** Ở ngưỡng 0,50 tỉ lệ vẫn chênh 6 lần giữa các năm
+   (2,1 % .. 13,6 %). Vùng dùng được là **0,6 – 0,8**; dưới 0,5 thì nến quá hiếm và số bắt
+   đầu nhảy.
+2. **Xu hướng nhẹ 2025–2026 là CÓ THẬT.** Ít nến yên hơn hẳn (ngưỡng 0,6 chỉ còn khớp
+   7,9 % thay vì 21 %) — vàng dạo này biến động dai dẳng thật. Thước cũ **giấu** chuyện đó
+   sau việc giá tăng; thước mới báo đúng. Một cái thước tốt phải để thị trường đổi lộ ra,
+   không phải làm phẳng nó đi.
+
+#### ✅ ĐÃ CÀI — và đây là bằng chứng nó làm đúng việc
+
+`DON_VI` bỏ `bps`, thêm `atr_nen`; `core.CHU_KY_ATR_NEN = 100`; ba chỗ quy đổi
+(`_quy_doi` · `quy_doi_cot` · `_khoang`) cài cùng lượt; `_dung_cot` xin cột ATR nền **vô
+điều kiện** — nó có thể bị hỏi từ điều kiện, `dk_hop_le`, SL, TP, đệm, hay ô khoảng của
+Sửa lệnh, và đi quét đủ sáu chỗ để tiết kiệm một cột là đổi một khoản rẻ lấy một chỗ
+chắc chắn có ngày bỏ sót.
+
+Sơ đồ mẫu đổi sang `nguong_nen = 0,75 [× ATR nền]`. **Chạy trên từng năm dữ liệu thật:**
+
+| năm | nến M1 | lệnh | zone | tổng R | DD % | thắng % |
+|---|---|---|---|---|---|---|
+| 2022 | 352.976 | **485** | 1047 | −4,96 | 0,35 | 28,6 |
+| 2023 | 351.899 | **421** | 938 | −29,96 | 0,66 | 23,1 |
+| 2024 | 354.351 | **447** | 967 | −37,37 | 0,77 | 24,0 |
+| 2025 | 353.129 | **453** | 1119 | +12,01 | 0,62 | 28,6 |
+| 2026 (½) | 174.259 | 234 | 628 | +12,71 | 0,97 | 30,7 |
+
+⭐ **Số lệnh mỗi năm giờ nằm trong 421–485 — chênh 15 %.** Với thước cũ, tỉ lệ nến khớp
+cổng chênh **9,5 lần** giữa 2023 và 2026, nên số lệnh phải sụp theo. Đây chính là thứ
+đợt này mua được: **chiến lược không còn tự tắt dần theo giá vàng.**
+
+*(Bộ số neo CŨ — 550 lệnh · −19,52 R · DD 1,08 % — chính thức hết hiệu lực. Mốc mới để
+phát hiện hồi quy là bảng trên, cụ thể **2025: 453 lệnh · +12,01 R · DD 0,62 % · vốn
+10.045,83**.)*
+
+### 15.2 Đã duyệt, chờ tới lượt cài
+
+- **`lot` ra khỏi không gian tìm kiếm** → mỗi lệnh rủi ro đúng **x % vốn**, lot suy ra từ
+  khoảng cách SL. Lot là **đơn vị tuyệt đối cuối cùng còn sót** trong kho: 0,01 lot trên
+  tài khoản $10.000 khác hẳn trên $100.000, nên R vẫn đúng mà **tiền và sụt vốn thì không
+  chuyển được sang tài khoản khác** — mà sụt vốn lại đúng là thứ sắp dùng để chấm điểm.
+  Thêm nữa, để `lot` tự do là mời bộ tìm kiếm kéo đòn bẩy ăn điểm; chú thích trong
+  `THAM_SO_MAC_DINH` đã ghi sẵn *"lot to là đòn bẩy chứ không phải lợi thế"*.
+- **Thêm phép đo KHOẢNG CÁCH giữa hai mức giá.** Nay 7/19 toán hạng là `muc_gia`
+  (close · open · high · low · ma · zone_HH · zone_LL) và chúng chỉ so được **BÊN NÀO**,
+  không so được **BAO XA**: viết được `giá > MA`, không viết được `giá cao hơn MA 0,5 ATR`.
+  Đây là dấu vết D_02 — nó chỉ cần biết *hướng* nên kho dừng ở đó.
+- **Thêm toán hạng "lệnh này đã sống bao nhiêu nến".** Manage nay chỉ phản ứng được với
+  **giá** và **zone**, không bao giờ phản ứng được với **thời gian** — không viết được
+  *"lệnh chờ treo 20 nến không khớp thì huỷ"*.
+
+#### ✅ 15.13 ĐÃ CÀI — `lot` biến mất, `rủi ro % vốn` thay chỗ
+
+Trường `lot` **bỏ hẳn** khỏi khối Vào lệnh. Bộ chạy tự tính:
+
+```
+tiền mạo hiểm = vốn ĐÃ CHỐT × rủi_ro%
+lot           = tiền mạo hiểm ÷ (khoảng cách SL × contract_size)
+```
+
+Vốn lấy từ **cùng một nguồn** với `drawdown_pt` (`PhienChay.tien["von"]`) — hai con số nói
+về vốn mà lấy từ hai chỗ thì sớm muộn một chỗ nói sai. **Lãi nổi không tính vào**: cỡ lệnh
+nhảy theo lãi nổi của lệnh đang mở là một vòng phản hồi, và nó phóng đại đúng lúc đang thua.
+
+⚠ **Không làm tròn về bước lot 0,01.** Trong backtest, làm tròn là bịa thêm sai số vào đúng
+cái vừa dựng lên để chính xác. Ở LIVE thì `gui_lenh` mới là chỗ biết bước lot thật của sàn,
+và nó đã có tầng phòng vệ riêng (§14.7).
+
+⚠ **Không đổi tự động, không có mặc định.** `0,01 lot` quy ra bao nhiêu phần trăm phụ thuộc
+vốn LẪN khoảng cách SL của từng lệnh — không có con số nào đúng. Thiếu `rui_ro` thì soát
+tĩnh **nói to**, y hệt cách `bps` và `pt` đã xử.
+
+**Đo được — và đây mới là chỗ đáng nhìn:**
+
+| năm | lệnh | tổng R | DD % *(lot 0,01)* | **DD % *(rủi ro 0,5 %)*** |
+|---|---|---|---|---|
+| 2022 | 485 | −4,96 | 0,35 | **15,11** |
+| 2023 | 421 | −29,96 | 0,66 | **21,91** |
+| 2024 | 447 | −37,37 | 0,77 | **20,09** |
+| 2025 | 453 | +12,01 | 0,62 | **10,01** |
+| 2026 (½) | 234 | +12,71 | 0,97 | **6,16** |
+
+⭐ **Số lệnh và tổng R KHÔNG đổi một chút nào** — đúng như phải vậy: cỡ lệnh không quyết
+định lệnh nào được đặt hay nó lãi mấy R.
+
+⭐ **Sụt vốn thì đổi 20–30 lần.** Đó không phải chiến lược xấu đi, mà là **con số cũ đang
+nói dối**: `0,01 lot` trên tài khoản $10.000 mạo hiểm ~0,045 % mỗi lệnh, nên `DD 0,66 %`
+không nói được gì về chiến lược cả — nó nói về việc cỡ lệnh quá bé. Ở mức rủi ro người ta
+thật sự dùng, năm 2023 sụt **21,9 %**. Đó mới là sự thật, và đó chính là con số bước
+**phần thưởng** sắp phải chấm điểm.
+- **Không thêm chỉ báo nào** (không RSI/ADX/Donchian…). Kho giữ đúng `atr` + `ma`. Chỗ
+  biến thiên nằm ở zone + hình học vào lệnh + chính sách Manage, không nằm ở số chỉ báo.
+
+### 15.3 ✅ Hạng mục 2 — ZONE RA KHỎI `engine_d02`, và khái niệm "engine" TAN
+
+**Cơ chế zone đã hết chất D_02 từ trước**, chỉ là chưa ai dọn: `Engine.moi_nen()` đã rỗng,
+điều kiện sinh zone nằm ở **cổng người dùng vẽ** (`cong_zone` → `bo_chay._nuoi_zone`), và
+`nguong_nen_bps` đã rời khỏi `THAM_SO_CAN`. Nên đây là việc **chuyển nhà**, không phải
+thiết kế lại.
+
+⚠ **LỖI THẬT: bảng mô tả zone đang nói cơ chế ĐÃ CHẾT — và người dùng đọc được nó.**
+`BANG_TRANG_THAI["zone"]` còn ba câu, cả ba đều sai từ lúc `moi_nen` rỗng đi:
+
+```
+"Sinh ra khi atr_bps tụt dưới ngưỡng, chết khi bung lên lại"
+"Nến nén = atr_bps < ngưỡng"
+"atr_bps ≥ ngưỡng → vùng CHẾT ngay, dù đang có lệnh chờ treo"
+```
+
+Zone nay sinh và chết **theo cổng zone trong sơ đồ**, không dính gì `atr_bps`. Mà chính
+mấy câu đó là thứ hiện ra ở **menu File → Kho** — app đang dạy sai người dùng về chính nó.
+Đây là mặt trái của quyết định "để code máy zone CÙNG FILE với bảng luật của nó": ở gần
+nhau thì dễ sửa cùng lúc, nhưng **không có gì bắt buộc** phải sửa cùng lúc, và lần này thì
+không.
+
+**Chỗ đứng mới: `kho/zone.py`, một file riêng — KHÔNG nhập vào `nen_tang.py`.**
+`nen_tang` là *"thứ MỌI chiến lược đều có"*; zone không phải — sơ đồ không vẽ cổng zone thì
+không có zone nào. Zone là **một CƠ CHẾ chung, bật lên khi sơ đồ có cổng zone**. Ba loại
+khác nhau, phải ở ba chỗ khác nhau:
+
+| | nghĩa |
+|---|---|
+| `nen_tang` | luôn có — giá, sổ lệnh, lệnh này |
+| `chi_bao` | tính từ nến, ai gọi thì có — atr, ma |
+| `zone` | **cơ chế**, có khi sơ đồ định nghĩa nó |
+
+**`engine_d02.py` XOÁ HẲN.** Zone dọn đi, bảng số dọn đi (§15.4) thì nó rỗng. Giữ một file
+rỗng để nói *"D_02 từng ở đây"* là giữ rác — `core.md` đã kể chuyện đó rồi. Kho còn ba
+module: `nen_tang` · `chi_bao` · `zone`.
+
+Kéo theo, và phải dọn cùng lượt, nếu không lại thành một lời nói dối nữa:
+
+- `kho.ENGINE` thành rỗng → `danh_muc()` bỏ cờ `la_engine`, hộp thoại Kho bỏ mục "engine",
+  còn một danh sách phẳng theo nguồn.
+- `ENGINE_TRA_LOI` **đổi tên** — không còn "engine" nào để trả lời. Nó nay là *"toán hạng
+  do máy zone trả lời"*.
+- `kho.CAN_ZONE` thì **không phải sửa**: nó tự gom từ module (`ENGINE_TRA_LOI` + cờ
+  `can_zone`), không gõ tay. Đúng cái lợi mà thiết kế `kho/` dựng ra để có — chú thích
+  ngay tại đó đã kể lần bản gõ tay lệch thật.
+
+### 15.4 ✅ Hạng mục 3 — BẢNG SỐ CỦA D_02 RỜI KHO · sơ đồ mẫu thành FILE JSON
+
+`kho/engine_d02.py` giữ `THAM_SO_MAC_DINH` — 11 con số cụ thể của Compress. Đó là **dữ
+liệu của MỘT chiến lược**, không phải **đồ nghề**. Kho trả lời câu *"app tính được cái
+gì"*, không phải câu *"chiến lược nào dùng số nào"*. Đúng một chỗ đọc nó: `api._so_do_mau()`.
+
+**Và đi thẳng thêm một bước: sơ đồ mẫu ra khỏi `api.py`, thành một file JSON trong repo.**
+`_so_do_mau()` hiện là ~200 dòng mô tả một chiến lược cụ thể nằm trong tầng mà §2 định
+nghĩa là *"bề mặt DUY NHẤT giao diện gọi tới"*. Mọi chiến lược khác đều là JSON; sơ đồ mẫu
+không có lý do gì đặc biệt. 11 con số đi theo nó, vào đúng bảng `tham_so` của chính file
+đó — chỗ mọi chiến lược khác vẫn để số của mình.
+
+⚠ **ID phải giữ nguyên** — §13.0f đã chốt sơ đồ mẫu mang **ID CỐ ĐỊNH**. Đổi sang JSON là
+chép nguyên id, không sinh lại; `tests/test_so_do_mau.py` canh chỗ này.
+
+**Hai trong 11 số đã chết vì hai hạng mục vừa duyệt** — sửa luôn trong lượt này, đừng chép
+nguyên rồi để đó:
+
+| số cũ | thành |
+|---|---|
+| `nguong_nen_bps = 7,0 [bps]` | `nguong_nen = 0,75 [× ATR nền]` (§15.1) |
+| `lot = 0,01 [lot]` | rủi ro **x % vốn**, lot suy từ SL (§15.2) |
+
+Chín số còn lại đã chuẩn hoá đúng rồi (× ATR · × ATR zone · × R · số nến) — giữ nguyên.
+
+⚠ **Đổi `nguong_nen` là ĐỔI CHIẾN LƯỢC, không phải dọn dẹp.** Cổng `[2]` chuyển từ
+"khớp 7,8 %–75,8 % số nến tuỳ năm" sang "khớp 22,6 %–30,0 %", nên **mọi con số neo của sơ
+đồ mẫu sẽ đổi** — 550 lệnh · −19,52 R · DD 1,08 % không còn dùng làm vân tay được nữa.
+Phải đo lại và ghi bộ số neo MỚI ngay trong lượt cài, nếu không thì mất luôn cái mốc dùng
+để phát hiện hồi quy.
+
+### 15.5 ✅ Hạng mục 4 — TRẦN ĐỘ PHỨC TẠP: ba con số, chỉ áp cho MÁY
+
+Không chặn thì bộ sinh sẽ đẻ ra `atr < 0,73 và số nến ≥ 11 và bề rộng ≤ 3,8 và giá > MA và
+ATR > 1,2 và số vị thế < 2 và zone chưa sinh lệnh → Mua`. Backtest có thể rất đẹp. Nhưng
+mở ra **không đọc được nó nói gì**, và nó gần như chắc chắn chỉ vừa khít dữ liệu cũ.
+
+⚠ **ĐẾM SỐ KHỐI LÀ CÁCH ĐO TỒI** — đo trên chính sơ đồ của người dùng mới lộ ra:
+
+| sơ đồ | Entry | Manage | tổng khối | tổng đk | **đk/cổng nhiều nhất** | nhánh nhiều nhất |
+|---|---|---|---|---|---|---|
+| Mẫu Compress | 8 | 5 | 13 | 14 | 3 | 2 |
+| Compress updated | 10 | 5 | 15 | 19 | **4** | 2 |
+| Cây quyết định đầy đủ | 17 | 11 | **28** | 17 | 3 | **5** |
+
+Cây quyết định đầy đủ có **gấp đôi số khối** mà **dễ đọc hơn**: nó trải quyết định ra nhiều
+nhánh, mỗi nhánh hỏi 2–3 câu ngắn, thay vì dồn 4 câu vào một cổng.
+→ **Nhiều khối không rối. Nhồi nhiều thứ vào một chỗ mới rối.**
+
+**Ba trần riêng, KHÔNG cộng thành một điểm** — cộng lại thì lúc vượt trần không biết cái gì
+vượt, và không sửa được đúng chỗ:
+
+| đếm gì | trần cho máy | vì sao đếm nó |
+|---|---|---|
+| **điều kiện một cổng** | **4** | thứ bắt người đọc giữ nhiều câu trong đầu cùng lúc |
+| **nhánh một ngã rẽ** | **3** | quá nhiều đường thì không theo dõi nổi |
+| **khối Entry** | **12** | để sơ đồ còn vừa màn hình |
+| **khối Manage** | **8** | |
+
+Số `4` không bốc ra: đó đúng bằng chỗ nhiều nhất người dùng từng viết tay. Đủ để máy diễn
+đạt được mọi thứ đã từng vẽ, mà không cho nó nhồi thêm.
+
+**Trần chỉ áp cho BỘ SINH, không áp cho người vẽ.** App không đổi, `validate_process` không
+thêm một luật nào, người dùng vẫn vẽ 28 khối · 6 điều kiện một cổng như hôm nay. Người vẽ
+28 khối thì biết mình đang làm gì; máy sinh 28 khối là nó bịa.
+
+**Căn cứ đặt trần là "đọc hết được không", không phải thống kê.** Độ phức tạp ở đây **không
+phải mẹo chống overfit** — chống overfit đã có tập kiểm tra lo. Nó là **yêu cầu của sản
+phẩm**: thứ nhận về phải là một sơ đồ đọc được. Chiến lược 40 khối tổng quát hoá tốt vẫn là
+hỏng mục tiêu.
+
+**Bốn số này nằm trong CÀI ĐẶT, chỉnh được.** Đây là quyết định về sản phẩm, không phải một
+cái thước bên trong chiến lược — nên nó **không mâu thuẫn** với luật "cái thước không được
+là tham số" ở §15.1. Nới trần không làm một con số nào trong sơ đồ đổi nghĩa; nới thước thì
+có.
+
+⚠ **Nhưng trần đã chỉnh được thì PHẢI LƯU KÈM TỪNG LẦN CHẠY.** Không lưu thì một kết quả
+đẹp không phân biệt được là *tìm giỏi* hay là *ai đó vừa nới trần*. Cùng nếp §12.21: không
+lưu kết quả, lưu **thứ đẻ ra nó**.
+
+### 15.6 ✅ Hạng mục 5 — TÀI LIỆU ĐANG HỨA 13 TOÁN HẠNG KHÔNG CÓ THẬT
+
+Ba con số, không cái nào đúng: `core.md` §6.3 ghi **32 toán hạng · 6 nhóm**, `README` ghi
+**17**, thật ra **19 · 5 nhóm**.
+
+Nhưng đây không phải lỗi đánh máy. §6.3 liệt kê **13 toán hạng chưa bao giờ tồn tại**:
+
+```
+Bid · Ask · Spread · Donchian(upper/lower) · Volume_MA
+số lệnh hôm nay · drawdown % · là lệnh Mua · số nến đã sống · giá vào · giờ · thứ
+```
+
+Ai đọc `core.md` để thiết kế bộ sinh sẽ thiết kế cho một cái kho không có thật — nguy hơn
+hẳn một con số sai. **Tài liệu là nguồn sự thật về Ý ĐỊNH, nên nó phải nói đúng cái ý định
+ĐÃ THÀNH; ý định chưa làm thì để ở §13, không nằm trong bảng mô tả kho.**
+
+**Cắt khỏi tài liệu (không làm, có lý do):**
+
+| cắt | vì sao |
+|---|---|
+| `Donchian` · `Volume_MA` | đã duyệt **không thêm chỉ báo** (§15.2) |
+| `Bid` · `Ask` | giá thị trường ngay lúc quyết định ≈ `close` của nến vừa đóng, lệch đúng spread |
+| ~~`Spread`~~ | ⚠ **LÝ DO ĐÃ SAI — xem §15.13b.** Tôi gạch nó với lý do *"backtest chạy spread hằng số nên hỏi nó là vô nghĩa"*. Một hằng số vẫn là con số thật, và nó là **cái mốc DUY NHẤT không co lại khi biến động về 0** — thứ quý nhất trong kho. Quyết lại ở bước LUẬT CHƠI. |
+| `giá vào` | `lãi (× R)` đã trả lời gần hết, và trả lời bằng đơn vị đã chuẩn hoá |
+| `số lệnh hôm nay` | phụ thuộc múi giờ và lịch chợ, không đọc được sang thị trường khác |
+| nhóm "Chuẩn hoá" | đã **hoà tan thành ĐƠN VỊ** (`atr_bps` → `atr [bps]`) — đúng thiết kế, chỉ tài liệu chưa theo |
+
+**Thêm thật (2 lỗ hổng có thật):**
+
+- **`là lệnh Mua`** — Manage hôm nay **không phân biệt được lệnh mua với lệnh bán**. Không
+  viết được luật quản lý bất đối xứng (*"lệnh mua mà giá tụt dưới MA thì đóng"*). Rẻ, và là
+  lỗ hổng thật.
+- **`drawdown %`** — cầu dao rủi ro (*"sụt quá 5 % thì ngừng vào lệnh"*). Chuẩn hoá được
+  theo % vốn, và ăn khớp với việc `lot` vừa đổi sang **% rủi ro** (§15.2). §6.3 từng xếp
+  "cầu dao" vào đây rồi lại không làm.
+
+⚠ **BỎ `giờ` / `thứ`, và bỏ có chủ ý.** Cổ điển, hữu ích thật, nhưng đây là **toán hạng dễ
+overfit nhất trong cả kho**: bộ tìm kiếm sẽ moi ra *"chỉ đánh 14h thứ Ba"* — một câu không
+nói gì về thị trường. Và nó trượt thẳng phép thử §15.0: crypto chạy 24/7, "thứ Ba" không
+đọc được sang đó. Cần lọc phiên thì thêm lại sau, kèm ca dùng thật.
+
+**Kho sau đợt này: 22 toán hạng** = 19 hiện có + `số nến đã sống` + `là lệnh Mua` +
+`drawdown %`. Sửa cả `core.md` §6.3 lẫn `README` cho khớp — và **lấy số từ
+`len(kho.TOAN_HANG)`, đừng gõ tay lần nữa**, vì đúng cái gõ tay là thứ vừa lệch ba chỗ.
+
+### 15.7 ✅ Hạng mục 6 — BỎ HẲN đơn vị `bps`
+
+`bps` (phần vạn của giá) chính là **cái thước vừa bị chứng minh là trôi** ở §15.1. Nói cho
+công bằng thì nó không sai — nó chuẩn hoá đúng theo **thang giá** (vàng $4.676 so được với
+EURUSD 1,10), chỉ hỏng theo **thời gian**, khi chính thị trường đó đi lên. Nhưng "đúng một
+nửa" không đủ để ở lại kho sau luật MỘT KHO DUY NHẤT (§15.0).
+
+**Bỏ nó không mất gì — đo trên cả ba sơ đồ đang có, `bps` chỉ nằm ở ĐÚNG MỘT VIỆC:**
+
+| sơ đồ | dùng `bps` ở đâu |
+|---|---|
+| Mẫu Compress | `nguong_nen_bps = 7,0` · Entry `[2] atr < …` · Manage `[1A] atr ≥ …` |
+| Compress updated | `nguong_nen_bps = 7,0` · Entry `[2] atr < …` |
+| Cây quyết định đầy đủ | `nguong_vung = 7,0` · Entry `[2] atr < …` |
+
+Cả ba đều là **ngưỡng nén** — đúng thứ §15.1 thay bằng `× ATR nền`. Không có chỗ nào khác
+trong toàn bộ điều kiện, SL, TP hay đệm dùng tới nó.
+
+⚠ **KHÔNG có phép đổi tự động, và đó là chủ ý.** `7 bps` không quy ra `× ATR nền` bằng bất
+kỳ phép nhân nào — tỉ số phụ thuộc ATR nền lúc đó. Gặp `bps` trong file cũ thì **soát tĩnh
+nói to** ("chưa chọn cách tính"), y hệt cách `pt` đã xử: *một phép đổi đúng-một-nửa là loại
+hỏng tệ nhất — file vẫn chạy, chỉ sai.*
+
+`DON_VI` sau đợt này có **6**: `gia` · `atr` · `atr_nen` 🆕 · `atr_zone` · `R` · `bien_zone`
+— bỏ `bps`, thêm `atr_nen`, nên số lượng không đổi. *(`pt` đã bỏ từ trước.)*
+
+### 15.8 ✅ Hạng mục 7 — MỐC NEO lấy thẳng từ kho, bỏ danh sách gõ tay
+
+Khối **Vào lệnh** nói lệnh nằm ở đâu bằng hai phần: `Buy Stop tại [mốc neo] + [đệm]`. Mốc
+neo là **gốc**, đệm chỉ là nhích ra khỏi gốc đó.
+
+`core.MOC_ENTRY` hiện gõ tay **3 dòng**: `zone_HH` · `zone_LL` · `gia_hien_tai`. Mà kho đã
+biết tính **7 mức giá** (`loai: muc_gia`): `close` · `open` · `high` · `low` · **`ma`** ·
+`zone_HH` · `zone_LL`.
+
+⚠ **Đây là DANH SÁCH GÕ TAY THỨ HAI nằm ngoài kho** — đúng cái bẫy `CAN_ZONE` đã cắn (chú
+thích tại `kho/__init__.py` kể lần bản gõ tay còn sót `zone_range_atr` sau khi toán hạng đó
+bị gỡ). Nó chỉ có 3 dòng vì hồi viết chỉ cần đủ cho D_02, mà D_02 chỉ neo vào mép zone.
+
+**Sửa: ô mốc neo đọc thẳng `loai == "muc_gia"` từ kho.** Không thêm một từ vựng nào, nhưng
+viết được ngay những câu hôm nay không viết được:
+
+```
+Buy Stop  tại [MA]        + 0,2 ATR     ← neo vào đường trung bình
+Buy Stop  tại [đỉnh nến]  + 0,1 ATR     ← phá đỉnh nến trước
+```
+
+**`MOC_CAN_ZONE` cũng bỏ** — suy được từ `kho.CAN_ZONE`, không cần bản thứ hai.
+
+**Bỏ `gia_hien_tai`, dùng `close`.** Nó là dấu vết còn lại của danh sách gõ tay: không có
+trong kho, nên không ai kiểm được nó nghĩa là gì. Tại biên nến — chỗ duy nhất sơ đồ được
+chạy — "giá hiện tại" và `close` của nến vừa đóng là cùng một mức, lệch đúng spread.
+Đo được: đang có **2 khối trong *Compress updated*** dùng nó (Buy/Sell Stop neo tại giá
+hiện tại), đổi sang `close` là xong, hành vi không đổi.
+
+*(Ghi chú: `gia_hien_tai` gần như chắc chắn là rác còn lại từ loại lệnh `limit` đã bị gỡ —
+chú thích tại `LOAI_LENH` kể rằng `limit` từng neo vào giá hiện tại.)*
+
+#### ✅ ĐÃ CÀI — và luật lọc, không phải danh sách
+
+`core.MOC_ENTRY` nay **sinh ra từ kho**:
+
+> mốc neo = một **MỨC GIÁ** (`loai == "muc_gia"`) mà app đọc được **không cần hỏi thêm
+> con số nào** — tham số nhiều nhất là `tf`, và `tf` pin vào **khung quyết định** (nhịp
+> của khối Bắt đầu, nhìn thấy được trên sơ đồ).
+
+Ra **6 mốc**: `close` · `open` · `high` · `low` · `zone_HH` · `zone_LL` — gấp đôi bản gõ
+tay, và thêm được `Buy Stop tại [đỉnh nến] + 0,1 ATR` mà không thêm một từ vựng nào.
+`MOC_CAN_ZONE` giao với `kho.CAN_ZONE`, cũng không gõ tay.
+
+⚠ **`ma` CHƯA có mặt, và đó là luật lọc chứ không phải bỏ sót.** Neo vào MA thì phải nói
+MA chu kỳ bao nhiêu — một con số không hiện ra là đúng thứ cả hệ thống này cấm. Cho nó
+vào đòi ô mốc neo phải thành **bộ chọn toán hạng đầy đủ** như vế trái của điều kiện
+(component `OToanHang` đã có sẵn, chỉ thiếu một phép lọc theo `loai`). Đó là một việc của
+giao diện — làm riêng thì sạch hơn nhét kèm vào đây.
+
+**Nhãn giờ trùng khít nhãn ở dòng điều kiện** (`Zone — đỉnh (HH)`, không phải
+`Đỉnh zone (HH)`). Trước đây cùng một mức giá đọc ra hai cái tên tuỳ chỗ nhìn.
+
+**Bộ chạy: ba nhánh `if` gõ tay → một lời gọi `_lay_toan_hang`.** Mốc neo đi qua đúng cây
+cầu mà điều kiện đi, nên thêm một mốc không phải sửa hai nơi nữa. `_dung_cot` xin cột cho
+mốc y như cho một vế điều kiện — quên chỗ đó thì `_vao_lenh` ném *"chưa được tính trước"*
+ở đúng cây nến đầu tiên khối được chạy tới.
+
+⚠ **Lệnh THỊ TRƯỜNG bỏ qua mốc neo, và hộp thoại ẨN hẳn ô đó.** Nó khớp ở giá thị trường;
+bịa ra một cái mốc rồi khớp ở chỗ khác mới là nói dối. Bày ra một ô mà bộ chạy bỏ qua là
+đúng thứ `DON_VI_CHO` đã cấm — *"bày ra một lựa chọn vô nghĩa rồi soát tĩnh mắng là tệ hơn
+không bày"*.
+
+**Khối Sửa lệnh cũng có mốc neo** (§15.10), **tuỳ chọn** — bỏ trống thì đo từ giá hiện
+tại, đúng hành vi cũ, nên file cũ mở ra không đổi gì. Có mốc thì viết được
+`SL tại [đáy zone] − 0,2 ATR`. `normalize_action` **vứt** mốc ở chế độ không đo khoảng
+cách (`hoà vốn` · `kết thúc`) — giữ lại là để rác.
+
+⭐ **Sơ đồ mẫu không đổi một con số nào** (485 · 421 · 447 · 453 · 234). `tsc --noEmit` và
+`vite build` sạch.
+
+### 15.9 ✅ Hạng mục 8 — GIỮ 8 PHÉP SO · không thêm `cắt lên` / `cắt xuống`
+
+`core.PHEP_SO` có 8: `< ≤ > ≥ = ≠` · `là ĐÚNG` · `là SAI`. §6.3 hứa thêm ba cái không có:
+`trong khoảng` · `cắt lên ↗` · `cắt xuống ↘`.
+
+`trong khoảng` **bỏ đúng, không bàn lại**: `a ≤ x ≤ b` là hai dòng, mà một cổng vốn đã là
+AND — thêm nó chỉ là cách viết thứ hai cho cùng một điều.
+
+`cắt lên` / `cắt xuống` thì từng nằm trong dropdown mà **chưa bao giờ chạy** (`_so_sanh` ném
+`LoiChay`, tức chọn vào rồi bấm ▶ là backtest chết giữa chừng), nên bị gỡ. Câu thật là:
+**thêm lại đàng hoàng không? — KHÔNG.** Ba lý do, ghi ra để sau này không ai mở lại:
+
+**1. Nó đòi BỘ NHỚ, mà app này dựng trên nguyên tắc không nhớ gì.**
+`giá > MA` là **trạng thái** (đúng suốt nhiều nến); `giá cắt lên MA` là **sự kiện** (đúng
+một nến). Muốn biết "vừa cắt" thì phải nhớ nến trước hai vế bằng bao nhiêu — một trạng thái
+**không hiện trên sơ đồ**. Bên Manage còn nặng hơn: sơ đồ chạy một lượt cho MỖI lệnh, nên
+bộ nhớ phải khoá theo *(điều kiện, lệnh)*. Đó đúng là máy trạng thái ẩn mà §6.1 và §7.5 cố
+ý xoá bỏ.
+
+**2. Thứ người ta cần "cắt lên" để làm thì hệ thống đã có cách RÕ HƠN.** Công dụng chính của
+nó là *chỉ vào lệnh một lần, không vào lại mỗi nến*. Ở đây câu đó được hỏi thẳng:
+`zone này đã sinh lệnh là SAI` · `số lệnh chờ = 0` · `lệnh này còn thuộc zone hiện hành`.
+Ba câu ấy **nhìn sơ đồ là thấy**; "cắt lên" thì giấu cùng ý đó vào trong một cái tên.
+
+**3. Nó phá một luật ngầm cả kho đang giữ:** mọi toán hạng là câu hỏi về **LÚC NÀY**, trả
+lời được chỉ bằng trạng thái hiện tại. "Cắt lên" là câu hỏi về **hai thời điểm** — cho nó
+vào là mở cửa cho cả họ "N nến trước" tràn theo, và `shift` vừa mới bị gỡ khỏi toán hạng giá
+đúng vì lý do đó.
+
+### 15.10 ⚠ Hạng mục 9 — LỖI THẬT: `Dời SL` NỚI LỎNG ĐƯỢC STOP
+
+`SUA_CHE_DO` có **4** (`doi_sl` · `doi_tp` · `hoa_von` · `ket_thuc`); §6.3 ghi **7** và
+docstring của `_sua_lenh` ghi *"Bảy chế độ"* — thừa `trailing` và `dong_mot_phan`, hai cái
+**chưa từng chạy** (`dong_mot_phan` ném thẳng *"chưa được cài trong sổ lệnh"*). Xoá khỏi
+tài liệu.
+
+⚠ **Nhưng đây mới là chuyện: `doi_sl` đặt SL cách GIÁ HIỆN TẠI một khoảng, và KHÔNG so với
+SL cũ.**
+
+```python
+moi = ctx.bid - d if (l.huong == sl.MUA) == (cd == "doi_sl") else ctx.bid + d
+setattr(l, "sl" if cd == "doi_sl" else "tp", moi)      # ← gán thẳng, không kiểm
+```
+
+Mua ở 2400, luật *"SL cách giá 10"*:
+
+```
+giá 2410  →  SL = 2400   ✔ siết
+giá 2405  →  SL = 2395   ✘ SL LÙI RA
+giá 2395  →  SL = 2385   ✘ lùi tiếp
+```
+
+**SL chạy theo giá đi xuống, nên lệnh không bao giờ chạm SL.** Lỗ mở rộng không giới hạn.
+
+⭐ **Đây là ca mẫu của thứ nguy nhất trong cả dự án: BỘ TÌM KIẾM LÀ MỘT CÁI FUZZER NHẮM VÀO
+CHÍNH SIMULATOR.** Mọi lỗ hổng mô phỏng đều thành tiền miễn phí và optimizer sẽ tìm ra. Lỗ
+này cho ra một chiến lược *"không bao giờ thua"* trong backtest — vì lệnh lỗ không bao giờ
+đóng — và nó sẽ đứng đầu bảng xếp hạng. Người vẽ tay chưa ai vấp phải vì không ai cố tình
+viết một cái SL chạy trốn; máy thì không có ý định gì cả, nó chỉ leo lên chỗ điểm cao.
+
+**Sửa: `Dời SL` CHỈ ĐƯỢC SIẾT, KHÔNG ĐƯỢC NỚI** (theo hướng lệnh). Luật cứng, không phải
+tuỳ chọn: nới SL sau khi vào lệnh là **phá luôn định nghĩa 1R** mà mọi con số của hệ thống
+đang đo bằng nó — lệnh không còn rủi ro một R nữa, mà `tong_R` thì vẫn cộng như thường.
+
+⚠ **BẤT ĐỐI XỨNG, và đó là chủ ý: TP để tự do.** Dời TP xa ra không tăng rủi ro một xu nào.
+Cùng nếp §14.7b — ba luật bất đối xứng bên `gui_lenh` cũng dựng trên đúng lý lẽ này.
+
+**Chỗ thứ hai: `Sửa lệnh` KHÔNG có mốc neo.** Khối Vào lệnh chọn được gốc (đỉnh zone · MA …
+— §15.8), khối Sửa lệnh thì SL luôn tính từ `ctx.bid`. Nên không viết được `SL tại [đáy
+zone] − 0,2 ATR`. **Dùng chung đúng cơ chế mốc neo của §15.8** — hai khối cùng nói về một vị
+trí giá thì phải nói bằng cùng một cách, không đẻ cách thứ hai.
+
+**Không thêm `đóng một phần`:** nó bắt sổ lệnh chia nhỏ lot và phá cách tính *một lệnh =
+một R*. Cần thì thêm sau, kèm ca dùng thật.
+
+#### ✅ ĐÃ CÀI — `bo_chay._siet_sl`, một cái kẹp cho CẢ HAI lối vào
+
+`doi_sl` **và** `hoa_von` cùng đi qua nó. `hoa_von` cũng phải kẹp, và đây là chỗ dễ bỏ
+sót: SL đã siết quá hoà vốn rồi thì kéo nó **về** hoà vốn chính là nới ra. Sơ đồ mẫu chặn
+ca đó bằng cổng *"SL chưa ở hoà vốn"* — nhưng **một sơ đồ do máy sinh thì không có gì bắt
+nó phải vẽ cái cổng ấy**, mà đó chính là đối tượng ta đang dựng hệ thống cho.
+
+`tp` **không** đi qua kẹp — bất đối xứng có chủ ý.
+SL đang là `None`/`0` thì mọi SL đều tính là siết: từ rủi ro vô hạn xuống hữu hạn.
+
+**Bài kiểm neo cả hai tầng** (`tests/test_bo_chay.py`): bốn ca đơn vị (mua/bán × siết/nới)
++ **một bài BẰNG HÀNH VI** — giá rơi đều, Manage dời SL cách giá 10 mỗi nến. Không kẹp thì
+SL tụt theo giá mãi và lệnh sống tới hết dữ liệu; có kẹp thì SL đứng nguyên ở `giá vào −
+10` và giá rơi xuống chạm nó (`ly_do_dong == "sl"`). Bài đơn vị một mình không đủ: cái
+đáng sợ là **hành vi lệnh không bao giờ đóng**, không phải một phép so.
+
+⭐ **Sơ đồ mẫu KHÔNG đổi một con số nào** sau lượt này (485 · 421 · 447 · 453 · 234 lệnh,
+trùng khít bảng §15.1) — đúng như phải vậy: nó vốn đã chặn ca nới bằng cổng.
+
+### 15.11 ⏸ Hạng mục 10 — NHIỀU ZONE CÙNG LÚC: hoãn, có chủ ý
+
+Hôm nay mỗi lúc chỉ có **một** zone (`so.zone_hien_hanh()`), các zone nối đuôi nhau:
+`A sống → chết → B sống → chết → C…`. Mọi toán hạng zone đều hỏi về zone đang đếm lúc này.
+
+**Không viết được:** một zone lớn trên H1 và một zone nhỏ trên M5 chạy song song, rồi hỏi
+*"giá đang nén ở cả hai khung không"*. Cũng không hỏi được về *zone trước đó*.
+
+**Vì sao không rẻ:** có hai zone thì `Zone — đỉnh (HH)` hỏi đỉnh của **zone nào**? Phải đặt
+tên zone, phải chọn zone trên giao diện, rồi kéo theo *lệnh thuộc zone nào* ·
+*zone nào đã sinh lệnh* · *cổng nào nuôi zone nào*. Đụng `so_lenh.Zone`,
+`zone_hien_hanh()`, `_nuoi_zone`, `_dat_zone_thu`, và cả luật "cổng zone chỉ đặt ở Entry".
+
+**Mất gì khi hoãn — nói thẳng:** mọi chiến lược bộ tìm kiếm đẻ ra sẽ là loại **một zone**,
+tức cùng hình dạng với D_02. Đó là giới hạn thật của phase này, không phải chuyện nhỏ.
+
+**Vẫn hoãn, vì đúng một lý do:**
+
+> Chín hạng mục trên đều là **DỌN DẸP**. Cái này **ĐỔI CƠ CHẾ**.
+
+Trộn hai loại vào một đợt thì lúc số chạy ra khác, không phân biệt được là do dọn hay do đổi
+cơ chế. Dọn xong → chạy lại → số ổn định → rồi mới mở cái này.
+
+### 15.12 CHỐT KHO ĐỒ — bảng nghiệm thu
+
+**Ngăn 1 · TOÁN HẠNG — 22** *(19 cũ + 3 mới)*
+
+| nhóm | | |
+|---|---|---|
+| Giá (4) | `close` `open` `high` `low` | |
+| Chỉ báo (2) | `atr` `ma` | không thêm cái nào |
+| Sổ lệnh (3) | `so_vi_the` `so_lenh_cho` | 🆕 `drawdown_pt` |
+| Lệnh này (6) *chỉ Manage* | `lenh_da_khop` `lenh_sl_hoa_von` `lenh_lai_R` `lenh_thuoc_zone` | 🆕 `so_nen_song` · 🆕 `la_lenh_mua` |
+| Zone (7) | `zone_dem` `zone_HH` `zone_LL` `zone_range` `zone_atr_tb` `zone_hop_le` `zone_da_sinh_lenh` | |
+
+**Ngăn 2 · VÀO LỆNH** — hướng (2) · loại (2: market/stop) · **mốc neo = mọi toán hạng
+`muc_gia` (7)** · đệm · SL · TP · **rủi ro x % vốn** *(thay `lot`)*
+
+**Ngăn 3 · SỬA LỆNH** — 4 chế độ (`doi_sl` `doi_tp` `hoa_von` `ket_thuc`), **có mốc neo**
+như ngăn 2, và **`doi_sl` chỉ siết không nới**
+
+**Thước & phép**
+
+| | |
+|---|---|
+| đơn vị (6) | `gia` · `atr` · 🆕 `atr_nen` · `atr_zone` · `R` · `bien_zone` — **bỏ `bps`** |
+| phép so (8) | `< ≤ > ≥ = ≠` · `là ĐÚNG` · `là SAI` — không thêm `cắt lên/xuống` |
+| ATR nền | **cố định 100 nến, không phải tham số** |
+| thêm phép đo | khoảng cách giữa hai mức giá *(đang thiếu hẳn)* |
+
+**Trần cho bộ sinh** *(nằm trong cài đặt, chỉnh được, lưu kèm mỗi lần chạy)*
+4 điều kiện/cổng · 3 nhánh/ngã rẽ · 12 khối Entry · 8 khối Manage
+
+**Module kho** — `nen_tang` · `chi_bao` · `zone` 🆕. **`engine_d02.py` xoá hẳn**, khái niệm
+"engine" tan. Sơ đồ mẫu thành **file JSON**, bảng số của nó đi theo nó.
+
+### 15.14 ✅ ĐÃ CÀI XONG — bảy đợt, test xanh sau từng đợt
+
+| đợt | việc | số của sơ đồ mẫu |
+|---|---|---|
+| 1 | Kho chuyển nhà · 3 toán hạng mới → **22** | **trùng khít** |
+| 2 | Thước: bỏ `bps`, thêm `× ATR nền` | **đổi** — bộ neo mới |
+| 3 | `_siet_sl` — SL chỉ siết | trùng khít |
+| 4 | Mốc neo 3 → 6, dùng chung với Sửa lệnh | trùng khít |
+| 5 | `lot` → **rủi ro % vốn** | lệnh/R trùng khít, **DD đổi 20–30×** |
+| 6 | Sơ đồ mẫu → `mau/compress.json` (−190 dòng khỏi `api.py`) | trùng khít |
+| 7 | `core.md` §6.3 + `README` khớp thực tế | — |
+
+**BỘ SỐ NEO MỚI** (thay 550 lệnh · −19,52 R · DD 1,08 %, đã hết hiệu lực):
+
+| năm | lệnh | zone | tổng R | **DD %** | thắng % |
+|---|---|---|---|---|---|
+| 2022 | 485 | 1047 | −4,96 | 15,11 | 28,6 |
+| 2023 | 421 | 938 | −29,96 | 21,91 | 23,1 |
+| 2024 | 447 | 967 | −37,37 | 20,09 | 24,0 |
+| **2025** | **453** | **1119** | **+12,01** | **10,01** | **28,6** |
+| 2026 (½) | 234 | 628 | +12,71 | 6,16 | 30,7 |
+
+*(XAUUSD · spread 90 điểm · commission 3,5/lot · vốn 10.000 · rủi ro 0,5 %/lệnh.)*
+
+⚠ **File cũ sẽ BÁO LỖI khi mở, và đó là chủ ý.** Ba thứ không đổi tự động được vì không có
+phép đổi nào đúng: `bps` → `atr_nen` · `lot` → `rui_ro` · `atr_bps` → đơn vị rỗng. Soát tĩnh
+nói to ở đúng khối sai. Cùng nếp `pt` đã xử: *một phép đổi đúng-một-nửa là loại hỏng tệ
+nhất — file vẫn chạy, chỉ sai.*
+
+#### ⚠ 15.13a LỖ HỔNG CỦA SIZING THEO RỦI RO: **R siêu nhỏ → LOT khổng lồ**
+
+Lộ ra ngay khi di cư file người dùng, và nó là một ca mẫu nữa của *"bộ tìm kiếm là cái
+fuzzer nhắm vào simulator"*.
+
+`lot = vốn × rủi_ro% ÷ (R × contract_size)` — **R nằm dưới mẫu số, và không có sàn chặn**.
+Zone gần như phẳng cho `zone_atr_tb ≈ 0` ⇒ `R ≈ 0` ⇒ lot nổ tung. Đo trên *Compress
+updated*, năm 2024:
+
+| | |
+|---|---|
+| R nhỏ nhất | **0,0004** giá *(bốn phần mười nghìn của một đô vàng)* |
+| lot lớn nhất | **862,15** |
+| lot trung vị | 0,19 — hoàn toàn bình thường |
+| 85 lệnh có lot > 1 | gánh **90 %** tổng phí |
+| lãi/lỗ THÔ | −1.504 |
+| **phí hoa hồng** | **−5.616** (3,5/lot × 1.605 lot) |
+
+**Phí chiếm 79 % tổng thua lỗ.** Rủi ro *danh nghĩa* vẫn đúng 0,5 % mỗi lệnh — theo đúng
+công thức — nhưng **phí thì bám vào LOT chứ không bám vào rủi ro**, nên một cái SL hẹp phi
+lý biến thành một hoá đơn phí phi lý. Và ngoài đời không sàn nào nhận 862 lot.
+
+Lot cố định **giấu** chuyện này: 0,01 lot thì phí là 3,5 xu, vô hình.
+
+⚠ **Sơ đồ mẫu KHÔNG dính** — đã kiểm: lot lớn nhất 0,46–1,54 · R nhỏ nhất 0,30–0,99 · phí
+175–454 $/năm. Nên bộ số neo §15.13 sạch. Cái bẫy chỉ cắn sơ đồ nào cho phép zone suy
+biến (*Compress updated* hạ `zone_range_max` xuống 3,0 và đẻ gấp đôi số zone).
+
+#### ⭐⭐ 15.13b ĐIỂM MÙ CỦA CHUẨN HOÁ — thước co lại thì mọi tỉ số vô nghĩa
+
+Trước khi đề xuất luật mới, tôi thử sửa **bằng đúng đồ nghề đã có**: thêm một dòng
+`Zone — ATR trung bình ≥ 0,1 × ATR nền` vào phần ĐẾM của cổng zone.
+
+**Đo được: không đổi MỘT con số nào.** 994 lệnh · −51,43 R · DD 71,67 % · lot lớn nhất
+862,15 · phí 5.616 — trùng khít cả hai bên. Điều kiện có sống sót qua `normalize` (3 → 4
+dòng đếm), nó chỉ đơn giản là **không bao giờ trượt**.
+
+**Vì sao — và đây là chỗ đáng ghi nhất của cả đợt này:**
+
+`Compress updated` đặt `SL = mép zone đối diện`, nên `R ≈ bề rộng zone + đệm`. Cổng của nó
+đã có chốt chặn `zone_range ≥ 1 × ATR`, nghe rất chắc. Nhưng nó là một **TỈ SỐ**:
+
+```
+thị trường chết lặng:   ATR        = 0,0002
+                        zone_range = 0,0004
+                        0,0004 / 0,0002 = 2  ≥ 1   ✓ QUA CỔNG
+⇒ zone hợp lệ · SL = 0,0004 $ · lot = 862
+```
+
+Mọi con số đều "đúng luật". Thêm một chốt chặn theo tỉ số nữa cũng vô ích, **vì cái mẫu số
+cũng co lại theo** — đó chính là thứ phép đo ở trên chứng minh.
+
+> ⚠ **Phép thử nghiệm thu ở §15.0 có ĐIỂM MÙ, và tôi phải ghi nó ra:**
+> *"một luật phải đọc được nguyên vẹn trên mọi thị trường"* ngầm giả định **cái thước
+> luôn khác 0**. Khi biến động thật sự bằng 0, mọi tỉ số hoá `0/0` hoặc luôn đúng, và
+> **chuẩn hoá càng triệt để thì càng không có gì bám vào**.
+
+**Cần đúng MỘT cái mốc không co lại được.** Và cái duy nhất như vậy là **CHI PHÍ GIAO
+DỊCH**: spread 0,09 $ là 0,09 $, thị trường chết lặng hay không cũng thế. Từ đó ra một câu
+duy nhất, thuộc bước **LUẬT CHƠI**:
+
+> **R phải lớn hơn chi phí vào-ra.** SL hẹp hơn spread + phí thì lệnh đó không thể lãi,
+> bất kể thị trường đi đâu.
+
+⚠ **SỬA LẠI MỘT QUYẾT ĐỊNH CỦA CHÍNH §15.6.** Ở đó tôi gạch `Spread` khỏi kho với lý do
+*"backtest dùng spread HẰNG SỐ — hỏi nó trong backtest là vô nghĩa"*. **Lý do đó sai.** Một
+hằng số vẫn là một con số thật, và ở đây nó là **cái mốc duy nhất không co lại** — tức là
+đúng thứ quý nhất trong cả kho. Có đưa `Spread` trở lại hay chốt chặn nằm thẳng trong luật
+chơi (không thành toán hạng) là câu hỏi mở của bước sau.
+
+*(Ghi cả quá trình vào đây có chủ ý: tôi đã đi tìm cách sửa TRƯỚC khi hiểu vì sao nó hỏng,
+và trượt ba lần — hai lần đặt sai chỗ, một lần sửa nhầm tầng. Phép đo phủ định ở trên đáng
+giá hơn nhiều so với cái luật tôi định thêm ngay từ đầu.)*
+
+---
+
+## 16. ⭐⭐ LUẬT CHƠI — môi trường mà chiến lược phải chơi trong đó
+
+> Kho đồ (§15) trả lời *"được dùng gì"*. Mục này trả lời *"luật của trò chơi là gì"* —
+> và luật thì **AI không được đổi, AI chỉ được chơi**.
+
+Phần lớn luật đã khoá và có bài kiểm từ lâu: nhịp chạy lại mỗi nến (§6.1) · Manage trước
+Entry (§6.0) · Entry chỉ tạo Manage chỉ sửa · đường đi 4 điểm trong một nến (§12.2) · bốn
+luật khớp (§12.13d) · tính xác định · không nhìn trước tương lai. Mục này chỉ ghi những
+thứ **còn hở**.
+
+### 16.1 ✅ Hạng mục 1 — LUẬT SÀN vào backtest
+
+**`du_lieu/ho_so_ket_noi.json` đã ĐO SẴN luật sàn thật, và backtest không dùng một dòng
+nào.** `CaiDat` chỉ biết spread · point · contract_size · deposit · commission; còn
+`don_bay` thì là một **cài đặt CHẾT** — không có phép kiểm ký quỹ nào trong bộ chạy.
+
+Số đo được (Exness, XAUUSD, 12/08/2026):
+
+```
+lot_min       0.01
+lot_buoc      0.01
+lot_max     200.0        ← sàn không nhận lớn hơn
+stops_level 410 điểm     ← SL gần hơn 0,41 $ thì sàn TỪ CHỐI CẢ LỆNH
+```
+
+⭐ **Hai con số đó giải trọn cái lỗ 862 lot ở §15.13a — mà không phải bịa một luật nào.**
+Hôm trước tôi định thêm quy tắc mới *"R phải lớn hơn chi phí vào-ra"*. **Không cần:** sàn
+đã có luật của nó, đã đo được, và nó chặt hơn. Lệnh SL 0,0004 $ / 862 lot vi phạm **cả
+hai** ngưỡng.
+
+**Cài:** `CaiDat` nhận thêm 4 trường; `lam_tron_lot()` làm tròn **XUỐNG** theo bước rồi kẹp
+`[min, max]`; dưới `lot_min` trả `None` = **không vào lệnh** (không kẹp lên — tài khoản quá
+nhỏ cho mức rủi ro đó thì câu trả lời đúng là *không đánh*, chứ không phải *đánh với rủi ro
+gấp mấy lần mức đã khai*). `stops_level` chặn ở **ba chỗ**, cùng một hằng số, đọc qua đúng
+một hàm `cd_stops()`:
+
+| chỗ | sàn từ chối khi |
+|---|---|
+| `_vao_lenh` · SL | `R < stops_level` |
+| `_vao_lenh` · lệnh chờ | `|giá đặt − giá thị trường| < stops_level` |
+| `_sua_lenh` · dời SL/TP | `|mức mới − giá thị trường| < stops_level` |
+
+⚠ **TÔI TỰ SỬA LẠI MÌNH.** §15.13 chốt *"KHÔNG làm tròn lot — làm tròn là bịa thêm sai số
+vào đúng cái vừa dựng lên để chính xác"*. **Sai.** Bước lot 0,01 là **luật thật của sàn**,
+đo được trong hồ sơ, không phải sai số tôi thêm vào. Chỗ tôi lẫn: *mô hình hoá thêm* khác
+*tôn trọng một ràng buộc có thật*.
+
+**Nguồn số: HỒ SƠ ĐO ĐƯỢC thắng → ô gõ tay (Cài đặt) → mặc định.** Đúng nếp §14.9 (*hồ sơ
+là cache của phép đo, không phải cài đặt*). `ket_noi.luat_san(symbol)` tra **theo symbol**
+(lúc backtest không nối sàn nào nên không biết hỏi sàn nào), nhiều sàn thì lấy hồ sơ **đo
+gần đây nhất**, và trả kèm `nguon` + `do_luc`.
+
+⚠ **Đọc `stops_level_that`, KHÔNG đọc `stops_level`.** Sàn *khai* `stops_level = 0` (nghĩa
+là "không giới hạn") trong khi thực tế từ chối SL gần hơn 410 điểm — chính vì thế vòng hiệu
+chuẩn mới đi ĐO lấy (§14.8c). Đọc con số sàn khai là tin vào thứ đã biết là sai.
+
+**Giao diện nói rõ số đến từ đâu**, và **khoá mờ** bốn ô khi có hồ sơ — không cho sửa một
+thứ mà bộ chạy sẽ bỏ qua.
+
+#### Đo được
+
+**Sơ đồ mẫu** — đổi nhẹ, vài lệnh SL hẹp hơn 0,41 $ bị từ chối:
+
+| năm | lệnh | tổng R | DD % |
+|---|---|---|---|
+| 2022 | 485 → **455** | −4,96 → **+5,46** | 14,8 → **10,9** |
+| 2023 | 421 → **379** | −29,96 → **−37,69** | 21,6 → **23,3** |
+| 2024 | 447 → **435** | −37,37 → **−24,38** | 19,6 → **14,3** |
+| 2025 | 453 → **447** | +12,01 → **+6,66** | 9,7 → **9,3** |
+
+**`Compress updated`** — cái lỗ biến mất hẳn:
+
+| năm | lot lớn nhất | phí | sụt vốn | vốn cuối |
+|---|---|---|---|---|
+| 2023 | 105,35 → **1,01** | 3.349 → **660** | 54,0 % → **25,4 %** | 4.748 → **8.184** |
+| 2024 | 200,00 → **1,22** | 3.754 → **718** | 56,3 % → **26,2 %** | 4.448 → **7.563** |
+
+*(Cột "trước" đã có sẵn trần `lot_max` mặc định 200 — nên chênh lệch ở trên là công của
+riêng `stops_level`.)*
+
+**BỘ SỐ NEO MỚI** *(XAUUSD · spread 90 · commission 3,5/lot · vốn 10.000 · rủi ro 0,5 %
+· luật sàn Exness)*: **2025 = 447 lệnh · +6,66 R · DD 9,33 % · vốn 10.092**.
+
+### 16.2 ✅ Hạng mục 2 — CHI PHÍ: spread · hoa hồng · trượt giá
+
+#### ⚠ Con số nguy hiểm nhất trong app là mặc định `spread = 20`
+
+Sơ đồ mẫu, 2025, **chỉ đổi mỗi spread** (luật sàn đã bật):
+
+| spread | tổng R | vốn cuối |
+|---|---|---|
+| **20 điểm** *(mặc định cũ)* | **+12,78** | 10.409 |
+| 90 điểm | +6,66 | 10.092 |
+| 97 điểm *(kho nến đo được)* | +6,65 | 10.091 |
+| 150 điểm | −1,65 | 9.678 |
+| 250 điểm | **−11,84** | 9.250 |
+
+**Cùng chiến lược, cùng năm: từ +12,78 R thành −11,84 R.** Một con số bịa làm chiến lược
+thua trông như đang thắng — và nó nằm ở chỗ không ai nghĩ phải kiểm.
+*(90 hay 97 thì chênh 0,01 R — chuyện không phải chọn số nào, mà là **đừng dùng 20**.)*
+
+**Sửa:** mặc định thành `0` = **tự lấy `spread_tb` đo từ chính kho nến**. Không đo được và
+cũng không gõ tay thì `_spread()` **ném lỗi kèm chính con số trên**, chứ không đoán — thà
+không chạy còn hơn chạy ra một kết quả không ai truy được nguồn.
+
+⚠ **Thứ tự NGƯỢC với luật sàn (§16.1), và có lý do.** Luật sàn là thứ sàn **áp đặt** nên số
+đo luôn đúng hơn gõ tay → hồ sơ thắng. Spread là **điều kiện chạy thử** — người dùng có
+quyền hỏi *"nếu spread xấu gấp đôi thì sao"*, và đó là câu hỏi đúng đắn → gõ tay thắng.
+
+#### Hoa hồng KHÔNG đụng tới R — nhớ kỹ ở bước phần thưởng
+
+| $/lot | tổng R | vốn cuối |
+|---|---|---|
+| 0 | +6,66 | 10.300 |
+| 3,5 | +6,66 | 10.092 |
+| 7,0 | +6,66 | 9.895 |
+
+**Tổng R không đổi một chút nào.** Spread nằm *trong giá khớp* nên nó ăn vào R; hoa hồng là
+tiền trừ ngoài, R không thấy. ⭐ **Chấm điểm bằng R thì hoa hồng VÔ HÌNH** — mà §15.13a đã
+đo được ca hoa hồng chiếm **79 %** tổng thua lỗ. Phần thưởng phải nhìn cả tiền, không chỉ R.
+
+#### Trượt giá — LUÔN theo chiều bất lợi
+
+Ngoài đời lệnh Stop khớp **bằng hoặc xấu hơn** giá kích hoạt, không bao giờ tốt hơn: lúc
+giá phá qua mức chính là lúc sổ lệnh mỏng nhất. Mô hình đối xứng (*"khi tốt khi xấu, trung
+bình 0"*) nghe công bằng nhưng sai bản chất, và **sai đúng về phía làm backtest đẹp lên**.
+
+Bốn ca, một luật: `vào Mua +` · `vào Bán −` · `ra Mua −` · `ra Bán +`.
+
+⚠ **Trượt chỉ đụng GIÁ KHỚP, không đụng NGƯỠNG kích hoạt.** Sàn nhìn giá thật để quyết lệnh
+có nổ hay không; trượt là chuyện xảy ra SAU đó, lúc đi tìm thanh khoản. Bài kiểm canh đúng
+chỗ này (số lệnh không đổi, chỉ giá đổi).
+
+**Mặc định 0 = không mô hình hoá**, cố ý không bịa: hồ sơ hiệu chuẩn đo `p95 = 0` nhưng chỉ
+với **n = 3** — quá ít để tin. Bằng 0 thì backtest đang **lạc quan** ở khoản này, và nói
+thẳng ra thế.
+
+**Đo được — và đây là con số đáng lo:**
+
+| trượt | tổng R | vốn cuối |
+|---|---|---|
+| 0 | +6,65 | 10.091 |
+| 10 điểm (0,01 $) | +3,85 | 9.935 |
+| **30 điểm (0,03 $)** | **+0,25** | 9.778 |
+| 60 điểm | −4,21 | 9.583 |
+| 100 điểm | −15,36 | 9.076 |
+
+⭐ **Lợi thế của sơ đồ mẫu MỎNG HƠN mức trượt giá hợp lý.** Chỉ 3 xu trượt trên vàng là nó
+về hoà. Đó không phải lỗi của mô hình — đó là sự thật về chiến lược, và là đúng loại sự thật
+mà một backtest không mô hình hoá chi phí sẽ giấu đi.
+
+#### Còn treo — spread TỪNG NẾN
+
+MT5 **có** trả spread mỗi nến; `nguon_nen._sang_dtype` cố ý vứt đi, giữ mỗi trung vị, với lý
+do ghi rõ *"mô hình đã chốt là spread một con số"*. Lý do đó đúng hồi đó.
+
+Nhưng spread thật của vàng giãn mạnh đúng lúc **tin ra** — mà đó chính là lúc zone bị phá và
+chiến lược này vào lệnh. Một con số cố định vì thế **tính thiếu chi phí đúng vào những lệnh
+thật sự xảy ra**. Tốn: ~7 MB thêm (trên 85 MB) và **phải tải lại toàn bộ 5,5 năm**.
+
+**Hoãn có chủ ý.** Nhưng ghi lại một điều: *không làm thì không có cách nào biết nó lệch bao
+nhiêu* — nên đây là món nợ đã biết, không phải một chỗ đã yên.
+
+---
+
+---
+
+## 17. ⭐⭐ LUẬT KẾT HỢP — khối nào đi được với khối nào
+
+> §16 nói **sàn** cho phép gì. Mục này nói **sơ đồ** có tự mâu thuẫn không.
+>
+> Một câu chung cho cả mục, và mọi luật dưới đây chỉ là nó nhìn từ các góc khác nhau:
+>
+> ⭐ **SƠ ĐỒ KHÔNG ĐƯỢC NÓI DỐI.** Vẽ ba việc thì lượt chạy phải làm ba việc. Vẽ một
+> việc mà lượt chạy không làm gì — dù kết quả vẫn "chạy được" — là thứ duy nhất app này
+> không cho qua.
+
+⚠ **Mấy luật này KHÔNG phải để phục vụ bộ sinh.** Chúng đúng tự thân: người vẽ tay cũng
+sai đúng những chỗ ấy, chỉ là mắt người thường bắt được nên ít khi lộ ra. Đừng biện minh
+một luật bằng *"máy sinh sẽ không thấy"* — nếu luật chỉ đúng với máy thì nó không phải luật.
+
+**Đã có sẵn từ trước** (§5, §5.1, §6.0, §12.6): mỗi nhánh phải mở đầu bằng cổng · nhánh
+mặc định xếp cuối · ngã rẽ VÀ khi mọi đầu nhánh là hành động · Entry chỉ tạo Manage chỉ
+sửa · toán hạng zone chỉ sau cổng zone · cổng rỗng (luôn khớp) · hai nhánh nằm ngang nhau
+· self-loop · khối Bắt đầu không nhận đường vào.
+
+**Lỗ hổng đo được — cả năm đều nằm ở phía SỬA LỆNH.** Phía Vào lệnh được soát rất kỹ
+(`_KHOA_MOT_LENH`); phía Sửa lệnh gần như không soát gì, và `_sua_lenh` thì **im lặng
+nuốt**: nó mở đầu bằng `if not l.con_song: return None`.
+
+### 17.1 ✅ Sau `Kết thúc lệnh này` thì hết
+
+```
+Kết thúc lệnh này
+     └─ Dời SL          ← lệnh đã đóng, khối này không bao giờ làm gì
+```
+
+Báo lỗi ở **mọi** khối nối sau, kể cả khi khối đó là một CỔNG: cổng vẫn đánh giá được
+(nó đọc thị trường), nhưng nhánh nó dẫn tới thì chết, và mấy toán hạng *"Lệnh này"* khi
+đó đang hỏi về một cái lệnh đã đóng — câu hỏi không còn nghĩa.
+
+### 17.2 ✅ Ngã rẽ VÀ không được có hai hành động GHI ĐÈ nhau
+
+Ngã rẽ VÀ **làm hết**. "Làm hết" chỉ có nghĩa khi mấy việc đó không giẫm lên nhau:
+
+```
+[1] ─┬─ Dời SL về hoà vốn      ┐
+     ├─ Trail SL theo ATR      ├─ cả ba cùng ghi SL
+     └─ Siết SL sát lại        ┘   ⇒ chỉ cái CUỐI còn dấu vết
+```
+
+`core.SUA_GHI_LEN` là nguồn duy nhất của luật này — song song với `_KHOA_MOT_LENH` bên
+Vào lệnh:
+
+| ghi lên | chế độ |
+|---|---|
+| `sl` | `doi_sl` · `hoa_von` |
+| `tp` | `doi_tp` |
+| `*` (cả cái lệnh) | `ket_thuc` — nên nó đá với **mọi** chế độ, kể cả chính nó |
+
+*(Muốn "chọn một trong ba" thì mỗi nhánh phải mở đầu bằng một cổng — khi đó nó thành ngã
+rẽ HOẶC và chỉ một nhánh chạy. Đó mới là hình vẽ đúng với ý định.)*
+
+### 17.3 ✅ Nối tiếp cũng vậy — trừ khi có CỔNG ở giữa
+
+Cùng luật §17.2, chỉ khác hình vẽ: một lượt đi qua cả hai khối, khối dưới ghi đè khối
+trên ngay lập tức.
+
+⚠ **CỔNG Ở GIỮA thì KHÔNG phải lỗi**, và đây là chỗ phải phân biệt cho sạch:
+
+```
+Dời SL về hoà vốn
+     └─ Lãi ≥ 2R ?              ← cổng TRƯỢT ĐƯỢC
+          └─ Trail SL theo ATR  ← nên khối trên có tác dụng thật
+```
+
+Vì thế phép loang **dừng ở mọi cổng** thay vì đi xuyên qua. Nguồn là `ket_thuc` thì bỏ
+qua — §17.1 đã chặn bằng một câu chính xác hơn, hai câu cho một lỗi là ồn.
+
+*(Ca `Dời SL → Kết thúc` cũng bị bắt, và đúng: dời SL xong đóng lệnh ngay thì dời làm gì.)*
+
+### 17.4 ✅ Hai lệnh GIỐNG HỆT — soi cả hai chiều
+
+Luật `_KHOA_MOT_LENH` có từ §5.1 chỉ loang **dọc theo đường**, nên nó mù với ca hai khối
+là hai **nhánh** của cùng một ngã rẽ:
+
+```
+✅ bắt được               ✘ trước đây KHÔNG bắt
+[1] → Mua                 [1] ─┬─ Mua
+       └→ Mua                  └─ Mua
+```
+
+Ngã rẽ VÀ chạy cả hai, đẻ ra đúng hai lệnh trùng khít — cùng một cái sai, chỉ khác hình
+vẽ. Nay soi cả hai chiều, dùng chung đúng một khoá so sánh.
+
+### 17.5 ✅ `Hoà vốn` chạy cả trên lệnh CHƯA KHỚP — cảnh báo
+
+Manage chạy một lượt cho MỖI lệnh đang sống, **kể cả lệnh chờ**. Mà `hoà vốn` = *"SL =
+giá vào"*, lệnh chờ thì chưa có giá vào → `_sua_lenh` trả `None`, im lặng.
+
+⚠ **Cảnh báo chứ không phải lỗi, có chủ ý.** Cách lọc lệnh chờ có nhiều đường —
+`Lệnh này đã khớp`, hoặc `lãi (×R) ≥ 1` (lệnh chờ luôn 0R nên cũng lọc được), hoặc cách
+khác. Đòi đúng một toán hạng là chặn nhầm những cách viết hợp lệ. Chỉ nhắc khi phía trên
+**không có cổng nào** — lúc đó chắc chắn không có gì lọc.
+
+*(Mấy chế độ kia không dính: `Dời SL`/`Dời TP` sửa được cả lệnh chờ — sàn thật cũng cho.
+`Kết thúc` thì lệnh chờ là huỷ, lệnh đã khớp là đóng, cả hai đều có nghĩa.)*
+
+### 17.6 ⚠ `Hoà vốn` PHẢI TRỪ CẢ CHI PHÍ — nếu không nó lỗ có hệ thống
+
+`SL = giá vào` **nghe như** hoà vốn nhưng không phải: chạm nó thì phần giá đúng bằng 0, mà
+**hoa hồng vẫn bị trừ**. Lệnh "hoà vốn" ấy thật ra lỗ đúng một khoản phí — và nó lỗ như thế
+ở **mọi** lệnh được dời, âm thầm, có hệ thống.
+
+```
+tiền = (giá đóng − giá vào) × lot × contract − hoa_hồng × lot  =  0
+⇒  giá đóng = giá vào + hoa_hồng / contract          ← lot TỰ TRIỆT TIÊU
+```
+
+Cộng thêm **trượt giá**: chạm SL thì khớp xấu hơn đúng `truot`, nên mốc phải đẩy ra thêm
+chừng ấy nữa.
+
+⚠ **KHÔNG cộng spread — cộng là tính hai lần.** Nó đã nằm trong `gia_khop` (lệnh Mua vào ở
+Ask) và trong ngưỡng ra (`_muc_ra` dịch sẵn cho lệnh Bán). Đây đúng là chỗ dễ cộng thừa.
+
+Với XAUUSD, hoa hồng 3,5/lot và contract 100 → mốc đẩy ra **0,035 $ = 35 điểm**.
+
+**Đo được** *(sơ đồ mẫu, spread 97, hoa hồng 3,5, luật sàn Exness)*:
+
+| năm | lệnh | tổng R | DD % | vốn cuối |
+|---|---|---|---|---|
+| 2022 | 455 | +4,10 | 10,77 | 9.744 |
+| 2023 | 379 | −40,12 | 23,70 | 7.864 |
+| 2024 | 435 | −26,30 | 15,20 | 8.480 |
+| **2025** | **447** | **+7,28** | **9,21** | **10.125** |
+
+Số lệnh không đổi (mốc hoà vốn không quyết định lệnh nào được đặt), nhưng **R nhích lên**
+ở mọi năm — vì mấy lệnh về hoà vốn nay thoát ở đúng số 0 thay vì âm một khoản phí.
+
+### 17.7 ⚠ LỖI THẬT (có từ trước): SL đặt SAI PHÍA là ĐÓNG LỆNH, không phải dời SL
+
+Lộ ra ngay khi cài §17.6 — và nó **không phải do §17.6 gây ra**, chỉ là đẩy mốc ra thêm
+làm nó hiện hình.
+
+`hoa_von` đặt `SL = giá vào` mà **không hỏi giá đang ở đâu**. Lệnh đang LỖ thì giá vào nằm
+**TRÊN** thị trường, nên với một lệnh Mua, "dời SL về hoà vốn" hoá thành **"cắt lỗ ngay bây
+giờ"** — và cắt ở một mức tệ hơn cả giá thị trường đang có.
+
+Đo được lúc chưa sửa: lệnh vào 104, hoà vốn đặt SL 109 (trên thị trường), **đóng ngay ở
+chính cây nến vào**, lỗ −15 $.
+
+Sơ đồ mẫu che được chuyện này nhờ cổng `lãi ≥ 1R` đứng trước — nhưng đó là **may nhờ người
+vẽ**, không phải nhờ hệ thống. Sơ đồ không vẽ cái cổng ấy thì không có gì chặn.
+
+**Sửa:** mọi lần ghi SL đi qua một cửa duy nhất `_sl_moi`, ba phép theo đúng thứ tự sàn thật
+kiểm:
+
+| | |
+|---|---|
+| **1. đúng phía** | SL lệnh Mua phải DƯỚI thị trường, lệnh Bán phải TRÊN |
+| **2. đủ xa** | cách thị trường ít nhất `stops_level` (§16.1) |
+| **3. chỉ siết** | `_siet_sl` (§15.10) |
+
+⭐ **Sơ đồ mẫu không đổi một con số nào** sau lượt sửa này — đúng như phải vậy: nó vốn đã
+đúng nhờ cái cổng. Phép kiểm không tốn gì ở chỗ sơ đồ vẽ đúng, và chặn được đúng chỗ sơ đồ
+vẽ sai.
+
+---
+
+### 15.15 Còn treo sau đợt này
+
+- [ ] **Mốc neo `ma`** — cần ô mốc thành bộ chọn toán hạng đầy đủ (`OToanHang` đã có, chỉ
+      thiếu phép lọc theo `loai`). §15.8.
+- [ ] **Nhiều zone cùng lúc** — hoãn có chủ ý, §15.11.
+- [ ] **Tên tham số gợi ý xấu**: `nguong_atr_atr_nen` (bộ sinh tên ghép `nguong_{toán
+      hạng}_{đơn vị}`). Cosmetic, nhưng người dùng nhìn thấy.
+- [ ] **Sang bước LUẬT CHƠI** — bốn thứ, cả bốn đều là đầu vào của bước PHẦN THƯỞNG:
+      **(1)** chốt chặn *"R phải lớn hơn chi phí vào-ra"* (§15.13a — lỗ hổng nặng nhất);
+      **(2)** spread còn ba con số (20 / 90 / 97);
+      **(3)** chưa có mô hình trượt giá;
+      **(4)** chưa chốt khoảng train/val/test — và kho nến chỉ có **5 năm rưỡi M1 thật**,
+      không phải 10 năm như meta ghi (§15.0).
+
+#### Hai file chiến lược của người dùng — đã di cư
+
+Bản gốc sao lưu ở `du_lieu/sao_luu_truoc_dot_15/`. Chỉ làm **hai việc cơ học**, mỗi việc
+có đúng một câu trả lời: `bps` → `× ATR nền` (0,75) và `lot` → `rủi ro % vốn` (0,5).
+**Không đụng cấu trúc đồ thị** — sửa hộ cấu trúc là sửa chiến lược của người khác.
+
+| | |
+|---|---|
+| *Compress updated* | 7 thay đổi · soát tĩnh **SẠCH** |
+| *Cây quyết định đầy đủ* | 13 thay đổi · còn **1 lỗi** và **1 chỗ đáng ngờ** — cả hai là chuyện THIẾT KẾ, để người vẽ quyết |
+
+⚠ **Hai chỗ đó, cả hai đều có TỪ TRƯỚC đợt này:**
+
+1. **`che_do: "giu_nguyen"` không tồn tại** (khối *"Để yên"*, `[1CA]`). Trong hệ thống này
+   *"không làm gì"* không phải một khối — nó là **không có khối**, nhánh cụt ở đó và hết
+   lượt (§6.1).
+2. **Ngã rẽ 5 nhánh sau `[1C] Lệnh đã khớp` là ngã rẽ VÀ, không phải HOẶC.** Cả năm đầu
+   nhánh đều là *hành động*, nên theo §5.0 bộ chạy **LÀM HẾT** — kể cả *"Chốt hết"*
+   (`ket_thuc`), tức mọi lệnh đã khớp bị đóng ngay lượt Manage đầu tiên. Tên các khối đọc
+   ra như một lựa chọn năm đường; hình vẽ thì nói *làm cả năm*. Muốn "chọn một" thì mỗi
+   nhánh phải mở đầu bằng một **cổng**.
 
 ---
 

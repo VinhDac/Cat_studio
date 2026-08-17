@@ -52,7 +52,7 @@ Sơ đồ mẫu — chiến lược Compress (D_02):
 ENTRY                                        MANAGE
 [1] Mỗi nến M5 — tìm tín hiệu                [1] Mỗi nến M5 — với TỪNG lệnh
 [2] Vùng nén đã xác nhận?                          ├─[1A] Chưa khớp mà nén đã tan?
-      atr_bps < 7 · nến nén ≥ 10                   │        → [1A.1] Huỷ lệnh chờ
+      atr < 0,75×ATR nền · nến nén ≥ 10            │        → [1A.1] Huỷ lệnh chờ
       rộng÷ATR ≤ 4 · KHÔNG vùng đã sinh lệnh       └─[1B] Đã khớp, đủ 1R,
 [3] Còn chỗ cho lệnh mới?                          │        SL chưa hoà vốn?
       số lệnh chờ = 0 · số vị thế < 3              │        → [1B.1] Dời SL về giá vào
@@ -80,19 +80,28 @@ cổng điều kiện — nghĩa của nó vốn đã là *"không nhánh nào k
 | Hành động | Việc |
 |---|---|
 | **Kiểm tra điều kiện** | Đọc thị trường + tài khoản rồi quyết đi nhánh nào. Đây cũng là **cổng rẽ nhánh**. |
-| **Vào lệnh** | Mở vị thế mới: Mua/Bán · Market/Stop/Limit · lot · SL & TP ban đầu |
+| **Vào lệnh** | Mở vị thế mới: Mua/Bán · Market/Stop · **rủi ro % vốn** · mốc neo · đệm · SL & TP ban đầu |
 | **Sửa lệnh** | Tác động lên lệnh đã có: dời SL · dời TP · SL về hoà vốn · **kết thúc lệnh này** (gộp đóng hẳn + huỷ chờ — với một lệnh, "đóng" và "huỷ" là cùng một ý định) |
 
-17 toán hạng (giá · chỉ báo · sổ lệnh · **lệnh này** · zone) × 8 phép
-so, viết bằng **ký hiệu** `< ≤ > ≥ = ≠` chứ không phải chữ (hai phép còn lại là
-`là ĐÚNG` / `là SAI`, dành riêng cho toán hạng đúng/sai) — một cổng mang 4–5 điều
-kiện thì mắt phải liếc thấy quan hệ, không phải đọc chữ. **Mọi khoảng cách là bội của ATR hoặc của R — không có pip hay đô nào**,
-nên cùng một bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
+**22 toán hạng** (giá · chỉ báo · sổ lệnh · **lệnh này** · zone) × **8 phép so**, viết bằng
+**ký hiệu** `< ≤ > ≥ = ≠` chứ không phải chữ (hai phép còn lại là `là ĐÚNG` / `là SAI`,
+dành riêng cho toán hạng đúng/sai) — một cổng mang 4–5 điều kiện thì mắt phải liếc thấy
+quan hệ, không phải đọc chữ. **Mọi khoảng cách là bội của ATR hoặc của R — không có pip
+hay đô nào**, nên cùng một bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
 
-> **Hai chữ ATR là hai thứ khác nhau, tách ra là có chủ ý.** Đệm vào lệnh đo bằng
-> **ATR hiện tại** — tấm khiên mỏng ngoài mép vùng, đủ lọc một nhịp phá giả. Rủi ro đo
-> bằng **ATR trung bình cả cú nén** — nên mỗi lệnh rủi ro một R tương đương bất kể
-> vùng rộng hẹp. Gộp làm một là mất đúng cái làm 1R nhất quán.
+> **BA chữ ATR là ba thứ khác nhau, tách ra là có chủ ý.**
+> **ATR hiện tại** đo *đệm vào lệnh* — tấm khiên mỏng ngoài mép vùng, đủ lọc một nhịp
+> phá giả.
+> **ATR trung bình cả vùng** đo *rủi ro* (1R) — nên mỗi lệnh rủi ro một R tương đương bất
+> kể vùng rộng hẹp.
+> **ATR nền** (100 nến, chu kỳ **cố định**) là *cái thước*: `atr < 0,75 × ATR nền` nghĩa là
+> "yên hơn chính thị trường này dạo gần đây". Thước cũ chia cho GIÁ (`bps`) đã bỏ — đo
+> trên XAUUSD 2021–2026, cùng một cổng khớp 74 % số nến năm 2023 và 7,8 % năm 2026, tức
+> chiến lược tự tắt dần theo giá vàng.
+
+> **Khối lượng KHÔNG phải một ô nhập.** Khối Vào lệnh khai **rủi ro % vốn**; lot do bộ chạy
+> suy ra từ đó và khoảng cách SL. Lot là con số tuyệt đối — 0,01 lot trên tài khoản
+> $10.000 khác hẳn trên $100.000, nên mọi kết quả về tiền đổi nghĩa khi đổi tài khoản.
 
 ## Luật rẽ nhánh
 
@@ -133,10 +142,11 @@ Sửa giao diện xong phải `tools\build_ui.bat` mới thấy đổi — `app_
 app_web.py         ĐIỂM KHỞI ĐỘNG — thứ duy nhất còn ở gốc (pywebview + WebView2)
 cat_studio/        toàn bộ lõi app
   core.py            đồ thị, đánh số, soát lỗi
-  kho/               danh mục mọi thứ app tính được, chia theo NGUỒN
-    nen_tang.py        giá · thời gian · tài khoản · lệnh này
-    chi_bao.py         ATR · MA · Donchian · Volume MA
-    engine_d02.py      atr_bps · bảng vùng nén    (ý tưởng riêng của D_02)
+  kho/               danh mục mọi thứ app tính được, chia theo LOẠI
+    nen_tang.py        giá · sổ lệnh · lệnh này      LUÔN có
+    chi_bao.py         ATR · MA                      ai gọi thì có
+    zone.py            vùng giá + máy nuôi vùng      có khi SƠ ĐỒ định nghĩa nó
+  mau/compress.json  sơ đồ mẫu — một chiến lược thì là JSON, như mọi chiến lược khác
   so_lenh.py         bảng lệnh + vùng nén, id của CHÍNH TA
   luu_tru.py         MỘT chỗ duy nhất biết file nằm ở đâu
   api.py             bề mặt DUY NHẤT giao diện gọi tới  (JS → api.py → core.py)
@@ -152,8 +162,8 @@ dist/              sản phẩm đóng gói + bản .zip phát hành (không n�
 ```
 
 Menu **File → Kho** liệt kê mọi thứ app tính được, chia theo nguồn: nền tảng · chỉ báo
-chuẩn · từng engine. Danh sách do Python **tự gom** từ `kho/`, nên thêm một chiến lược
-mới là hộp thoại có ngay — không có danh sách nào chép tay.
+chuẩn · zone. Danh sách do Python **tự gom** từ `kho/`, nên thêm một cơ chế mới là hộp
+thoại có ngay — không có danh sách nào chép tay.
 
 Menu **File → Tham số chiến lược** sửa bảng hằng số CÓ TÊN. Ngưỡng nén được hỏi ở cả
 hai sơ đồ; gõ số thẳng vào hai nơi thì sửa một chỗ là hai vế lệch nhau âm thầm.

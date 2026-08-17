@@ -1,15 +1,19 @@
-"""Kho NỀN TẢNG — thứ MỌI chiến lược đều có, không thuộc engine nào.
+"""Kho NỀN TẢNG — thứ MỌI chiến lược đều có.
 
-Giá, thời gian, tài khoản, và "lệnh này". Bốn nhóm này không do chiến lược nào đóng
-góp: chúng đến từ sàn và từ sổ lệnh của chính app. Gỡ hết engine ra thì chúng vẫn còn.
+Giá, sổ lệnh, và "lệnh này". Ba nhóm này không do chiến lược nào đóng góp: chúng đến từ
+sàn và từ sổ lệnh của chính app. Không vẽ gì cả thì chúng vẫn trả lời được.
 
-Đối lập với `engine_*.py` — mỗi engine là MỘT ý tưởng chiến lược, mang theo bảng trạng
-thái riêng và những toán hạng chỉ có nghĩa khi engine đó đang chạy.
+Đối lập với `zone.py` — vùng giá chỉ tồn tại khi SƠ ĐỒ định nghĩa ra nó bằng một cổng,
+nên mọi toán hạng ở đó trả `NaN` cho tới lúc có vùng.
+
+⚠ KHÔNG có nhóm "Thời gian" (`giờ` / `thứ`), và đó là chủ ý — xem core.md §15.6. Chúng
+là toán hạng dễ overfit nhất trong cả kho ("chỉ đánh 14h thứ Ba" không nói gì về thị
+trường), và không đọc được sang thị trường chạy 24/7.
 """
 
 TEN = "Nền tảng"
 MA_SO = "nen_tang"
-MO_TA = "Giá · thời gian · tài khoản · lệnh này — có sẵn cho mọi chiến lược."
+MO_TA = "Giá · sổ lệnh · lệnh này — có sẵn cho mọi chiến lược."
 
 # Không tính chỉ báo nào, không nuôi bảng trạng thái nào.
 CHI_BAO = []
@@ -58,6 +62,18 @@ TOAN_HANG = [
     {"key": "so_lenh_cho", "nhan": "Số lệnh chờ", "nhom": "Sổ lệnh", "loai": "dem",
      "don_vi": "lenh", "tham_so": [],
      "mo_ta": "D_02 chỉ cho ĐÚNG MỘT lệnh chờ sống một lúc (`if(m_has_pending) return`)."},
+    # CẦU DAO RỦI RO. Bộ chạy đã nuôi sẵn con số này từ lâu (`PhienChay.ghi_tien` →
+    # `ct.drawdown_pt`) nhưng chưa ai khai nó vào kho, nên nó là mã chết: máy tính ra
+    # rồi không ai hỏi tới.
+    #
+    # ⚠ Đo trên VỐN ĐÃ CHỐT, không tính lãi nổi — cố ý. Sụt giảm theo lãi nổi đổi từng
+    # nến M1, biến một cầu dao đáng ra ổn định thành thứ giật liên tục và bật/tắt lung
+    # tung trong cùng một cú giá.
+    {"key": "drawdown_pt", "nhan": "Sụt vốn hiện tại", "nhom": "Sổ lệnh", "loai": "dem",
+     "don_vi": "pt_von", "tham_so": [],
+     "mo_ta": "Vốn đang thấp hơn đỉnh vốn bao nhiêu phần trăm. Dùng làm cầu dao: "
+              "\"sụt quá 5 % thì ngừng vào lệnh\". Tính trên vốn ĐÃ CHỐT (lệnh đã "
+              "đóng), không tính lãi nổi."},
 
     # ---- Lệnh đang xét — CHỈ sơ đồ Manage ----
     # Manage chạy một lượt cho MỖI lệnh đang sống, nên "lệnh này" luôn có nghĩa ở đó.
@@ -72,6 +88,20 @@ TOAN_HANG = [
     {"key": "lenh_lai_R", "nhan": "Lãi của lệnh này (× R)", "nhom": "Lệnh này",
      "loai": "boi_R", "tham_so": [], "tabs": ["manage"],
      "mo_ta": "R = khoảng cách SL lúc VÀO LỆNH, chốt cứng theo lệnh — không tính lại."},
+    # HƯỚNG. Thiếu nó thì Manage không phân biệt được lệnh mua với lệnh bán, nên mọi
+    # luật quản lý đều buộc phải đối xứng — không viết được "lệnh mua mà giá tụt dưới
+    # MA thì đóng".
+    {"key": "lenh_la_mua", "nhan": "Lệnh này là lệnh MUA", "nhom": "Lệnh này",
+     "loai": "dung_sai", "tham_so": [], "dung_sai": True, "tabs": ["manage"],
+     "mo_ta": "SAI nghĩa là lệnh BÁN — chỉ có hai hướng, không có ca thứ ba."},
+    # THỜI GIAN SỐNG. Thiếu nó thì Manage chỉ phản ứng được với GIÁ và ZONE, không bao
+    # giờ phản ứng được với thời gian: không viết được "lệnh chờ treo 20 nến không khớp
+    # thì huỷ". `Lenh.so_nen_song()` đã có sẵn từ lâu, chỉ chưa ai khai vào kho.
+    {"key": "lenh_so_nen_song", "nhan": "Lệnh này đã sống bao nhiêu nến",
+     "nhom": "Lệnh này", "loai": "dem", "don_vi": "nen", "tham_so": [],
+     "tabs": ["manage"],
+     "mo_ta": "Đếm từ nến ĐẶT lệnh, không phải nến khớp — nên nó đo được cả quãng lệnh "
+              "chờ nằm treo. Đếm bằng nến TRỤC (nhịp của khối Bắt đầu), không phải M1."},
     # ⚠ `can_zone`: hỏi câu này mà sơ đồ KHÔNG có cổng zone thì nó luôn trả SAI — đúng
     # về mặt sự thật nhưng vô nghĩa về mặt câu hỏi. Khai ra để soát tĩnh chặn ngay, thay
     # vì để người dùng vẽ xong rồi ngồi nghĩ vì sao cổng không bao giờ khớp.

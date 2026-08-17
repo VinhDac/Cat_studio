@@ -81,20 +81,64 @@ def _hanh_dong_mac_dinh(loai):
     (ATR 14, ngưỡng 7 bps, SL 1.5×ATR, TP 2R) đã chạy được trên nhiều symbol, nên
     người dùng mới có thứ hợp lý để sửa chứ không phải bịa từ số không."""
     if loai == core.VAO_LENH:
-        return {"type": loai, "huong": "mua", "loai": "stop", "lot": 0.01,
+        return {"type": loai, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
                 "dem": {"tinh": "atr", "value": 0.1},
                 "sl": {"tinh": "atr", "value": 1.5},
                 "tp": {"tinh": "R", "value": 2}}
     if loai == core.SUA_LENH:
         return {"type": loai, "che_do": "hoa_von"}
     return {"type": core.CHECK_COND, "conditions": [{
-        "trai": {"ten": "atr", "tf": "M5", "period": 14}, "don_vi": "bps",
-        "phep": "<", "phai": {"value": 7.0, "tinh": "bps"}}]}
+        "trai": {"ten": "atr", "tf": "M5", "period": 14}, "don_vi": "atr_nen",
+        "phep": "<", "phai": {"value": 0.75, "tinh": "atr_nen"}}]}
 
 
 # ---------------------------------------------------------------------------
 # Thẻ vẽ lên hộp — NỘI DUNG DO PYTHON SINH
 # ---------------------------------------------------------------------------
+
+
+def _spread(symbol, ci, meta):
+    """Spread (điểm) cho một lần chạy — GÕ TAY thắng, không có thì lấy SỐ ĐO ĐƯỢC.
+
+    core.md §16.2. Ngược thứ tự với luật sàn (§16.1) là có lý do: luật sàn là thứ sàn
+    ÁP ĐẶT nên số đo luôn đúng hơn, còn spread là **điều kiện chạy thử** — người dùng
+    có quyền hỏi "nếu spread xấu gấp đôi thì sao", và đó là một câu hỏi đúng đắn.
+
+    ⚠ KHÔNG có số bịa cuối cùng. Mặc định cũ là `20`, và đo được nó làm sơ đồ mẫu 2025
+    ra **+12,78 R** trong khi spread thật (97) cho **+6,66 R** — một con số bịa làm
+    chiến lược thua trông như đang thắng. Không đo được và cũng không gõ tay thì NÓI TO,
+    đúng nếp câu lỗi "chưa đặt khoảng thời gian".
+    """
+    sp = ci.get("spread_diem") or meta.get("spread_tb")
+    if not sp:
+        raise RuntimeError(
+            f"Chưa biết spread của {symbol}.\n\n"
+            f"Tải nến từ MT5 thì app tự đo (trung vị spread cất cạnh kho nến), hoặc "
+            f"điền ô Spread ở Cài đặt → Strategy Test.\n\n"
+            f"Cố ý KHÔNG đoán: spread quyết định cả kết quả — cùng sơ đồ mẫu, spread 20 "
+            f"điểm cho +12,78 R còn spread thật 97 điểm cho +6,66 R.")
+    return float(sp)
+
+
+def _luat_san(symbol, ci):
+    """Bốn luật sàn cho `CaiDat` — HỒ SƠ ĐÃ ĐO thắng, ô gõ tay là dự phòng.
+
+    core.md §16.1. Thứ tự đó là chủ ý và trùng nếp §14.9 (*hồ sơ là CACHE CỦA PHÉP ĐO,
+    không phải cài đặt*): một con số đo được từ chính cái sàn ấy luôn đúng hơn một con
+    số gõ tay. Chưa từng hiệu chuẩn symbol này thì rơi về ô trong Cài đặt, và ô đó rơi
+    về mặc định — nên app vẫn chạy khi chưa nối sàn lần nào.
+
+    Trả kèm khoá `_nguon` KHÔNG được: `CaiDat` không nhận. Ai muốn biết nguồn thì gọi
+    `ket_noi.luat_san` — `bootstrap` làm đúng thế để giao diện hiện ra.
+    """
+    hs = ket_noi.luat_san(symbol) or {}
+    ra = {}
+    for k in ket_noi.LUAT_SAN:
+        v = hs.get(k)
+        if v in (None, ""):
+            v = ci.get(k, luu_tru.CAI_DAT_MAC_DINH["test"][k])
+        ra[k] = v
+    return ra
 
 
 def _mau_khoi(st):
@@ -313,6 +357,13 @@ class Api(NenCuaSo):
             "app_dir": core.app_dir(),
             "nguon": nguon_nen.liet_ke(),
             "co_mt5": nguon_nen.CO_MT5,
+            # LUẬT SÀN đã ĐO ĐƯỢC, theo từng symbol — §16.1. Giao diện dùng nó để nói rõ
+            # số đang chạy đến từ ĐÂU: hồ sơ hiệu chuẩn hay ô gõ tay. Không nói thì người
+            # dùng sửa ô mà không hiểu vì sao kết quả không đổi.
+            "luat_san": {s: ls for s in {
+                (self._cai_dat.get("test") or {}).get("symbol"),
+                self._cai_dat.get("symbol"), "XAUUSD"} if s
+                for ls in [ket_noi.luat_san(s)] if ls},
 
             "kinds": [core.KIND_START, core.KIND_ACTION],
             "kind_labels": core.KIND_LABELS,
@@ -362,7 +413,8 @@ class Api(NenCuaSo):
             "sua_che_do": core.SUA_CHE_DO,
             "sua_can_gia": list(core.SUA_CAN_GIA),
 
-            "don_vi_o": {k: core.don_vi_cua_o(k) for k in ("chu_ky", "lot")},
+            "don_vi_o": {k: core.don_vi_cua_o(k)
+                         for k in ("chu_ky", "lot", "rui_ro")},
             "template_kinds": core.TEMPLATE_KINDS,
             "accent_presets": core.ACCENT_PRESETS,
             "max_process_steps": core.MAX_PROCESS_STEPS,
@@ -406,7 +458,7 @@ class Api(NenCuaSo):
         """Nhân bản khối: id mới + thẻ chữ.
 
         ⚠ `tham_so` là bảng tham số của sơ đồ ĐÍCH. Thiếu nó thì thẻ dựng ra ghi
-        `nguong_nen_bps = ?` — khối vừa dán/vừa nhập trông như hỏng, trong khi tham số
+        `nguong_nen = ?` — khối vừa dán/vừa nhập trông như hỏng, trong khi tham số
         vẫn có đủ; chỉ là chỗ dựng chữ không được đưa cho. Ctrl+V dính lỗi này từ đầu,
         chỉ là ít ai để ý vì thường dán ngay trong cùng một sơ đồ."""
         moi, tra = core.clone_steps(steps)
@@ -731,7 +783,10 @@ class Api(NenCuaSo):
                 cu[k] = str(t[k]).strip()
         if t.get("symbol"):
             cu["symbol"] = str(t["symbol"]).strip().upper()
-        for k in ("spread_diem", "deposit", "commission"):
+        # `lot_*` và `stops_level` là LUẬT SÀN dự phòng (§16.1) — dùng khi chưa hiệu
+        # chuẩn symbol này lần nào. Có hồ sơ thì `_luat_san` lấy hồ sơ, mấy ô này ngồi im.
+        for k in ("spread_diem", "truot_diem", "deposit", "commission",
+                  "lot_min", "lot_buoc", "lot_max", "stops_level"):
             if k in t:
                 try:
                     cu[k] = float(t[k])
@@ -932,13 +987,15 @@ class ApiTester(NenCuaSo):
                 f"khoảng From→To ở Cài đặt → Strategy Test.")
         cd = bo_chay.CaiDat(
             symbol=ci.get("symbol") or "XAUUSD", tu=ci.get("tu"), den=ci.get("den"),
-            spread_diem=ci.get("spread_diem", m.get("spread_tb") or 20),
+            spread_diem=_spread(sym, ci, m),
+            truot_diem=ci.get("truot_diem", 0),
             point=m.get("point") or 0.01,
             contract_size=m.get("contract_size") or 100.0,
             digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            don_bay=ci.get("don_bay", 100))
+            don_bay=ci.get("don_bay", 100),
+            **_luat_san(sym, ci))
         cu = self._tom_tat_lan_truoc()
         self._tt.update({"tong": 0, "chu": "đang biên dịch sơ đồ…"})
 
@@ -1755,13 +1812,15 @@ class ApiLive(ApiTester):
         m = nguon_nen.doc_meta(symbol) or {}
         cd = bo_chay.CaiDat(
             symbol=symbol,
-            spread_diem=ci.get("spread_diem", m.get("spread_tb") or 20),
+            spread_diem=_spread(symbol, ci, m),
+            truot_diem=ci.get("truot_diem", 0),
             point=m.get("point") or 0.01,
             contract_size=m.get("contract_size") or 100.0,
             digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            don_bay=ci.get("don_bay", 100))
+            don_bay=ci.get("don_bay", 100),
+            **_luat_san(symbol, ci))
         self.phien = phien_live.PhienLive(doc, symbol, cd)
         threading.Thread(target=self._vong, daemon=True).start()
         return _ok({"ten": doc["name"], "symbol": symbol})
@@ -2059,187 +2118,36 @@ _TRANG_TESTER_TAM = """
 # VÀ `COMP_CONSUMED` KHÔNG CẦN CỜ ẨN: lệnh mang `vùng_id`, nên "vùng này đã sinh lệnh"
 # chỉ là một phép tra bảng — có lệnh nào trỏ về vùng hiện hành không.
 
+#: SƠ ĐỒ MẪU nằm ở `cat_studio/mau/compress.json` — MỘT FILE JSON, y như mọi chiến lược
+#: khác. Trước đây nó là ~220 dòng Python dựng khối ngay trong `api.py`, tức một chiến
+#: lược cụ thể nằm trong tầng mà §2 định nghĩa là *"bề mặt DUY NHẤT giao diện gọi tới"*.
+#: Bảng 11 con số của nó cũng đi theo, vào đúng ô `tham_so` của file đó — chỗ mọi chiến
+#: lược khác vẫn để số của mình. Xem core.md §15.4.
+#:
+#: ⚠ ID CỐ ĐỊNH, chép nguyên trong file (`mau01`, `mau02`, …). Sơ đồ mẫu là một HẰNG SỐ
+#: nên nó phải ra y hệt nhau mỗi lần mở: `_van_tay` băm cả id, nên id sinh ngẫu nhiên
+#: biến "mở sơ đồ mẫu hai lần" thành hai chiến lược khác nhau — lịch sử đẻ hai dòng
+#: trùng hệt, và "so với lần trước" lúc nào cũng nói "sơ đồ ĐÃ ĐỔI". Id chỉ cần duy
+#: nhất TRONG MỘT tài liệu, nên đặt cứng hoàn toàn an toàn; nhập sơ đồ này vào một sơ đồ
+#: khác thì `clone_steps` vẫn cấp id mới như thường.
+#: ⚠ Đi qua `luu_tru.thu_muc_goi()`, KHÔNG dùng `dirname(__file__)`. Đó là hàm dựng ra
+#: đúng cho câu hỏi "tài nguyên đi kèm nằm đâu": bản đóng gói giải nén vào `sys._MEIPASS`
+#: và `__file__` của một module trong gói không còn là đường dẫn có thật trên đĩa. Cùng
+#: một cửa mà `webui/dist` đang đi.
+_DUONG_MAU = os.path.join(luu_tru.thu_muc_goi(), "cat_studio", "mau", "compress.json")
+
 
 def _so_do_mau():
     """Compress: biến động co lại như lò xo → đặt lệnh chờ ngay mép vùng → phá ra là khớp.
 
     Mọi khoảng cách là bội của ATR hoặc của R, không một pip hay đô nào — nên cùng một
-    bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số."""
+    bộ số mang cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
 
-    # ⚠ ID CỐ ĐỊNH, không phải id sinh ngẫu nhiên. Sơ đồ mẫu là một HẰNG SỐ, nên nó phải
-    # ra y hệt nhau mỗi lần mở. Trước đây mỗi lần mở lại sinh ids mới, mà `_van_tay` băm
-    # cả id — thành ra mở sơ đồ mẫu hai lần là hai "chiến lược khác nhau": lịch sử đẻ hai
-    # dòng trùng hệt, và "so với lần trước" lúc nào cũng nói "sơ đồ ĐÃ ĐỔI".
-    # Id chỉ cần duy nhất TRONG MỘT tài liệu, nên đặt cứng ở đây hoàn toàn an toàn — và
-    # nhập sơ đồ này vào một sơ đồ khác thì `clone_steps` vẫn cấp id mới như thường.
-    dem = [0]
+    ⚠ NẠP LẠI TỪ FILE MỖI LẦN GỌI, không cache. Người gọi sửa tại chỗ là chuyện thường
+    (`_kem_the`, `normalize_process`, rồi người dùng kéo khối) — mà một hằng số dùng
+    chung bị sửa tại chỗ là loại lỗi im lặng tệ nhất: sơ đồ mẫu lần thứ hai đã khác lần
+    thứ nhất, và không có gì báo. File 7 KB, đọc lại rẻ hơn nhiều so với một buổi đi tìm.
+    """
+    with open(_DUONG_MAU, encoding="utf-8") as f:
+        return json.load(f)
 
-    def _ma():
-        dem[0] += 1
-        return f"mau{dem[0]:02d}"
-
-    def dk(ten, conds, x, y, cong_zone=False, hop_le=None):
-        a = {"id": _ma(), "type": core.CHECK_COND, "name": ten, "conditions": conds}
-        if cong_zone:
-            a["cong_zone"] = True
-        if hop_le:
-            a["dk_hop_le"] = hop_le
-        s = core.make_action_step(a)
-        s["pos"] = [x, y]
-        return s
-
-    def hd(ten, act, x, y):
-        s = core.make_action_step(dict(act, id=_ma(), name=ten))
-        s["pos"] = [x, y]
-        return s
-
-    def so(ten, phep, gia_tri, **kw):
-        return {"trai": dict({"ten": ten}, **kw), "phep": phep,
-                "phai": {"value": gia_tri}}
-
-    def ts(ten, phep, ten_tham_so, **kw):
-        """Vế phải là một THAM SỐ CÓ TÊN, không phải số gõ tay.
-
-        Nhờ vậy `nguong_nen_bps` chỉ tồn tại ở MỘT chỗ, dù nó được hỏi ở cả hai sơ đồ —
-        Entry hỏi "còn nén không", Manage hỏi "nén tan chưa". Gõ tay hai nơi thì sửa
-        một chỗ là hai vế lệch nhau âm thầm."""
-        return {"trai": dict({"ten": ten}, **kw), "phep": phep,
-                "phai": {"value": ten_tham_so}}
-
-    def ts_dv(ten, phep, ten_tham_so, don_vi, **kw):
-        """Như `ts` nhưng có ĐƠN VỊ — vế trái được quy đổi trước khi so.
-
-        `atr < nguong_nen_bps [bps]` thay cho toán hạng `atr_bps` cũ. Đại lượng nằm
-        trong kho, thước nằm ở dòng điều kiện."""
-        c = ts(ten, phep, ten_tham_so, **kw)
-        c["phai"]["tinh"] = don_vi          # ĐƠN VỊ nằm trong LƯỢNG, như SL/TP
-        return c
-
-    def dung_sai(ten, dao=False):
-        # ĐÚNG/SAI là một PHÉP SO, không phải ô tick — mọi điều kiện cùng hình dạng.
-        return {"trai": {"ten": ten}, "phep": "la_sai" if dao else "la_dung"}
-
-    def canh(a, b):
-        return {"from": a["id"], "to": b["id"], "port": "out",
-                "from_side": "right", "to_side": "left"}
-
-    # ========================= ENTRY =========================
-    e_bd = core.make_start_step("Tìm tín hiệu", core.NHIP_MAC_DINH[core.TAB_ENTRY])
-    e_bd["id"] = "mau-bd-entry"
-    e_bd["pos"] = [40, 300]
-
-    # ⭐ CỔNG ZONE — chính cổng này ĐỊNH NGHĨA zone.
-    #
-    # Trước đây bốn điều kiện dưới đây nằm CHUNG một khối, còn việc đếm nến nén thì do
-    # một cỗ máy ẩn chạy ngoài sơ đồ. Nhìn khối không biết zone sinh ra từ đâu.
-    #
-    # Giờ tách đôi, và thứ tự nói lên đúng nhân quả:
-    #   khối này  = ĐIỀU KIỆN ĐẾM. Qua thì zone lớn thêm một nến, trượt thì zone chết.
-    #   khối sau  = hỏi về zone VỪA ĐƯỢC ĐỊNH NGHĨA ở trên.
-    # Không có khối này thì `zone_dem`, `zone_HH`… không có nghĩa gì cả.
-    # ⭐ CỔNG ZONE MANG HAI DANH SÁCH (core.md §12.6f).
-    #
-    #   ĐẾM    — nến này có được vào zone không. Trượt là zone CHẾT.
-    #   HỢP LỆ — zone đã dùng được chưa. Trượt thì zone VẪN SỐNG, chỉ là chưa chín.
-    #
-    # Ranh giới là câu "trượt vế này nghĩa là gì": `atr ≥ ngưỡng` nghĩa là NÉN HỎNG nên
-    # ở phần đếm; `chưa đủ K nến` chỉ nghĩa là CHƯA TỚI LÚC nên ở phần hợp lệ. Để nhầm
-    # `số nến ≥ K` xuống phần đếm là khoá chết: zone thử của nến đầu tiên luôn có 1 nến,
-    # nên cổng trượt ngay và zone KHÔNG BAO GIỜ hình thành (đo được: 0 zone cả năm).
-    #
-    # ⚠ BỀ RỘNG cố ý để ở phần HỢP LỆ, không phải phần đếm — giữ đúng hành vi cũ (§12.6a:
-    # kiểm lại mỗi nến ở cổng vào lệnh). Đẩy nó lên phần đếm thì zone chết khi vượt hạn
-    # mức, ra 853 lệnh thay vì 550 — một chiến lược KHÁC, không phải một cách viết khác.
-    e_nen = dk("Nến này có nén không?", [
-        ts_dv("atr", "<", "nguong_nen_bps", "bps", tf="M5", period="chu_ky_atr"),
-    ], 340, 300, cong_zone=True, hop_le=[
-        ts("zone_dem", ">=", "zone_can_nen"),                 # đủ K nến liên tiếp
-        ts_dv("zone_range", "<=", "zone_range_max", "atr"),   # zone không quá rộng
-    ])
-
-    # "Hợp lệ" giờ là một KHÁI NIỆM có tên, khai một lần ở cổng zone — nên chỗ này chỉ
-    # còn đúng chuyện của SỔ LỆNH. Trước đây phải chép lại hai vế `số nến` và `bề rộng`
-    # vào đây, và chép lần nữa sang Manage nếu cần.
-    e_zone = dk("Zone đã đủ điều kiện chưa?", [
-        dung_sai("zone_hop_le"),                        # định nghĩa ở cổng zone
-        dung_sai("zone_da_sinh_lenh", dao=True),        # = COMP_CONSUMED
-    ], 640, 300)
-
-    e_cho = dk("Còn chỗ cho lệnh mới?", [
-        so("so_lenh_cho", "==", 0),      # D_02: đúng MỘT lệnh chờ tại một thời điểm
-        ts("so_vi_the", "<", "so_vi_the_toi_da"),   # bằng nhau là đã đầy
-    ], 940, 300)
-
-    def vao(huong):
-        return {
-            "type": core.VAO_LENH, "huong": huong, "loai": "stop", "lot": "lot",
-            # Đệm đo bằng ATR HIỆN TẠI — tấm khiên mỏng ngoài mép vùng, đủ lọc một
-            # nhịp phá giả. Lệnh chờ luôn neo vào mép vùng thuận chiều.
-            "dem": {"tinh": "atr", "value": "dem_vao_lenh"},
-            # Rủi ro đo bằng ATR TRUNG BÌNH CẢ VÙNG NÉN — lấy mức nhiễu thật suốt cú
-            # nén, nên mỗi lệnh rủi ro một R tương đương dù vùng rộng hẹp khác nhau.
-            # HAI CHỮ ATR NÀY LÀ HAI THỨ KHÁC NHAU, tách ra là có chủ ý.
-            "sl": {"tinh": "atr_zone", "value": "sl_theo_atr_vung"},
-            "tp": {"tinh": "R", "value": "ty_le_RR"},
-            # MỐC NEO hiện ra thành một trường, không còn suy ra từ hướng lệnh nữa.
-            # `entry = HH của zone + đệm` giờ đọc thẳng được trên khối.
-            "entry": {"moc": "zone_HH" if huong == "mua" else "zone_LL"},
-        }
-
-    e_len = dk("Xu hướng LÊN?", [{
-        "trai": {"ten": "close", "tf": "M15"}, "phep": ">",
-        "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
-                 "method": "SMA"}}], 1060, 160)
-    e_mua = hd("Buy Stop trên đỉnh vùng", vao("mua"), 1660, 160)
-
-    e_xuong = dk("Xu hướng XUỐNG?", [{
-        "trai": {"ten": "close", "tf": "M15"}, "phep": "<",
-        "phai": {"ten": "ma", "tf": "M15", "period": "chu_ky_ma",
-                 "method": "SMA"}}], 1060, 440)
-    e_ban = hd("Sell Stop dưới đáy vùng", vao("ban"), 1660, 440)
-
-    entry = {
-        "steps": [e_bd, e_nen, e_zone, e_cho, e_len, e_mua, e_xuong, e_ban],
-        "edges": [canh(e_bd, e_nen), canh(e_nen, e_zone), canh(e_zone, e_cho),
-                  canh(e_cho, e_len), canh(e_len, e_mua),
-                  canh(e_cho, e_xuong), canh(e_xuong, e_ban)],
-    }
-
-    # ========================= MANAGE =========================
-    # Chạy lại từ đầu mỗi nến, CHO TỪNG LỆNH. Không giữ con trỏ — mọi câu hỏi đều tính
-    # lại từ trạng thái quan sát được, y như D_02 làm mỗi tick.
-    m_bd = core.make_start_step("Quản lý lệnh", core.NHIP_MAC_DINH[core.TAB_MANAGE])
-    m_bd["id"] = "mau-bd-manage"
-    m_bd["pos"] = [40, 300]
-
-    m_huy = dk("Chưa khớp mà nén đã tan?", [
-        dung_sai("lenh_da_khop", dao=True),
-        # CÙNG một `nguong_nen_bps` với cổng nén bên Entry — đây chính là chỗ hai
-        # hằng số gõ tay sẽ lệch nhau nếu không có bảng tham số.
-        ts_dv("atr", ">=", "nguong_nen_bps", "bps", tf="M5", period="chu_ky_atr"),
-    ], 400, 160)
-    m_huy_hd = hd("Huỷ lệnh chờ",
-                  {"type": core.SUA_LENH, "che_do": "ket_thuc"}, 760, 160)
-
-    # Ba dòng guard của `ManageBreakEven` gói đúng vào một cổng. Vế "SL chưa ở hoà vốn"
-    # KHÔNG được thiếu: Manage chạy lại mỗi nến, không có nó thì lệnh sửa SL bắn hoài.
-    m_be = dk("Đã khớp, đủ 1R, SL chưa hoà vốn?", [
-        dung_sai("lenh_da_khop"),
-        dung_sai("lenh_sl_hoa_von", dao=True),
-        ts("lenh_lai_R", ">=", "hoa_von_tai"),
-    ], 400, 440)
-    m_be_hd = hd("Dời SL về giá vào",
-                 {"type": core.SUA_LENH, "che_do": "hoa_von"}, 760, 440)
-
-    manage = {
-        "steps": [m_bd, m_huy, m_huy_hd, m_be, m_be_hd],
-        "edges": [canh(m_bd, m_huy), canh(m_huy, m_huy_hd),
-                  canh(m_bd, m_be), canh(m_be, m_be_hd)],
-    }
-
-    return {"schema": 3, "type": "strategy", "name": "Compress (mẫu)",
-            "symbol": "XAUUSD",
-            # Bộ tham số lấy thẳng từ `kho/engine_d02.py` — cùng một nguồn với mặc
-            # định của EA, nên không có chuyện tài liệu nói một đằng mẫu chạy một nẻo.
-            "tham_so": [dict(t) for t in kho.engine_d02.THAM_SO_MAC_DINH],
-            "entry": entry, "manage": manage}

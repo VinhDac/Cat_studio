@@ -29,6 +29,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 from cat_studio import bo_chay as bc  # noqa: E402
 from cat_studio import core  # noqa: E402
 from cat_studio import nguon_nen as nn  # noqa: E402
+from cat_studio import so_lenh  # noqa: E402
 
 dung = sai = 0
 
@@ -59,7 +60,7 @@ def so_do(entry_steps, entry_edges, manage_steps=(), manage_edges=(), ts=None):
     return core.normalize_process({
         "name": "thử", "symbol": "X",
         "tham_so": list(ts or []) + [
-            {"ten": "nguong_nen_bps", "nhan": "", "gia_tri": 1e9, "don_vi": "bps"},
+            {"ten": "nguong_nen", "nhan": "", "gia_tri": 1e9, "don_vi": "atr_nen"},
             {"ten": "chu_ky_atr", "nhan": "", "gia_tri": 3, "don_vi": "nến"}],
         "entry": {"steps": list(entry_steps), "edges": list(entry_edges)},
         "manage": {"steps": list(manage_steps), "edges": list(manage_edges)},
@@ -80,7 +81,7 @@ def cong(ten, toan_hang, phep, gia_tri, y=0.0, don_vi=None):
 def vao(ten, y=0.0):
     st = core.make_action_step({
         "type": core.VAO_LENH, "name": ten, "huong": "mua", "loai": "market",
-        "lot": 0.01, "sl": {"tinh": "gia", "value": 1.0},
+        "rui_ro": 0.5, "sl": {"tinh": "gia", "value": 1.0},
         "tp": {"tinh": "R", "value": 2.0}})
     st["pos"] = [0.0, y]
     return st
@@ -233,8 +234,8 @@ kiem("và nhật ký ghi vế trái là None (chưa có), không phải 0",
 # `zone_range_atr` đã rời kho — giờ là `zone_range` so bằng ĐƠN VỊ `× ATR`.
 g_vung = cong("bề rộng zone ≤ 4 × ATR", "zone_range", "<=", 4.0, don_vi="atr")
 d6 = so_do([bd, g_vung, v], [day(bd, g_vung), day(g_vung, v)],
-           ts=[{"ten": "khong_dung", "nhan": "", "gia_tri": 0, "don_vi": "bps"}])
-d6["tham_so"] = [dict(t, gia_tri=0.0) if t["ten"] == "nguong_nen_bps" else t
+           ts=[{"ten": "khong_dung", "nhan": "", "gia_tri": 0, "don_vi": "atr_nen"}])
+d6["tham_so"] = [dict(t, gia_tri=0.0) if t["ten"] == "nguong_nen" else t
                  for t in d6["tham_so"]]          # ngưỡng 0 → không nến nào là nến nén
 kq = bc.chay(d6, nen_m1([100.0] * 20), CD)
 kiem("KHÔNG có vùng nén nào được sinh ra", len(kq.so.zone) == 0)
@@ -298,10 +299,13 @@ kiem("lệnh vừa sinh KHÔNG bị quản lý trong CÙNG lượt đẻ ra nó"
 CD9 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=1000.0)
 bd9 = core.make_start_step("bắt đầu", "M5")
 v9 = core.make_action_step({
-    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "lot": 1.0,
-    # `pt` (% của giá) đã bỏ — nó là `bps` chia 100, hai tên cho một phép. Cùng khoảng
-    # cách y hệt: 50 % = 5.000 bps · 5.000 % = 500.000 bps.
-    "sl": {"tinh": "bps", "value": 5000}, "tp": {"tinh": "bps", "value": 500000}})
+    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "rui_ro": 0.5,
+    # SL/TP đặt XA để chúng không bao giờ chạm — bài này đo đường tiền khi khối Sửa
+    # lệnh đóng tay, không đo khớp SL/TP.
+    # ⚠ Dùng `gia` (tuyệt đối) chứ không `atr_nen`: giá ở đây rơi đều 100 → 40, nên một
+    # khoảng đo theo ATR sẽ co giãn theo và bài kiểm phụ thuộc vào một con số nó không
+    # kiểm soát. Trước đây là `bps` (5.000 bps của 100 = đúng 50), `bps` đã bỏ — §15.7.
+    "sl": {"tinh": "gia", "value": 50}, "tp": {"tinh": "gia", "value": 5000}})
 m_bd9 = core.make_start_step("quản lý", "M1")
 huy9 = core.make_action_step({"type": core.SUA_LENH, "name": "đóng",
                               "che_do": "ket_thuc"})
@@ -312,6 +316,178 @@ kiem("sụt giảm LÚC CHẠY khớp sụt giảm BÁO CÁO khi khối Sửa l�
      and abs(kq9._ct.drawdown_pt() - kq9.thong_ke["drawdown_pt"]) < 0.01,
      f"— lúc chạy {kq9._ct.drawdown_pt():.2f} % · báo cáo "
      f"{kq9.thong_ke['drawdown_pt']:.2f} %")
+
+# =========== 5c. SL CHỈ SIẾT, KHÔNG NỚI — core.md §15.10 ===========
+#
+# ⚠ LỖI THẬT, và là ca mẫu của thứ nguy nhất khi có bộ tìm kiếm: `doi_sl` đặt SL cách
+# GIÁ HIỆN TẠI một khoảng rồi gán thẳng, không so với SL cũ. Giá đi xuống thì SL đi
+# xuống theo, nên lệnh KHÔNG BAO GIỜ chạm SL — một chiến lược "không bao giờ thua"
+# trong backtest, và nó sẽ đứng đầu mọi bảng xếp hạng.
+print("\n▸ SL chỉ siết, không nới")
+
+kiem("MUA: SL mới CAO hơn → siết → nhận",
+     bc._siet_sl(so_lenh.Lenh("L", None, "s", "mua", "market", 1.0, 100, 90, 120, 10, 0),
+                 95.0) == 95.0)
+kiem("MUA: SL mới THẤP hơn → nới → TỪ CHỐI",
+     bc._siet_sl(so_lenh.Lenh("L", None, "s", "mua", "market", 1.0, 100, 90, 120, 10, 0),
+                 85.0) is None)
+kiem("BÁN: SL mới THẤP hơn → siết → nhận",
+     bc._siet_sl(so_lenh.Lenh("L", None, "s", "ban", "market", 1.0, 100, 110, 80, 10, 0),
+                 105.0) == 105.0)
+kiem("BÁN: SL mới CAO hơn → nới → TỪ CHỐI",
+     bc._siet_sl(so_lenh.Lenh("L", None, "s", "ban", "market", 1.0, 100, 110, 80, 10, 0),
+                 115.0) is None)
+kiem("CHƯA có SL → mọi SL đều là siết (từ rủi ro vô hạn xuống hữu hạn)",
+     bc._siet_sl(so_lenh.Lenh("L", None, "s", "mua", "market", 1.0, 100, None, 120, 10, 0),
+                 88.0) == 88.0)
+
+# Bài BẰNG HÀNH VI: giá rơi đều, Manage dời SL cách giá 10 MỖI nến. Không có kẹp thì SL
+# tụt theo giá mãi và lệnh sống tới hết dữ liệu; có kẹp thì SL đứng ở mốc đầu và giá rơi
+# xuống chạm nó.
+bd_s = core.make_start_step("bắt đầu", "M5")
+bd_s["pos"] = [0.0, 0.0]
+v_s = core.make_action_step({
+    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "rui_ro": 0.5,
+    "sl": {"tinh": "gia", "value": 10.0}, "tp": {"tinh": "gia", "value": 1000.0}})
+v_s["pos"] = [0.0, 0.0]
+m_bd_s = core.make_start_step("quản lý", "M1")
+m_bd_s["pos"] = [0.0, 0.0]
+troi = core.make_action_step({"type": core.SUA_LENH, "name": "dời SL theo giá",
+                              "che_do": "doi_sl", "khoang": {"tinh": "gia", "value": 10.0}})
+troi["pos"] = [0.0, 0.0]
+d_s = so_do([bd_s, v_s], [day(bd_s, v_s)], [m_bd_s, troi], [day(m_bd_s, troi)])
+kq_s = bc.chay(d_s, nen_m1([100.0 - k * 0.5 for k in range(160)]),
+               bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=10000.0))
+_l = kq_s.so.lenh[0]
+kiem("lệnh CÓ chạm SL — SL không chạy trốn theo giá",
+     _l.ly_do_dong == "sl", f"— lý do đóng: {_l.ly_do_dong}")
+kiem("SL đứng NGUYÊN ở mốc ban đầu (giá vào − 10), không tụt một lần nào",
+     abs(_l.sl - (_l.gia_khop - 10.0)) < 1e-9,
+     f"— SL {_l.sl} · giá vào {_l.gia_khop}")
+
+# =========== 5c-bis. LUẬT SÀN vào backtest — core.md §16.1 ===========
+#
+# Sàn thật TỪ CHỐI: lot ngoài [min, max], lot lệch bước, SL/TP gần hơn `stops_level`.
+# Backtest cho qua là đang chơi một trò DỄ HƠN live — phá đúng lời hứa §14.1 "một đoạn
+# code cho cả hai". Ca thật đo được: SL 0,0004 $ → 862 lot, cả hai sàn đều không nhận.
+print("\n▸ Luật sàn")
+
+_cds = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=10_000.0,
+                 lot_min=0.01, lot_buoc=0.01, lot_max=5.0, stops_level=10)
+kiem("làm tròn XUỐNG theo bước — không bao giờ mạo hiểm hơn mức đã khai",
+     _cds.lam_tron_lot(0.1749) == 0.17, f"— {_cds.lam_tron_lot(0.1749)}")
+kiem("kẹp trần theo `lot_max`", _cds.lam_tron_lot(999.0) == 5.0)
+kiem("dưới `lot_min` → KHÔNG vào lệnh, không kẹp lên",
+     _cds.lam_tron_lot(0.004) is None)
+kiem("`stops_level` quy ra giá đúng", abs(_cds.stops_gia - 10.0) < 1e-9)
+
+# Bằng HÀNH VI: SL hẹp hơn ngưỡng sàn thì KHÔNG được có lệnh nào.
+bd_h = core.make_start_step("bắt đầu", "M5")
+bd_h["pos"] = [0.0, 0.0]
+
+
+def _chay_stops(sl_gia, stops):
+    v = core.make_action_step({
+        "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market",
+        "rui_ro": 0.5, "sl": {"tinh": "gia", "value": sl_gia},
+        "tp": {"tinh": "gia", "value": 500.0}})
+    v["pos"] = [0.0, 0.0]
+    cd_ = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=10_000.0,
+                    stops_level=stops)
+    return bc.chay(so_do([bd_h, v], [day(bd_h, v)]),
+                   nen_m1([100.0 + (k % 5) for k in range(60)]), cd_)
+
+
+kiem("SL 5 với ngưỡng sàn 10 → sàn từ chối → KHÔNG lệnh nào",
+     len(_chay_stops(5.0, 10).so.lenh) == 0)
+kiem("CÙNG sơ đồ, ngưỡng sàn 0 (chưa đo) → vẫn vào lệnh bình thường",
+     len(_chay_stops(5.0, 0).so.lenh) > 0)
+kiem("SL 20 vượt ngưỡng sàn 10 → vào lệnh bình thường",
+     len(_chay_stops(20.0, 10).so.lenh) > 0)
+
+# =========== 5c-ter. HOÀ VỐN phải TRỪ CẢ CHI PHÍ — core.md §17.6 ===========
+#
+# `SL = giá vào` nghe như hoà vốn nhưng KHÔNG phải: phần giá đúng bằng 0, mà hoa hồng
+# vẫn bị trừ. Lệnh "hoà vốn" ấy thật ra lỗ đúng một khoản phí — và lỗ như thế ở MỌI lệnh
+# được dời, âm thầm, có hệ thống.
+print("\n▸ Hoà vốn thật = về đúng số 0")
+
+bd_h2 = core.make_start_step("bắt đầu", "M5")
+bd_h2["pos"] = [0.0, 0.0]
+v_h2 = core.make_action_step({
+    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market",
+    "rui_ro": 0.5, "sl": {"tinh": "gia", "value": 10.0},
+    "tp": {"tinh": "gia", "value": 500.0}})
+v_h2["pos"] = [0.0, 0.0]
+m_h2 = core.make_start_step("quản lý", "M1")
+m_h2["pos"] = [0.0, 0.0]
+hv2 = core.make_action_step({"type": core.SUA_LENH, "name": "hoà vốn",
+                             "che_do": "hoa_von"})
+hv2["pos"] = [0.0, 0.0]
+d_h2 = so_do([bd_h2, v_h2], [day(bd_h2, v_h2)], [m_h2, hv2], [day(m_h2, hv2)])
+# Giá LÊN xa rồi RƠI hẳn. Phải lên ĐỦ XA trước: `_sl_moi` từ chối một SL nằm sai phía so
+# với thị trường, nên hoà vốn chỉ đặt được khi giá đã vượt qua mốc hoà vốn.
+# ⚠ Đoạn RƠI bước 1 chứ không bước 2: bước 2 nhảy qua đúng mốc SL nên khớp thành GAP ở
+# giá bên kia mốc, và bài kiểm đo nhầm cái gap thay vì đo mốc hoà vốn.
+_gia_h2 = [100.0 + k * 3.0 for k in range(20)] + [157.0 - k for k in range(90)]
+for _phi in (0.0, 5.0):
+    cd_h2 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0, deposit=10_000.0,
+                      commission=_phi)
+    kq_h2 = bc.chay(d_h2, nen_m1(_gia_h2), cd_h2)
+    _l2 = kq_h2.so.lenh[0]
+    _tien = ((_l2.gia_dong - _l2.gia_khop) * _l2.lot * cd_h2.contract_size
+             - cd_h2.commission * _l2.lot)
+    kiem(f"hoa hồng {_phi:>4} → lệnh 'hoà vốn' về ĐÚNG 0 đồng",
+         abs(_tien) < 1e-6, f"— {_tien:+.6f} $ · SL {_l2.sl} · giá vào {_l2.gia_khop}")
+    kiem(f"hoa hồng {_phi:>4} → SL nằm CAO HƠN giá vào đúng phí/contract",
+         abs((_l2.sl - _l2.gia_khop) - _phi / cd_h2.contract_size) < 1e-9,
+         f"— lệch {_l2.sl - _l2.gia_khop}")
+
+# ⚠ LỖI THẬT, CÓ TỪ TRƯỚC: `hoa_von` đặt `SL = giá vào` mà không hỏi giá đang ở đâu.
+# Lệnh đang LỖ thì giá vào nằm TRÊN thị trường, nên "dời SL về hoà vốn" hoá thành
+# "cắt lỗ ngay bây giờ" — SL sai phía là ĐÓNG LỆNH, không phải dời SL. Sơ đồ mẫu che
+# được nhờ cổng `lãi ≥ 1R`, nhưng sơ đồ không vẽ cổng ấy thì không có gì chặn.
+_gia_lo = [100.0] * 6 + [100.0 - k for k in range(60)]      # vào rồi RƠI ngay
+kq_lo = bc.chay(d_h2, nen_m1(_gia_lo),
+                bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                          deposit=10_000.0, commission=0.0))
+_ll = kq_lo.so.lenh[0]
+kiem("lệnh đang LỖ: hoà vốn KHÔNG đặt SL sai phía (không tự cắt ngay)",
+     _ll.sl < _ll.gia_khop, f"— SL {_ll.sl} · giá vào {_ll.gia_khop}")
+kiem("và nó vẫn sống qua nhiều nến chứ không chết ngay nến vào",
+     _ll.nen_dong is None or _ll.nen_dong > (_ll.nen_khop or 0),
+     f"— vào nến {_ll.nen_khop}, đóng nến {_ll.nen_dong}")
+
+# =========== 5d. MỐC NEO cho khối Sửa lệnh — core.md §15.10 ===========
+#
+# Trước đây SL/TP LUÔN đo từ `ctx.bid` (viết cứng), nên không viết được "SL tại đáy nến"
+# hay "SL tại đáy zone". Giờ khối Sửa lệnh dùng CHUNG danh sách mốc với khối Vào lệnh.
+print("\n▸ Mốc neo của khối Sửa lệnh")
+troi2 = core.make_action_step({"type": core.SUA_LENH, "name": "SL tại đáy nến",
+                               "che_do": "doi_sl", "moc": "low",
+                               "khoang": {"tinh": "gia", "value": 0.0}})
+troi2["pos"] = [0.0, 0.0]
+m_bd2 = core.make_start_step("quản lý", "M1")
+m_bd2["pos"] = [0.0, 0.0]
+bd2 = core.make_start_step("bắt đầu", "M5")
+bd2["pos"] = [0.0, 0.0]
+v2 = core.make_action_step({
+    "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market", "rui_ro": 0.5,
+    "sl": {"tinh": "gia", "value": 20.0}, "tp": {"tinh": "gia", "value": 1000.0}})
+v2["pos"] = [0.0, 0.0]
+d2 = so_do([bd2, v2], [day(bd2, v2)], [m_bd2, troi2], [day(m_bd2, troi2)])
+gia2 = [100.0 + k * 0.5 for k in range(120)]          # giá LÊN đều → đáy nến lên theo
+kq2 = bc.chay(d2, nen_m1(gia2), bc.CaiDat(point=1.0, contract_size=1.0,
+                                          spread_diem=0.0, deposit=10000.0))
+_l2 = kq2.so.lenh[0]
+kiem("mốc `low` được dùng thật — SL bám đáy nến, không đo từ giá hiện tại",
+     _l2.sl is not None and _l2.sl > _l2.gia_khop - 20.0 + 1e-9,
+     f"— SL {_l2.sl} · SL ban đầu {_l2.gia_khop - 20.0}")
+kiem("mốc lấy từ CÙNG danh sách với khối Vào lệnh",
+     "low" in core.MOC_ENTRY and "zone_LL" in core.MOC_ENTRY)
+kiem("chế độ KHÔNG đo khoảng cách thì mốc bị vứt — giữ lại là để rác",
+     "moc" not in core.normalize_action(
+         {"type": core.SUA_LENH, "che_do": "ket_thuc", "moc": "low"}))
 
 # ================= 6. thống kê & lệnh còn sống lúc hết dữ liệu =================
 print("\n▸ Kết thúc backtest")
@@ -462,8 +638,11 @@ def _chay_shift(co_shift):
                                                 "phai": {"value": 100.0}}]})
     gg["pos"] = [1.0, 0.0]
     vv = core.make_action_step({"id": "v_shift", "type": core.VAO_LENH, "name": "mua",
-                                "huong": "mua", "loai": "market", "lot": 0.01,
-                                "entry": {"moc": "gia_hien_tai"},
+                                "huong": "mua", "loai": "market", "rui_ro": 0.5,
+                                # Lệnh THỊ TRƯỜNG bỏ qua mốc neo (§15.8) — để `close`
+                                # cho khớp danh sách mốc hiện tại, không dùng tên chết
+                                # `gia_hien_tai` rồi dựa vào phép di cư.
+                                "entry": {"moc": "close"},
                                 "sl": {"tinh": "gia", "value": 5.0}})
     vv["pos"] = [2.0, 0.0]
     return bc.chay(so_do([b, gg, vv], [day(b, gg), day(gg, vv)]),

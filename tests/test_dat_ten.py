@@ -85,14 +85,20 @@ def nen_m1(gia):
 
 
 def dk_atr(nguong, chu_ky):
+    # ⚠ Đơn vị `gia` (ATR thô), KHÔNG phải `atr_nen`. Hai lý do, cả hai đều làm bài kiểm
+    # ra 0 zone nếu chọn sai:
+    #   · `YEN` phẳng tuyệt đối → ATR = 0 ở mọi chu kỳ → `atr / atr_nen` = 0/0 = NaN;
+    #   · 400 nến M1 = 80 nến M5, chưa đủ 100 nến cho ATR nền thôi NaN.
+    # Thước tỉ số được kiểm riêng ở `test_zone.py` mục 7, với dữ liệu đủ dài và có
+    # biến động thật.
     return [{"trai": {"ten": "atr", "tf": "M5", "period": chu_ky},
-             "phep": "<", "phai": {"value": nguong, "tinh": "bps"}}]
+             "phep": "<", "phai": {"value": nguong, "tinh": "gia"}}]
 
 
 def so_do():
     """Entry: [bắt đầu] → [cổng zone] → [cổng thứ hai] → [vào lệnh].
 
-    Hai cổng CỐ Ý gõ cùng một cặp số (chu kỳ 14 · ngưỡng 50 bps) — đúng cái bẫy mà bài
+    Hai cổng CỐ Ý gõ cùng một cặp số (chu kỳ 14 · ngưỡng 50 × ATR nền) — đúng cái bẫy mà bài
     này canh. Cổng thứ hai không mang cờ `cong_zone`: chỉ được có MỘT cổng zone."""
     bd = core.make_start_step("bd", "M5")
     bd["pos"] = [0.0, 0.0]
@@ -104,20 +110,23 @@ def so_do():
     g2["pos"] = [2.0, 0.0]
     v = core.make_action_step({
         "id": "v1", "type": core.VAO_LENH, "name": "mua", "huong": "mua",
-        "loai": "stop", "lot": 0.02, "entry": {"moc": "zone_HH"},
+        "loai": "stop", "rui_ro": 0.5, "entry": {"moc": "zone_HH"},
         "dem": {"tinh": "gia", "value": 1.0},
         "sl": {"tinh": "gia", "value": 1.0}})
     v["pos"] = [3.0, 0.0]
 
     qly = core.make_start_step("qly", "M1")
     qly["pos"] = [0.0, 0.0]
-    #: Hai khối Sửa lệnh cùng dời SL 2.0 giá — lặp ở vai `khoang`, KHÁC vai với `sl` của
-    #: khối Vào lệnh dù cùng đơn vị. Bài kiểm dưới canh đúng chỗ đó.
+    #: Hai khối Sửa lệnh cùng mang khoảng 2.0 giá — lặp ở vai `khoang`, KHÁC vai với `sl`
+    #: của khối Vào lệnh dù cùng đơn vị. Bài kiểm dưới canh đúng chỗ đó.
+    #: ⚠ MỘT dời SL, MỘT dời TP — không phải hai lần dời SL. §17.3 cấm hai khối ghi lên
+    #: CÙNG một thứ nối tiếp nhau mà không có cổng ở giữa (khối trên bị đè ngay, không để
+    #: lại dấu vết). Bài này soi chuyện SỐ LẶP, không soi chuyện đó.
     s1 = core.make_action_step({"id": "s1", "type": core.SUA_LENH, "name": "dời SL",
                                 "che_do": "doi_sl", "khoang": {"tinh": "gia", "value": 2.0}})
     s1["pos"] = [1.0, 0.0]
-    s2 = core.make_action_step({"id": "s2", "type": core.SUA_LENH, "name": "dời SL 2",
-                                "che_do": "doi_sl", "khoang": {"tinh": "gia", "value": 2.0}})
+    s2 = core.make_action_step({"id": "s2", "type": core.SUA_LENH, "name": "dời TP",
+                                "che_do": "doi_tp", "khoang": {"tinh": "gia", "value": 2.0}})
     s2["pos"] = [2.0, 0.0]
     #: `chu_ky_atr` engine LUÔN đòi phải có (zone cộng dồn ATR để ra `zone_atr_tb` = 1R),
     #: nên bảng tham số không bao giờ rỗng. Đây chính là ca đụng tên thật: người dùng gõ
@@ -190,15 +199,15 @@ D = so_do()
 cb = canh_bao_dat_ten(D)
 theo_ten = {p["dat_ten"]["goi_y"]: p for p in cb}
 kiem("bắt được chu kỳ 14 lặp", "chu_ky_atr" in theo_ten, f"— {sorted(theo_ten)}")
-kiem("bắt được ngưỡng 50 bps lặp", "nguong_atr_bps" in theo_ten)
+kiem("bắt được ngưỡng 50 lặp", "nguong_atr_gia" in theo_ten)
 kiem("bắt được khoảng 2.0 của Sửa lệnh lặp", "khoang_gia" in theo_ten)
 kiem("mọi cảnh báo đều là warning, không chặn ▶ Chạy",
      all(p["severity"] == "warning" for p in cb))
 kiem("không sinh lỗi nào", loi(D) == [], f"— {loi(D)}")
-if "nguong_atr_bps" in theo_ten:
-    dt = theo_ten["nguong_atr_bps"]["dat_ten"]
+if "nguong_atr_gia" in theo_ten:
+    dt = theo_ten["nguong_atr_gia"]["dat_ten"]
     kiem("ngưỡng: đúng 2 chỗ, đúng giá trị, đúng nhãn đơn vị",
-         len(dt["cho"]) == 2 and dt["gia_tri"] == 50.0 and dt["don_vi"] == "bps",
+         len(dt["cho"]) == 2 and dt["gia_tri"] == 50.0 and dt["don_vi"] == "gia",
          f"— {dt['gia_tri']} {dt['don_vi']} ở {len(dt['cho'])} chỗ")
     kiem("hai chỗ là hai KHỐI khác nhau",
          {c["step"] for c in dt["cho"]} == {"g1", "g2"},
@@ -214,7 +223,7 @@ D2["entry"]["steps"][2]["conditions"] = [
 D2 = core.normalize_process(D2)
 g2 = {p["dat_ten"]["goi_y"] for p in canh_bao_dat_ten(D2)}
 kiem("chu kỳ 14 của ATR và của MA KHÔNG bị gom", "chu_ky_atr" not in g2, f"— {sorted(g2)}")
-kiem("ngưỡng 50 cũng hết lặp theo", "nguong_atr_bps" not in g2)
+kiem("ngưỡng 50 cũng hết lặp theo", "nguong_atr_gia" not in g2)
 kiem("nhưng khoảng 2.0 vẫn còn lặp", "khoang_gia" in g2)
 
 #: `sl` 1.0 giá và `khoang` 2.0 giá cùng đơn vị nhưng khác VAI. Đổi khoảng thành 1.0 để
@@ -244,7 +253,7 @@ kiem("mọi số đã thành tên — không còn chỗ nào gõ tay lặp",
 print("\n▸ 4. Sau khi đặt tên, sơ đồ vẫn sạch")
 kiem("không sinh lỗi mới", loi(sau) == [], f"— {loi(sau)}")
 kiem("bảng tham số có đúng ba dòng — KHÔNG đẻ ra `chu_ky_atr_2`",
-     {t["ten"] for t in sau["tham_so"]} == {"chu_ky_atr", "khoang_gia", "nguong_atr_bps"},
+     {t["ten"] for t in sau["tham_so"]} == {"chu_ky_atr", "khoang_gia", "nguong_atr_gia"},
      f"— {sorted(t['ten'] for t in sau['tham_so'])}")
 kiem("không dòng nào bị báo 'không khối nào dùng tới'",
      not [p for p in core.validate_process(sau) if "không khối nào dùng tới" in p["message"]])
@@ -254,7 +263,7 @@ D4["entry"]["steps"][2]["conditions"] = dk_atr(60.0, 21)
 D4 = core.normalize_process(D4)
 g4 = {p["dat_ten"]["goi_y"] for p in canh_bao_dat_ten(D4)}
 kiem("số chỉ dùng một chỗ thì IM LẶNG",
-     "chu_ky_atr" not in g4 and "nguong_atr_bps" not in g4, f"— {sorted(g4)}")
+     "chu_ky_atr" not in g4 and "nguong_atr_gia" not in g4, f"— {sorted(g4)}")
 
 print("\n▸ 5. ĐƠN VỊ THUỘC VỀ CÁI Ô — ai điền vào cũng phải mang đúng đơn vị ấy")
 #
@@ -266,6 +275,8 @@ print("\n▸ 5. ĐƠN VỊ THUỘC VỀ CÁI Ô — ai điền vào cũng phải
 # đúng một hàm `don_vi_cua_o` và phải nhất trí: nút ▾ lọc · ô đơn vị khoá · soát tĩnh.
 kiem("chu kỳ luôn đo bằng NẾN", core.don_vi_cua_o("chu_ky") == "nen")
 kiem("lot luôn đo bằng LOT", core.don_vi_cua_o("lot") == "lot")
+kiem("rủi ro luôn đo bằng % VỐN — không phải % giá (§15.13)",
+     core.don_vi_cua_o("rui_ro") == "pt_von")
 kiem("khoảng cách lấy đơn vị ĐANG CHỌN",
      core.don_vi_cua_o("sl", tinh="atr_zone") == "atr_zone")
 kiem("toán hạng đúng/sai KHÔNG có đơn vị",
@@ -305,7 +316,7 @@ kiem("chữ LẠ thì không đoán bừa — suy từ CHỖ DÙNG ra `nen`",
 D6 = so_do()
 D6["tham_so"] = [core.make_tham_so("chu_ky_atr", "", 14, "nen"),
                  core.make_tham_so("hai_mat", "", 4.0, "atr")]
-D6["entry"]["steps"][1]["conditions"][0]["phai"] = {"value": "hai_mat", "tinh": "bps"}
+D6["entry"]["steps"][1]["conditions"][0]["phai"] = {"value": "hai_mat", "tinh": "atr_nen"}
 D6["entry"]["steps"][2]["conditions"][0]["phai"] = {"value": "hai_mat", "tinh": "atr"}
 D6 = core.normalize_process(D6)
 kiem("một tên đọc bằng HAI đơn vị → LỖI, không phải cảnh báo",
@@ -316,8 +327,8 @@ kiem("một tên đọc bằng HAI đơn vị → LỖI, không phải cảnh b�
 D7 = so_do()
 D7["tham_so"] = [core.make_tham_so("chu_ky_atr", "", 14, "nen"),
                  core.make_tham_so("nguong", "", 50.0, "atr")]   # khai atr…
-D7["entry"]["steps"][1]["conditions"][0]["phai"] = {"value": "nguong", "tinh": "bps"}
-D7["entry"]["steps"][2]["conditions"][0]["phai"] = {"value": "nguong", "tinh": "bps"}
+D7["entry"]["steps"][1]["conditions"][0]["phai"] = {"value": "nguong", "tinh": "atr_nen"}
+D7["entry"]["steps"][2]["conditions"][0]["phai"] = {"value": "nguong", "tinh": "atr_nen"}
 D7 = core.normalize_process(D7)
 kiem("bảng khai một đằng, chỗ dùng một nẻo → cảnh báo",
      any(p["severity"] == "warning" and "nói khác chỗ dùng" in p["message"]

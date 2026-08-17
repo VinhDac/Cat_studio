@@ -193,20 +193,48 @@ PHEP_CU = {"trong_khoang": ">=", "cat_len": ">", "cat_xuong": "<"}
 #   khác nhau chỗ nào (không khác). Không file đã lưu nào dùng `pt`, nên không cần phép
 #   chuyển: gặp `pt` thì soát tĩnh báo "chưa chọn cách tính" — nói to, hơn là âm thầm
 #   nhân/chia 100 sau lưng.
+# ⚠ `bps` ("phần vạn của giá") ĐÃ BỎ — xem core.md §15.7. Nó chuẩn hoá theo MỨC GIÁ, mà
+#   thứ trôi qua thời gian là CHẾ ĐỘ BIẾN ĐỘNG, không phải mức giá. Đo trên XAUUSD
+#   2021–2026: cùng cổng `atr < 7 [bps]` khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026 —
+#   chiến lược tự tắt dần theo giá vàng mà sơ đồ không nói một câu nào.
+#   Thay bằng `atr_nen`: cùng cổng, độ trôi từ 68 điểm xuống 7,4 điểm.
+#   KHÔNG có phép đổi tự động — `7 bps` không quy ra `× ATR nền` bằng phép nhân nào, tỉ
+#   số phụ thuộc ATR nền lúc đó. Gặp `bps` trong file cũ thì soát tĩnh NÓI TO, y hệt cách
+#   `pt` đã xử.
 DON_VI = {
     "gia": "giá tuyệt đối",
-    "bps": "bps của giá",
     "atr": "× ATR",
+    "atr_nen": "× ATR nền",
     "atr_zone": "× ATR zone",
     "R": "× R (rủi ro)",
     "bien_zone": "mép zone đối diện",
 }
 
+#: ĐƠN VỊ ĐÃ BỎ HẲN — giữ tên ở đây để `normalize` KHÔNG vứt chúng đi im lặng.
+#:
+#: ⚠ Vứt im lặng là ca hỏng đắt nhất trong cả bảng này. File cũ mang `atr < 7 [bps]`;
+#: bỏ `bps` đi thì dòng đó thành `atr < 7` — vẫn chạy, chỉ là so ATR THÔ với 7 (trên
+#: vàng thì gần như nến nào cũng qua). Không lỗi, không cảnh báo, chỉ là một chiến lược
+#: khác hẳn. Giữ lại thì soát tĩnh mắng đúng khối và `mo_tester` chặn không cho chạy —
+#: đúng bài học §13.0d ("xoá trước thì validator không bao giờ thấy").
+#:
+#: Cả hai đều KHÔNG đổi tự động được: `pt`→`bps` phải nhân 100 (mà giá trị có thể là một
+#: TÊN tham số), `bps`→`atr_nen` thì tỉ số phụ thuộc ATR nền lúc đó.
+DON_VI_DA_BO = {"bps", "pt"}
+
+#: CHU KỲ CỦA CÁI THƯỚC — cố định, KHÔNG phải tham số. core.md §15.1:
+#:
+#:   Thước mà co giãn được thì nó không còn là thước. Một bộ tìm kiếm được phép chỉnh
+#:   thước sẽ chỉnh nó cho vừa dữ liệu, đúng thứ cả đợt này dựng lên để cấm.
+#:
+#: Ngưỡng thì ngược lại — đó là quyết định của chiến lược, vẫn nằm trong bảng tham số.
+CHU_KY_ATR_NEN = 100
+
 #: Nhãn NGẮN cho chữ trên hộp. Bản dài đúng cho hộp thoại và tooltip, nhưng nhét lên
 #: hộp thì một dòng nuốt cả khối — mà nhìn hộp là phải hiểu ngay.
 DON_VI_NGAN = {
-    "gia": "giá", "bps": "bps",
-    "atr": "× ATR", "atr_zone": "× ATR zone", "R": "× R",
+    "gia": "giá",
+    "atr": "× ATR", "atr_nen": "× ATR nền", "atr_zone": "× ATR zone", "R": "× R",
     "bien_zone": "mép zone đối diện",
 }
 
@@ -217,11 +245,11 @@ DON_VI_NGAN = {
 #:       đo bằng chính nó (vòng tròn).
 #:   `bien_zone` cần một mốc để đo tới, nên chỉ hợp với SL/TP.
 DON_VI_CHO = {
-    "dieu_kien": ("gia", "bps", "atr", "atr_zone"),
-    "dem":       ("gia", "bps", "atr", "atr_zone"),
-    "sl":        ("gia", "bps", "atr", "atr_zone", "bien_zone"),
-    "tp":        ("gia", "bps", "atr", "atr_zone", "R", "bien_zone"),
-    "sua":       ("gia", "bps", "atr", "atr_zone", "R"),
+    "dieu_kien": ("gia", "atr", "atr_nen", "atr_zone"),
+    "dem":       ("gia", "atr", "atr_nen", "atr_zone"),
+    "sl":        ("gia", "atr", "atr_nen", "atr_zone", "bien_zone"),
+    "tp":        ("gia", "atr", "atr_nen", "atr_zone", "R", "bien_zone"),
+    "sua":       ("gia", "atr", "atr_nen", "atr_zone", "R"),
 }
 
 #: KHÔNG ĐO MỘT ĐẠI LƯỢNG BẰNG CHÍNH NÓ — kết quả luôn bằng 1, một con số không nói gì.
@@ -260,7 +288,11 @@ LOAI_CO_DON_VI = "khoang_cach"
 #: ĐƠN VỊ ĐẾM — những ô số KHÔNG quy đổi gì cả, nhưng con số trong đó vẫn đo một thứ
 #: cụ thể. Tách khỏi `DON_VI` vì `DON_VI` là phép TÍNH mà bộ chạy thật sự thực hiện,
 #: còn mấy cái này chỉ trả lời "con số này đo cái gì".
-DON_VI_DEM = {"nen": "nến", "lenh": "lệnh", "lot": "lot"}
+#:
+#: ⚠ `pt_von` là "% của VỐN", KHÔNG phải "% của giá". Chữ `%` trần cố ý không dùng: `pt`
+#: (% của giá) vừa bị bỏ vì trùng nghĩa với `bps`, nên một cái nhãn `%` đứng trơ ở đây
+#: sẽ đọc ra thành đúng cái vừa bỏ. Nhãn phải đúng khi đứng một mình.
+DON_VI_DEM = {"nen": "nến", "lenh": "lệnh", "lot": "lot", "pt_von": "% vốn"}
 
 #: MỌI đơn vị, một bảng nhãn. Bảng tham số khai `don_vi` bằng một khoá ở đây.
 NHAN_DON_VI = {**DON_VI, **DON_VI_DEM}
@@ -284,9 +316,12 @@ TOAN_HANG_DON_VI = {t["key"]: t["don_vi"] for t in TOAN_HANG if t.get("don_vi")}
 #: sơ đồ mẫu mang `"× ATR vùng"` — một chuỗi không tồn tại ở đâu, rác còn lại từ lần đổi
 #: tên vùng→zone, và không ai bắt được vì chưa có gì đọc nó.
 #:
-#: `"%"` cố ý không có mặt: `pt` đã bỏ, đổi sang `bps` phải nhân 100 (xem `DON_VI_CU`).
+#: `"%"` và `"bps"` cố ý KHÔNG có mặt — cả hai đều đã bỏ, và cả hai đều không đổi tự động
+#: được: `pt`→`bps` phải nhân 100, `bps`→`atr_nen` thì tỉ số phụ thuộc ATR nền lúc đó.
+#: Một phép đổi đúng-một-nửa là loại hỏng tệ nhất (file vẫn chạy, chỉ sai), nên để rỗng
+#: và soát tĩnh nói to.
 DON_VI_THAM_SO_CU = {
-    "bps": "bps", "nen": "nen", "nến": "nen", "lot": "lot",
+    "nen": "nen", "nến": "nen", "lot": "lot",
     "lệnh": "lenh", "giá": "gia", "giá tuyệt đối": "gia",
     "× ATR": "atr", "× ATR hiện tại": "atr",
     "× ATR zone": "atr_zone", "× ATR vùng": "atr_zone",
@@ -364,6 +399,8 @@ def don_vi_cua_o(o_dau, ten=None, tinh=None):
         return "nen"
     if o_dau == "lot":
         return "lot"
+    if o_dau == "rui_ro":
+        return "pt_von"
     if o_dau == "dieu_kien":
         loai = TOAN_HANG_LOAI.get(ten)
         if loai == LOAI_CO_DON_VI:
@@ -429,13 +466,36 @@ def khung_quyet_dinh(doc):
 # lệnh nằm ở đâu thì tàng hình.
 #
 # Giờ mốc là BẮT BUỘC và hiện ra; đệm là TÙY CHỌN, bỏ trống thì lệnh nằm đúng mép.
-MOC_ENTRY = {
-    "zone_HH": "Đỉnh zone (HH)",
-    "zone_LL": "Đáy zone (LL)",
-    "gia_hien_tai": "Giá hiện tại",
-}
-#: Mốc nào cần có zone ở phía trên mới có nghĩa.
-MOC_CAN_ZONE = ("zone_HH", "zone_LL")
+#
+# ⭐ DANH SÁCH LẤY THẲNG TỪ KHO, không gõ tay — core.md §15.8.
+#
+# Trước đây đây là ba dòng gõ tay (`zone_HH` · `zone_LL` · `gia_hien_tai`), tức một
+# DANH SÁCH THỨ HAI nằm ngoài kho — đúng cái bẫy `CAN_ZONE` đã cắn một lần. Nó chỉ có ba
+# dòng vì hồi viết chỉ cần đủ cho D_02, mà D_02 chỉ neo vào mép zone.
+#
+# Luật: mốc neo là **một MỨC GIÁ** (`loai == "muc_gia"`) mà app đọc được **không cần hỏi
+# thêm con số nào** — tức tham số của nó nhiều nhất là `tf`, và `tf` thì pin vào KHUNG
+# QUYẾT ĐỊNH (nhịp của khối Bắt đầu, nhìn thấy trên sơ đồ).
+#
+# ⚠ `ma` vì thế CHƯA có mặt, và đó là chủ ý chứ không phải bỏ sót: neo vào MA thì phải
+# nói MA chu kỳ bao nhiêu, mà một con số không hiện ra là đúng thứ cả hệ thống này cấm.
+# Cho nó vào đòi ô mốc neo phải thành một BỘ CHỌN TOÁN HẠNG đầy đủ (như vế trái của điều
+# kiện) — một việc của giao diện, làm riêng thì sạch hơn là nhét kèm.
+#
+# `gia_hien_tai` ĐÃ BỎ: nó không có trong kho, nên không ai kiểm được nó nghĩa là gì —
+# chính là dấu vết của cái danh sách gõ tay. Gần như chắc chắn là rác còn lại từ loại
+# lệnh `limit` đã bị gỡ (xem `LOAI_LENH`). File cũ đổi sang `close`: tại biên nến — chỗ
+# duy nhất sơ đồ được chạy — hai thứ đó là cùng một mức, lệch đúng spread.
+def _moc_tu_kho():
+    return {t["key"]: t["nhan"] for t in TOAN_HANG
+            if t.get("loai") == "muc_gia" and set(t.get("tham_so") or ()) <= {"tf"}}
+
+
+MOC_ENTRY = _moc_tu_kho()
+#: Mốc nào cần có zone ở phía trên mới có nghĩa — GIAO với kho, không gõ tay bản thứ hai.
+MOC_CAN_ZONE = tuple(k for k in MOC_ENTRY if k in kho.CAN_ZONE)
+#: Mốc cũ → mới, cho file đã lưu.
+MOC_CU = {"gia_hien_tai": "close"}
 
 
 HUONG = {"mua": "Mua", "ban": "Bán"}
@@ -455,7 +515,7 @@ LOAI_LENH = {"market": "Thị trường", "stop": "Chờ Stop"}
 #:
 #: `name` / `pos` / `id` cố ý ĐỨNG NGOÀI: đổi tên khối hay kéo nó sang chỗ khác không
 #: sinh ra một cái lệnh khác. Đây là khoá về LỆNH, không phải về khối.
-_KHOA_MOT_LENH = ("huong", "loai", "lot", "entry", "dem", "sl", "tp")
+_KHOA_MOT_LENH = ("huong", "loai", "rui_ro", "entry", "dem", "sl", "tp")
 
 # ---- Chế độ của "Sửa lệnh" -------------------------------------------------
 # Một hành động, nhiều chế độ — thay vì bảy hành động gần giống nhau. Tất cả đều tác
@@ -472,6 +532,22 @@ SUA_CHE_DO = {
     # thì hành động im lặng không làm gì.
     "ket_thuc": "Kết thúc lệnh này",
 }
+
+#: MỖI CHẾ ĐỘ GHI LÊN THỨ GÌ CỦA LỆNH — core.md §17.2.
+#:
+#: Song song với `_KHOA_MOT_LENH` bên khối Vào lệnh: ở đó câu hỏi là *"hai khối có tạo
+#: ra cùng một lệnh không"*, ở đây là *"hai khối có ghi đè lên nhau không"*.
+#:
+#: `"*"` = ghi lên CẢ CÁI LỆNH, nên nó đá với mọi thứ kể cả chính nó: đóng lệnh rồi thì
+#: không còn gì để sửa, và cũng không đóng được lần thứ hai.
+SUA_GHI_LEN = {"doi_sl": "sl", "hoa_von": "sl", "doi_tp": "tp", "ket_thuc": "*"}
+
+
+def sua_dung_do(a, b):
+    """Hai chế độ Sửa lệnh có ghi đè lên nhau không."""
+    x, y = SUA_GHI_LEN.get(a), SUA_GHI_LEN.get(b)
+    return bool(x and y and (x == y or "*" in (x, y)))
+
 
 #: CHẾ ĐỘ CŨ → mới. Hai chế độ đã bỏ:
 #:   `trailing` và `dong_mot_phan` — chưa từng chạy qua một bài kiểm nào. `dong_mot_phan`
@@ -691,7 +767,7 @@ def action_display(a, tham_so=None):
     if t == VAO_LENH:
         p = [f"Vào lệnh {HUONG.get(a.get('huong'), '?')} "
              f"{LOAI_LENH.get(a.get('loai'), '?')}",
-             f"{_so_hoac_ten(a.get('lot'), tham_so)} lot"]
+             f"rủi ro {_so_hoac_ten(a.get('rui_ro'), tham_so)} % vốn"]
         # Lệnh chờ LUÔN neo vào mép vùng nén thuận chiều (đỉnh cho Mua, đáy cho Bán) —
         # đó là chỗ duy nhất Compress EA đặt lệnh, nên không có tham số "neo vào đâu".
         # `dem` chỉ là khoảng đẩy ra NGOÀI mép đó.
@@ -752,7 +828,7 @@ def dong_khoi(a, tham_so=None, tab=None):
 
     if t == VAO_LENH:
         ds = [f"{HUONG.get(a.get('huong'), '?')} · {LOAI_LENH.get(a.get('loai'), '?')}"
-              f" · {_so_hoac_ten(a.get('lot'), tham_so, hien_ten=False)} lot"]
+              f" · rủi ro {_so_hoac_ten(a.get('rui_ro'), tham_so, hien_ten=False)} %"]
         # MỐC NEO đứng TRƯỚC đệm — nó mới là thứ quyết định lệnh nằm ở đâu. Bản cũ
         # chỉ hiện đệm, nên tấm khiên mỏng hoá thành nhân vật chính.
         moc = (a.get("entry") or {}).get("moc")
@@ -768,6 +844,10 @@ def dong_khoi(a, tham_so=None, tab=None):
     if t == SUA_LENH:
         cd = a.get("che_do")
         s_ = SUA_CHE_DO.get(cd, "?")
+        if cd in SUA_CAN_GIA and a.get("moc"):
+            # Mốc đứng TRƯỚC khoảng, cùng lý lẽ với khối Vào lệnh: mốc quyết định SL
+            # nằm ở đâu, khoảng chỉ nhích ra khỏi mốc đó.
+            s_ += f" tại {MOC_ENTRY.get(a['moc'], a['moc'])}"
         if cd in SUA_CAN_GIA and a.get("khoang"):
             s_ += f" {khoang(a['khoang'])}"
         return [s_]
@@ -1231,6 +1311,105 @@ def validate_flow_graph(steps, edges):
                 break
             hang += ke.get(uv, [])
 
+    # ---- Sau "Kết thúc lệnh này" thì LỆNH ĐÃ CHẾT ----
+    #
+    # core.md §17.1. `_sua_lenh` mở đầu bằng `if not l.con_song: return None`, nên mọi
+    # khối phía sau chạy qua mà KHÔNG làm gì và KHÔNG báo gì. Sơ đồ vẽ hai việc, lượt
+    # chạy làm một — đúng loại im lặng cả kiến trúc này dựng lên để tránh.
+    #
+    # Chặn ở ĐƯỜNG NỐI chứ không ở bộ chạy, cùng lý lẽ với luật hai khối Vào lệnh trùng
+    # nhau ở trên: bộ chạy phải làm đúng những gì sơ đồ vẽ, còn thứ không nên vẽ thì
+    # đừng cho vẽ.
+    #
+    # Báo cả khi khối sau là một CỔNG: cổng vẫn đánh giá được (nó đọc thị trường), nhưng
+    # nhánh nó dẫn tới thì chết, và mấy toán hạng "Lệnh này" khi đó đang hỏi về một cái
+    # lệnh đã đóng — một câu hỏi không còn nghĩa.
+    for sid, st in theo_id.items():
+        if not (st.get("type") == SUA_LENH and st.get("che_do") == "ket_thuc"):
+            continue
+        for uv in ke.get(sid, []):
+            _loi(ra, "error", uv,
+                 f"{ten(uv)} nằm SAU {ten(sid)} — mà {ten(sid)} đã đóng/huỷ lệnh rồi. "
+                 f"Bộ chạy đi qua khối này rồi bỏ qua, không làm gì và không báo gì: "
+                 f"sơ đồ trông như có hai việc, lượt chạy chỉ có một. "
+                 f'Hãy gỡ đường nối, hoặc đưa "{SUA_CHE_DO["ket_thuc"]}" xuống cuối.')
+
+    # ---- HAI lần sửa CÙNG MỘT THỨ trên cùng một đường ----
+    #
+    # core.md §17.3 — cùng một luật với §17.2, chỉ khác hình vẽ. Một lượt Manage đi qua
+    # cả hai khối, khối sau ghi đè khối trước, nên khối TRÊN không để lại dấu vết gì.
+    #
+    # ⚠ CỔNG Ở GIỮA thì KHÔNG phải lỗi, và đó là chỗ phải phân biệt cho sạch: cổng có
+    # thể TRƯỢT, nên khối dưới không chắc chạy — lúc đó khối trên có tác dụng thật.
+    # Vì thế phép loang DỪNG ở mọi cổng thay vì đi xuyên qua.
+    #
+    # Nguồn là `ket_thuc` thì bỏ qua: luật ngay trên đã chặn MỌI khối sau nó bằng một
+    # câu chính xác hơn, hai câu cho một lỗi là ồn.
+    for sid, st in theo_id.items():
+        if st.get("type") != SUA_LENH:
+            continue
+        cd0 = st.get("che_do")
+        if cd0 not in SUA_GHI_LEN or cd0 == "ket_thuc":
+            continue
+        tham, hang = {sid}, list(ke.get(sid, []))
+        while hang:
+            uv = hang.pop(0)
+            if uv in tham:
+                continue
+            tham.add(uv)
+            st_uv = theo_id.get(uv, {})
+            if is_branch_gate(st_uv):
+                continue                      # cổng trượt được → dừng loang ở đây
+            if st_uv.get("type") == SUA_LENH \
+                    and sua_dung_do(cd0, st_uv.get("che_do")):
+                cai = ("cả cái lệnh" if SUA_GHI_LEN.get(st_uv.get("che_do")) == "*"
+                       else SUA_GHI_LEN[cd0].upper())
+                _loi(ra, "error", uv,
+                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường, KHÔNG có cổng "
+                     f"nào ở giữa, mà cả hai đều ghi lên {cai}. Một lượt đi qua cả hai "
+                     f"nên khối dưới ghi đè khối trên ngay lập tức — {ten(sid)} không "
+                     f"để lại dấu vết gì. Xoá bớt một khối, hoặc chen một cổng "
+                     f'"{ACTION_LABELS[CHECK_COND]}" vào giữa để khối dưới chỉ chạy '
+                     f"khi thật sự cần.")
+                break
+            hang += ke.get(uv, [])
+
+    # ---- "Hoà vốn" chạy cả trên lệnh CHƯA KHỚP ----
+    #
+    # core.md §17.5. Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh CHỜ. Mà
+    # `hoà vốn` nghĩa là "SL = giá vào" — lệnh chờ chưa có giá vào, nên `_sua_lenh` gặp
+    # nó là `return None`: khối chạy qua và KHÔNG làm gì, im lặng.
+    #
+    # ⚠ CẢNH BÁO chứ không phải lỗi, và đó là chủ ý: cách lọc lệnh chờ có nhiều đường —
+    # cổng `Lệnh này đã khớp`, hoặc `lãi (×R) ≥ 1` (lệnh chờ luôn 0R nên cũng lọc được),
+    # hoặc cách khác. Đòi đúng một toán hạng là chặn nhầm những cách viết hợp lệ.
+    # Chỉ nhắc khi phía trên KHÔNG CÓ CỔNG NÀO — lúc đó chắc chắn không có gì lọc.
+    truoc = {}
+    for e in (edges or []):
+        if isinstance(e, dict) and e.get("to") in theo_id and e.get("from") in theo_id:
+            truoc.setdefault(e["to"], []).append(e["from"])
+    for sid, st in theo_id.items():
+        if not (st.get("type") == SUA_LENH and st.get("che_do") == "hoa_von"):
+            continue
+        tham, hang, co_cong = {sid}, list(truoc.get(sid, [])), False
+        while hang and not co_cong:
+            uv = hang.pop(0)
+            if uv in tham:
+                continue
+            tham.add(uv)
+            if is_branch_gate(theo_id.get(uv, {})):
+                co_cong = True
+                break
+            hang += truoc.get(uv, [])
+        if not co_cong:
+            _loi(ra, "warning", sid,
+                 f'{ten(sid)} — "{SUA_CHE_DO["hoa_von"]}" chỉ có nghĩa với lệnh ĐÃ '
+                 f"KHỚP, mà Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh "
+                 f"CHỜ. Không có cổng nào ở phía trên nên khối này còn chạy trên cả "
+                 f"lệnh chờ và không làm gì ở đó — nhìn sơ đồ không thấy điều đó. "
+                 f'Thường bạn muốn một cổng "{TOAN_HANG_LABELS.get("lenh_da_khop")}" '
+                 f"ở trên.")
+
     # ---- Cổng khớp rồi mà phía sau trống ----
     for sid, st in theo_id.items():
         if is_branch_gate(st) and not ke.get(sid):
@@ -1255,8 +1434,53 @@ def validate_flow_graph(steps, edges):
         khong_cong = [uv for uv in thang if not is_branch_gate(theo_id[uv])]
         if la_nga_re_va([theo_id[uv] for uv in nhanh]):
             # NGÃ RẼ VÀ — mọi đầu nhánh đều là hành động, nên không có gì để chọn: bộ
-            # chạy làm hết. Hợp lệ, không phải lỗi. Xem `la_nga_re_va`.
-            pass
+            # chạy LÀM HẾT, theo thứ tự trên xuống. Hợp lệ, không phải lỗi.
+            #
+            # ⚠ Nhưng "làm hết" chỉ có nghĩa khi mấy việc đó KHÔNG GIẪM LÊN NHAU. Ba
+            # nhánh cùng ghi SL thì làm xong cả ba, SL bằng đúng cái CUỐI — hai khối
+            # trên không để lại dấu vết gì. Sơ đồ vẽ ba việc, lượt chạy có một:
+            # SƠ ĐỒ NÓI DỐI, và đó là thứ duy nhất app này không được cho qua.
+            # core.md §17.2.
+            for x in range(len(nhanh)):
+                for y in range(x + 1, len(nhanh)):
+                    a_, b_ = theo_id[nhanh[x]], theo_id[nhanh[y]]
+                    if a_.get("type") != SUA_LENH or b_.get("type") != SUA_LENH:
+                        continue
+                    if not sua_dung_do(a_.get("che_do"), b_.get("che_do")):
+                        continue
+                    cai = ("cả cái lệnh"
+                           if "*" in (SUA_GHI_LEN.get(a_.get("che_do")),
+                                      SUA_GHI_LEN.get(b_.get("che_do")))
+                           else SUA_GHI_LEN.get(a_.get("che_do"), "?").upper())
+                    _loi(ra, "error", nhanh[y],
+                         f"{ten(nhanh[x])} và {ten(nhanh[y])} là hai nhánh của "
+                         f"{ten(sid)} — ngã rẽ này LÀM HẾT, mà cả hai đều ghi lên "
+                         f"{cai}. Làm xong thì chỉ cái DƯỚI còn dấu vết; cái trên "
+                         f"không đổi gì cả, nên sơ đồ vẽ hai việc mà lượt chạy có "
+                         f"một. Muốn CHỌN MỘT thì cho mỗi nhánh một cổng "
+                         f'"{ACTION_LABELS[CHECK_COND]}" — khi đó nó thành ngã rẽ '
+                         f"HOẶC và chỉ một nhánh chạy.")
+
+            # ---- HAI khối Vào lệnh GIỐNG HỆT, song song ----
+            #
+            # core.md §17.4. Luật `_KHOA_MOT_LENH` ở trên chỉ loang DỌC THEO ĐƯỜNG, nên
+            # nó không thấy hai khối là hai NHÁNH của cùng một ngã rẽ — mà ngã rẽ VÀ thì
+            # chạy cả hai, đẻ ra đúng hai lệnh trùng khít y như ca nối tiếp.
+            # Cùng một cái sai, chỉ khác hình vẽ.
+            for x in range(len(nhanh)):
+                for y in range(x + 1, len(nhanh)):
+                    a_, b_ = theo_id[nhanh[x]], theo_id[nhanh[y]]
+                    if a_.get("type") != VAO_LENH or b_.get("type") != VAO_LENH:
+                        continue
+                    if _khoa_lenh(a_) != _khoa_lenh(b_):
+                        continue
+                    _loi(ra, "error", nhanh[y],
+                         f"{ten(nhanh[x])} và {ten(nhanh[y])} là hai nhánh của "
+                         f"{ten(sid)} và tạo ra ĐÚNG MỘT LỆNH GIỐNG HỆT — cùng hướng, "
+                         f"cùng loại, cùng mốc neo, cùng đệm, cùng SL/TP/rủi ro. Ngã rẽ "
+                         f"này LÀM HẾT nên nó đặt hai lệnh trùng khít: không phải hai "
+                         f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc "
+                         f"cho chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
         elif len(khong_cong) > 1:
             ds_ten = ", ".join(ten(uv) for uv in khong_cong)
             _loi(ra, "error", sid,
@@ -1502,7 +1726,13 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
                     gt = p_.get("value") if isinstance(p_, dict) else p_
                     _soat_so(gt, f"{cho} — vế phải", e, ten_tham_so, duong=False)
                     dv = p_.get("tinh") if isinstance(p_, dict) else None
-                    if dv and dv not in don_vi_cho(ten_t):
+                    if dv in DON_VI_DA_BO:
+                        e(f"{cho} — đơn vị \"{dv}\" ĐÃ BỎ khỏi app, và KHÔNG có phép "
+                          f"đổi tự động nào đúng. `bps` chuẩn hoá theo MỨC GIÁ nên "
+                          f"ngưỡng trôi theo thời gian (đo trên XAUUSD: cùng một cổng "
+                          f"khớp 74 % số nến năm 2023 và 7,8 % năm 2026). Chọn lại "
+                          f"\"× ATR nền\" và đặt lại con số — thường quanh 0,6–0,8.")
+                    elif dv and dv not in don_vi_cho(ten_t):
                         e(f"{cho} — đơn vị \"{DON_VI.get(dv, dv)}\" không dùng được "
                           f"với {TOAN_HANG_LABELS.get(ten_t, ten_t)}: nó không phải "
                           f"một BỀ RỘNG giá nên không quy đổi được.")
@@ -1512,15 +1742,24 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
                 e("\"Vào lệnh\" chưa chọn hướng Mua/Bán.")
             if a.get("loai") not in LOAI_LENH:
                 e("\"Vào lệnh\" chưa chọn loại lệnh.")
-            _soat_so(a.get("lot"), "\"Vào lệnh\" — khối lượng", e, ten_tham_so)
+            if a.get("rui_ro") is None:
+                e('"Vào lệnh" chưa đặt RỦI RO — mỗi lệnh mạo hiểm bao nhiêu % vốn? '
+                  '(Trường "khối lượng (lot)" đã bỏ: lot là con số tuyệt đối, đổi tài '
+                  'khoản là mọi kết quả đổi nghĩa. Khối lượng nay do bộ chạy suy ra từ '
+                  'rủi ro và khoảng cách SL.)')
+            else:
+                _soat_so(a.get("rui_ro"), '"Vào lệnh" — rủi ro (% vốn)', e, ten_tham_so)
             if (a.get("entry") or {}).get("moc") not in MOC_ENTRY:
                 e('"Vào lệnh" chưa chọn MỐC NEO — lệnh sẽ nằm ở đâu?')
             # ĐỆM là TUỲ CHỌN. Câu cũ ("lệnh chờ cần khoảng đệm, không thì khớp luôn")
             # đúng khi mốc neo còn tàng hình và mặc định là giá hiện tại. Giờ mốc hiện
             # ra: neo vào mép zone mà đệm 0 là lệnh nằm ĐÚNG mép — hợp lệ, chỉ dễ dính
             # một nhịp phá giả hơn. Đó là lựa chọn của người vẽ, không phải lỗi.
-            if a.get("loai") == "stop" and not a.get("dem")                     and (a.get("entry") or {}).get("moc") == "gia_hien_tai":
-                e("Lệnh chờ neo vào GIÁ HIỆN TẠI mà không có đệm thì khớp ngay — "
+            # ⚠ Mốc `close` là GIÁ NẾN VỪA ĐÓNG, tức gần như đúng giá thị trường lúc
+            # quyết định. Lệnh chờ neo vào đó mà không có đệm thì khớp ngay ở nhịp sau —
+            # nó không còn là lệnh chờ nữa. (Trước đây mốc này tên `gia_hien_tai`.)
+            if a.get("loai") == "stop" and not a.get("dem")                     and (a.get("entry") or {}).get("moc") == "close":
+                e("Lệnh chờ neo vào GIÁ ĐÓNG CỬA mà không có đệm thì khớp ngay — "
                   "nó không còn là lệnh chờ nữa. Thêm đệm, hoặc neo vào mép zone.")
             _soat_khoang(a.get("dem"), "Khoảng đệm", e, False, ten_tham_so, "dem")
             _soat_khoang(a.get("sl"), "Stop Loss ban đầu", e, False, ten_tham_so, "sl")
@@ -1538,6 +1777,12 @@ def validate_actions(actions, err, tab=None, ten_tham_so=None):
                 if cd in SUA_CAN_GIA:
                     _soat_khoang(a.get("khoang"), SUA_CHE_DO[cd], e, True,
                                  ten_tham_so, "sua")
+                    # MỐC NEO cho Sửa lệnh — TUỲ CHỌN, bỏ trống thì đo từ giá hiện tại
+                    # (đúng hành vi cũ, nên file cũ mở ra không đổi gì). Có thì phải là
+                    # một mốc thật: cùng danh sách với khối Vào lệnh, vì hai khối cùng
+                    # nói về MỘT vị trí giá thì phải nói bằng cùng một cách (§15.10).
+                    if a.get("moc") is not None and a.get("moc") not in MOC_ENTRY:
+                        e(f'"Sửa lệnh" — mốc neo "{a.get("moc")}" không có trong kho.')
 
 
 
@@ -1839,9 +2084,9 @@ def di_o_so(doc):
                 yield from o(k, (k, dv, kh.get("value")),
                              f"{nhan} ({NHAN_DON_VI[dv]})", f"{mau}_{dv}", dv,
                              kh.get("value"), tab, sid, [k, "value"])
-            yield from o("lot", ("lot", st.get("lot")), "khối lượng lệnh",
-                         "khoi_luong", don_vi_cua_o("lot"), st.get("lot"),
-                         tab, sid, ["lot"])
+            yield from o("rui_ro", ("rui_ro", st.get("rui_ro")), "rủi ro mỗi lệnh",
+                         "rui_ro_pt", don_vi_cua_o("rui_ro"), st.get("rui_ro"),
+                         tab, sid, ["rui_ro"])
 
 
 def _soat_so_lap(doc):
@@ -2023,7 +2268,7 @@ def _tham_so_dang_dung(doc):
                     them(p_.get("value"))
             for k in ("dem", "sl", "tp", "khoang"):
                 quet_khoang(st.get(k))
-            them(st.get("lot"))
+            them(st.get("rui_ro"))
     return ra
 
 
@@ -2043,7 +2288,7 @@ TINH_CAN_TOAN_HANG = {
 #: nên `R` / `bien_zone` (hợp lệ ở ô SL/TP) không bao giờ tới được hàm quy đổi cột —
 #: `_quy_doi` gặp chúng là `raise LoiChay`, mà nổ giữa lúc dựng lô 300 khung hình thì
 #: mất cả bảng lẫn nến lẫn nhật ký, không chỉ một hàng.
-DON_VI_HIEN = DON_VI_CHO["dieu_kien"]           # ('gia', 'bps', 'atr', 'atr_zone')
+DON_VI_HIEN = DON_VI_CHO["dieu_kien"]       # ('gia', 'atr', 'atr_nen', 'atr_zone')
 
 
 def don_vi_tai_cho_doc(trai, phai):
@@ -2309,6 +2554,16 @@ def normalize_action(a):
                 dv = DON_VI_CU.get(dv, dv)
                 if dv and dv != "gia" and dv in DON_VI and dv in don_vi_cho(ten):
                     q["tinh"] = dv
+                elif dv in DON_VI_DA_BO:
+                    # ⚠ GIỮ LẠI ĐỂ SOÁT TĨNH CÒN THẤY — bài học §13.0d: xoá trước thì
+                    # validator không bao giờ có gì để nói.
+                    #
+                    # Đây là ca ĐẮT nhất: file cũ mang `atr < 7 [bps]`. Vứt `bps` đi thì
+                    # dòng đó thành `atr < 7` — vẫn CHẠY, chỉ là so ATR THÔ với 7 (trên
+                    # vàng thì gần như nến nào cũng qua). Không lỗi, không cảnh báo, chỉ
+                    # là một chiến lược khác hẳn. Giữ lại thì `_soat_dieu_kien` mắng
+                    # đúng khối, và `mo_tester` chặn không cho chạy.
+                    q["tinh"] = dv
                 m["phai"] = q
             return m
 
@@ -2341,14 +2596,27 @@ def normalize_action(a):
         if a.get("cong_zone"):
             ra["cong_zone"] = True
     elif t == VAO_LENH:
-        ra.update({"huong": a.get("huong") or "mua", "loai": a.get("loai") or "stop",
-                   "lot": a.get("lot", 0.01)})   # có thể là tên tham số
+        ra.update({"huong": a.get("huong") or "mua", "loai": a.get("loai") or "stop"})
+        # ⭐ RỦI RO % VỐN thay cho LOT — core.md §15.13.
+        #
+        # `lot` là đơn vị TUYỆT ĐỐI cuối cùng còn sót trong kho: 0,01 lot trên tài khoản
+        # $10.000 khác hẳn trên $100.000, nên R vẫn đúng mà TIỀN và SỤT VỐN thì không
+        # chuyển được sang tài khoản khác — mà sụt vốn lại đúng là thứ sắp dùng để chấm
+        # điểm. Và để `lot` tự do là mời bộ tìm kiếm kéo đòn bẩy ăn điểm.
+        #
+        # ⚠ KHÔNG đổi tự động từ `lot`, và KHÔNG có mặc định. `0,01 lot` quy ra bao
+        # nhiêu phần trăm phụ thuộc vốn LẪN khoảng cách SL của từng lệnh — không có con
+        # số nào đúng. Thiếu thì soát tĩnh nói to, y hệt cách `bps` và `pt` đã xử: một
+        # phép đổi đúng-một-nửa là loại hỏng tệ nhất.
+        if a.get("rui_ro") is not None:
+            ra["rui_ro"] = a["rui_ro"]            # có thể là tên tham số
         # MỐC NEO. Sơ đồ cũ không có trường này — dựng lại đúng hành vi bộ chạy vẫn
         # đang làm, để mở file cũ ra không đổi kết quả: lệnh chờ neo mép zone thuận
         # chiều, lệnh thị trường neo giá hiện tại.
         moc = (a.get("entry") or {}).get("moc") if isinstance(a.get("entry"), dict)             else a.get("entry")
+        moc = MOC_CU.get(moc, moc)          # `gia_hien_tai` → `close`, xem `MOC_ENTRY`
         if moc not in MOC_ENTRY:
-            moc = "gia_hien_tai" if ra["loai"] == "market" else (
+            moc = "close" if ra["loai"] == "market" else (
                 "zone_HH" if ra["huong"] == "mua" else "zone_LL")
         ra["entry"] = {"moc": moc}
         for k in ("dem", "sl", "tp"):
@@ -2361,6 +2629,12 @@ def normalize_action(a):
                 and a["khoang"].get("tinh"):
             ra["khoang"] = {"tinh": a["khoang"]["tinh"],
                             "value": a["khoang"].get("value", 0)}
+        # MỐC NEO — chỉ giữ khi chế độ thật sự đo một khoảng cách. `hoà vốn` và `kết
+        # thúc` không có khoảng nào để đo từ đâu cả, giữ mốc ở đó là để rác.
+        # Bỏ trống = đo từ giá hiện tại (hành vi cũ), nên file cũ mở ra không đổi gì.
+        moc = MOC_CU.get(a.get("moc"), a.get("moc"))
+        if ra["che_do"] in SUA_CAN_GIA and moc in MOC_ENTRY:
+            ra["moc"] = moc
     return ra
 
 
@@ -2410,8 +2684,13 @@ TEN_THAM_SO_CU = {"so_nen_nen": "zone_can_nen", "rong_vung_toi_da": "zone_range_
 #:
 #: ⚠ Đổi ở đây, chỗ mọi file đều đi qua — không có bảng này thì mở sơ đồ cũ ra là
 #: `atr_bps` thành "không có trong kho" và validator xoá sạch khối.
+#:
+#: ⚠ `atr_bps` nay đổ ra ĐƠN VỊ RỖNG, không phải `bps` — vì `bps` cũng đã bỏ (§15.7).
+#: Cố ý không tự đổi sang `atr_nen`: `7 bps` và `0,75 × ATR nền` là hai con số khác hẳn
+#: nhau, tỉ số giữa chúng phụ thuộc ATR nền lúc đó nên không có phép nhân nào đúng. Để
+#: rỗng thì soát tĩnh nói to "chưa chọn cách tính"; đoán bừa thì file vẫn chạy, chỉ sai.
 THANH_DON_VI = {
-    "atr_bps": ("atr", "bps"),
+    "atr_bps": ("atr", ""),
     "zone_range_atr": ("zone_range", "atr"),
 }
 
@@ -2453,8 +2732,8 @@ def _doi_ten_cu(doc):
                 # HAI bảng đơn vị gộp làm một → đổi tên ở đây, chỗ mọi file đều qua.
                 if x.get("tinh") in DON_VI_CU:
                     x["tinh"] = DON_VI_CU[x["tinh"]]
-            if st.get("lot") in TEN_THAM_SO_CU:
-                st["lot"] = TEN_THAM_SO_CU[st["lot"]]
+            if st.get("rui_ro") in TEN_THAM_SO_CU:
+                st["rui_ro"] = TEN_THAM_SO_CU[st["rui_ro"]]
     return doc
 
 

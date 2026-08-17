@@ -24,12 +24,18 @@ a = Analysis(
     pathex=[],
     binaries=[],
     # Giao diện đã build. Không có nó thì app mở ra một cửa sổ trắng.
-    datas=[("webui/dist", "webui/dist")],
+    #
+    # ⚠ `cat_studio/mau/` là DỮ LIỆU, PyInstaller KHÔNG tự lần ra. Sơ đồ mẫu nay là một
+    # file JSON chứ không còn là code Python (core.md §15.4) — thiếu dòng dưới thì bản
+    # đóng gói vẫn chạy bình thường cho tới lúc ai đó bấm "Sơ đồ mẫu", rồi chết bằng
+    # `FileNotFoundError`. Đúng loại hỏng chỉ lộ ra trên máy người dùng.
+    datas=[("webui/dist", "webui/dist"),
+           ("cat_studio/mau", "cat_studio/mau")],
     # `cat_studio/kho/` import TĨNH ba module con (`from . import chi_bao, …`) nên
     # PyInstaller lần theo được — khai ở đây chỉ để chắc, và để ai thêm module mới vào
     # `kho/` thì thấy ngay chỗ cần khai nếu lỡ import động.
-    hiddenimports=["cat_studio.kho.chi_bao", "cat_studio.kho.engine_d02",
-                   "cat_studio.kho.nen_tang"],
+    hiddenimports=["cat_studio.kho.chi_bao", "cat_studio.kho.nen_tang",
+                   "cat_studio.kho.zone"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

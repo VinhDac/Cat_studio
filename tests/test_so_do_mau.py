@@ -109,9 +109,11 @@ keys = lambda st: [c["trai"]["ten"] for c in st["conditions"]]  # noqa: E731
 g_nen = next(s for s in doc["entry"]["steps"] if s.get("cong_zone"))
 kiem("cổng ZONE chỉ mang ĐIỀU KIỆN ĐẾM — một mình nó",
      keys(g_nen) == ["atr"], f"— {keys(g_nen)}")
-# Chuẩn hoá theo giá giờ là một ĐƠN VỊ của `atr`, không phải toán hạng `atr_bps` riêng.
-kiem("điều kiện đếm so bằng đơn vị bps — cùng nghĩa trên mọi symbol",
-     g_nen["conditions"][0]["phai"].get("tinh") == "bps",
+# Chuẩn hoá giờ là một ĐƠN VỊ của `atr`, không phải toán hạng `atr_bps` riêng — và
+# thước là ATR NỀN chứ không phải giá (§15.1): chia cho giá thì ngưỡng trôi theo thời
+# gian, cùng một cổng khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026.
+kiem("điều kiện đếm so bằng đơn vị `× ATR nền` — cùng nghĩa trên mọi symbol VÀ mọi năm",
+     g_nen["conditions"][0]["phai"].get("tinh") == "atr_nen",
      f"— {g_nen['conditions'][0]['phai']}")
 
 g_zone = next(s for s in doc["entry"]["steps"]
@@ -192,7 +194,7 @@ kiem("cổng huỷ: lệnh này CHƯA khớp ∧ nén đã tan",
      and g_huy["conditions"][0]["phep"] == "la_sai"
      and g_huy["conditions"][1]["phep"] == ">="
      # CÙNG đơn vị với cổng vào — hai nơi hỏi một câu thì phải cùng thước.
-     and g_huy["conditions"][1]["phai"].get("tinh") == "bps")
+     and g_huy["conditions"][1]["phai"].get("tinh") == "atr_nen")
 
 # ================= 6. Ranh giới bị phá thì phải BÁO =================
 print("\n▸ Ranh giới Entry / Manage được canh")
@@ -218,7 +220,7 @@ kiem("mỗi điều kiện là MỘT dòng riêng trên hộp",
 # Chữ trên hộp hiện CẢ TÊN LẪN GIÁ TRỊ của tham số: tên nói ý nghĩa, số nói thực tế.
 # Thiếu một trong hai thì phải mở bảng tham số ra mới đọc nổi sơ đồ.
 # Dấu `=` kẹp giữa hai KHOẢNG TRẮNG KHÔNG NGẮT ( ): chữ trên hộp xuống dòng được,
-# mà `nguong_nen_bps =` nằm cuối dòng còn `7` rơi xuống dòng sau thì đọc mất nghĩa.
+# mà `nguong_nen =` nằm cuối dòng còn `7` rơi xuống dòng sau thì đọc mất nghĩa.
 # Dòng 0 của cổng zone là BĂNG RÔN "⬗ CỔNG ZONE" — nó nói khối này định nghĩa zone,
 # chuyện lớn nhất một cổng làm được, nên nó phải đứng trên cùng. Điều kiện bắt đầu từ 1.
 kiem("cổng zone có băng rôn nói nó ĐỊNH NGHĨA zone",
@@ -226,7 +228,7 @@ kiem("cổng zone có băng rôn nói nó ĐỊNH NGHĨA zone",
      f"— \"{cards[g_nen['id']]['lines'][0]['text']}\"")
 kiem("chữ trên hộp dùng ký hiệu, và tham số hiện cả tên lẫn giá trị",
      cards[g_nen["id"]]["lines"][1]["text"]
-     == "ATR(M5, 14) < nguong_nen_bps = 7 bps của giá",
+     == "ATR(M5, 14) < nguong_nen = 0.75 × ATR nền",
      f"— \"{cards[g_nen['id']]['lines'][1]['text']}\"")
 kiem("tên tham số KHÔNG bị tách khỏi giá trị khi hộp xuống dòng",
      " = " not in cards[g_nen["id"]]["lines"][1]["text"])
@@ -242,9 +244,14 @@ v_mua = next(x for x in doc["entry"]["steps"]
 tv = cards[v_mua["id"]]
 kiem("khối Vào lệnh tách mỗi trường một dòng",
      [d["text"] for d in tv["lines"]] == [
-         "Mua · Chờ Stop · 0.01 lot",
+         # KHỐI LƯỢNG không còn là một ô nhập: bộ chạy suy ra từ rủi ro và khoảng cách
+         # SL (§15.13). Lot là con số tuyệt đối, đổi tài khoản là đổi nghĩa mọi kết quả.
+         "Mua · Chờ Stop · rủi ro 0.5 %",
          # MỐC NEO đứng TRƯỚC đệm: nó quyết định lệnh nằm ở đâu, đệm chỉ là tấm khiên.
-         "tại Đỉnh zone (HH)",
+         # Nhãn lấy THẲNG TỪ KHO (§15.8) nên nó trùng khít nhãn ở dòng điều kiện — một
+         # thứ, một cái tên. Trước đây `MOC_ENTRY` gõ tay "Đỉnh zone (HH)" còn kho ghi
+         # "Zone — đỉnh (HH)": cùng một mức giá mà đọc ra hai cái tên.
+         "tại Zone — đỉnh (HH)",
          "đệm dem_vao_lenh = 0.1 × ATR",
          "SL sl_theo_atr_vung = 1.5 × ATR zone",
          "TP ty_le_RR = 2 × R"],
@@ -416,8 +423,8 @@ kiem("có ĐÚNG HAI hàng ATR — không gộp, không tách thêm", len(_atr) 
      f"— {len(_atr)} hàng")
 
 _a0, _a1 = (_atr + [(None, {}), (None, {})])[:2]
-kiem("hàng ATR của cổng nén mang đơn vị `bps`",
-     _a0[1].get("don_vi") == "bps" and _a0[1].get("tf") == "M5"
+kiem("hàng ATR của cổng nén mang đơn vị `× ATR nền`",
+     _a0[1].get("don_vi") == "atr_nen" and _a0[1].get("tf") == "M5"
      and _a0[1].get("period") == "chu_ky_atr",
      f"— {_a0[1].get('tf')}·{_a0[1].get('period')} [{_a0[1].get('don_vi')}]")
 kiem("hàng ATR của đệm vào lệnh mang đơn vị GIÁ (`None`) — nó là SỐ NHÂN, không phải "
@@ -450,12 +457,12 @@ _la = [x["don_vi"] for x in _th
 kiem("mọi đơn vị hiển thị đều nằm trong 4 nhánh `_quy_doi` cài — `R`/`bien_zone` không "
      "lọt tới hàm quy đổi cột", not _la, f"— {_la}")
 
-# ⚠ RÀNG BUỘC CỨNG. `bo_chay` lấy danh sách cột engine phải ghi từ chính hàm này. Siết
-# dedupe hay bỏ hàng là engine ghi thiếu cột → `kq.cot_zone` thiếu khoá → bảng trống, và
-# không có gì báo. Bài này đỏ ngay tại chỗ đó.
+# ⚠ RÀNG BUỘC CỨNG. `bo_chay` lấy danh sách cột zone phải ghi từ chính hàm này. Siết
+# dedupe hay bỏ hàng là máy vùng ghi thiếu cột → `kq.cot_zone` thiếu khoá → bảng trống,
+# và không có gì báo. Bài này đỏ ngay tại chỗ đó.
 _cv = tuple(dict.fromkeys(x["ten"] for x in _th
-                          if x["ten"] in kho.engine_d02.ENGINE_TRA_LOI))
-kiem("danh sách cột engine `bo_chay` phải ghi KHÔNG đổi",
+                          if x["ten"] in kho.ZONE_TRA_LOI))
+kiem("danh sách cột zone `bo_chay` phải ghi KHÔNG đổi",
      _cv == ("zone_dem", "zone_range", "zone_hop_le", "zone_da_sinh_lenh",
              "zone_atr_tb", "zone_HH", "zone_LL"), f"— {_cv}")
 

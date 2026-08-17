@@ -100,9 +100,9 @@ def _muc_vao(huong, gia_dat, spread):
     return (gia_dat, False)                  # sàn so Bid ≤ giá đặt
 
 
-def _gia_vao(huong, gia_bid, spread):
+def _gia_vao(huong, gia_bid, spread, truot=0.0):
     """Giá GHI VÀO SỔ khi khớp: lệnh Mua vào ở Ask, lệnh Bán vào ở Bid."""
-    return gia_bid + spread if huong == MUA else gia_bid
+    return (gia_bid + spread + truot) if huong == MUA else (gia_bid - truot)
 
 
 def _muc_ra(huong, muc, la_sl, spread):
@@ -112,20 +112,29 @@ def _muc_ra(huong, muc, la_sl, spread):
     return (muc - spread, la_sl)              # vị thế Bán đóng ở Ask
 
 
-def _gia_ra(huong, gia_bid, spread):
+def _gia_ra(huong, gia_bid, spread, truot=0.0):
     """Giá GHI VÀO SỔ khi đóng: vị thế Mua đóng ở Bid, vị thế Bán đóng ở Ask."""
-    return gia_bid if huong == MUA else gia_bid + spread
+    return (gia_bid - truot) if huong == MUA else (gia_bid + spread + truot)
 
 
 # ---------------------------------------------------------------------------
 # Một nến, một lệnh
 # ---------------------------------------------------------------------------
-def trong_nen(lenh, nen, spread=0.0):
+def trong_nen(lenh, nen, spread=0.0, truot=0.0):
     """Nến M1 này làm gì với một lệnh? Trả danh sách sự kiện THEO THỨ TỰ xảy ra.
 
     `lenh` là dict/đối tượng có: `huong` · `da_khop` · `gia_dat` · `sl` · `tp`.
-    `nen` có `o` `h` `l` `c`. `spread` tính bằng ĐƠN VỊ GIÁ (points × point size) —
-    file này cố ý không biết `digits` là gì, chỗ gọi quy đổi.
+    `nen` có `o` `h` `l` `c`. `spread` và `truot` tính bằng ĐƠN VỊ GIÁ (points × point
+    size) — file này cố ý không biết `digits` là gì, chỗ gọi quy đổi.
+
+    ⚠ `truot` (TRƯỢT GIÁ) LUÔN THEO CHIỀU BẤT LỢI, và đó là cả điểm của nó — core.md
+    §16.2. Ngoài đời một lệnh Stop khớp **bằng hoặc xấu hơn** giá kích hoạt, không bao
+    giờ tốt hơn: lúc giá phá qua mức là lúc sổ lệnh mỏng nhất. Mô hình đối xứng
+    ("khi tốt khi xấu, trung bình bằng 0") nghe công bằng nhưng SAI về bản chất, và nó
+    sai đúng về phía làm backtest đẹp lên.
+
+    Trượt chỉ đụng GIÁ KHỚP, không đụng NGƯỠNG kích hoạt: sàn nhìn giá thật để quyết
+    lệnh có nổ hay không, trượt là chuyện xảy ra SAU đó khi đi tìm thanh khoản.
 
     Sự kiện: `{"loai": "khop"|"dong", "buoc": 0..3, "gia": …, "ly_do": "sl"|"tp"}`.
 
@@ -147,19 +156,19 @@ def trong_nen(lenh, nen, spread=0.0):
         if hit is None:
             return ra                        # chưa khớp thì chưa có SL/TP nào để chạm
         k, bid = hit
-        ra.append({"loai": "khop", "buoc": k, "gia": _gia_vao(huong, bid, spread),
-                   "gap": k == 0})
+        ra.append({"loai": "khop", "buoc": k,
+                   "gia": _gia_vao(huong, bid, spread, truot), "gap": k == 0})
         # SL/TP chỉ được xét TỪ bước khớp trở đi. Xét cả bước trước là để một cái SL
         # chưa tồn tại giết một vị thế chưa mở.
         buoc_dau = k
 
-    dong = _cham_ra(lenh, d, spread, buoc_dau, huong)
+    dong = _cham_ra(lenh, d, spread, buoc_dau, huong, truot)
     if dong:
         ra.append(dong)
     return ra
 
 
-def _cham_ra(lenh, d, spread, buoc_dau, huong):
+def _cham_ra(lenh, d, spread, buoc_dau, huong, truot=0.0):
     """SL hay TP tới trước? Trả sự kiện đóng, hoặc None."""
     ung = []
     for muc, la_sl, ly_do in ((_lay(lenh, "sl"), True, SL),
@@ -175,7 +184,7 @@ def _cham_ra(lenh, d, spread, buoc_dau, huong):
             # phải gap — đó là chính cái giá vừa khớp lệnh, giá đi liên tục từ đó.
             if buoc_dau and k == buoc_dau:
                 bid = nguong
-            ung.append((k, ly_do, _gia_ra(huong, bid, spread)))
+            ung.append((k, ly_do, _gia_ra(huong, bid, spread, truot)))
     if not ung:
         return None
     # Bước nhỏ hơn thì tới trước. Cùng bước là SL và TP chạm cùng một điểm giá — về

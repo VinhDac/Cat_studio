@@ -66,13 +66,18 @@ def nen_m1(gia):
 
 
 TS = [core.make_tham_so("chu_ky_atr", "ATR", 14, "nến"),
-      core.make_tham_so("nguong", "ngưỡng", 50.0, "bps"),
-      core.make_tham_so("lot", "lot", 0.01, "lot")]
+      # ⚠ NGƯỠNG PHẢI NẰM GIỮA hai chế độ của dữ liệu thử, và khoảng đó hẹp:
+      #   · giá yên / dải nở dần  → ATR thô 0 … 0,6   (cổng phải QUA)
+      #   · đoạn `DONG` bung ra   → ATR thô ≥ 1,07    (cổng phải TRƯỢT → zone chết)
+      # Trước đây là `50 bps`, mà `bps` đã bỏ (§15.7) — đổi sang ATR THÔ thì con số phải
+      # đổi theo, không chép nguyên 50 sang được.
+      core.make_tham_so("nguong", "ngưỡng", 0.9, "gia"),
+      core.make_tham_so("rui_ro_pt", "rủi ro", 0.5, "pt_von")]
 
 CD = bc.CaiDat(symbol="X", spread_diem=0, point=0.01, digits=2,
                contract_size=1.0, deposit=10000.0)
 
-#: Giá ĐỨNG YÊN (ATR → 0, mọi cổng "atr_bps < ngưỡng" đều qua) rồi NHẢY.
+#: Giá ĐỨNG YÊN (ATR → 0, mọi cổng "atr < ngưỡng" đều qua) rồi NHẢY.
 #:
 #: ⚠ Phải đủ DÀI: nhịp Entry là M5 và ATR chu kỳ 14, nên cần ít nhất 14 nến M5 = 70 nến
 #: M1 thì `atr` mới thôi NaN. Bản đầu của bài kiểm này dùng 60 nến M1 → chỉ ra 12 nến
@@ -81,7 +86,11 @@ CD = bc.CaiDat(symbol="X", spread_diem=0, point=0.01, digits=2,
 YEN = [100.0] * 400
 DONG = [100.0 + k * 3.0 for k in range(1, 60)]
 
-DK_NEN = [{"trai": {"ten": "atr_bps", "tf": "M5", "period": "chu_ky_atr"},
+# ⚠ ATR THÔ, KHÔNG đơn vị — và đó là bắt buộc với dữ liệu thử này. Giá đứng yên tuyệt
+# đối nên ATR = 0 ở MỌI chu kỳ, tức `atr / atr_nen` = 0/0 = NaN → cổng TRƯỢT → không
+# zone nào hình thành và cả file bài kiểm sập. Thước tỉ số được kiểm riêng ở mục 7 với
+# dữ liệu có biến động thật.
+DK_NEN = [{"trai": {"ten": "atr", "tf": "M5", "period": "chu_ky_atr"},
            "phep": "<", "phai": {"value": "nguong"}}]
 #: Cổng KHÔNG dính dáng gì tới ATR — cỗ máy ẩn cũ không đếm kiểu này được.
 DK_GIA = [{"trai": {"ten": "close", "tf": "M5", "shift": 1}, "phep": "<",
@@ -99,7 +108,7 @@ def so_do(dk_cong, cong_zone=True, moc="zone_HH"):
     g["pos"] = [1.0, 0.0]
     v = core.make_action_step({
         "id": "v1", "type": core.VAO_LENH, "name": "mua", "huong": "mua",
-        "loai": "stop", "lot": "lot", "entry": {"moc": moc},
+        "loai": "stop", "rui_ro": "rui_ro_pt", "entry": {"moc": moc},
         "dem": {"tinh": "gia", "value": 1.0},
         "sl": {"tinh": "gia", "value": 1.0}})
     v["pos"] = [2.0, 0.0]
@@ -227,21 +236,30 @@ l11 = kq11.so.lenh[0] if kq11.so.lenh else None
 kiem("bỏ đệm → lệnh nằm ĐÚNG mép zone",
      l11 is not None and abs(l11.gia_dat - 100.0) < 1e-6, f"— {l11 and l11.gia_dat}")
 
-print("\n▸ 7. ĐƠN VỊ SO SÁNH — `atr_bps` cũ giờ là `atr [bps]`")
-# ⚠ Bài này ở ĐÂY chứ không ở `test_tinh_toan.py`: chuẩn hoá theo giá không còn là một
-# hàm nữa, nó là HÀNH VI của dòng điều kiện. Cách duy nhất kiểm đúng là chạy sơ đồ thật
-# rồi so với con số tính tay.
+print("\n▸ 7. ĐƠN VỊ SO SÁNH — thước `× ATR nền` (thay `bps` đã bỏ)")
+# ⚠ Bài này ở ĐÂY chứ không ở `test_tinh_toan.py`: chuẩn hoá không còn là một hàm nữa,
+# nó là HÀNH VI của dòng điều kiện. Cách duy nhất kiểm đúng là chạy sơ đồ thật rồi so
+# với con số tính tay.
+#
+# `bps` (chia cho GIÁ) đã bỏ — core.md §15.7: nó trôi theo mức giá, đo trên XAUUSD thì
+# cùng một cổng khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026. Thước mới chia cho ATR
+# NỀN của chính thị trường đó, chu kỳ CỐ ĐỊNH `core.CHU_KY_ATR_NEN`.
 from cat_studio import tinh_toan as tt7  # noqa: E402
 
-GIA7 = [100.0 + (k % 7) * 0.4 for k in range(600)]
+#: Phải đủ DÀI: ATR nền chu kỳ 100 trên khung M5 cần 100 nến M5 = 500 nến M1 chỉ để
+#: thôi NaN. Ngắn hơn thì cổng trượt suốt và bài kiểm đo nhầm cái warm-up.
+GIA7 = [100.0 + (k % 7) * 0.4 for k in range(1800)]
 m5 = tt7.gop(nen_m1(GIA7), "M5")
-atr7 = tt7.atr(m5["h"].astype(float), m5["l"].astype(float),
-               m5["c"].astype(float), 14)
-bps7 = atr7 / m5["c"].astype(float) * 1e4
-tay = float(bps7[~np.isnan(bps7)][-20])          # một mốc sau khi ATR đã ấm máy
+_h, _l, _c = (m5[k].astype(float) for k in "hlc")
+atr7 = tt7.atr(_h, _l, _c, 14)
+nen7 = tt7.atr(_h, _l, _c, core.CHU_KY_ATR_NEN)
+ti7 = atr7 / nen7
+_ok = ~np.isnan(ti7)
+tay = float(ti7[_ok][-20])           # TỈ SỐ tại một mốc sau khi cả hai ATR đã ấm máy
+tho = float(atr7[_ok][-20])          # ATR THÔ cùng mốc — dùng để tách bạch hai đường
 
 
-def so_do_bps(nguong, don_vi="bps"):
+def so_do_ti(nguong, don_vi="atr_nen"):
     c = {"trai": {"ten": "atr", "tf": "M5", "period": "chu_ky_atr"},
          "phep": "<", "phai": {"value": nguong}}
     if don_vi:
@@ -249,21 +267,22 @@ def so_do_bps(nguong, don_vi="bps"):
     return so_do([c], moc="gia_hien_tai")
 
 
-duoi = chay(so_do_bps(tay * 0.5), GIA7)
-tren = chay(so_do_bps(tay * 2.0), GIA7)
-kiem("ngưỡng bps DƯỚI giá trị thật → không zone nào",
-     len(duoi.so.zone) == 0, f"— tay {tay:.2f} bps · {len(duoi.so.zone)} zone")
-kiem("ngưỡng bps TRÊN giá trị thật → có zone",
+duoi = chay(so_do_ti(tay * 0.5), GIA7)
+tren = chay(so_do_ti(tay * 2.0), GIA7)
+kiem("ngưỡng DƯỚI tỉ số thật → không zone nào",
+     len(duoi.so.zone) == 0, f"— tay {tay:.3f} · {len(duoi.so.zone)} zone")
+kiem("ngưỡng TRÊN tỉ số thật → có zone",
      len(tren.so.zone) >= 1, f"— {len(tren.so.zone)} zone")
 
 # CÙNG một con số, có đơn vị và không có đơn vị, phải cho kết quả NGƯỢC nhau — đó là
 # bằng chứng phép quy đổi thật sự chạy, chứ không phải ngưỡng tình cờ đúng cả hai đường.
-# ATR thô ở đây ~2,3 (giá ~101) còn ATR theo bps ~229. Ngưỡng nằm giữa thì tách bạch.
-giua = tay * 0.5
-kiem("cùng ngưỡng: CÓ đơn vị bps → không zone",
-     len(chay(so_do_bps(giua), GIA7).so.zone) == 0, f"— ngưỡng {giua:.1f}")
-kiem("cùng ngưỡng: KHÔNG đơn vị (thô) → có zone",
-     len(chay(so_do_bps(giua, don_vi=None), GIA7).so.zone) >= 1,
+# Tỉ số ở đây ~1 còn ATR thô ~2,3. Ngưỡng nằm GIỮA hai con số thì tách bạch.
+giua = (tay + tho) / 2.0
+kiem("cùng ngưỡng: CÓ đơn vị `× ATR nền` → tỉ số dưới ngưỡng → CÓ zone",
+     len(chay(so_do_ti(giua), GIA7).so.zone) >= 1,
+     f"— ngưỡng {giua:.2f} · tỉ số {tay:.2f} · ATR thô {tho:.2f}")
+kiem("cùng ngưỡng: KHÔNG đơn vị (thô) → ATR thô TRÊN ngưỡng → không zone",
+     len(chay(so_do_ti(giua, don_vi=None), GIA7).so.zone) == 0,
      "— quy đổi có thật, không phải ngưỡng tình cờ")
 
 # Đơn vị chỉ sống với `khoang_cach`. Gắn vào toán hạng ĐẾM phải bị normalize vứt.
@@ -271,7 +290,8 @@ d7 = so_do([{"trai": {"ten": "so_lenh_cho"}, "phep": "<", "phai": {"value": 4, "
 kiem("đơn vị gắn vào toán hạng ĐẾM bị vứt (`so_lenh_cho < 4 × ATR` vô nghĩa)",
      "tinh" not in d7["entry"]["steps"][1]["conditions"][0]["phai"])
 kiem("còn gắn vào `atr` thì giữ",
-     so_do_bps(7.0)["entry"]["steps"][1]["conditions"][0]["phai"].get("tinh") == "bps")
+     so_do_ti(0.75)["entry"]["steps"][1]["conditions"][0]["phai"].get("tinh")
+     == "atr_nen")
 
 print("\n▸ 8. CHỈ BÀY RA THỨ DÙNG ĐƯỢC — lọc tại nguồn, không bày rồi mắng")
 #
@@ -488,13 +508,45 @@ kiem("`% của giá` biến khỏi MỌI danh sách đơn vị",
      "pt" not in core.DON_VI
      and not any("pt" in v for v in core.DON_VI_CHO.values()),
      f"— còn {sorted(core.DON_VI)}")
-# `bps` từng được BÀY RA cho SL/TP mà bộ chạy chưa cài → chọn vào là ném lỗi lúc chạy.
-kiem("`bps` bày ra cho SL/TP thì bộ chạy phải CÀI THẬT (trước đây ném LoiChay)",
-     "bps" in core.DON_VI_CHO["sl"]
-     and abs(bc._khoang({"tinh": "bps", "value": 50},
-                        type("C", (), {"ct": type("T", (), {"so": staticmethod(float)})})(),
-                        neo=2000.0) - 10.0) < 1e-9,
-     "— 50 bps của 2000 = 10,0")
+# `bps` ("phần vạn của giá") đã bỏ — core.md §15.7. Nó chuẩn hoá theo MỨC GIÁ, mà thứ
+# trôi qua thời gian là chế độ biến động: đo trên XAUUSD 2021–2026, cùng cổng
+# `atr < 7 [bps]` khớp 74,3 % số nến năm 2023 và 7,8 % năm 2026.
+kiem("`bps` biến khỏi MỌI danh sách đơn vị",
+     "bps" not in core.DON_VI
+     and not any("bps" in v for v in core.DON_VI_CHO.values()),
+     f"— còn {sorted(core.DON_VI)}")
+kiem("thay bằng `× ATR nền`, và chu kỳ của nó là HẰNG SỐ chứ không phải tham số",
+     "atr_nen" in core.DON_VI and isinstance(core.CHU_KY_ATR_NEN, int))
+
+# ⚠ VỨT IM LẶNG LÀ CA HỎNG ĐẮT NHẤT — và bản đầu của đợt này đã dính. `normalize` vốn
+# vứt mọi `tinh` không hợp lệ, nên file cũ mang `atr < 7 [bps]` thành `atr < 7`: VẪN
+# CHẠY, chỉ là so ATR THÔ với 7 (trên vàng gần như nến nào cũng qua). Không lỗi, không
+# cảnh báo, chỉ là một chiến lược khác hẳn. Đúng bài học §13.0d: xoá trước thì validator
+# không bao giờ có gì để nói.
+_cu = core.normalize_action({
+    "type": core.CHECK_COND,
+    "conditions": [{"trai": {"ten": "atr", "tf": "M5", "period": 14},
+                    "phep": "<", "phai": {"value": 7, "tinh": "bps"}}]})
+kiem("đơn vị ĐÃ BỎ được GIỮ LẠI qua normalize, không vứt im lặng",
+     _cu["conditions"][0]["phai"].get("tinh") == "bps",
+     f"— {_cu['conditions'][0]['phai']}")
+_loi_bps = []
+core.validate_actions([_cu], lambda m, i=None: _loi_bps.append(m), tab="entry")
+kiem("và soát tĩnh NÓI TO, kèm cách sửa",
+     any("ĐÃ BỎ" in m and "ATR nền" in m for m in _loi_bps),
+     f"— {_loi_bps}")
+
+# ⚠ BÀY RA THÌ PHẢI CÀI THẬT. `bps` từng nằm trong `DON_VI_CHO["sl"]` mà `_khoang`
+# không có nhánh nào cho nó — chọn vào là ném `LoiChay` GIỮA LÚC backtest. Kiểm bằng
+# một ví dụ số chỉ bắt được đúng cái đơn vị mình nghĩ ra; đọc thẳng mã nguồn thì bắt
+# được CẢ HỌ, kể cả đơn vị thêm vào sau này.
+import inspect as _inspect  # noqa: E402
+
+_ma = _inspect.getsource(bc._khoang)
+_thieu = sorted({dv for o in ("sl", "tp", "sua") for dv in core.DON_VI_CHO[o]
+                 if f'tinh == "{dv}"' not in _ma})
+kiem("MỌI đơn vị bày ra cho SL/TP/Sửa lệnh đều có nhánh thật trong `_khoang`",
+     not _thieu, f"— chưa cài: {_thieu}")
 
 print("\n▸ 9. MỖI NẾN TRỤC ĐƯỢC CHẠY ĐÚNG MỘT LẦN, kể cả khi dữ liệu M1 thủng")
 #
@@ -540,11 +592,11 @@ from cat_studio import tinh_toan as _tt     # noqa: E402
 #: ⚠ KHÔNG dùng `YEN` (giá phẳng 100,0 suốt): đỉnh và đáy khi đó bằng nhau ở MỌI mốc,
 #: nên phép so luôn đúng bất kể hàm sai hay đúng — một bài kiểm tự xác nhận.
 #: Đây là dải NỞ DẦN: biên độ lớn lên từng nến nên đỉnh–đáy tới nến thứ 2 khác hẳn tới
-#: nến thứ 5. Vẫn đủ hẹp để cổng `atr < 50 bps` không giết zone.
+#: nến thứ 5. Vẫn đủ hẹp để cổng `atr < 0,9` không giết zone.
 #: Dải phải NỞ RA **SAU KHI ZONE ĐÃ BẮT ĐẦU** (nến M5 thứ 14, tức nến M1 thứ 70 — trước
 #: đó ATR còn NaN vì chu kỳ 14). Nở sớm rồi chặn trần thì tới lúc zone mở, đỉnh–đáy đã
 #: đứng yên, và phép so ở dưới đúng ở mọi mốc bất kể hàm sai hay đúng.
-#: Biên độ tối đa ±0,30 → ATR ~6 bps, dưới xa ngưỡng 50 bps nên cổng vẫn qua.
+#: Biên độ tối đa ±0,30 → ATR thô ~0,6, dưới ngưỡng 0,9 nên cổng vẫn qua.
 NO_DAN = [100.0 + (0.02 if i < 80 else min(0.30, 0.02 + 0.003 * (i - 80)))
           * (1 if i % 2 else -1) for i in range(400)]
 _kq = chay(so_do(DK_NEN), NO_DAN + DONG)

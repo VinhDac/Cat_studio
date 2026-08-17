@@ -62,7 +62,7 @@ g = core.make_action_step({
 g["pos"] = [0.0, 0.0]
 v = core.make_action_step({
     "type": core.VAO_LENH, "name": "mua", "huong": "mua", "loai": "market",
-    "lot": 0.01, "sl": {"tinh": "gia", "value": 1.0},
+    "rui_ro": 0.5, "sl": {"tinh": "gia", "value": 1.0},
     "tp": {"tinh": "R", "value": 2.0}})
 v["pos"] = [0.0, 0.0]
 d = core.normalize_process({
@@ -251,7 +251,7 @@ print("\n▸ Đường ray — gộp mà không được kể sai thứ tự")
 # không phải khai gì — chính cái ẩn đó là thứ vừa bị bỏ.
 v8 = core.make_action_step({
     "type": core.VAO_LENH, "name": "mua chờ", "huong": "mua", "loai": "stop",
-    "lot": 0.01, "dem": {"tinh": "gia", "value": 5.0},
+    "rui_ro": 0.5, "dem": {"tinh": "gia", "value": 5.0},
     "entry": {"moc": "gia_hien_tai"},
     "sl": {"tinh": "gia", "value": 1.0},
     "tp": {"tinh": "R", "value": 2.0}})
@@ -415,7 +415,7 @@ kiem("đường ray của nó CÓ đoạn kết — không im lặng giữa ch�
 # cổng rồi kết thúc nó.
 v11 = core.make_action_step({
     "type": core.VAO_LENH, "name": "chờ xa", "huong": "mua", "loai": "stop",
-    "lot": 0.01, "entry": {"moc": "gia_hien_tai"},
+    "rui_ro": 0.5, "entry": {"moc": "gia_hien_tai"},
     "dem": {"tinh": "gia", "value": 500.0},          # treo xa, không nến nào chạm
     "sl": {"tinh": "gia", "value": 1.0}})
 v11["pos"] = [0.0, 0.0]

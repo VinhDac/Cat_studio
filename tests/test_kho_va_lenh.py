@@ -8,7 +8,7 @@ Bốn thứ này ăn khớp với nhau, nên canh chung một bài:
              là một phép tra bảng chứ không phải cờ ẩn — và cái bug đoán mò
              `HasOpenPosition()` của D_02 không thể tái diễn.
   luu_tru.py mọi đường dẫn ở đúng MỘT chỗ, có di cư từ bố cục cũ.
-  tham số    hằng số CÓ TÊN. `nguong_nen_bps` được hỏi ở CẢ HAI sơ đồ; gõ tay hai nơi
+  tham số    hằng số CÓ TÊN. `nguong_nen` được hỏi ở CẢ HAI sơ đồ; gõ tay hai nơi
              là sửa một chỗ thì hai vế lệch nhau âm thầm.
 
 Chạy:  python tests\\test_kho_va_lenh.py
@@ -42,13 +42,15 @@ def kiem(ten, dk, chi_tiet=""):
 # ================= 1. KHO =================
 print("\n▸ Kho backend")
 d = kho.danh_muc()
-kiem("có ba module: nền tảng · chỉ báo · engine D_02",
-     [m["ma_so"] for m in d["module"]] == ["nen_tang", "chi_bao", "d02"],
+kiem("có ba module: nền tảng · chỉ báo · zone",
+     [m["ma_so"] for m in d["module"]] == ["nen_tang", "chi_bao", "zone"],
      f"— {[m['ma_so'] for m in d['module']]}")
-kiem("chỉ D_02 được đánh dấu là ENGINE",
-     [m["ma_so"] for m in d["module"] if m["la_engine"]] == ["d02"])
-kiem("engine D_02 ghi rõ nguồn MQL5",
-     "D_02_Compress" in next(m for m in d["module"] if m["ma_so"] == "d02")["nguon"])
+# Khái niệm "engine" đã TAN (core.md §15.3): cơ chế vùng tổng quát hoá xong thì một
+# module mang tên một chiến lược cụ thể chỉ tổ khiến người đọc tưởng phải "chọn engine".
+kiem("không còn module nào mang tên một chiến lược",
+     not any(m["ma_so"] == "d02" for m in d["module"]))
+kiem("không còn cờ `la_engine` trong danh mục",
+     all("la_engine" not in m for m in d["module"]))
 
 nguon = {t["key"]: t["nguon"] for t in kho.TOAN_HANG}
 kiem("`close` là NỀN TẢNG — không chiến lược nào sở hữu nó",
@@ -56,15 +58,29 @@ kiem("`close` là NỀN TẢNG — không chiến lược nào sở hữu nó",
 kiem("`atr` là CHỈ BÁO CHUẨN — D_02 dùng chứ không phát minh",
      nguon["atr"] == "chi_bao")
 # `atr_bps` ĐÃ RỜI KHO: nó là `atr` nhìn bằng thước `bps`, tức một ĐƠN VỊ, không
-# phải một đại lượng. Ý tưởng riêng của D_02 giờ chỉ còn đúng cái ZONE.
-kiem("zone thuộc ENGINE D_02 — ý tưởng riêng của nó",
-     "atr_bps" not in nguon and nguon["zone_dem"] == "d02"
-     and nguon["zone_da_sinh_lenh"] == "d02")
+# phải một đại lượng.
+kiem("zone là một CƠ CHẾ chung, không thuộc chiến lược nào",
+     "atr_bps" not in nguon and nguon["zone_dem"] == "zone"
+     and nguon["zone_da_sinh_lenh"] == "zone")
 kiem("`lệnh này` là nền tảng, và chỉ dùng được ở Manage",
      nguon["lenh_da_khop"] == "nen_tang"
      and kho.tabs_cho_phep("lenh_da_khop") == ["manage"])
-kiem("bảng trạng thái `vùng nén` do engine D_02 khai",
+kiem("bảng trạng thái `zone` do module zone khai",
      [b["key"] for b in d["bang_trang_thai"]] == ["zone"])
+
+# BA TOÁN HẠNG MỚI (core.md §15.6) — hai trong ba vốn đã có sẵn máy móc trong bộ chạy
+# (`ct.drawdown_pt`, `Lenh.so_nen_song`) nhưng chưa ai khai vào kho, tức mã chết.
+kiem("`drawdown_pt` là cầu dao rủi ro, đo bằng % VỐN (không phải % giá)",
+     nguon["drawdown_pt"] == "nen_tang"
+     and kho.THEO_KEY["drawdown_pt"]["don_vi"] == "pt_von")
+kiem("`lenh_la_mua` cho Manage phân biệt được mua/bán — chỉ Manage",
+     kho.la_dung_sai("lenh_la_mua")
+     and kho.tabs_cho_phep("lenh_la_mua") == ["manage"])
+kiem("`lenh_so_nen_song` đếm bằng NẾN — chỉ Manage",
+     kho.THEO_KEY["lenh_so_nen_song"]["don_vi"] == "nen"
+     and kho.tabs_cho_phep("lenh_so_nen_song") == ["manage"])
+kiem("KHÔNG có toán hạng thời gian (`giờ`/`thứ`) — dễ overfit nhất, cố ý bỏ",
+     not {"gio", "thu"} & set(kho.TOAN_HANG_KEYS))
 kiem("mọi khoá toán hạng là DUY NHẤT giữa các module",
      len(kho.TOAN_HANG_KEYS) == len(set(kho.TOAN_HANG_KEYS)))
 print(f"    {len(kho.TOAN_HANG)} toán hạng · {len(kho.CHI_BAO)} chỉ báo · "
@@ -178,9 +194,9 @@ for tab in core.TABS:
         for c in st.get("conditions") or []:
             # Vế phải là một LƯỢNG `{value, tinh}`; `value` là số HOẶC tên tham số.
             # Không còn `phai_loai` — kiểu suy ra được, xem `normalize_action`.
-            if (c.get("phai") or {}).get("value") == "nguong_nen_bps":
+            if (c.get("phai") or {}).get("value") == "nguong_nen":
                 ai_dung_nguong.append(tab)
-kiem("`nguong_nen_bps` được hỏi ở CẢ HAI sơ đồ nhưng chỉ khai MỘT lần",
+kiem("`nguong_nen` được hỏi ở CẢ HAI sơ đồ nhưng chỉ khai MỘT lần",
      sorted(ai_dung_nguong) == ["entry", "manage"], f"— {ai_dung_nguong}")
 
 
@@ -205,9 +221,9 @@ lap = {v: n for v, n in hang_so_go_tay(doc).items() if len(n) > 1}
 kiem("KHÔNG còn hằng số gõ tay nào lặp lại giữa các khối", not lap, f"— {lap or 'sạch'}")
 
 # tham số không tồn tại → báo lỗi
-xau = dict(doc, tham_so=[t for t in doc["tham_so"] if t["ten"] != "nguong_nen_bps"])
+xau = dict(doc, tham_so=[t for t in doc["tham_so"] if t["ten"] != "nguong_nen"])
 kiem("bỏ một tham số đang dùng → báo lỗi, không im lặng chạy sai",
-     any("nguong_nen_bps" in p["message"] for p in core.validate_process(xau)))
+     any("nguong_nen" in p["message"] for p in core.validate_process(xau)))
 
 thua = dict(doc, tham_so=doc["tham_so"] + [
     core.make_tham_so("khong_ai_dung", "Thừa", 1, "nến")])

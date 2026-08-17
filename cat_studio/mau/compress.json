@@ -1,0 +1,481 @@
+{
+  "schema": 3,
+  "type": "strategy",
+  "name": "Compress (mẫu)",
+  "symbol": "XAUUSD",
+  "tham_so": [
+    {
+      "ten": "nguong_nen",
+      "nhan": "Ngưỡng nén",
+      "gia_tri": 0.75,
+      "don_vi": "atr_nen",
+      "ghi_chu": "ATR hiện tại so với ATR nền của chính thị trường đó. Nhỏ hơn ⇒ nén chặt hơn ⇒ ít tín hiệu nhưng chất hơn. Vùng dùng được 0,6–0,8; dưới 0,5 thì nến quá hiếm và tỉ lệ khớp bắt đầu nhảy giữa các năm."
+    },
+    {
+      "ten": "zone_can_nen",
+      "nhan": "Zone cần bao nhiêu nến",
+      "gia_tri": 10,
+      "don_vi": "nen",
+      "ghi_chu": "K — lò xo càng dài càng hiếm nhưng càng mạnh."
+    },
+    {
+      "ten": "zone_range_max",
+      "nhan": "Bề rộng zone tối đa",
+      "gia_tri": 4.0,
+      "don_vi": "atr",
+      "ghi_chu": "Loại zone bị tin tức thổi rộng."
+    },
+    {
+      "ten": "dem_vao_lenh",
+      "nhan": "Đệm vào lệnh",
+      "gia_tri": 0.1,
+      "don_vi": "atr",
+      "ghi_chu": "Lá chắn mỏng ngoài mép vùng, lọc một nhịp phá giả."
+    },
+    {
+      "ten": "sl_theo_atr_vung",
+      "nhan": "Stop Loss",
+      "gia_tri": 1.5,
+      "don_vi": "atr_zone",
+      "ghi_chu": "ĐỊNH NGHĨA 1R."
+    },
+    {
+      "ten": "ty_le_RR",
+      "nhan": "Tỉ lệ R:R",
+      "gia_tri": 2.0,
+      "don_vi": "R"
+    },
+    {
+      "ten": "hoa_von_tai",
+      "nhan": "Mốc dời SL về hoà vốn",
+      "gia_tri": 1.0,
+      "don_vi": "R"
+    },
+    {
+      "ten": "so_vi_the_toi_da",
+      "nhan": "Số vị thế tối đa",
+      "gia_tri": 3,
+      "don_vi": "lenh",
+      "ghi_chu": "= Max_Positions. Bằng nhau là đã đầy."
+    },
+    {
+      "ten": "chu_ky_atr",
+      "nhan": "Chu kỳ ATR",
+      "gia_tri": 14,
+      "don_vi": "nen"
+    },
+    {
+      "ten": "chu_ky_ma",
+      "nhan": "Chu kỳ MA xu hướng",
+      "gia_tri": 50,
+      "don_vi": "nen"
+    },
+    {
+      "ten": "rui_ro_pt",
+      "nhan": "Rủi ro mỗi lệnh",
+      "gia_tri": 0.5,
+      "don_vi": "pt_von",
+      "ghi_chu": "Phần trăm VỐN mạo hiểm cho mỗi lệnh. Khối lượng do bộ chạy suy ra từ đây và khoảng cách SL, nên mọi lệnh mạo hiểm một R bằng nhau. D_02 gốc dùng lot cố định 0,01 — con số đó không chuyển được sang tài khoản khác, xem core.md §15.13."
+    }
+  ],
+  "entry": {
+    "steps": [
+      {
+        "kind": "start",
+        "id": "mau-bd-entry",
+        "name": "Tìm tín hiệu",
+        "nhip": "M5",
+        "pos": [
+          40,
+          300
+        ]
+      },
+      {
+        "id": "mau01",
+        "type": "check_cond",
+        "name": "Nến này có nén không?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "atr",
+              "tf": "M5",
+              "period": "chu_ky_atr"
+            },
+            "phep": "<",
+            "phai": {
+              "value": "nguong_nen",
+              "tinh": "atr_nen"
+            }
+          }
+        ],
+        "cong_zone": true,
+        "dk_hop_le": [
+          {
+            "trai": {
+              "ten": "zone_dem"
+            },
+            "phep": ">=",
+            "phai": {
+              "value": "zone_can_nen"
+            }
+          },
+          {
+            "trai": {
+              "ten": "zone_range"
+            },
+            "phep": "<=",
+            "phai": {
+              "value": "zone_range_max",
+              "tinh": "atr"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          340,
+          300
+        ]
+      },
+      {
+        "id": "mau02",
+        "type": "check_cond",
+        "name": "Zone đã đủ điều kiện chưa?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "zone_hop_le"
+            },
+            "phep": "la_dung"
+          },
+          {
+            "trai": {
+              "ten": "zone_da_sinh_lenh"
+            },
+            "phep": "la_sai"
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          640,
+          300
+        ]
+      },
+      {
+        "id": "mau03",
+        "type": "check_cond",
+        "name": "Còn chỗ cho lệnh mới?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "so_lenh_cho"
+            },
+            "phep": "==",
+            "phai": {
+              "value": 0
+            }
+          },
+          {
+            "trai": {
+              "ten": "so_vi_the"
+            },
+            "phep": "<",
+            "phai": {
+              "value": "so_vi_the_toi_da"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          940,
+          300
+        ]
+      },
+      {
+        "id": "mau04",
+        "type": "check_cond",
+        "name": "Xu hướng LÊN?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "close",
+              "tf": "M15"
+            },
+            "phep": ">",
+            "phai": {
+              "ten": "ma",
+              "tf": "M15",
+              "period": "chu_ky_ma",
+              "method": "SMA"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          1060,
+          160
+        ]
+      },
+      {
+        "type": "vao_lenh",
+        "huong": "mua",
+        "loai": "stop",
+        "rui_ro": "rui_ro_pt",
+        "dem": {
+          "tinh": "atr",
+          "value": "dem_vao_lenh"
+        },
+        "sl": {
+          "tinh": "atr_zone",
+          "value": "sl_theo_atr_vung"
+        },
+        "tp": {
+          "tinh": "R",
+          "value": "ty_le_RR"
+        },
+        "entry": {
+          "moc": "zone_HH"
+        },
+        "id": "mau05",
+        "name": "Buy Stop trên đỉnh vùng",
+        "kind": "action",
+        "pos": [
+          1660,
+          160
+        ]
+      },
+      {
+        "id": "mau06",
+        "type": "check_cond",
+        "name": "Xu hướng XUỐNG?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "close",
+              "tf": "M15"
+            },
+            "phep": "<",
+            "phai": {
+              "ten": "ma",
+              "tf": "M15",
+              "period": "chu_ky_ma",
+              "method": "SMA"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          1060,
+          440
+        ]
+      },
+      {
+        "type": "vao_lenh",
+        "huong": "ban",
+        "loai": "stop",
+        "rui_ro": "rui_ro_pt",
+        "dem": {
+          "tinh": "atr",
+          "value": "dem_vao_lenh"
+        },
+        "sl": {
+          "tinh": "atr_zone",
+          "value": "sl_theo_atr_vung"
+        },
+        "tp": {
+          "tinh": "R",
+          "value": "ty_le_RR"
+        },
+        "entry": {
+          "moc": "zone_LL"
+        },
+        "id": "mau07",
+        "name": "Sell Stop dưới đáy vùng",
+        "kind": "action",
+        "pos": [
+          1660,
+          440
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "mau-bd-entry",
+        "to": "mau01",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau01",
+        "to": "mau02",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau02",
+        "to": "mau03",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau03",
+        "to": "mau04",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau04",
+        "to": "mau05",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau03",
+        "to": "mau06",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau06",
+        "to": "mau07",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      }
+    ]
+  },
+  "manage": {
+    "steps": [
+      {
+        "kind": "start",
+        "id": "mau-bd-manage",
+        "name": "Quản lý lệnh",
+        "nhip": "M1",
+        "pos": [
+          40,
+          300
+        ]
+      },
+      {
+        "id": "mau08",
+        "type": "check_cond",
+        "name": "Chưa khớp mà nén đã tan?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "lenh_da_khop"
+            },
+            "phep": "la_sai"
+          },
+          {
+            "trai": {
+              "ten": "atr",
+              "tf": "M5",
+              "period": "chu_ky_atr"
+            },
+            "phep": ">=",
+            "phai": {
+              "value": "nguong_nen",
+              "tinh": "atr_nen"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          400,
+          160
+        ]
+      },
+      {
+        "type": "sua_lenh",
+        "che_do": "ket_thuc",
+        "id": "mau09",
+        "name": "Huỷ lệnh chờ",
+        "kind": "action",
+        "pos": [
+          760,
+          160
+        ]
+      },
+      {
+        "id": "mau10",
+        "type": "check_cond",
+        "name": "Đã khớp, đủ 1R, SL chưa hoà vốn?",
+        "conditions": [
+          {
+            "trai": {
+              "ten": "lenh_da_khop"
+            },
+            "phep": "la_dung"
+          },
+          {
+            "trai": {
+              "ten": "lenh_sl_hoa_von"
+            },
+            "phep": "la_sai"
+          },
+          {
+            "trai": {
+              "ten": "lenh_lai_R"
+            },
+            "phep": ">=",
+            "phai": {
+              "value": "hoa_von_tai"
+            }
+          }
+        ],
+        "kind": "action",
+        "pos": [
+          400,
+          440
+        ]
+      },
+      {
+        "type": "sua_lenh",
+        "che_do": "hoa_von",
+        "id": "mau11",
+        "name": "Dời SL về giá vào",
+        "kind": "action",
+        "pos": [
+          760,
+          440
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "mau-bd-manage",
+        "to": "mau08",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau08",
+        "to": "mau09",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau-bd-manage",
+        "to": "mau10",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      },
+      {
+        "from": "mau10",
+        "to": "mau11",
+        "port": "out",
+        "from_side": "right",
+        "to_side": "left"
+      }
+    ]
+  }
+}

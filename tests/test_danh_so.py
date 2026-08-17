@@ -55,17 +55,21 @@ def cong(nguong, x, y, ten=None):
     s = core.make_action_step({
         "type": core.CHECK_COND,
         "name": ten or f"ĐK {nguong}",
-        "conditions": [{"trai": {"ten": "atr", "tf": "M5", "period": 14}, "don_vi": "bps",
+        "conditions": [{"trai": {"ten": "atr", "tf": "M5", "period": 14}, "don_vi": "atr_nen",
                         "phep": "<", "phai": {"value": nguong}}],
     })
     s["pos"] = [x, y]
     return s
 
 
-def viec(ten, x, y):
-    """Một khối KHÔNG phải cổng — dùng làm mắt xích thường trên chuỗi."""
+def viec(ten, x, y, che_do="hoa_von"):
+    """Một khối KHÔNG phải cổng — dùng làm mắt xích thường trên chuỗi.
+
+    ⚠ `che_do` mở ra được vì §17.2: hai khối Sửa lệnh GHI LÊN CÙNG MỘT THỨ mà đứng
+    chung một ngã rẽ VÀ là lỗi (làm hết thì chỉ cái dưới còn dấu vết). Fixture nào cần
+    "hai hành động cạnh nhau, hợp lệ" thì phải cho chúng ghi lên HAI thứ khác nhau."""
     s = core.make_action_step({
-        "type": core.SUA_LENH, "che_do": "hoa_von", "muc_tieu": "vi_the",
+        "type": core.SUA_LENH, "che_do": che_do, "muc_tieu": "vi_the",
         "khoang": {"tinh": "R", "value": 1}, "name": ten})
     s["pos"] = [x, y]
     return s
@@ -256,7 +260,10 @@ kiem("thông báo có nhãn dạng [2] / [2A] chứ không phải \"Bước 3\""
 
 # ================= 7. Luật rẽ nhánh =================
 print("\n▸ Luật rẽ nhánh")
-b11 = {"1": viec("1", 0, 200), "A": cong(7, 300, 0), "MD": viec("mặc định", 300, 400)}
+# ⚠ `MD` phải ghi lên THỨ KHÁC với `1` (§17.3): hai khối Sửa lệnh cùng ghi SL nối tiếp
+# nhau, không cổng ở giữa, là lỗi — mà bài này đang soi THỨ TỰ NHÁNH, không soi chuyện đó.
+b11 = {"1": viec("1", 0, 200), "A": cong(7, 300, 0),
+       "MD": viec("mặc định", 300, 400, "doi_tp")}
 kiem("nhánh mặc định xếp DƯỚI CÙNG → không lỗi",
      not loi(list(b11.values()), noi_day(b11, [("1", "A"), ("1", "MD")]), "error"))
 b11["MD"]["pos"] = [300, -300]        # kéo nhánh mặc định lên trên
@@ -289,9 +296,86 @@ _ghim["ghim"] = True
 kiem("có CẠNH QUAY LẠI → không phải VÀ (cạnh quay lại vốn mang vai phương án thay thế)",
      not core.la_nga_re_va([_h, _ghim]))
 
-b14 = {"1": cong(7, 0, 100), "A": viec("Mua", 300, 0), "B": viec("Bán", 300, 200)}
+b14 = {"1": cong(7, 0, 100),
+       "A": viec("dời SL", 300, 0, "doi_sl"),
+       "B": viec("dời TP", 300, 200, "doi_tp")}
 kiem("rẽ 2 nhánh TOÀN hành động → KHÔNG lỗi (là ngã rẽ VÀ)",
      not loi(list(b14.values()), noi_day(b14, [("1", "A"), ("1", "B")]), "error"))
+
+# ---- §17.2: ngã rẽ VÀ mà hai nhánh GHI ĐÈ nhau ----
+# "Làm hết" chỉ có nghĩa khi mấy việc đó không giẫm lên nhau. Hai nhánh cùng ghi SL thì
+# làm xong cả hai, SL bằng đúng cái DƯỚI — cái trên không để lại dấu vết gì. Sơ đồ vẽ
+# hai việc, lượt chạy có một.
+b14b = {"1": cong(7, 0, 100),
+        "A": viec("dời SL", 300, 0, "doi_sl"),
+        "B": viec("hoà vốn", 300, 200, "hoa_von")}
+kiem("VÀ: hai nhánh cùng ghi SL → LỖI (cái trên không để lại dấu vết)",
+     any("ghi lên" in p["message"] for p in
+         loi(list(b14b.values()), noi_day(b14b, [("1", "A"), ("1", "B")]), "error")))
+b14c = {"1": cong(7, 0, 100),
+        "A": viec("kết thúc", 300, 0, "ket_thuc"),
+        "B": viec("dời TP", 300, 200, "doi_tp")}
+kiem("VÀ: `Kết thúc` đá với MỌI chế độ khác — đóng rồi thì không còn gì để sửa",
+     any("cả cái lệnh" in p["message"] for p in
+         loi(list(b14c.values()), noi_day(b14c, [("1", "A"), ("1", "B")]), "error")))
+kiem("hai chế độ ghi HAI thứ khác nhau thì KHÔNG đá nhau",
+     core.sua_dung_do("doi_sl", "hoa_von")
+     and not core.sua_dung_do("doi_sl", "doi_tp")
+     and core.sua_dung_do("ket_thuc", "doi_tp"))
+
+# ================= §17 · LUẬT KẾT HỢP =================
+#
+# Một câu cho cả mục: SƠ ĐỒ KHÔNG ĐƯỢC NÓI DỐI. Vẽ hai việc thì lượt chạy phải làm hai
+# việc. `_sua_lenh` mở đầu bằng `if not l.con_song: return None` nên nó IM LẶNG nuốt mọi
+# khối vô nghĩa — bài này là chỗ duy nhất bắt được chúng.
+print("\n▸ §17 Luật kết hợp")
+
+# §17.1 — sau `Kết thúc` thì lệnh đã chết
+b17a = {"1": viec("kết thúc", 0, 0, "ket_thuc"), "2": viec("dời SL", 300, 0, "doi_sl")}
+kiem("§17.1 sau `Kết thúc` mà còn khối → LỖI",
+     any("đã đóng/huỷ lệnh rồi" in p["message"] for p in
+         loi(list(b17a.values()), noi_day(b17a, [("1", "2")]), "error")))
+b17b = {"1": viec("kết thúc", 0, 0, "ket_thuc"), "2": cong(7, 300, 0)}
+kiem("§17.1 kể cả khi khối sau là một CỔNG",
+     any("đã đóng/huỷ lệnh rồi" in p["message"] for p in
+         loi(list(b17b.values()), noi_day(b17b, [("1", "2")]), "error")))
+
+# §17.3 — nối tiếp ghi đè, TRỪ khi có cổng ở giữa
+b17c = {"1": viec("dời SL", 0, 0, "doi_sl"), "2": viec("hoà vốn", 300, 0, "hoa_von")}
+kiem("§17.3 hai khối cùng ghi SL nối tiếp, KHÔNG cổng → LỖI",
+     any("KHÔNG có cổng nào ở giữa" in p["message"] for p in
+         loi(list(b17c.values()), noi_day(b17c, [("1", "2")]), "error")))
+b17d = {"1": viec("dời SL", 0, 0, "doi_sl"), "G": cong(7, 300, 0),
+        "2": viec("hoà vốn", 600, 0, "hoa_von")}
+kiem("§17.3 CÓ cổng ở giữa → KHÔNG lỗi (cổng trượt được, khối trên có tác dụng)",
+     not any("KHÔNG có cổng nào ở giữa" in p["message"] for p in
+             loi(list(b17d.values()), noi_day(b17d, [("1", "G"), ("G", "2")]), "error")))
+b17e = {"1": viec("dời SL", 0, 0, "doi_sl"), "2": viec("dời TP", 300, 0, "doi_tp")}
+kiem("§17.3 ghi HAI thứ khác nhau → KHÔNG lỗi",
+     not any("KHÔNG có cổng nào ở giữa" in p["message"] for p in
+             loi(list(b17e.values()), noi_day(b17e, [("1", "2")]), "error")))
+
+# §17.4 — hai lệnh GIỐNG HỆT là hai NHÁNH (trước đây chỉ soi dọc theo đường)
+#: Helper riêng: `vao()` ở mục dưới chưa được định nghĩa tại điểm này của file.
+def _vao_id(i, y, **kw):
+    a = {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
+         "entry": {"moc": "zone_HH"}, "dem": {"tinh": "atr", "value": 0.1},
+         "sl": {"tinh": "atr_zone", "value": 1.5}, "tp": {"tinh": "R", "value": 2}}
+    a.update(kw)
+    s = core.make_action_step(a)
+    s["id"], s["pos"] = i, [300.0, y]
+    return s
+
+
+b17f = {"1": cong(7, 0, 100), "A": _vao_id("A", 0), "B": _vao_id("B", 300)}
+kiem("§17.4 hai khối Vào lệnh GIỐNG HỆT làm hai NHÁNH → LỖI",
+     any("hai nhánh" in p["message"] and "GIỐNG HỆT" in p["message"] for p in
+         loi(list(b17f.values()), noi_day(b17f, [("1", "A"), ("1", "B")]), "error")))
+b17g = {"1": cong(7, 0, 100), "A": _vao_id("A", 0),
+        "B": _vao_id("B", 300, huong="ban", entry={"moc": "zone_LL"})}
+kiem("§17.4 straddle (Mua đỉnh + Bán đáy) → KHÔNG lỗi, cùng tồn tại được",
+     not any("GIỐNG HỆT" in p["message"] for p in
+             loi(list(b17g.values()), noi_day(b17g, [("1", "A"), ("1", "B")]), "error")))
 
 b15 = {"1": cong(7, 0, 100), "G": cong(9, 300, 0),
        "A": viec("Mua", 300, 200), "B": viec("Bán", 300, 400)}
@@ -314,7 +398,7 @@ print("\n▸ Hai khối Vào lệnh trên cùng một đường")
 
 def vao(x, y, **kw):
     """Khối "Vào lệnh". Mặc định là chân MUA của straddle."""
-    a = {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
+    a = {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
          "entry": {"moc": "zone_HH"}, "dem": {"tinh": "atr", "value": 0.1},
          "sl": {"tinh": "atr_zone", "value": 1.5}, "tp": {"tinh": "R", "value": 2}}
     a.update(kw)
@@ -339,8 +423,8 @@ kiem("cùng entry, khác TP → KHÔNG lỗi (chốt lời hai mức, sổ giữ
      not _trung(noi_tiep(vao(0, 0), vao(0, 200, tp={"tinh": "R", "value": 4}))))
 kiem("cùng hướng+mốc, khác ĐỆM → KHÔNG lỗi (rải thang, hai giá khác nhau)",
      not _trung(noi_tiep(vao(0, 0), vao(0, 200, dem={"tinh": "atr", "value": 0.5}))))
-kiem("cùng mọi thứ, khác LOT → KHÔNG lỗi (hai ticket, sàn giữ cả hai)",
-     not _trung(noi_tiep(vao(0, 0), vao(0, 200, lot=0.02))))
+kiem("cùng mọi thứ, khác RỦI RO → KHÔNG lỗi (hai ticket, sàn giữ cả hai)",
+     not _trung(noi_tiep(vao(0, 0), vao(0, 200, rui_ro=1.0))))
 # `name` và `pos` KHÔNG được nằm trong khoá: đổi tên khối hay kéo nó đi chỗ khác không
 # đẻ ra một cái lệnh khác. Đây là khoá về LỆNH, không phải về khối.
 kiem("khác mỗi TÊN khối → VẪN LỖI (tên không phải một phần của lệnh)",
@@ -391,7 +475,7 @@ kiem("Kiểm tra ĐK dùng ở cả hai",
      set(core.ACTION_TABS[core.CHECK_COND]) == set(core.TABS))
 kiem("đặt lệnh trong Manage → báo lỗi",
      any("chỉ thuộc về" in m for m in loi_hd_tab(
-         {"type": core.VAO_LENH, "huong": "mua", "loai": "market", "lot": 0.01,
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "market", "rui_ro": 0.5,
           "sl": {"tinh": "atr_zone", "value": 1.5}}, core.TAB_MANAGE)))
 kiem("sửa lệnh trong Entry → báo lỗi",
      any("chỉ thuộc về" in m for m in loi_hd_tab(
@@ -432,10 +516,10 @@ print("\n▸ Mô tả hành động")
 _cau = core.action_display({"type": core.CHECK_COND, "conditions": [
     # ĐƠN VỊ nằm TRONG lượng — cùng hình dạng `{value, tinh}` mà SL/TP dùng.
     {"trai": {"ten": "atr", "tf": "M5", "period": 14},
-     "phep": "<", "phai": {"value": 7, "tinh": "bps"}}]})
+     "phep": "<", "phai": {"value": 7, "tinh": "atr_nen"}}]})
 kiem("Kiểm tra điều kiện đọc được thành câu, dùng ký hiệu",
-     # ĐƠN VỊ đi liền con số bên phải — "7 bps của giá" đọc như một đại lượng.
-     _cau == "ATR(M5, 14) < 7 bps của giá", f"— {_cau}")
+     # ĐƠN VỊ đi liền con số bên phải — "7 × ATR nền" đọc như một đại lượng.
+     _cau == "ATR(M5, 14) < 7 × ATR nền", f"— {_cau}")
 kiem("toán hạng đúng/sai không ghép phép so",
      core.action_display({"type": core.CHECK_COND,
                           "conditions": [{"trai": {"ten": "lenh_da_khop"}, "phep": "la_dung"}]})
@@ -447,7 +531,7 @@ kiem("Sửa lệnh · hoà vốn KHÔNG còn tham số — mốc kích hoạt đ
          {"type": core.SUA_LENH, "che_do": "hoa_von",
           "khoang": {"tinh": "R", "value": 1}}))
 _vao = core.action_display({"type": core.VAO_LENH, "huong": "mua", "loai": "stop",
-                            "lot": 0.01, "dem": {"tinh": "atr", "value": 0.1},
+                            "rui_ro": 0.5, "dem": {"tinh": "atr", "value": 0.1},
                             "sl": {"tinh": "atr_zone", "value": 1.5},
                             "tp": {"tinh": "R", "value": 2}})
 kiem("Vào lệnh nói rõ đệm neo NGOÀI MÉP VÙNG", "ngoài mép vùng" in _vao, f"— {_vao}")
@@ -467,22 +551,33 @@ def loi_hd(a):
 
 kiem("Vào lệnh thiếu SL → báo lỗi",
      any("Stop Loss" in m for m in loi_hd(
-         {"type": core.VAO_LENH, "huong": "mua", "loai": "market", "lot": 0.01})))
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "market", "rui_ro": 0.5})))
 # ĐỆM là TUỲ CHỌN từ khi mốc neo hiện ra: neo mép zone mà đệm 0 là lệnh nằm ĐÚNG mép,
-# hợp lệ. Chỉ neo vào GIÁ HIỆN TẠI mà không đệm mới sai — lệnh chờ đó khớp ngay.
+# hợp lệ. Chỉ neo vào GIÁ ĐÓNG CỬA mà không đệm mới sai — lệnh chờ đó khớp ngay.
+# (Mốc `gia_hien_tai` cũ đã đổi tên thành `close` — nó vốn không có trong kho, xem
+#  `core.MOC_ENTRY` và core.md §15.8.)
 kiem("lệnh chờ neo mép zone, KHÔNG đệm → hợp lệ",
      not any("đệm" in m for m in loi_hd(
-         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
           "entry": {"moc": "zone_HH"},
           "sl": {"tinh": "atr_zone", "value": 1.5}})))
-kiem("lệnh chờ neo GIÁ HIỆN TẠI mà thiếu đệm → báo lỗi",
+kiem("lệnh chờ neo GIÁ ĐÓNG CỬA mà thiếu đệm → báo lỗi",
      any("đệm" in m for m in loi_hd(
-         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
-          "entry": {"moc": "gia_hien_tai"},
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
+          "entry": {"moc": "close"},
           "sl": {"tinh": "atr_zone", "value": 1.5}})))
+kiem("mốc cũ `gia_hien_tai` được ĐỔI sang `close`, không bị vứt im lặng",
+     core.normalize_action(
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
+          "entry": {"moc": "gia_hien_tai"}})["entry"]["moc"] == "close")
+kiem("mốc neo lấy THẲNG từ kho — có cả đỉnh/đáy nến, không chỉ mép zone",
+     {"close", "open", "high", "low", "zone_HH", "zone_LL"} == set(core.MOC_ENTRY),
+     f"— {sorted(core.MOC_ENTRY)}")
+kiem("`ma` KHÔNG có mặt: neo vào MA thì phải nói chu kỳ, mà số ẩn là thứ bị cấm",
+     "ma" not in core.MOC_ENTRY)
 kiem("Vào lệnh thiếu MỐC NEO → báo lỗi",
      any("MỐC NEO" in m for m in loi_hd(
-         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "lot": 0.01,
+         {"type": core.VAO_LENH, "huong": "mua", "loai": "stop", "rui_ro": 0.5,
           "dem": {"tinh": "atr", "value": 0.1},
           "sl": {"tinh": "atr_zone", "value": 1.5}})))
 # `dong_mot_phan` và `trailing` ĐÃ BỎ — chưa từng chạy qua một bài kiểm nào, và
@@ -543,10 +638,10 @@ _ma = {"ten": "ma", "tf": "M5", "period": 50, "method": "SMA"}
 kiem("file cũ có vế phải là ĐẠI LƯỢNG → cờ tự bật",
      _dk({"ten": "close", "tf": "M5"}, _ma, ">")["so_dai_luong"] is True)
 kiem("file cũ có vế phải là SỐ → không gắn cờ",
-     "so_dai_luong" not in _dk(_atr, {"value": 7, "tinh": "bps"}))
+     "so_dai_luong" not in _dk(_atr, {"value": 7, "tinh": "atr_nen"}))
 
 # Cờ QUYẾT ĐỊNH hình dạng, không phải từng dòng tự khai.
-_bat = _dk(_atr, {"value": 7, "tinh": "bps"}, co=True)
+_bat = _dk(_atr, {"value": 7, "tinh": "atr_nen"}, co=True)
 kiem("bật cờ: vế phải là SỐ cũng bị viết lại thành đại lượng",
      _bat["conditions"][0]["phai"] == {"ten": ""},
      f"— {_bat['conditions'][0]['phai']}")

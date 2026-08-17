@@ -1,27 +1,30 @@
 """KHO — danh mục mọi thứ app tính được, gom từ các module con.
 
     kho/
-      nen_tang.py     giá · thời gian · tài khoản · lệnh này   (không thuộc engine nào)
-      chi_bao.py      ATR · MA · Donchian · Volume MA          (chỉ báo phổ thông)
-      engine_d02.py   atr_bps · bảng vùng nén                  (ý tưởng riêng của D_02)
+      nen_tang.py     giá · sổ lệnh · lệnh này     LUÔN có
+      chi_bao.py      ATR · MA                     ai gọi thì có
+      zone.py         vùng giá + máy nuôi vùng     có khi SƠ ĐỒ định nghĩa nó
 
 Vì sao tách ra chứ không để một danh sách phẳng trong `core.py`:
 
-  · `zone_dem` CHỈ có nghĩa khi engine D_02 đang nạp. Trộn nó chung với `close` là
-    nói dối về việc thứ gì luôn có, thứ gì đến từ một chiến lược cụ thể.
-  · Thêm một chiến lược mới = thêm MỘT file vào đây, không sửa `core.py`.
+  · `zone_dem` CHỈ có nghĩa khi sơ đồ có cổng zone. Trộn nó chung với `close` là nói
+    dối về việc thứ gì luôn có, thứ gì phải được định nghĩa ra mới có.
+  · Thêm một cơ chế mới = thêm MỘT file vào đây, không sửa `core.py`.
   · Hộp thoại "Kho" chỉ việc đọc `danh_muc()` — nó không cần biết gì thêm.
 
-Trùng khoá là LỖI CHẾT NGƯỜI, nên bắt ngay lúc import: hai engine cùng khai `atr` với
+Trùng khoá là LỖI CHẾT NGƯỜI, nên bắt ngay lúc import: hai module cùng khai `atr` với
 hai nghĩa khác nhau thì mọi chiến lược dùng nó đều sai mà không báo gì.
+
+⚠ KHÁI NIỆM "ENGINE" ĐÃ TAN. `engine_d02.py` bị xoá: cơ chế vùng vốn là ý tưởng riêng
+của D_02, nhưng nó đã tổng quát hoá xong từ lâu (`moi_nen()` rỗng, điều kiện đếm nằm ở
+cổng người dùng vẽ). Còn giữ một module mang tên một chiến lược cụ thể chỉ tổ khiến
+người đọc tưởng phải "chọn engine". Bảng số của D_02 đi theo sơ đồ mẫu. Xem core.md
+§15.3 · §15.4.
 """
-from . import chi_bao, engine_d02, nen_tang
+from . import chi_bao, nen_tang, zone
 
 # Thứ tự CÓ Ý NGHĨA: dropdown toán hạng xổ ra theo đúng thứ tự này.
-MODULE = [nen_tang, chi_bao, engine_d02]
-
-# Module nào là ENGINE (mang ý tưởng chiến lược) — dùng để chia mục trong hộp thoại Kho.
-ENGINE = [engine_d02]
+MODULE = [nen_tang, chi_bao, zone]
 
 
 def _gom(ten_thuoc_tinh):
@@ -55,19 +58,22 @@ TOAN_HANG_KEYS = [t["key"] for t in TOAN_HANG]
 THEO_KEY = {t["key"]: t for t in TOAN_HANG}
 NHOM_LENH_NAY = "Lệnh này"
 
-#: Toán hạng chỉ có nghĩa khi ĐANG CÓ ZONE — gom từ chính các engine khai
-#: (`ENGINE_TRA_LOI`), không chép tay.
+#: Toán hạng nào do MÁY VÙNG trả lời. Một cái tên cho cả app, `bo_chay` cũng đọc nó.
+ZONE_TRA_LOI = zone.ZONE_TRA_LOI
+
+#: Toán hạng chỉ có nghĩa khi ĐANG CÓ ZONE — gom từ chính module khai (`ZONE_TRA_LOI`),
+#: không chép tay.
 #:
 #: ⚠ `core.TOAN_HANG_CAN_ZONE` từng là một tuple gõ tay, và nó đã lệch thật: còn sót
 #: `zone_range_atr`, một toán hạng đã bị gỡ khỏi kho từ lâu. Hai nơi cùng trả lời
 #: "cái nào cần zone" thì sớm muộn một nơi nói sai — mà `bo_chay` cũng đọc
-#: `ENGINE_TRA_LOI`, nên bản gõ tay là nguồn thứ hai không ai đồng bộ.
-#: Cộng thêm toán hạng TỰ KHAI `can_zone` — thứ không do engine trả lời nhưng vẫn vô
+#: `ZONE_TRA_LOI`, nên bản gõ tay là nguồn thứ hai không ai đồng bộ.
+#: Cộng thêm toán hạng TỰ KHAI `can_zone` — thứ không do máy vùng trả lời nhưng vẫn vô
 #: nghĩa khi chưa có zone (`lenh_thuoc_zone` hỏi "zone đẻ ra lệnh này còn hiện hành
 #: không"). Khai tại nguồn, cùng chỗ với `don_vi` / `tabs` / `dung_sai`, để không sinh
 #: ra một danh sách gõ tay thứ hai — đúng cái bẫy chú thích ngay trên vừa kể.
 CAN_ZONE = tuple(dict.fromkeys(
-    [k for m in MODULE for k in getattr(m, "ENGINE_TRA_LOI", ())]
+    [k for m in MODULE for k in getattr(m, "ZONE_TRA_LOI", ())]
     + [t["key"] for t in TOAN_HANG if t.get("can_zone")]))
 
 
@@ -100,7 +106,6 @@ def danh_muc():
             "ma_so": m.MA_SO,
             "ten": m.TEN,
             "mo_ta": m.MO_TA,
-            "la_engine": m in ENGINE,
             "nguon": getattr(m, "NGUON", ""),
             "so_chi_bao": len(getattr(m, "CHI_BAO", [])),
             "so_toan_hang": len(getattr(m, "TOAN_HANG", [])),

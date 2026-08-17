@@ -67,7 +67,7 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
           {theoNguon.map(({ m, nhom, chi_bao, bang }) => (
             <Muc key={m.ma_so}
                  ten={m.ten}
-                 phu={m.la_engine ? 'ENGINE' : 'dùng chung'}>
+                 phu={m.nguon ? 'có nguồn' : 'dùng chung'}>
               <div className="kho-mota">{m.mo_ta}</div>
               {m.nguon && <div className="kho-nguon">nguồn: <code>{m.nguon}</code></div>}
 
