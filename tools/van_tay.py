@@ -32,7 +32,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 GOC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, GOC)
 
-from cat_studio import api, bo_chay as bc, core, kho, nguon_nen as nn   # noqa: E402
+from cat_studio import api, bo_chay as bc, core, kho, nguoi_bay as nb   # noqa: E402
+from cat_studio import nguon_nen as nn   # noqa: E402
 
 FILE = os.path.join(GOC, "tai_lieu", "van_tay.json")
 
@@ -68,20 +69,47 @@ def _thu_thap():
     ra["mau_the"] = [core.action_display(s)
                      for tab in core.TABS for s in doc[tab]["steps"]]
 
+    # NGƯỜI BÀY — kho nước đi và trần độ phức tạp là thứ MỌI máy tìm dựng trên đó.
+    # Thêm một toán hạng vào kho hay đổi một nấc thang là kho nước đi đổi theo, và
+    # một mạng đã học phải học lại (§18.7.2) — đúng loại thay đổi phải lộ ra.
+    #
+    # Kèm chuỗi nước đi của SƠ ĐỒ MẪU: nó là vân tay của CẢ HAI CHIỀU cùng lúc — đọc
+    # ngược đổi hay dựng xuôi đổi đều làm nó lệch.
+    ra["nguoi_bay"] = {
+        "so_nuoc": len(nb.KHO_NUOC_DI),
+        "theo_loai": {k: sum(1 for n in nb.KHO_NUOC_DI if n[0] == k)
+                      for k in sorted({n[0] for n in nb.KHO_NUOC_DI})},
+        "thang": {k: list(v) for k, v in nb.THANG.items()},
+        "tran": dict(nb.TRAN),
+        "mau_chuoi": [list(map(str, nb.KHO_NUOC_DI[i]))
+                      for i in nb.doc_nguoc(doc, lam_tron=True)[0]],
+    }
+
     ra["backtest"] = {}
     luat = api._luat_san(SYMBOL, {})
     for n in NAM:
         tu, den = f"{n}-01-01", f"{n + 1}-01-01"
         nen = nn.doc(SYMBOL, tu, den)
         if not len(nen):
-            ra["backtest"][n] = "KHÔNG CÓ NẾN"
+            ra["backtest"][str(n)] = "KHÔNG CÓ NẾN"
             continue
-        cd = bc.CaiDat(symbol=SYMBOL, tu=tu, den=den, point=0.001, digits=3,
+        # ⚠ VIẾT CỨNG cả bốn số của symbol, CỐ Ý — không đọc từ meta kho nến. Vân tay
+        # phải đổi khi MÃ NGUỒN đổi, không phải khi ai đó tải lại nến (`spread_tb` được
+        # đo lại mỗi lần tải). Bốn số này là số thật của XAUUSD, chép từ meta một lần.
+        #
+        # ⚠ `contract_size` từng bị QUÊN ở đây và bài này vẫn chạy — nó lặng lẽ ăn số
+        # mặc định của `CaiDat`, mà số ấy tình cờ đúng bằng 100. Ngày đổi mặc định
+        # thành số giả (§16.3) là vân tay lệch toác: vốn 10.125 → 1.920. Chính cái lưới
+        # này suýt bị thủng bởi đúng loại lỗi nó sinh ra để bắt.
+        cd = bc.CaiDat(symbol=SYMBOL, tu=tu, den=den,
+                       point=0.001, digits=3, contract_size=100.0,
                        spread_diem=97, commission=3.5, deposit=10_000.0, **luat)
         tk = bc.chay(doc, nen, cd).thong_ke
         # `drawdown_luc` là một MỐC THỜI GIAN, không phải kết quả — bỏ ra để vân tay
         # không đổi chỉ vì kho nến được tải thêm vài nến ở đuôi.
-        ra["backtest"][n] = {k: tk[k] for k in sorted(tk) if k != "drawdown_luc"}
+        # Khoá là CHỮ: file JSON đọc lại chỉ có khoá chữ, để int vào đây thì phần so
+        # sánh bên dưới tra trượt và in ra "cũ null" thay vì chỗ đổi thật.
+        ra["backtest"][str(n)] = {k: tk[k] for k in sorted(tk) if k != "drawdown_luc"}
     return ra
 
 

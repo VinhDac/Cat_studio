@@ -385,7 +385,7 @@ hay không) và bộ chạy (đi thế nào). Hai bên tự suy riêng là sớm
 Đây là chỗ dễ hỏng ngầm nhất, vì cả hai đi qua đúng một đoạn mã trong `_chay_so_do`:
 
 ```
-nhánh HOẶC  →  đi tiếp = THỬ PHƯƠNG ÁN KHÁC   → đã chạm thị trường thì CẤM (§12.5a)
+nhánh HOẶC  →  đi tiếp = THỬ PHƯƠNG ÁN KHÁC   → đã chạm thị trường thì CẤM (§12.5)
 nhánh VÀ    →  đi tiếp = LÀM NỐT VIỆC ĐÃ ĐỊNH  → không phải lùi, nên không cấm
 ```
 
@@ -1010,7 +1010,7 @@ lọc tin · sizing theo % vốn · martingale · sửa lệnh chờ sau khi đ�
   rồi thì vùng vẫn nới rộng mỗi nến mà không bị kiểm lại — nên khi `Max_Positions` hoặc `SIDEWAY`
   chặn, entry của nến sau trôi ra xa và lệnh vẫn được đặt dù vùng đã rộng hơn `Range_Max_ATR`.
   Phép kiểm nằm lọt trong nhánh `cur == COMP_COUNTING` nên trông giống sơ suất hơn là chủ ý.
-  **Ta không chép** — xem §12.6a.
+  **Ta không chép** — xem §12.6.
 
 ---
 
@@ -2150,7 +2150,7 @@ trung vị (không phải trung bình — vài nến tin tức giãn gấp chụ
 để ô spread trong Cài đặt gợi ý đúng thay vì bắt người dùng đoán.
 
 **`lo_hong()` — thứ luật vùng nén cần.** Một tháng XAUUSD có **26 lỗ**, dài nhất **3.083 phút
-(~51 giờ)**, và bốn cái dài nhất đều là cuối tuần. Đây chính là bằng chứng cụ thể cho §12.6b:
+(~51 giờ)**, và bốn cái dài nhất đều là cuối tuần. Đây chính là bằng chứng cụ thể cho §12.6:
 không cắt vùng nén ở lỗ hổng thì máy sẽ đếm "nến liên tiếp" xuyên qua 51 giờ chợ đóng cửa.
 
 **Một cái bẫy đã bắt được lúc chạy thật:** xin một khoảng **rời hẳn** dải đang có mà chỉ tải phần
@@ -4540,6 +4540,84 @@ thật sự xảy ra**. Tốn: ~7 MB thêm (trên 85 MB) và **phải tải lạ
 **Hoãn có chủ ý.** Nhưng ghi lại một điều: *không làm thì không có cách nào biết nó lệch bao
 nhiêu* — nên đây là món nợ đã biết, không phải một chỗ đã yên.
 
+### 16.3 ✅ Hạng mục 3 — SYMBOL: `point` · `contract_size` · `digits` thiếu thì NỔ
+
+> Phát hiện lúc bàn §18 (bộ sinh), khi hỏi *"hệ thống có dính chặt vào XAUUSD không"*.
+> Câu trả lời hoá ra là **có**, ở đúng bốn dòng — và cả bốn đều hỏng **im lặng**.
+
+`api.py` từng dựng `CaiDat` thế này, ở **cả hai** đường (Tester và Live):
+
+```python
+point=m.get("point") or 0.01           # kho nến XAUUSD ghi 0.001
+contract_size=m.get("contract_size") or 100.0
+digits=m.get("digits") or 2            # kho nến XAUUSD ghi 3
+```
+
+⚠ **Mấy con số dự phòng ấy SAI cho chính XAUUSD.** Chúng chưa nổ chỉ vì kho nến hiện tại có
+đủ meta. Thêm một symbol thiếu meta là chạy bằng số bịa, không một dòng báo.
+
+Đo, sơ đồ mẫu 2025, chỉ thay `point` 0,001 → 0,01:
+
+| | lãi %vốn | số lệnh |
+|---|---|---|
+| meta thật | **+1,25%** | 284 |
+| số dự phòng | **−8,48%** | 52 |
+
+Thủ phạm là **`point`** (hai cái kia gần như vô hại: `digits` sai cho kết quả y hệt,
+`contract_size` sai 10× cho +2,69%). `point` nhân vào **spread**, **`stops_level`** và
+**trượt giá** — sai 10 lần thì spread `0,097 $` thành `0,970 $`, và 232 trong 284 lệnh biến
+mất.
+
+**Đã sửa — bốn chỗ, cùng một nếp với `_spread` (§16.2): thiếu thì NÓI TO.**
+
+| chỗ | trước | nay |
+|---|---|---|
+| `api._thong_so` | *(chưa có)* | ba số một bộ, thiếu **bất kỳ** cái nào là `RuntimeError` kèm số đo |
+| `api` Tester + Live | `or <số bịa>` | `**_thong_so(sym, m)` |
+| `bo_chay.PhienChay` | `cd or CaiDat()` | `cd` **bắt buộc** |
+| `phien_live.PhienLive` | `cd or CaiDat(symbol=…)` | `cd` **bắt buộc** |
+
+Hai dòng `cd or CaiDat()` không caller nào dùng, nhưng chúng là cái cửa để một phiên **LIVE**
+chạy bằng point giả. Bỏ hẳn.
+
+#### Mặc định của `CaiDat` nay là SỐ GIẢ, cố ý
+
+```
+spread_diem  20.0 → 0.0      point  0.01 → 1.0      contract_size  100.0 → 1.0
+```
+
+Nghĩa: *một đơn vị giá = một điểm, không mất phí gì*. Bộ test dùng chúng để số học đọc ra
+bằng mắt. Điểm chính: **chúng không được giống bất kỳ symbol thật nào**.
+
+⭐ **Một con số sai mà trông hợp lý là loại tệ nhất.** Mặc định cũ trông y như XAUUSD nên
+không ai soi; mặc định giả thì nhìn phát biết ngay. Đường thật đi qua `_thong_so` và
+`_spread`, cả hai **nổ** chứ không rơi về mặc định.
+
+#### ⚠ Chính cái lưới suýt bị thủng bởi lỗi nó sinh ra để bắt
+
+`tools/van_tay.py` **quên truyền `contract_size`** — và bài vẫn xanh suốt, vì nó lặng lẽ ăn
+mặc định `100.0`, tình cờ đúng. Đổi mặc định thành số giả là vân tay lệch toác: *vốn cuối
+10.124 → 1.920, sụt vốn 9,2% → 81%*.
+
+Bài học không phải "van_tay viết ẩu", mà là: **một mặc định trông đúng khiến chỗ quên không
+bao giờ lộ ra.** Nay `van_tay` viết cứng cả bốn số (cố ý không đọc meta — vân tay phải đổi
+khi *mã nguồn* đổi, không phải khi ai đó tải lại nến).
+
+Kèm theo, một lỗi thứ hai lộ ra ở đúng lúc tệ nhất: `van_tay` cất khoá năm bằng **số**, đọc
+lại từ JSON thành **chữ**, nên phần in ra chỗ đổi tra trượt và in `cũ null` thay vì hai con
+số cần so. Một công cụ giải thích sai đúng lúc cần nó giải thích. Đã ép về khoá chữ.
+
+#### Thêm một symbol mới thì cần gì
+
+Không cần đụng mã. Cần **dữ liệu đủ**, và app sẽ tự nói khi thiếu:
+
+| | thiếu thì | ai bắt |
+|---|---|---|
+| `point` · `contract_size` · `digits` | nổ, kèm số đo | `api._thong_so` |
+| `spread` | nổ, kèm số đo | `api._spread` (§16.2) |
+| `lot_min` · `lot_buoc` · `lot_max` · `stops_level` | rơi về ô gõ tay rồi về mặc định | `api._luat_san` (§16.1) |
+| mật độ nến M1 thật | *chưa ai bắt* — phải tự soi, §15.0 | — |
+
 ---
 
 ---
@@ -4713,12 +4791,9 @@ vẽ sai.
 - [ ] **Nhiều zone cùng lúc** — hoãn có chủ ý, §15.11.
 - [ ] **Tên tham số gợi ý xấu**: `nguong_atr_atr_nen` (bộ sinh tên ghép `nguong_{toán
       hạng}_{đơn vị}`). Cosmetic, nhưng người dùng nhìn thấy.
-- [ ] **Sang bước LUẬT CHƠI** — bốn thứ, cả bốn đều là đầu vào của bước PHẦN THƯỞNG:
-      **(1)** chốt chặn *"R phải lớn hơn chi phí vào-ra"* (§15.13a — lỗ hổng nặng nhất);
-      **(2)** spread còn ba con số (20 / 90 / 97);
-      **(3)** chưa có mô hình trượt giá;
-      **(4)** chưa chốt khoảng train/val/test — và kho nến chỉ có **5 năm rưỡi M1 thật**,
-      không phải 10 năm như meta ghi (§15.0).
+- [x] ~~**Sang bước LUẬT CHƠI**~~ — **XONG**, cả bốn: **(1)** chi phí vào-ra §16.2;
+      **(2)** spread một nguồn duy nhất, thiếu thì nổ §16.2; **(3)** mô hình trượt giá
+      §16.2; **(4)** khoảng train/khoá §18.3, lấy theo M1 **thật** đúng như §15.0 cảnh báo.
 
 #### Hai file chiến lược của người dùng — đã di cư
 
@@ -4741,6 +4816,850 @@ có đúng một câu trả lời: `bps` → `× ATR nền` (0,75) và `lot` →
    (`ket_thuc`), tức mọi lệnh đã khớp bị đóng ngay lượt Manage đầu tiên. Tên các khối đọc
    ra như một lựa chọn năm đường; hình vẽ thì nói *làm cả năm*. Muốn "chọn một" thì mỗi
    nhánh phải mở đầu bằng một **cổng**.
+
+---
+
+## 18. ⭐⭐ BỘ SINH — máy được đổi những gì
+
+> §15 dựng **kho đồ**, §16 dựng **luật sàn**, §17 dựng **luật kết hợp**. Ba mục đó là cái
+> hộp. Mục này bắt đầu nói về thứ chạy trong hộp.
+>
+> **18.1** máy đổi gì · **18.2** chấm điểm · **18.3** dữ liệu ⏸ · **18.4** thông lượng ·
+> **18.5** cách tìm · **18.6** cửa sổ RL · **18.7** ✅ người bày *(đã cài)*
+>
+> **Còn thiếu để cửa sổ RL có thứ để hiển thị — ba món, xem §18.8.**
+>
+> ⭐ **CORE là BỐN thứ, và chỉ bốn:** kho đồ (§15) · luật chơi (§16, §17) · cách chấm
+> (§18.2) · dữ liệu (§18.3). Dò ngẫu nhiên, tiến hoá và RL là ba cách bới **cùng một không
+> gian**, chấm bằng **cùng một thước**, trên **cùng một dữ liệu** — nên thuật toán tìm
+> **không thuộc core**, và không chốt ở giai đoạn này (§18.5). Thông lượng (§18.4) là số đo
+> của máy, không phải quyết định thiết kế.
+
+⭐ **Ta không dạy máy đoán giá.** Ta cho máy vẽ sơ đồ trong đúng kho đồ và luật chơi vừa
+dựng, rồi chấm điểm cái nó vẽ ra. Đầu ra là **một sơ đồ đọc được**, không phải một mô hình
+hộp đen — nếu nhìn vào kết quả mà không hiểu nó làm gì thì bộ sinh đã hỏng, dù điểm cao.
+
+### 18.1 ✅ Ba thứ máy đổi được — và số thì lấy từ THANG, không dò tự do
+
+```
+1. khối nào      cổng · vào lệnh · sửa lệnh
+2. nối thế nào   ai đi trước ai, nhánh nào rẽ đâu
+3. số nào        SL · TP · ngưỡng · rủi ro · số nến
+```
+
+Hai cái đầu là **logic** — đó mới là thứ đáng đi tìm. Cái thứ ba là số, và số phải chọn từ
+một **thang thưa có sẵn**:
+
+| ô | thang | đơn vị |
+|---|---|---|
+| SL | 0,5 · 1 · 1,5 · 2 · 3 | `× ATR zone` / `× ATR` |
+| TP | 1 · 1,5 · 2 · 3 · 5 | `× R` |
+| ngưỡng | 0,25 · 0,5 · 0,75 · 1 · 1,5 · 2 | theo `don_vi` của toán hạng |
+| rủi ro | 0,25 · 0,5 · 1 | `%` vốn |
+| đếm nến | 1 · 2 · 3 · 5 · 8 · 13 | `nến` |
+
+#### Vì sao thưa — đo được, không phải cảm tính
+
+Dò SL trên **một năm** (2025) bằng thang mịn bước 0,1 từ 1,0 đến 3,0 — đúng cái việc
+"optimize tham số" — rồi đem con số thắng cuộc sang những năm **chưa hề dùng để dò**:
+
+| | SL 1,5 *(mặc định)* | SL 3,0 *(thang thô)* | SL 2,7 *(thang mịn)* |
+|---|---|---|---|
+| **2025** — năm đi dò | | +46,82 | **+58,23** ← thắng |
+| 2022 | +4,10 | +13,69 | +9,50 |
+| 2023 | −40,12 | −3,42 | −2,31 |
+| 2024 | −26,30 | −18,92 | −20,49 |
+| **tổng 3 năm chưa thấy** | −62,32 | **−8,65** | −13,30 |
+
+Đọc bảng này ra **hai thứ khác hẳn nhau** nằm trong cùng một cuộc dò:
+
+```
+1,5 → 3,0    hướng đi       THẬT   −62 → −9, thấy ở mọi năm
+3,0 → 2,7    độ chính xác   NHIỄU  hai nấc cạnh nhau lệch trung bình 5,11 R
+```
+
+Nấc `2,6 · 2,7 · 2,8` cho `+49 · +58 · +48`. Cái bướu ở `2,7` chỉ là vài lệnh may không bị
+quét râu nến. **Thang thô bắt trọn phần thật và bỏ phần nhiễu** — mà lại còn ra kết quả
+tốt hơn ngoài mẫu.
+
+⚠ **Chuẩn hoá KHÔNG cứu được chuyện này, và đây là chỗ rất dễ lẫn.** §15 làm cho con số
+*mang cùng một nghĩa* ở mọi thị trường, mọi năm — nó giải bài toán **mang đi được**. Nó
+không đụng gì tới bài toán **khớp với chính bộ dữ liệu đã dùng để chọn**: `2,7 × ATR zone`
+mang đi tốt y như `3,0`, và vẫn là con số của riêng năm 2025.
+
+#### Nhưng overfit không biến mất — nó DỜI sang logic
+
+```
+không gian SỐ      SL 5 × TP 5 × ngưỡng 6 × rủi ro 3      ≈ 450
+không gian LOGIC   22 toán hạng · 4 khối · 12 điều kiện   ≈ hàng tỉ
+```
+
+Dò 450 con số trên 5 năm thì khó ăn may. Dò hàng tỉ sơ đồ thì **chắc chắn** có cái trúng
+khớp lịch sử mà chẳng có lý gì. Nên logic vừa là thứ đáng đi tìm nhất, vừa là thứ phải canh
+chặt nhất — và nó được canh bởi hai thứ, không phải thang số:
+
+| canh bằng | ở đâu |
+|---|---|
+| **luật kết hợp** — cắt sẵn phần lớn sơ đồ vô nghĩa | §17, đã xong |
+| **chấm điểm + dữ liệu chưa thấy** | §18.2 · §18.3 |
+
+Thang thô chỉ làm hai hàng rào đó phải gánh ít hơn. Nó không phải hàng rào chính.
+
+⚠ **Thang chưa nằm trong mã.** Chưa có bộ sinh nên chưa có chỗ đặt. Cùng cảnh với trần độ
+phức tạp (§15.5) — cả hai vào cùng lúc với bộ sinh, và khi vào thì phải **sinh từ một bảng
+duy nhất** trong `core.py`, không chép tay ở hai nơi.
+
+### 18.2 ✅ Chấm điểm — bằng TIỀN, theo TUẦN
+
+```
+mỗi tuần kiếm/mất bao nhiêu % vốn
+    → trung bình   ·   dao động (SD)   ·   trung bình ÷ dao động
+```
+
+Ba con số đó là điểm. Xem thêm theo **tháng** cho dễ đọc, nhưng chấm theo **tuần**.
+
+⭐ **Vì sao theo TUẦN chứ không phải tổng cả kỳ:** một chiến lược ăn đậm một đợt rồi trả
+lại đợt khác, cộng lại vẫn dương — nhưng nó không sống được. Cái sống được là cái kiếm
+**đều**. Tổng cả kỳ là một con số, nó không phân biệt được hai chuyện đó. Chuỗi theo tuần
+thì có: cùng một mức lãi, cái nào dao động thấp hơn là cái tốt hơn.
+
+**"Risk" = dao động (SD), không phải lỗ trung bình.** SD phạt **cả hai phía**: một chiến
+lược có tuần +5% nằm cạnh tuần −3% là chiến lược sớm muộn trả lại chỗ đã ăn. `Lỗ trung bình
+tuần` vẫn hiện ra cho người đọc, nhưng không dùng để chấm.
+
+#### 18.2a ⚠ CỬA BẮT BUỘC — tuần có lệnh ≥ một nửa
+
+```
+số tuần CÓ lệnh đóng  <  ½ số tuần   →   LOẠI THẲNG, không chấm
+```
+
+⚠ **Câu này từng nằm ở đây và nó SAI, ghi lại để đừng ai tin lại:** *"đánh quá ít lệnh thì
+nhiều tuần trắng tự kéo trung bình xuống, không cần cửa phụ nào"*.
+
+Đo mới bắt được. Đi từng nấc thang cho tham số `nguong_nen` trên TRAIN 3,5 năm:
+
+| ngưỡng | điểm | số lệnh |
+|---|---|---|
+| **0,25** | **−0,0739** ← cao nhất cả bảng | **1** |
+| 0,75 *(sơ đồ mẫu)* | −0,1764 | 929 |
+
+**Một sơ đồ vào đúng MỘT lệnh trong 3,5 năm ăn điểm cao hơn sơ đồ vào 929 lệnh.** Và đó
+không phải trùng hợp — nó là số học thuần:
+
+```
+1 tuần có lệnh trong N tuần  →  điểm = ±1/√(N−1) = ±1/√182 = ±0,0741
+                                            (đo được: −0,0739)
+```
+
+⭐ **Kết quả KHÔNG phụ thuộc lệnh đó lãi hay lỗ bao nhiêu.** Tuần trắng làm co **cả** trung
+bình **lẫn** dao động theo đúng một tỉ lệ, nên thương số sống sót nguyên vẹn. Nằm im được
+điểm đẹp, và đó là điểm **rẻ nhất** để đạt tới — bất kỳ máy tìm nào cũng sẽ vồ ngay.
+
+Vá bằng một **cái cửa**, không phải sửa công thức: sửa công thức là bịa thêm một phép toán
+để chữa một triệu chứng; cái cửa nói thẳng ra điều kiện — *chiến lược phải thật sự chơi*.
+
+| | tuần trắng | qua cửa? |
+|---|---|---|
+| sơ đồ mẫu | 1/236 | ✔ |
+| sơ đồ một lệnh | 235/236 | ✘ |
+
+Đây cũng đúng thứ người dùng nói ngay từ đầu khi mô tả cách chấm mình muốn: *"kiếm tiền
+đều và ổn định mới sống"*.
+
+#### 18.2b ⚠ `tổng R` KHÔNG dùng để chấm — nó mù chi phí hoa hồng
+
+`bo_chay.py::_thong_ke` tính hai thứ từ hai nguồn khác nhau, và đó là chủ ý:
+
+```python
+tien = (gia_dong - gia_khop) * chieu * lot * contract_size
+tien -= commission * lot           # TIỀN có trừ phí
+r    = (gia_dong - gia_khop) * chieu / R     # R chỉ có GIÁ
+```
+
+R đo *giá đi được bao nhiêu lần khoảng SL*. Phí hoa hồng là **tiền**, không phải khoảng
+giá — nên nó không bao giờ vào R. Spread và trượt giá thì CÓ (chúng dời giá khớp); phí thì
+không. Đây không phải lỗi, là định nghĩa. Nhưng nó khiến R **không dùng để chấm được**.
+
+Đo: một chiến lược, một năm (2025), chỉ đổi phí:
+
+| phí $/lot | tổng R | lãi thật | % vốn | sụt vốn |
+|---|---|---|---|---|
+| 0 | +6,65 | +299 $ | +3,00% | 8,96% |
+| 3,5 | **+7,28** | +124 $ | +1,25% | 9,21% |
+| 7 | +5,92 | −121 $ | −1,21% | 10,40% |
+| 20 | +2,51 | −806 $ | −8,06% | 12,85% |
+| 50 | **+2,99** | **−2063 $** | **−20,64%** | 23,17% |
+
+- phí 0 → 3,5: tiền **giảm** 175 $, `tổng R` lại **tăng**.
+- phí 50: tài khoản mất **một phần năm**, `tổng R` vẫn báo **+2,99 — có lãi**.
+
+Phí ăn **0,0122 R mỗi lệnh** trong khi cả chiến lược chỉ kiếm **0,026 R mỗi lệnh** — gần
+một nửa kỳ vọng, và `tổng R` không thấy gì.
+
+Lần thứ hai, trên 4,5 năm: `SL 3,0` được `tổng R` khen **+25,38 R**, tiền thật **+0,27%** —
+gần như huề vốn.
+
+*(Cột R có nhúc nhích chút ít vì hoà vốn nay có cộng chi phí — §17.7 — chứ không phải R
+biết tính phí. Nhúc nhích không theo chiều nào: nhiễu, càng không chấm được.)*
+
+⭐ **R giữ nguyên vai trò cũ và vẫn rất cần** — nó là đơn vị để **ra lệnh** (`TP 2 × R`) và
+để so một lệnh với một lệnh. Nó chỉ không phải đơn vị để chấm một **chiến lược**.
+
+#### 18.2c Số đo trên 4,5 năm M1 thật — cách chấm này có phân biệt được không
+
+`2021-07 → 2026-01` · 236 tuần · 54 tháng · sơ đồ mẫu, chỉ đổi SL:
+
+| | SL 1,5 | SL 3,0 |
+|---|---|---|
+| cả kỳ | −38,06% vốn | +0,27% vốn |
+| *(tổng R — để đối chiếu)* | *−62,03 R* | *+25,38 R* |
+| **trung bình tuần** | −0,161% | +0,001% |
+| **dao động tuần** | 1,115% | 1,311% |
+| **return/risk tuần** | **−0,145** | **+0,001** |
+| lỗ trung bình tuần | −0,862% | −0,975% |
+| tuần trắng | 1/236 | 1/236 |
+| sụt vốn sâu nhất | 46,10% | 24,98% |
+
+### 18.3 ⏸ Dữ liệu — ĐÃ CHỐT một nửa, nửa còn lại CẤT LẠI có chủ ý
+
+⭐ **Đã chốt và không bàn lại:**
+
+| | |
+|---|---|
+| **KHOÁ** | phải có một đoạn **không bước nào chạm tới**, mở **đúng một lần**, lúc cuối |
+| **độ dài tối thiểu** | ≥ **48 tuần** — dưới ngưỡng đó con số là tung đồng xu, đo ở dưới |
+| **lấy theo M1 THẬT** | §15.0, không theo meta kho nến |
+
+⏸ **CẤT LẠI — cách chia phần còn lại.** Ba phương án đã bàn, không phương án nào **kiểm
+chứng được** cho tới khi có bộ sinh (§18.7). Ghi ra để khỏi bàn lại từ đầu:
+
+| | hình | được gì | mất gì |
+|---|---|---|---|
+| **hai phần** | train · khoá | train dài nhất (183 tuần) | chọn ứng viên ngay trên đoạn máy vừa đào |
+| **ba phần** | train · valid · khoá | valid **không** tham gia chọn lọc — đúng nếp DL: dừng lúc nào, giữ bản nào | train còn 130 tuần |
+| **cuốn tới** | train ban đầu → cuốn từng quý → khoá | **6 lần** chấm ngoài mẫu thay vì 1; đúng cách dùng thật | mỗi vòng tìm lại = ×6 thời gian |
+
+⚠ **Ba chỗ đã sai trong lúc bàn, ghi lại để đừng lặp:**
+
+1. *"Chia đôi train là đủ, khỏi cần valid"* — **sai**. Cả hai nửa đều tham gia chấm và lọc,
+   nên cả hai đều là train. Valid theo nghĩa DL là đoạn **không hề tham gia** vào việc cái
+   gì sống sót.
+2. *"Walk forward không dùng được"* — **sai**. Cái sai chỉ là **bước một tuần** (52%, đo ở
+   dưới). Đổi bước thành **quý** thì cấu trúc cuốn-tới đúng, và cho **nhiều** lần chấm ngoài
+   mẫu thay vì một — quan trọng vì xếp hạng chỉ chuyển được **+0,54** sang đoạn khác.
+3. *"236 tuần ÷ 48 = chỉ đủ 5 lần chấm"* — **sai**, xem cuối mục.
+
+#### Vì sao phải khoá — một tuần lẻ là tung đồng xu
+
+```
+cả kỳ:      SL 3,0 hơn SL 1,5 tới 38 điểm %   — rõ như ban ngày
+từng tuần:  SL 3,0 chỉ thắng ở 122/236 tuần   = 52%
+```
+
+Nhiễu đang gấp **7 lần** tín hiệu (`SD 1,115% ÷ |trung bình| 0,161%`), nên cần chừng
+**48 tuần ≈ 1 năm** thì trung bình mới nổi lên trên nhiễu. Đó là lý do đoạn khoá dài
+**một năm**, không phải một quý.
+
+⚠ **Một năm khoá đủ để bắt chiến lược CÓ BIÊN THẬT, không đủ để phân biệt hai chiến lược
+gần giống nhau.** Đừng đọc chênh lệch nhỏ ở đoạn khoá thành kết luận. Điểm test ngang ngửa
+train là **tin tốt**; vênh xa là máy đã học vẹt.
+
+#### Ý "walk forward theo tuần" nằm ở đâu
+
+Ý gốc: *máy sống qua từng tuần, tự xem kiếm/lỗ bao nhiêu, tích luỹ.* Giữ nguyên — nó nằm
+trong phần train. Chỉ có một chỗ phải nói rõ:
+
+| | |
+|---|---|
+| người thật | đi qua lịch sử **một** lần, không quay lại |
+| máy học | đi **đi lại** hàng nghìn lần trên cùng đoạn đó |
+
+Đi qua một lượt chỉ cho máy 236 tuần kinh nghiệm — không đủ để học gì. Nên *"walk forward
+theo tuần"* là **cách CHẤM**, không phải cách HỌC.
+
+Và máy **không được phản ứng với một tuần lẻ**:
+
+```
+BƯỚC   vẫn từng tuần một, vẫn không nhìn lại   ← giữ nguyên ý gốc
+CHẤM   trên cửa sổ ~1 năm gần nhất             ← không phải tuần vừa rồi
+```
+
+Đúng như người đánh thật không đổi hệ thống sau một tuần lỗ.
+
+⚠ **Một phép tính SAI đã suýt lọt vào đây, ghi lại để đừng ai tính lại:** *"236 tuần ÷ 48
+tuần = chỉ đủ 5 lần chấm"*. Sai. **Nhiều sơ đồ chấm chung một đoạn dữ liệu được** — dữ liệu
+không bị tiêu theo từng sơ đồ. 48 tuần là độ dài một **cửa sổ**, không phải giá tiền mỗi
+lần thử. Thứ bị tiêu là **tính "chưa thấy" của đoạn khoá**, và nó chỉ bị tiêu khi ta *nhìn*
+vào đó — nên luật chỉ có một dòng: mở đúng một lần.
+
+#### 18.3a ⭐ Hướng đi tiếp: NHIỀU SYMBOL, không phải nhiều lịch sử hơn
+
+236 tuần là giới hạn của **kho nến đang có**, không phải một định luật. App không phụ thuộc
+MT5 — MT5 chỉ là đường **đặt lệnh**; nguồn nến hoàn toàn thay được.
+
+⭐ **Nhiều symbol không phải là "nhiều dữ liệu hơn" — nó là BẰNG CHỨNG LOẠI KHÁC.** Thêm
+lịch sử XAU chỉ cho thêm tuần của cùng một thị trường. Thêm EUR, chỉ số, crypto thì hỏi
+được một câu khác hẳn: *sơ đồ này có phải chỉ đúng với vàng không?* Một sơ đồ ăn được trên
+XAU có thể là may; ăn được trên bốn thị trường khác nhau thì khó mà may.
+
+Đây chính là **thứ cả §15 làm ra để đổi lấy**: chuẩn hoá về `× ATR`, `× R`, `× ATR nền` là
+để con số mang cùng một nghĩa sang thị trường khác. Không dùng đa symbol thì công đó phí.
+
+**Chưa tải gì cả — việc của phase cốt lõi là chắc rằng lõi không dính symbol nào.** Đã soi
+và tìm ra bốn chỗ dính thật, đã bịt: **§16.3**. Nay thêm symbol chỉ là thêm file; thiếu dữ
+liệu thì app nổ kèm lời giải thích, không đoán.
+
+⚠ Cái giá phải nhớ trước: **mỗi symbol nhân thẳng vào thời gian chạy.** 17,2 s × 4 symbol
+= 69 s một lượt chấm (§18.4). Chốt bao nhiêu symbol là chốt luôn ngân sách tìm kiếm.
+
+### 18.4 ✅ Thông lượng — đủ, không cần làm gì
+
+Đo trên máy đang dùng, sơ đồ mẫu, đọc nến **không** tính vào (trả một lần rồi dùng lại):
+
+| khoảng | 1 lượt chấm | nến M1 |
+|---|---|---|
+| TRAIN 3,5 năm | **17,2 s** | 1,24 triệu |
+| 1 năm | 3,2 s | 353 nghìn |
+| 1 quý | 0,78 s | 86 nghìn |
+| *đọc nến* | *0,08 s* | |
+
+```
+8 nhân, một đêm (8 h)  →  ~10.000 sơ đồ chấm trên đủ 3,5 năm
+```
+
+Với không gian đã bị chặn bởi trần độ phức tạp (§15.5) và thang số thô (§18.1), chừng đó
+**đủ**. Không làm gì thêm.
+
+Sàn nhà nằm ở `bo_chay.mot_nhip` — chạy **một lần mỗi nến M1** bằng Python thuần. Muốn
+nhanh hơn nhiều lần thì phải viết lại lõi; chưa có bộ sinh thì chưa biết cần nhanh tới đâu,
+nên **không viết lại**.
+
+#### ⏸ Món nợ CÓ TÊN: backtest nhanh ~30× — nó chặn đúng một thứ
+
+| dùng cách nào | tốn | cần gì thêm |
+|---|---|---|
+| tìm một lượt, tiến hoá | 6 h | **không cần gì** |
+| cuốn tới 6 vòng, tiến hoá | ~36 h *(1,5 ngày)* | **không cần gì** |
+| cuốn tới 6 vòng, **DL thật** *(~100k lượt/vòng)* | ~15 ngày | **17,2 s → 0,6 s** |
+
+⚠ **GPU KHÔNG gỡ được cái tường này**, và đây là chỗ rất dễ tưởng nhầm *("DL thì phải dùng
+GPU chứ")*. Đo được: `mot_nhip` chiếm **98%** thời gian một lượt chạy (9,04 s / 9,19 s), là
+vòng lặp Python từng nến M1 — GPU không chạm được. Còn phần GPU chạm được thì bé tí:
+
+```
+backtest cho 10.000 sơ đồ         10.000 × 17,2 s   =  172.000 s
+mạng bắn 1.772 chiều, ~20 nước    200.000 lượt      ≈      200 s     ← 0,1%
+```
+
+Mua GPU về là tăng tốc cho 0,1%. Thứ phải mua là **backtest nhanh hơn** (hoặc nhiều nhân
+hơn — nó song song hoàn toàn theo ứng viên).
+
+30× là con số **đạt được**: vòng lặp Python từng nến là chỗ chậm nhất có thể, biên dịch hoặc
+vector hoá nó là việc đã biết cách làm, không phải nghiên cứu. **Nhưng không làm bây giờ** —
+tiến hoá chạy được ngay mà không cần, và chưa chạy thật lần nào thì chưa biết cần bao nhiêu.
+
+#### Hai thứ đã đo rồi CẤT ĐI, đừng làm sớm
+
+- **Sàng hai tầng** *(quý 0,78 s lọc trước, TRAIN 17,2 s chấm sau)* — nếu tầng 1 giết 90%
+  thì 6 h còn 0,9 h. Đã tính, **chưa làm**: đó là tối ưu cho một vấn đề chưa xảy ra. Nếu
+  ngày nào làm, luật sống còn là **tầng 1 chỉ được loại thứ HỎNG, không được loại thứ LỖ**
+  (0 lệnh · cháy tài khoản · sụt vốn > 50%). Một quý = 13 tuần, còn cần 48 (§18.3) — bắt
+  13 tuần chấm điểm là lặp lại đúng cái sai đã chứng minh ở §18.1.
+- **`so_lenh.zone_da_sinh_lenh` quét lại cả sổ lệnh mỗi lần hỏi** (6,7 triệu vòng cho 87
+  nghìn câu hỏi trên một năm). Thay bằng `set` thì kết quả **trùng khít** nhưng chỉ nhanh
+  hơn **1,11×** — đo rồi, không đáng đánh đổi thêm một nguồn sự thật lúc này.
+
+### 18.5 ✅ Cách tìm — CHƯA CHỐT, và đó là chủ ý
+
+⭐ **Thuật toán tìm KHÔNG thuộc core.** Core là bốn thứ: kho đồ (§15) · luật chơi (§16, §17)
+· cách chấm (§18.2) · dữ liệu (§18.3). Dò ngẫu nhiên, tiến hoá và RL là **ba cách bới cùng
+một không gian, chấm bằng cùng một thước, trên cùng một dữ liệu**. Đổi cái nào cũng không
+phải đụng xuống bốn thứ kia — nên không cần chốt bây giờ, và chốt sớm là tự trói.
+
+⚠ **Một khuyến nghị đã RÚT LẠI, ghi để đừng ai đào lên dùng:** *"dùng tiến hoá, không dùng
+RL"*. Nó đúng với **không gian hôm nay** (nhỏ, đã bị chặn bởi §15.5 và §18.1) nhưng sai khi
+đem làm quyết định kiến trúc — giai đoạn sau phình kho, phình luật thì phải đập đi làm lại.
+Kế hoạch từ đầu là *làm nền nhỏ mà chắc, rồi mới mở rộng*; chọn thuật toán là việc của lúc
+mở rộng.
+
+#### Thứ ĐÃ đo được và giữ lại: mặt điểm TRƠN
+
+Đi từng nấc thang §18.1 cho từng tham số của sơ đồ mẫu, chấm theo §18.2, trên TRAIN 3,5 năm:
+
+| tham số | khoảng điểm | số lần đổi chiều |
+|---|---|---|
+| SL `× ATR zone` | −0,204 … −0,070 | 1/3 |
+| TP `× R` | −0,230 … −0,096 | 1/3 |
+| ngưỡng cổng `× ATR nền` | −0,269 … −0,058 | 1/4 |
+| hoà vốn tại `× R` | −0,208 … −0,118 | 1/2 |
+| số vị thế tối đa | −0,176 … −0,139 | 0/2 |
+| rủi ro % vốn | −0,176 … −0,169 | 1/1 |
+
+**Cả sáu đều trơn** — đổi một nấc thì điểm nhích một chút, đổi chiều nhiều nhất một lần.
+Trơn nghĩa là *hàng xóm của sơ đồ tốt thì cũng tốt*, tức **leo dốc có tác dụng**. Đó là điều
+kiện để bất kỳ cách tìm có hướng nào (tiến hoá, RL) hơn được dò mù. Số đo này thuộc về
+**không gian**, không thuộc thuật toán — nên nó vẫn đúng dù sau này chọn cái gì.
+
+*(Chính phép đo này bắt được lỗ hổng §18.2c: dòng `ngưỡng 0,25` cho điểm cao nhất bảng với
+đúng 1 lệnh.)*
+
+#### Một sự thật của hệ này, ảnh hưởng mọi lựa chọn sau
+
+⭐ **Không có điểm giữa chừng.** Sơ đồ dựng dở không vào lệnh nào, nên **không chấm được**.
+Mọi cách tìm ở đây đều chỉ nhận đúng một con số ở cuối mỗi lượt. Hệ quả: MCTS và beam search
+không dùng được (chúng sống nhờ điểm của trạng thái dở dang), còn RL thì đói thưởng — không
+phải không làm được, nhưng phải biết trước.
+
+#### Việc còn lại của nền: §17 từ NGƯỜI SOÁT thành NGƯỜI BÀY
+
+Hôm nay `validate_flow_graph` là **người soát**: vẽ xong rồi mới nói đúng/sai. Thứ mọi cách
+tìm đều cần là **người bày**:
+
+```
+nuoc_di_hop_le(sơ đồ đang dở)  →  [thêm cổng X · nối vào nhánh Y · đặt SL nấc Z · …]
+```
+
+Cùng một tri thức (§17), đổi hình dạng. Phục vụ cả ba, không phải chọn một:
+
+| ai dùng | dùng thế nào |
+|---|---|
+| dò ngẫu nhiên | bốc bừa một nước trong danh sách |
+| tiến hoá | lùi vài nước rồi dựng lại khác đi |
+| RL | policy chấm từng nước rồi chọn |
+
+Kèm hai món lợi:
+
+- **Sơ đồ = một chuỗi nước đi.** Chuỗi ấy vừa là thứ để đột biến, vừa là thứ policy sinh ra,
+  vừa là thứ lưu lại để dựng lại y hệt. Một cách biểu diễn, ba việc. RL **bắt buộc** phải có
+  nó; tiến hoá thì không, nên xây kiểu người-bày ngay từ đầu là chỗ RL được chuẩn bị sẵn mà
+  không phải làm RL bây giờ.
+- **Sơ đồ hỏng không bao giờ được sinh ra**, thay vì sinh ra rồi tốn 17 s backtest mới biết
+  là rác.
+
+### 18.6 CỬA SỔ RL — bàn điều khiển, không phải một cái nút
+
+> Ý định người dùng, nguyên văn: *"ta không xây dựng 1 hệ thống cứng nhắc, ta đang làm 1
+> game/studio"*. Cửa sổ RL là chỗ **chơi**: bật tắt đồ nghề, chỉnh thưởng phạt, nhìn máy
+> học, can thiệp. Cửa sổ Home chỉ thêm một ribbon nhỏ để **mở sơ đồ ra xem**, không hơn.
+>
+> Bàn từng phần, chốt từng phần. Dưới đây là phần đã chốt.
+
+#### 18.6.1 ✅ Phần 1 — hai TẦNG: **LUẬT** không tắt được · **CHỌN** tắt thoải mái
+
+Chỗ này người dùng ghép nhầm hai thứ *(hỏi: "setup luật chơi — hình như là cái người bày
+bạn đang đề cập")*, và tách được chúng ra là việc đầu tiên phải làm, vì **cả cửa sổ dựng
+trên nó**: cái gì lên panel bật/tắt, cái gì không bao giờ được xuất hiện thành nút.
+
+| | là gì | ví dụ | chỉnh được? |
+|---|---|---|---|
+| **LUẬT** §17 | cái gì **HỎNG** | *sau `Kết thúc lệnh` không nối được gì nữa* | **không** |
+| **CHỌN** | cái gì bạn **MUỐN** lần này | *lần này đừng đụng zone* | **có** |
+
+⭐ **"Người bày" (§18.5) thuộc tầng LUẬT.** Nó chỉ đổi *hình dạng* của §17 từ **soát** sang
+**bày ra** — cùng một tri thức, không phải tri thức mới, nên không có gì để chỉnh. Cho tắt
+là cho máy vẽ sơ đồ **nói dối**: hình vẽ ba việc, lượt chạy làm một việc. Đó không phải sở
+thích, đó là hỏng — và §17 mở đầu bằng đúng câu ấy.
+
+Tầng CHỌN thì ngược lại, **nên chỉnh thoải mái**:
+
+```
+kho đồ        tắt/bật từng toán hạng, từng loại khối
+độ phức tạp   trần khối · nhánh · điều kiện              §15.5, đã chốt
+thang số      nấc nào cho SL, TP, ngưỡng, rủi ro         §18.1, đã chốt
+ưu tiên       ghét sụt vốn tới đâu, thèm lãi tới đâu
+dữ liệu       symbol nào, khoảng nào                     §18.3, §18.3a
+```
+
+#### Cách chấm cũng chia đúng hai tầng ấy
+
+| | |
+|---|---|
+| **khoá cứng** | chấm bằng **TIỀN, theo TUẦN** — vì `tổng R` mù phí, đo rồi (§18.2b); và cửa "tuần có lệnh" (§18.2a) |
+| **chỉnh được** | nặng tay với sụt vốn tới đâu, với lãi tới đâu |
+
+⭐ **Chỉnh được THÍCH GÌ, không chỉnh được ĐO BẰNG GÌ.** Cái thước không phải ý thích — đúng
+bất biến đã chốt từ §15: *"cái thước không được là tham số"*.
+
+⚠ Vì sao chỗ này đáng một mục riêng: một studio đúng nghĩa thì **nhiều nút là tốt**. Nhưng
+một nút cho phép tắt §17, hoặc cho phép chấm bằng `tổng R`, thì không phải nút — nó là con
+bọ có nhãn. Ranh giới nằm ở câu hỏi *"tắt cái này thì hệ thống nói dối, hay chỉ là chạy
+theo kiểu khác?"*
+
+#### 18.6.2 ✅ Phần 2 — cửa sổ làm BỐN việc, và máy KHÔNG sống trong cửa sổ
+
+Chốt động từ trước khi bàn nút nằm đâu: một bàn điều khiển không rõ động từ thì sớm muộn
+thành bức tường nút bấm.
+
+```
+1. ĐẶT    chọn kho · trần · thang · ưu tiên · dữ liệu     (tầng CHỌN, §18.6.1)
+2. CHẠY   bắt đầu · dừng · chạy tiếp
+3. NHÌN   nó đang tới đâu, cái tốt nhất hiện ra sao
+4. MỞ     lấy sơ đồ tốt nhất sang cửa sổ vẽ
+```
+
+**Ribbon ở cửa sổ Home = đúng việc 4**, không gì khác.
+
+⭐ **Máy tìm KHÔNG sống trong cửa sổ.** Một lượt chạy mất cả đêm (§18.4); đóng cửa sổ RL để
+mở một sơ đồ ra ngắm mà giết luôn 6 tiếng đã chạy là hỏng. Cửa sổ chỉ là **cái để nhìn**.
+
+App đã có tiền lệ, và nó đang là **nợ**: §14.4 — *"đóng cửa sổ Live là dừng phiên"*, dù
+`ApiLive` vốn dựng theo hướng *"máy live không sống trong cửa sổ"*. RL không được phép mắc
+lại món nợ ấy — làm đúng ngay từ đầu, vì ở đây cái giá cao hơn hẳn (một đêm, không phải một
+phiên xem).
+
+#### Cắt khỏi phase 1 — có chủ ý
+
+| cắt | vì sao |
+|---|---|
+| panel tham số DL/RL | chưa chốt thuật toán (§18.5) thì mọi nút ở đây là **nút hứa suông** — đúng loại §16.3 và `don_bay` đã dạy |
+| tạm dừng giữa chừng rồi chạy tiếp | dừng hẳn + chạy lại là đủ dùng |
+| plot đẹp | số nào ĐÁNG hiện mới là chỗ dễ sai — phần 3 |
+
+Người dùng tự nói: *"tôi hiểu cách 1 DL hình thành, nhưng không biết setting như nào cho phù
+hợp"*. Đó chính là lý do để nó sau cùng — chưa có bộ sinh thì **không ai** biết, và bày nút
+ra bây giờ là bày nút đoán mò.
+
+#### 18.6.3 ✅ Phần 3 — số nào được phép lên màn hình
+
+**Hiện, mỗi cái một việc:**
+
+| | việc của nó |
+|---|---|
+| **trung bình tuần %** và **dao động tuần %** — để **RỜI** | `0,05 ÷ 0,5` và `0,5 ÷ 5` cho cùng một điểm nhưng là hai chiến lược khác hẳn |
+| điểm = trung bình ÷ dao động | §18.2 |
+| tuần có lệnh | để thấy nó **có chơi thật** — cái cửa §18.2a |
+| sụt vốn sâu nhất | |
+| đã chấm / ngân sách | §18.4 |
+
+⚠ **KHÔNG hiện `tổng R`.** Đo rồi: `+25,38 R` trong khi tiền thật `+0,27%` (§18.2b). Để nó
+nằm cạnh điểm thật là mời người ta đọc nhầm.
+
+**Hai đồ thị, mỗi cái trả lời đúng một câu:**
+
+| | câu nó trả lời |
+|---|---|
+| điểm tốt nhất theo số lượt đã chấm | *còn tìm được gì nữa không — dừng được chưa* |
+| chuỗi tuần của cái tốt nhất | *nó có ĐỀU không* — tiêu chí gốc của người dùng |
+
+#### ⭐ Phần chính: mọi số trên màn hình đều là số TRAIN
+
+Đoạn khoá chưa mở (§18.3). Một bảng số đẹp đẽ không được trông như kết luận — nó là kết quả
+đo trên chính đoạn dữ liệu máy vừa đào bới hàng nghìn lượt.
+
+Và luật *"mở đúng một lần"* hiện mới chỉ là **lời hứa**. Có một cái nút *"chạy trên đoạn
+khoá"* bấm bao nhiêu lần tuỳ thích thì cái khoá là giả.
+
+**Không chặn — ĐẾM.**
+
+```
+Đoạn khoá 2025 — bạn đã mở 3 lần
+```
+
+Không cấm bấm: đây là studio, không phải cái lồng. Nhưng mỗi lần bấm thì con số tăng và nằm
+đó, để lần thứ mười người đọc nhìn phát biết ngay con số mình đang tin đã mòn tới đâu. Cùng
+tinh thần `_spread` và `_thong_so` (§16.2, §16.3): app **không giấu**, app **nói ra**.
+
+#### 18.6.4 ✅ Phần 4 — "ưu tiên" là mấy cái CỬA, không phải mấy cái CÂN
+
+⚠ **Bịt một chỗ hở tự tạo ra ở §18.6.1:** mục đó hứa tầng CHỌN có *"ghét sụt vốn tới đâu,
+thèm lãi tới đâu"*, nhưng công thức §18.2 là `trung bình ÷ dao động` — **không có khe nào để
+cắm cái nút ấy vào**.
+
+```
+CÂN    điểm = trung bình÷dao động − λ × sụt vốn        ← chỉnh λ
+CỬA    sụt vốn > 25% → loại. Còn lại xếp theo điểm.    ← chỉnh 25%    ✅ chọn cái này
+```
+
+**1. Sụt vốn không đổi chác được.** Cháy 60% tài khoản thì không mức lãi nào bù lại — đã ra
+khỏi cuộc chơi. Với `λ` nhỏ, sơ đồ điểm cao mà sụt vốn 60% vẫn thắng; với cửa thì nó không
+bao giờ lọt vào danh sách. Cân chỉ đúng cho những thứ **thật sự đổi được cho nhau**.
+
+**2. Cửa là câu nói được, `λ` thì không.** *"Tôi không chấp nhận sụt quá 25%"* — phát biểu
+được, và biết mình vừa nói gì. *"λ = 0,3"* thì phải **dò** mới biết nặng hay nhẹ — mà dò cái
+nút chấm điểm là dò trên chính thứ dùng để chấm, đúng cái bẫy §18.1.
+
+**3. Trùng với dữ liệu đã đo.** Hai bản SL của sơ đồ mẫu (§18.2c):
+
+| | điểm | sụt vốn |
+|---|---|---|
+| SL 1,5 | −0,145 | **46,1%** |
+| SL 3,0 | +0,001 | 25,0% |
+
+Cửa ở 30% loại thẳng bản 46% — **cùng kết luận với điểm**, mà không phải chỉnh cân nào.
+
+**Panel ưu tiên = một nhúm cửa:**
+
+```
+sụt vốn tối đa            %
+tuần có lệnh tối thiểu    %      ← §18.2a, khoá cứng ở ½, panel chỉ SIẾT thêm được
+lãi tối thiểu             %/năm  (để trống là không lọc)
+```
+
+⭐ **Xếp hạng thì LUÔN là `trung bình ÷ dao động`.** Bạn chỉnh *"cái gì tôi không nhận"*;
+máy xếp hạng phần còn lại bằng **đúng một cái thước**. Lại là §15: *cái thước không được là
+tham số*.
+
+#### 18.6.5 ✅ Phần 5 — nó đẻ ra cái gì
+
+##### Một DANH SÁCH NGẮN, không phải một nhà vô địch
+
+Cái điểm cao nhất là cái **khớp lịch sử nhất** — theo đúng định nghĩa của việc đi tìm. Lấy
+đúng nó là lấy cái đã bị mài kỹ nhất.
+
+Nhìn cả nhóm đầu bảng thì đọc ra thứ khác hẳn:
+
+```
+8/10 sơ đồ dùng chung một cổng   →  chỗ này là THẬT
+mỗi cái quản lệnh một kiểu       →  chỗ này là nhiễu
+```
+
+⭐ **Cái CHUNG giữa nhiều sơ đồ đáng tin hơn bất kỳ sơ đồ đơn lẻ nào** — nó sống sót qua
+nhiều đường đi khác nhau, không phải một. Và người đọc ra nó là **người dùng**; máy không
+kết luận hộ.
+
+Đo được, và nó nói thẳng *đừng lấy quán quân*: chấm 24 biến thể trên hai nửa của train —
+
+| | nửa đầu | nửa sau |
+|---|---|---|
+| SL2,0 TP2,0 ng0,75 | **hạng 1** | hạng 13 |
+| SL3,0 TP2,0 ng0,75 | hạng 11 | **hạng 1** |
+
+Quán quân đổi chỗ hoàn toàn (tương quan thứ hạng **+0,54**; top 8 chỉ giữ **4/8**). Nhưng
+**hướng lớn thì giữ** — mọi bản `SL 3,0` bám top ở cả hai nửa, mọi bản `SL 1,0` nằm đáy ở cả
+hai. Đúng bài học §18.1: hướng đi thật, độ chính xác là nhiễu.
+
+⏸ *Lọc nhóm đầu bảng bằng gì (nửa kia của train · valid riêng · các vòng cuốn tới) thì phụ
+thuộc §18.3 — đang cất lại.*
+
+##### File chiến lược BÌNH THƯỜNG — không có loại "sơ đồ của máy"
+
+Cùng JSON · cùng thư mục · mở bằng cùng cửa sổ vẽ · chạy bằng cùng Tester · lên Live cùng
+đường. `cat_studio/mau/compress.json` đã chứng minh định dạng chịu được: sơ đồ mẫu là JSON y
+hệt mọi chiến lược khác.
+
+Nghĩa là **sửa tay được ngay**: máy tìm ra khung, người thấy chỗ nào ngứa thì đổi, chạy lại,
+so. Đó mới là studio.
+
+Đây không phải phát minh mới — nó là lời chốt của chính người dùng từ §15: *"kho người dùng
+được và máy dùng phải thống nhất"*. Máy đẻ ra định dạng riêng là lời chốt ấy vỡ, và ba tháng
+sau có hai đường code làm cùng một việc.
+
+⚠ **Tên khối do máy đặt sẽ vô nghĩa** (`[1A] cổng 1`). Nhưng chỗ này **không phải làm gì
+thêm**: `core.action_display` là nơi duy nhất dựng chữ (Python dựng, JS chỉ hiện — bất biến
+§12). Bộ sinh điền đúng mấy trường `action_display` đọc thì sơ đồ máy vẽ đọc ra y như sơ đồ
+vẽ tay.
+
+---
+
+### 18.7 ✅ NGƯỜI BÀY — ĐÃ CÀI: `cat_studio/nguoi_bay.py`
+
+> Từng là **việc duy nhất đang chặn**: chưa có nó thì không câu hỏi nào ở §18.3 (chia dữ
+> liệu), §18.4 (nhanh bao nhiêu) hay §18.5 (thuật toán nào) **kiểm chứng được** — chỉ cãi
+> được bằng lý lẽ suông. Nay có rồi; §18.7.4 ghi những gì đã cài và những gì nó bắt được.
+
+Bốn ô của một bài toán học tăng cường, và ba ô đã có sẵn:
+
+| | ở đâu |
+|---|---|
+| **TRẠNG THÁI** — sơ đồ đang dở | *ô còn thiếu, mục này lấp* |
+| **HÀNH ĐỘNG** — nước đi hợp lệ tiếp theo | người bày |
+| **PHẦN THƯỞNG** — điểm cuối lượt | §18.2, xong |
+| **CHÍNH SÁCH** — chọn nước nào | chỗ thuật toán cắm vào, §18.5, chưa chốt |
+
+Ba điểm dưới đây là **hình dạng**, không phải số. Hình dạng sai thì đập đi làm lại; số sai
+thì vặn lại. Cả ba đều **rẻ hôm nay** và đắt về sau.
+
+#### 18.7.1 ✅ Sơ đồ = MỘT CHUỖI NƯỚC ĐI, và chỉ một cách biểu diễn
+
+```
+1  bắt đầu · M5
+2  thêm điều kiện   ATR < 0,75 × ATR nền
+3  thêm điều kiện   zone hợp lệ
+4  vào lệnh         mua · market · SL 1,5 × ATR zone · TP 2 × R · rủi ro 0,5%
+5  kết thúc
+```
+
+Năm dòng đó **LÀ** sơ đồ, không phải bản tóm tắt của nó.
+
+⭐ **Một cách biểu diễn, bốn việc:** lưu file · dựng lại y hệt · đột biến · cho mạng đọc.
+Không có bản thứ hai nào phải giữ đồng bộ bằng tay — đúng bất biến *một nguồn sự thật*.
+
+#### 18.7.2 ✅ Kho nước đi **CỐ ĐỊNH** + **mặt nạ** hợp lệ
+
+```
+SAI    người bày trả về:  [3 nước đi hợp lệ lúc này]
+ĐÚNG   người bày trả về:  [toàn bộ 1.772 nước] + mặt nạ bật 3 cái
+```
+
+Mạng nơ-ron bắn xác suất trên **một danh sách cố định**. Danh sách co giãn mỗi bước thì
+không đầu ra nào khớp được. Mà dò ngẫu nhiên và tiến hoá thì kiểu nào cũng chạy — nên viết
+đúng ngay từ đầu **không tốn thêm gì**, viết sai thì lúc cắm DL phải đập ra làm lại.
+
+#### 1.772 — đếm từ kho, không phải con số bịa
+
+| loại nước đi | số | từ đâu |
+|---|---|---|
+| điều kiện, vế phải là **số** | 1.056 | 22 toán hạng × 8 phép so × 6 nấc |
+| điều kiện, vế phải là **giá** | 392 | 7 mức giá × 8 phép so × 7 mức giá |
+| vào lệnh | 300 | 2 hướng × 2 loại × 5 SL × 5 TP × 3 rủi ro |
+| sửa lệnh | 12 | 4 chế độ, cái cần khoảng thì × 5 nấc |
+| cấu trúc | 12 | đóng nhánh · mở nhánh · kết thúc · 8 khung giờ |
+| | **1.772** | |
+
+Con số này **rơi ra từ** kho đồ (§15) nhân thang số (§18.1) — không ai đặt nó. Thêm một toán
+hạng thì kho nước đi tự lớn, **không phải sửa bảng nào**.
+
+1.772 là cỡ rất dễ chịu: mô hình ngôn ngữ có từ vựng 30.000–200.000. Một lớp đầu ra 1.772
+chiều là chuyện thường.
+
+**Ba cách dùng, một cơ chế:**
+
+| | |
+|---|---|
+| dò ngẫu nhiên | bốc trong mấy ô đang bật |
+| tiến hoá | đổi một ô đang bật sang ô khác đang bật |
+| DL | mạng bắn 1.772 số, nhân mặt nạ, chọn |
+
+⚠ **Đổi thang số là đổi kho nước đi.** Với ngẫu nhiên và tiến hoá thì vô hại; với một mạng
+đã học rồi thì **phải học lại**. Nên thang số nằm ở tầng CHỌN (§18.6.1) là đúng, nhưng
+**không được đổi giữa chừng một phiên học**.
+
+#### 18.7.3 ✅ Người bày đi **HAI CHIỀU**
+
+```
+xuôi    sơ đồ đang dở   →  mặt nạ nước đi hợp lệ      (để SINH)
+ngược   sơ đồ có sẵn    →  chuỗi nước đi              (để ĐỌC)
+```
+
+Như công thức nấu ăn: **xuôi** là đang nấu thì bước sau làm gì; **ngược** là nhìn món đã
+xong rồi viết lại công thức.
+
+Chiều ngược là chiều dễ quên nhất, và nó mở ra ba thứ:
+
+| | |
+|---|---|
+| ⭐ **học từ sơ đồ người dùng vẽ tay** | máy bắt đầu từ chỗ đã biết là hợp lý, không mò từ số không |
+| chữa bệnh **thưởng chỉ có ở cuối lượt** | §18.5 — đây là cách chuẩn để chữa |
+| **một bài kiểm miễn phí** | đọc ngược sơ đồ mẫu rồi dựng xuôi lại phải ra **đúng nó** |
+
+Cái thứ ba chạy được **ngay khi người bày vừa xong**, và nó chứng minh hai chiều khớp nhau —
+thứ không có cách nào kiểm khác.
+
+⭐ Chiều ngược gần như **miễn phí nếu thiết kế cùng lúc** với chiều xuôi. Làm sau thì phải
+viết lại cả người bày.
+
+#### 18.7.4 ✅ ĐÃ CÀI — `cat_studio/nguoi_bay.py`, test 41/41
+
+| | |
+|---|---|
+| kho nước đi | **1.863** — sinh từ kho × thang, không gõ tay |
+| trần độ phức tạp | §15.5 vào code lần đầu: `4 · 3 · 12 · 8`, là **tham số** của `mat_na` |
+| hai chiều | đọc ngược sơ đồ mẫu → **44 nước** → dựng xuôi lại **trùng khít** |
+| sinh bừa | 60/60 lượt tới đích · **0 lỗi 0 cảnh báo** từ soát tĩnh · 0 lượt nổ khi chạy |
+
+```
+vao_lenh 1.050 · dk_so 486 · dk_gia 252 · dk_ds 12 · sua_lenh 12
+nhip 9 · tf_trai 9 · tf_phai 9 · chu_ky_trai 7 · chu_ky_phai 7 · dem 4
+cong_moi · cong_zone · hop_le · mo_nhanh · dong_nhanh · het
+```
+
+⭐ **Thứ bổ nghĩa là nước đi RIÊNG** (`tf_*`, `chu_ky_*`, `dem`) chứ không nhân vào nước
+chính. Nhét khung giờ vào `dk_so` thì kho phồng từ 486 lên hơn hai vạn; tách ra thì chỉ
+**cộng 36 ô**. Đây là chỗ quyết định kho ở cỡ nghìn hay nhảy lên cỡ vạn.
+
+#### Cái giá của "người bày phải nói ĐÚNG như người soát"
+
+Viết xong lần đầu tưởng là xong. Cho sinh bừa 60 sơ đồ thì soát tĩnh mắng **910 lỗi**. Bảy
+chỗ mặt nạ hụt so với §17, phải bổ đủ — và không chỗ nào đoán ra được nếu không đo:
+
+| chỗ hụt | hậu quả |
+|---|---|
+| toán hạng chưa khai `tf`/`period` mà cho đi tiếp | 910 lỗi *"chưa chọn khung thời gian"* |
+| nhánh kết thúc bằng CỔNG | cổng cụt — hỏi xong rồi không làm gì |
+| `× ATR zone` trong ĐƠN VỊ mà không có cổng zone | zone nấp trong đơn vị, không ở tên toán hạng |
+| lệnh chờ neo `close` mà không đệm | khớp ngay, không còn là lệnh chờ |
+| hai khối Vào lệnh giống hệt trên một đường | chỉ ra ĐÚNG một lệnh |
+| nhịp Manage chậm hơn Entry | lệnh vừa sinh phải chờ mới được quản |
+| xếp chỗ trên canvas | §17 đọc toạ độ để biết nhánh nào thử trước — **không đặt `pos` thì mọi ngã rẽ là lỗi** |
+
+Cái cuối đáng nhớ nhất: **toạ độ là một phần của NGHĨA**, không phải trang trí.
+
+#### Ba ngõ cụt — mặt nạ phải CHỪA CHỖ, không chỉ cấm
+
+Ba lần lượt đi tắc cứng (mặt nạ tắt sạch giữa chừng), cả ba đều là *đúng luật ở từng bước
+mà không có lối ra*:
+
+1. **Cổng cụt hiểu sai** — sau `dong_nhanh` thì `diem` lùi về chỗ rẽ; chỗ ấy LÀ một cổng
+   nhưng ĐÃ có nhánh con nên không cụt. Lẫn hai thứ ⇒ 19/60 lượt tắc. *Cổng cụt = cổng
+   **không có gì phía sau**, không phải "khối cuối là cổng".*
+2. **Hết ngân sách khối** — đẻ cổng khi chỉ còn một suất là tự vào ngõ cụt: cổng đứng đó,
+   không đóng nhánh được, không `het` được. Nay nước đẻ CỔNG phải chừa sẵn một suất cho
+   hành động sau nó.
+3. **Hết chế độ Sửa lệnh** — ở Manage nhánh chỉ đóng được bằng khối Sửa lệnh, mà §17.2 cấm
+   hai khối ghi đè nhau. Đường đã dùng hết các chế độ thì cổng mới trên đó vĩnh viễn không
+   có gì nối tiếp.
+
+⭐ Bài học chung: **một luật cấm đúng ở từng bước vẫn có thể dồn người đi vào chỗ chết.**
+Người bày phải trả lời được câu *"đi nước này rồi còn về đích được không"*, không chỉ
+*"nước này có hợp lệ không"*.
+
+#### Hai lỗi của APP lộ ra trong lúc dựng
+
+**1. `chu_ky_atr` bị đòi vô điều kiện, rồi lại bị mắng là thừa.**
+
+`bo_chay._kiem_tham_so` đòi nó cho MỌI chiến lược *(lý do ghi trong code — "engine
+Compress nuôi vùng nén" — chỉ đúng một nửa: nó còn là chu kỳ của cái ATR mà mọi phép đổi
+`× ATR` dùng)*. Nhưng khai nó vào thì `validate_process` mắng *"tham số không khối nào dùng
+tới"*. **Hai bên đòi ngược nhau, không cách nào làm vừa lòng cả hai** — 20/25 sơ đồ sinh tự
+động rơi vào đúng cái kẹp ấy.
+
+Sửa: `core.THAM_SO_NGAM` + `core.can_tham_so_ngam(doc)` — **một chỗ** trả lời "có cần
+không", ba nơi hỏi (bộ chạy · soát tĩnh · người bày). Nay không bao giờ nói ngược nhau.
+
+**2. `tools/van_tay.py` cất khoá năm bằng SỐ, đọc lại từ JSON thành CHỮ** — nên lúc báo
+lệch nó in `cũ null` thay vì hai con số cần so. Một công cụ giải thích sai đúng lúc cần nó
+giải thích nhất. *(Cùng đợt: nó còn quên truyền `contract_size` — xem §16.3.)*
+
+#### Sau khi có người bày thì đo được ngay những gì
+
+Mấy câu ở §18.3, §18.4, §18.5 đang cất lại chính là mấy câu này — **giờ đo được rồi**:
+
+- bao nhiêu % sơ đồ sinh ngẫu nhiên vào nổi **một lệnh** *(quyết định ngân sách thật)*
+  — số đầu tiên đã có: **9/25** trên nến tổng hợp
+- tiến hoá có thắng nổi dò ngẫu nhiên không *(nếu không thì bỏ tiến hoá)*
+- một vòng cuốn tới tốn bao lâu thật *(quyết định A hay B, và có cần nhanh 30× không)*
+- chia dữ liệu hai/ba phần hay cuốn tới — cái nào cho con số ngoài mẫu ổn định hơn
+
+### 18.8 ⏳ CÒN THIẾU trước khi làm frontend — ba món, theo thứ tự
+
+⚠ **Chưa làm được cửa sổ RL.** §18.6.2 chốt cửa sổ có bốn việc; ba trong bốn hiện **không
+có gì phía sau**:
+
+| việc | có chưa | thiếu gì |
+|---|---|---|
+| **ĐẶT** | gần đủ — kho, thang, trần đều lộ ra được | chỉ là bày lên màn hình |
+| **CHẠY** | ✘ | **không có vòng tìm nào**; người bày sinh ra sơ đồ nhưng chưa ai gọi nó |
+| **NHÌN** | ✘ | không có tiến độ để đọc, không có điểm để hiện |
+| **MỞ** | ✔ | sơ đồ máy vẽ đã là file bình thường (§18.6.5) |
+
+⭐ Làm frontend trước là dựng đúng thứ §18.6.2 vừa cấm: **nút hứa suông**. Ba món dưới
+phải xong trước, và cả ba đều nhỏ:
+
+**1. CHẤM ĐIỂM vào code** — §18.2 hôm nay mới là thiết kế. `bo_chay._thong_ke` trả `lai_pt`
+và `drawdown_pt` nhưng **không có chuỗi lãi/lỗ theo tuần**, tức chưa tính được `trung bình ÷
+dao động`. Cần: gom `KetQua` thành chuỗi tuần, ba con số, kèm **cửa** §18.2a và mấy cửa ưu
+tiên §18.6.4.
+
+**2. MỘT VÒNG TÌM, đơn giản nhất** — dò ngẫu nhiên: `Ban` + `mat_na` + chấm + giữ nhóm đầu
+bảng. Không chọn thuật toán gì cả (§18.5 vẫn để ngỏ) — nó là **đối chứng** mà mọi cách tìm
+sau này phải thắng, nên kiểu gì cũng phải có.
+
+**3. "MỘT LƯỢT CHẠY" thành một ĐỐI TƯỢNG** — bắt đầu · dừng · hỏi tiến độ · lấy kết quả,
+và **sống ngoài cửa sổ** (§18.6.2). Đây là chỗ dễ mắc lại món nợ §14.4 nhất, nên làm đúng
+ngay từ đầu.
+
+Xong ba món thì frontend chỉ còn là **bày ra thứ đã có**, đúng bất biến *"chỉ bày ra thứ
+dùng được"*.
 
 ---
 

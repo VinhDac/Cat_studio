@@ -57,8 +57,15 @@ class LoiChay(Exception):
 class CaiDat:
     """Điều kiện chạy — đúng những ô trong Cài đặt Strategy Test."""
 
-    def __init__(self, symbol="XAUUSD", tu=None, den=None, spread_diem=20.0,
-                 point=0.01, contract_size=100.0, digits=2,
+    #: ⚠ MẶC ĐỊNH LÀ SỐ GIẢ, CỐ Ý — `point=1` `contract_size=1` `spread=0` là "một đơn
+    #: vị giá = một điểm, không mất phí gì". Bộ test dùng chúng để số học đọc ra bằng
+    #: mắt. Chúng KHÔNG được giống bất kỳ symbol thật nào: mặc định cũ (`0.01` · `100`
+    #: · `digits 2` · `spread 20`) trông y như XAUUSD mà **sai** — kho nến ghi `0.001`
+    #: và `digits 3`. Một con số sai mà trông hợp lý là loại tệ nhất; sai mà trông giả
+    #: thì nhìn phát biết ngay. Đường thật đi qua `api._thong_so` (§16.3) và `_spread`
+    #: (§16.2), cả hai NỔ khi thiếu meta chứ không rơi về đây.
+    def __init__(self, symbol="XAUUSD", tu=None, den=None, spread_diem=0.0,
+                 point=1.0, contract_size=1.0, digits=2,
                  deposit=10_000.0, commission=0.0,
                  lot_min=0.01, lot_buoc=0.01, lot_max=200.0, stops_level=0,
                  truot_diem=0.0):
@@ -228,11 +235,24 @@ class ChuongTrinh:
 
     # ---------------------------------------------------------------- tham số
     def _kiem_tham_so(self):
-        thieu = [k for k in self.engine.THAM_SO_CAN if k not in self.ts]
+        """Tham số NGẦM — bộ chạy đọc mà không khối nào gọi tên. Đòi ĐÚNG lúc cần.
+
+        ⚠ LỖI ĐÃ SỬA: trước đây đòi VÔ ĐIỀU KIỆN, và lý do ghi ở đây ("engine Compress
+        nuôi vùng nén") chỉ đúng một nửa — `chu_ky_atr` còn là chu kỳ của cái ATR mà
+        MỌI phép đổi `× ATR` dùng. Hậu quả: một chiến lược không đụng zone, không đụng
+        `× ATR` nào vẫn phải khai nó mới chạy — mà khai thì soát tĩnh mắng "không khối
+        nào dùng tới". Hai bên đòi ngược nhau. Đo được lúc dựng `nguoi_bay`: 25/25 sơ
+        đồ sinh tự động rơi vào đúng cái kẹp ấy.
+
+        `core.can_tham_so_ngam` là chỗ DUY NHẤT trả lời "có cần không", để soát tĩnh và
+        bộ chạy không bao giờ nói ngược nhau."""
+        if not core.can_tham_so_ngam(self.doc):
+            return
+        thieu = [k for k in core.THAM_SO_NGAM if k not in self.ts]
         if thieu:
             raise LoiChay(
-                f"Bảng tham số thiếu {', '.join(thieu)} — engine Compress cần chúng để "
-                f"nuôi vùng nén. Mở Tham số chiến lược và thêm vào.")
+                f"Bảng tham số thiếu {', '.join(thieu)} — mọi phép đổi × ATR và vùng "
+                f"nén đều đọc nó. Mở Tham số chiến lược và thêm vào.")
 
     def so(self, v, o_dau=""):
         """Một ô "số hoặc tên tham số" → `float`.
@@ -1297,8 +1317,9 @@ class PhienChay:
     trường đã đóng từ hai phút trước.
     """
 
-    def __init__(self, doc, nen1, cd=None, tien_do=None):
-        cd = cd or CaiDat()
+    def __init__(self, doc, nen1, cd, tien_do=None):
+        # ⚠ `cd` BẮT BUỘC. Trước đây là `cd or CaiDat()` — không caller nào dùng nhánh
+        # ấy, nhưng nếu lỡ rơi vào thì cả lượt chạy dùng point/spread giả mà không báo.
         doc = core.normalize_process(doc)
         self.cd = cd
         self.doc = doc
@@ -1505,7 +1526,7 @@ class PhienChay:
         return kq
 
 
-def chay(doc, nen1, cd=None, tien_do=None):
+def chay(doc, nen1, cd, tien_do=None):
     """Chạy trọn một backtest. Trả `KetQua` bất biến.
 
     Chỉ là vòng lặp quanh `PhienChay.mot_nhip` — mọi luật nằm ở đó, xem docstring của

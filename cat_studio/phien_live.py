@@ -45,10 +45,13 @@ class PhienLive:
     cái để nhìn. Vì thế lớp này không biết gì về giao diện.
     """
 
-    def __init__(self, doc, symbol, cd=None):
+    def __init__(self, doc, symbol, cd):
+        # ⚠ `cd` BẮT BUỘC. Trước đây là `cd or CaiDat(symbol=symbol)`, tức một phiên
+        # LIVE có thể chạy bằng point/spread giả. Live sai im lặng là thứ tệ nhất trong
+        # cả app này — §16.3.
         self.doc = doc
         self.symbol = symbol
-        self.cd = cd or bo_chay.CaiDat(symbol=symbol)
+        self.cd = cd
         self.phien = None
         self.nen1 = None
         self.t_cuoi = 0          # thời điểm nến M1 cuối ĐÃ xử lý

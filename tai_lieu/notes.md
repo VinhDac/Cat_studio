@@ -60,7 +60,7 @@ một bản chép tay của kho, và nó là bug chờ ngày nổ.
 thể bị hỏi từ điều kiện, `dk_hop_le`, SL, TP, đệm, hoặc ô khoảng của Sửa lệnh. Quét đủ sáu
 chỗ để tiết kiệm một cột là đổi một khoản rẻ lấy một chỗ chắc chắn có ngày bỏ sót.
 
-### Thêm một LUẬT ĐỒ THỊ (2 nơi, cả hai một dòng)
+### Thêm một LUẬT ĐỒ THỊ (2 nơi, cả hai một dòng — **rồi nơi thứ ba**)
 
 1. Viết hàm `_lt_<tên>(b)` trong `core.py`, dùng `b.ten()` · `b.loi()` · `b.nga_re()` ·
    `b.cap()` · `b.truoc`.
@@ -68,6 +68,25 @@ chỗ để tiết kiệm một cột là đổi một khoản rẻ lấy một 
 
 Không luật nào biết luật nào. Xoá một luật không gãy luật khác. Thứ tự chỉ đổi thứ tự
 dòng lỗi hiện ra, không đổi kết quả.
+
+3. ⚠ **`nguoi_bay._duoc` phải biết luật đó.** Người soát nói "sai rồi", người bày nói
+   "đừng đi nước ấy" — cùng một tri thức, hai hình dạng. Lệch nhau thì máy tìm đốt 17
+   giây backtest cho một sơ đồ hỏng, và đốt đều đặn. Đo được: viết người bày lần đầu
+   mà quên bảy luật ⇒ sinh bừa 60 sơ đồ ra **910 lỗi**.
+
+`tests/test_nguoi_bay.py` canh đúng chuyện này: sinh 60 sơ đồ ngẫu nhiên, đòi soát tĩnh
+trả về **0 lỗi 0 cảnh báo**. Thêm luật mà quên bước 3 là bài đó đỏ ngay.
+
+### Thêm/sửa một NƯỚC ĐI của người bày
+
+1. `nguoi_bay.KHO_NUOC_DI` — sinh từ `kho.TOAN_HANG` × `THANG`, **đừng gõ tay danh sách**.
+2. `Ban.di` — nước đó làm gì.
+3. `_duoc` — lúc nào được đi.
+4. `_Doc.khoi` / `_Doc.dieu_kien` — **chiều ngược** cũng phải đẻ ra nó.
+
+⚠ Quên bước 4 thì `doc_nguoc` nổ `KhongDocDuoc` khi gặp sơ đồ có thứ ấy — to tiếng, không
+im lặng, nhưng vẫn là quên.
+⚠ Đổi `THANG` hay `KHO_NUOC_DI` là **một mạng đã học phải học lại**. Vân tay canh chỗ này.
 
 ### Thêm một CHẾ ĐỘ SỬA LỆNH (3 nơi)
 
@@ -83,6 +102,15 @@ giẫm lên nhau mà không ai báo.
 
 `MOC_ENTRY` sinh từ kho: mọi toán hạng `loai == "muc_gia"` mà tham số ⊆ `{tf}`. Thêm một
 toán hạng mức giá là mốc neo có ngay, ở cả khối Vào lệnh lẫn Sửa lệnh.
+
+### Thêm một SYMBOL — **không phải sửa mã**
+
+Tải nến symbol đó từ MT5 là xong: `point` · `contract_size` · `digits` · `spread_tb` được
+cất cạnh kho nến. Thiếu thứ nào thì app **nổ kèm lời giải thích**, không đoán —
+`api._thong_so` (§16.3) và `api._spread` (§16.2).
+
+⚠ Một thứ **chưa ai bắt**: mật độ nến M1 thật. Meta kho nến có thể ghi 2016→2026 trong khi
+M1 thật chỉ từ giữa 2021. Tự soi: `số nến ÷ số ngày` phải ≈ 1.130 *(§15.0)*.
 
 ### Thêm một ô CÀI ĐẶT
 
@@ -116,6 +144,15 @@ chạy khác nhau bị lịch sử ghi là một, và "so với lần trước" 
 
 ## 3. Bẫy đã cắn thật — đừng đạp lại
 
+- **Một luật cấm ĐÚNG ở từng bước vẫn dồn người đi vào chỗ chết.** Người bày phải trả lời
+  được *"đi nước này rồi còn về đích được không"*, không chỉ *"nước này hợp lệ không"* —
+  nên nước đẻ CỔNG phải chừa sẵn một suất khối cho hành động đóng nó. *(§18.7.4)*
+- **Toạ độ khối là một phần của NGHĨA, không phải trang trí.** `_khoa_nhanh` đọc `pos` để
+  biết nhánh nào được thử trước. Sơ đồ sinh tự động mà không đặt `pos` thì **mọi ngã rẽ
+  đều là lỗi**. *(§18.7.4)*
+- **Hai bên đòi ngược nhau thì không ai đúng.** `chu_ky_atr` từng bị bộ chạy đòi vô điều
+  kiện còn soát tĩnh mắng là thừa — không cách nào làm vừa lòng cả hai. Gom về **một** chỗ
+  trả lời (`core.can_tham_so_ngam`). *(§18.7.4, §16.3)*
 - **Chuẩn hoá theo biến động sụp khi biến động = 0.** Mọi tỉ số hoá `0/0` hoặc luôn đúng.
   Cần một cái mốc **không co lại được** — và cái duy nhất như vậy là chi phí giao dịch.
   *(§15.13b)*
@@ -126,6 +163,11 @@ chạy khác nhau bị lịch sử ghi là một, và "so với lần trước" 
   Soi mật độ trước khi đo bất cứ thứ gì: `số nến ÷ số ngày` phải ≈ 1.130. *(§15.0)*
 - **Lot cố định giấu mọi thứ.** Phí, sụt vốn, rủi ro thật — tất cả vô hình cho tới khi
   chuyển sang rủi ro % vốn. *(§15.13)*
+- **Một MẶC ĐỊNH trông đúng khiến chỗ QUÊN không bao giờ lộ ra.** `api` từng dự phòng
+  `point=0.01 · digits=2` — trông y như XAUUSD mà sai (thật là `0.001 · 3`), nên không ai
+  soi; `van_tay` thì quên hẳn `contract_size` và vẫn xanh suốt vì mặc định tình cờ đúng.
+  Vì thế mặc định `CaiDat` nay là **số giả** (`point=1 · contract_size=1 · spread=0`): sai
+  mà trông giả thì nhìn phát biết. *(§16.3)*
 - **`bool(NaN)` là `True`.** "Chưa có số" đọc thành ĐÚNG. *(§12.6g)*
 - **Fixture trong test dùng tên đã chết vẫn chạy** nhờ bảng di cư — rồi ngày bỏ bảng di cư
   là cả bài kiểm sập mà không ai hiểu vì sao.
@@ -152,6 +194,8 @@ biết, đã dạy cho nó, nhưng vẫn nên nhớ:
 cat_studio/
   core.py          hằng số · đồ thị & đánh số · chuẩn hoá · soát lỗi · chữ hiện ra
                    └─ LUAT_DO_THI: mỗi luật một hàm `_lt_*`, thêm luật = thêm một dòng
+  nguoi_bay.py     §17 nhìn NGƯỢC: sơ đồ dở → nước đi hợp lệ, và sơ đồ → chuỗi nước đi
+                   └─ KHO_NUOC_DI cố định + mat_na() thay đổi. Chỗ mọi máy tìm cắm vào.
   bo_chay.py       CaiDat · một nhịp · vào/sửa lệnh · quy đổi đơn vị · thống kê
   khop_lenh.py     phần việc của SÀN: khớp lúc nào, ở giá nào (hàm thuần, không numpy)
   kho/             danh mục app tính được — nen_tang · chi_bao · zone

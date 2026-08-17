@@ -120,6 +120,43 @@ def _spread(symbol, ci, meta):
     return float(sp)
 
 
+#: Ba thứ TẢ CHÍNH SYMBOL, đi liền một bộ. Không phải cài đặt — không ai được gõ tay,
+#: vì chúng là sự thật của sàn, không phải điều kiện chạy thử (khác `spread`, xem `_spread`).
+THONG_SO_SYMBOL = ("point", "contract_size", "digits")
+
+
+def _thong_so(symbol, meta):
+    """`point` · `contract_size` · `digits` cho `CaiDat` — thiếu thì NỔ, không đoán.
+
+    core.md §16.3. Trước đây ba dòng này là `meta.get(k) or <số>`, và mấy con số ấy
+    (`0.01` · `100.0` · `2`) **sai cho chính XAUUSD** — kho nến ghi `0.001` · `100.0` ·
+    `3`. Chúng chưa nổ chỉ vì kho nến hiện tại có đủ meta; symbol mới thiếu meta là chạy
+    bằng số bịa mà không ai biết.
+
+    ⚠ `point` là thứ chết người: nó nhân vào SPREAD, `stops_level` và TRƯỢT GIÁ. Đo trên
+    sơ đồ mẫu 2025 — cùng sơ đồ, cùng bộ nến, chỉ thay `point` 0,001 → 0,01:
+
+        meta thật   +1,25 % vốn · 284 lệnh
+        số bịa      −8,48 % vốn ·  52 lệnh      (spread 0,097 $ → 0,970 $)
+
+    Cùng nếp `_spread`: không đo được thì NÓI TO. Một lượt chạy sai mà im lặng tệ hơn
+    hẳn một lượt chạy không được.
+    """
+    ra = {}
+    for k in THONG_SO_SYMBOL:
+        v = (meta or {}).get(k)
+        if v in (None, "", 0):
+            raise RuntimeError(
+                f"Chưa biết `{k}` của {symbol}.\n\n"
+                f"Ba thông số này (point · contract_size · digits) cất cạnh kho nến, do "
+                f"MT5 cấp lúc tải. Tải lại nến của {symbol} là có.\n\n"
+                f"Cố ý KHÔNG đoán: `point` nhân vào spread, stops level và trượt giá — "
+                f"sai 10 lần thì cùng một sơ đồ đang +1,25 % vốn thành −8,48 %, và 232 "
+                f"trong 284 lệnh biến mất mà không báo gì.")
+        ra[k] = v
+    return ra
+
+
 def _luat_san(symbol, ci):
     """Bốn luật sàn cho `CaiDat` — HỒ SƠ ĐÃ ĐO thắng, ô gõ tay là dự phòng.
 
@@ -988,12 +1025,9 @@ class ApiTester(NenCuaSo):
             symbol=ci.get("symbol") or "XAUUSD", tu=ci.get("tu"), den=ci.get("den"),
             spread_diem=_spread(sym, ci, m),
             truot_diem=ci.get("truot_diem", 0),
-            point=m.get("point") or 0.01,
-            contract_size=m.get("contract_size") or 100.0,
-            digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            **_luat_san(sym, ci))
+            **_thong_so(sym, m), **_luat_san(sym, ci))
         cu = self._tom_tat_lan_truoc()
         self._tt.update({"tong": 0, "chu": "đang biên dịch sơ đồ…"})
 
@@ -1812,12 +1846,9 @@ class ApiLive(ApiTester):
             symbol=symbol,
             spread_diem=_spread(symbol, ci, m),
             truot_diem=ci.get("truot_diem", 0),
-            point=m.get("point") or 0.01,
-            contract_size=m.get("contract_size") or 100.0,
-            digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            **_luat_san(symbol, ci))
+            **_thong_so(symbol, m), **_luat_san(symbol, ci))
         self.phien = phien_live.PhienLive(doc, symbol, cd)
         threading.Thread(target=self._vong, daemon=True).start()
         return _ok({"ten": doc["name"], "symbol": symbol})
