@@ -73,6 +73,7 @@ CAI_DAT_MAC_DINH = {
         # Trần vị thế thật là `lot_max` của sàn (§16.1). Cần kiểm ký quỹ thì cài cho tử
         # tế rồi hãy bày ô ra.
         "delay_ms": 60,           # nhịp PHÁT LẠI, không phải tốc độ mô phỏng
+        # ⚠ RL KHÔNG dùng khối này — nó có `"rl"` riêng. Xem chú thích ở đó.
 
         # ---- LUẬT SÀN (core.md §16.1) ----
         # Backtest phải chơi theo ĐÚNG luật mà live đã đo — §14.1 "một đoạn code cho cả
@@ -89,6 +90,33 @@ CAI_DAT_MAC_DINH = {
         # XAUUSD, sàn khác khác hẳn. Chưa đo thì nói thẳng là chưa có chốt chặn, hơn là
         # âm thầm áp một ngưỡng của sàn người khác.
         "stops_level": 0,
+    },
+
+    # ---- CỬA SỔ RL (core.md §18.6) — CÀI ĐẶT RIÊNG, không dùng chung với `test` ----
+    #
+    # ⚠ Đây KHÔNG phải chép thừa. Strategy Test có ĐÚNG MỘT khoảng thời gian; RL cần ít
+    # nhất HAI — đoạn máy đào thoải mái, và đoạn KHOÁ mở đúng một lần (§18.3). Cái hình
+    # dạng của `test` không diễn tả nổi thứ RL cần, nên mượn nó là sai từ gốc chứ không
+    # phải thiếu ô nhập.
+    #
+    # Mấy ô còn lại (vốn, phí, spread, trượt) thì trùng tên với `test` — cố ý: hai bên
+    # NÊN chạy trên cùng điều kiện chi phí, nhưng đó là lựa chọn của người dùng chứ
+    # không phải ràng buộc của hệ thống. Đặt riêng thì so kết quả RL với Tester vẫn
+    # kiểm được, mà đổi bên này không âm thầm đổi bên kia.
+    "rl": {
+        "symbol": "XAUUSD",
+        # TRAIN — máy chơi thoải mái, chạy lại bao nhiêu lần cũng được.
+        "tu": _KHOANG_MAC_DINH[0], "den": _KHOANG_MAC_DINH[1],
+        # ⭐ ĐOẠN KHOÁ — mở ĐÚNG MỘT LẦN, lúc cuối. Cả sức mạnh của §18.3 nằm ở một chữ
+        # ấy: con số đáng tin duy nhất là con số đo trên đoạn CHƯA TỪNG dùng để chọn.
+        # Để RỖNG là chưa khoá gì — và khi đó mọi kết quả chỉ là số TRAIN.
+        "khoa_tu": "", "khoa_den": "",
+        #: Đã mở đoạn khoá bao nhiêu lần. KHÔNG chặn, chỉ ĐẾM — đây là studio, không
+        #: phải cái lồng. Nhưng mỗi lần bấm thì con số tăng và nằm đó, để lần thứ mười
+        #: người đọc biết ngay con số mình đang tin đã mòn tới đâu.
+        "khoa_da_mo": 0,
+        "spread_diem": 0, "truot_diem": 0,
+        "deposit": 10000.0, "commission": 0.0,
     },
 }
 

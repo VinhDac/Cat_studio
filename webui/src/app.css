@@ -1899,3 +1899,184 @@ select.o { cursor: pointer; }
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
+
+/* ==========================================================================
+ *  CỬA SỔ RL — bàn điều khiển máy tìm chiến lược (core.md §18.6, §18.9)
+ *
+ *  Ba tầng như cửa sổ vẽ: ribbon · dashboard · bảng dưới (cụp được).
+ *  ⚠ `.ribbon` `.nhom-ribbon` `.nut-lon` `.nk` `.hang-tab` DÙNG CHUNG với cửa sổ vẽ —
+ *  ở đây chỉ thêm thứ RL mới có. Chép lại là ngày mai sửa một chỗ thì chỗ kia trôi.
+ * ========================================================================== */
+.rl-app { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
+.rl-cho, .rl-loi-to { padding: 40px; color: var(--muted); }
+.rl-loi-to { color: var(--err); white-space: pre-wrap; }
+.rl-loi {
+  margin: 8px 14px; padding: 8px 12px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+  color: var(--err); white-space: pre-wrap; font-size: 12px;
+}
+
+/* --- ribbon: chữ nhỏ dưới tên nút, cho biết đang đặt gì mà khỏi mở panel --- */
+.rl-nut-nhan {
+  font-size: 9.5px; color: var(--dim); margin-top: -2px;
+  max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nut-lon.dang-mo { background: var(--raised-hover); border-color: var(--border); }
+
+/* --- panel thả xuống từ nút ribbon --- */
+.rl-panel {
+  position: fixed; z-index: 60; max-height: 74vh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 12px 14px;
+}
+
+/* --- dashboard --- */
+.rl-bang-dieu-khien {
+  flex: 1; min-height: 0; overflow: auto; padding: 12px 14px;
+  display: grid; gap: 12px;
+  grid-template-columns: minmax(240px, 320px) 1fr 1fr;
+  align-content: start;
+}
+.rl-o {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; min-height: 168px;
+}
+.rl-plot { display: flex; }
+
+/* Ô chờ một plot chưa dựng. Nói THẲNG nó sẽ trả lời câu gì — một chỗ trống câm là
+   nút hứa suông, một chỗ trống có chú thích là lời hứa đọc được. */
+.rl-chua-co {
+  flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 14px;
+}
+.rl-chua-co b { font-size: 12.5px; }
+.rl-chua-co span { font-size: 11.5px; line-height: 1.55; color: var(--muted); }
+.rl-chua-co em {
+  align-self: flex-start; font-style: normal; font-size: 10px; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--dim);
+  border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
+}
+
+.rl-dau { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.rl-phu { font-weight: 400; color: var(--muted); font-size: 11px; }
+.rl-thanh { height: 4px; background: var(--field); border-radius: 2px; overflow: hidden; }
+.rl-thanh-day { height: 100%; background: var(--accent); transition: width .25s; }
+.rl-so-hang { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+.rl-so-hang div { display: flex; flex-direction: column; }
+.rl-so-hang b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.rl-so-hang em { font-style: normal; font-size: 10.5px; color: var(--dim); }
+
+/* --- panel: chữ giải thích, ô nhập, chip kho --- */
+.rl-giai { margin: 0 0 10px; font-size: 11.5px; line-height: 1.55; color: var(--muted); }
+.rl-nho { margin: 8px 0 2px; font-size: 11px; line-height: 1.5; color: var(--dim); }
+.rl-nhom { margin-bottom: 8px; }
+.rl-nhom-ten { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+               color: var(--dim); margin-bottom: 4px; }
+.rl-nhom { margin-bottom: 10px; }
+.rl-chip-hang { display: flex; flex-wrap: wrap; gap: 4px; }
+.rl-chip {
+  background: var(--raised); border: 1px solid var(--border-soft); color: var(--text);
+  font: inherit; font-size: 11.5px; padding: 3px 8px; border-radius: 999px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+}
+.rl-chip:hover { background: var(--raised-hover); }
+.rl-chip.tat { opacity: .38; text-decoration: line-through; }
+.rl-z { font-size: 9px; color: var(--accent); border: 1px solid currentColor;
+        border-radius: 3px; padding: 0 2px; line-height: 1.3; }
+
+.rl-hang { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12px; }
+.rl-hang span { flex: 1; color: var(--muted); }
+.rl-hang em { color: var(--dim); font-style: normal; font-size: 11px; width: 38px; }
+.rl-hang input {
+  width: 84px; background: var(--field); border: 1px solid var(--border);
+  color: var(--text); font: inherit; font-size: 12px; padding: 3px 6px;
+  border-radius: var(--radius-sm); text-align: right;
+}
+.rl-doc { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.rl-doc div { display: flex; justify-content: space-between; }
+.rl-doc span { color: var(--muted); }
+
+/* --- bảng dưới --- */
+.rl-tab-noi { flex: 1; overflow: auto; padding: 8px 12px 12px; }
+.rl-train {
+  padding: 7px 10px; margin-bottom: 8px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--text); font-size: 11.5px; line-height: 1.55;
+}
+.rl-bang { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rl-bang th {
+  text-align: right; font-weight: 500; color: var(--dim); font-size: 10.5px;
+  padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.rl-bang th:first-child, .rl-bang td:first-child { text-align: left; }
+.rl-bang td { text-align: right; padding: 5px 8px; font-variant-numeric: tabular-nums;
+              border-bottom: 1px solid var(--border-soft); }
+.rl-bang-trai td { text-align: left; }
+.rl-bang-trai td:last-child { text-align: right; width: 60px; }
+.rl-bang tr.xau td { color: var(--warn); }
+.rl-diem { font-weight: 600; }
+.rl-mo {
+  background: var(--raised); border: 1px solid var(--border); color: var(--text);
+  font: inherit; font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm);
+  cursor: pointer; white-space: nowrap;
+}
+.rl-mo:hover { background: var(--raised-hover); }
+.rl-trong { padding: 14px; color: var(--dim); font-size: 12px; }
+
+.rl-ds { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.rl-luot {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: var(--raised); border: 1px solid var(--border-soft); color: var(--text);
+  font: inherit; font-size: 11px; padding: 5px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; min-width: 124px; height: fit-content;
+}
+.rl-luot.dang { border-color: var(--accent); }
+.rl-luot span { color: var(--dim); font-size: 10.5px; }
+
+/* --- ô nhìn: đường điểm tốt nhất (core.md §18.6.3) --- */
+.rl-plot { flex-direction: column; gap: 8px; }
+.rl-plot-dau { font-size: 12.5px; font-weight: 600; display: flex; flex-direction: column; }
+.rl-plot-dau span { font-weight: 400; font-size: 11px; color: var(--muted); }
+.rl-plot-boc { flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.rl-plot-trong {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  color: var(--dim); font-size: 11.5px; text-align: center; padding: 10px;
+}
+/* `preserveAspectRatio="none"` nên SVG giãn theo ô — nét thì `vector-effect` giữ
+   nguyên bề dày, không thì đường bị kéo méo thành dày mỏng hai chiều khác nhau. */
+.rl-svg { flex: 1; width: 100%; min-height: 96px; }
+.rl-svg path, .rl-svg line { vector-effect: non-scaling-stroke; }
+.rl-duong { fill: none; stroke: var(--accent); stroke-width: 1.6;
+            stroke-linejoin: round; stroke-linecap: round; }
+.rl-moc0 { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; }
+.rl-cham { fill: var(--accent); }
+.rl-truc { fill: var(--dim); font-size: 9px; text-anchor: end; }
+.rl-truc-x { text-anchor: start; }
+.rl-truc-x.rl-phai { text-anchor: end; }
+.rl-plot-chu { font-size: 11px; color: var(--dim); }
+.rl-mach { color: var(--warn); }
+
+/* --- panel CHỌN: nhãn nhóm có nút "tắt hết / bật hết" --- */
+.rl-nhom-ten {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.rl-nhom-ten em { font-style: normal; text-transform: none; letter-spacing: 0;
+                  color: var(--dim); opacity: .8; }
+.rl-nhom-ten button {
+  background: none; border: 0; color: var(--muted); font: inherit; font-size: 10px;
+  text-transform: none; letter-spacing: 0; cursor: pointer; padding: 0;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.rl-nhom-ten button:hover { color: var(--text); }
+.rl-m { color: var(--muted); }
+
+/* --- panel Dữ liệu: kho nến đang có gì, và cảnh báo chưa đặt đoạn khoá --- */
+.rl-kho-nen {
+  margin: 4px 0 10px; padding: 6px 9px; border-radius: var(--radius-sm);
+  background: var(--field); color: var(--muted); font-size: 11px; line-height: 1.5;
+}
+.rl-kho-nen.xau { background: color-mix(in srgb, var(--warn) 14%, transparent);
+                  color: var(--text); }
+.rl-nho.rl-canh { color: var(--warn); }
+.rl-bang td.xau, .rl-bang .rl-diem.xau { color: var(--warn); }

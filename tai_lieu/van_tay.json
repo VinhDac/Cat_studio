@@ -1,5 +1,5 @@
 {
- "bam": "a9db714cad21861b",
+ "bam": "e5dad4159653f389",
  "chi_tiet": {
   "kho": {
    "toan_hang": [
@@ -728,7 +728,39 @@
     "tong_R": -40.12,
     "ty_le_thang": 39.7,
     "von_cuoi": 7864.16,
-    "von_dau": 10000.0
+    "von_dau": 10000.0,
+    "_diem": {
+     "tuan": {
+      "trung_binh": -0.4107,
+      "dao_dong": 1.1673,
+      "diem": -0.3519,
+      "co_lenh": 51,
+      "so_ky": 52,
+      "ty_le_co_lenh": 0.9808,
+      "lo_trung_binh": -1.0559,
+      "te_nhat": -3.0881,
+      "tot_nhat": 2.4167
+     },
+     "thang": {
+      "trung_binh": -1.7799,
+      "dao_dong": 2.9435,
+      "diem": -0.6047,
+      "co_lenh": 12,
+      "so_ky": 12,
+      "ty_le_co_lenh": 1.0,
+      "lo_trung_binh": -3.3458,
+      "te_nhat": -6.9928,
+      "tot_nhat": 2.1461
+     },
+     "ky": "tuan",
+     "diem": -0.3519,
+     "sut_von_pt": 23.7,
+     "lai_pt": -21.36,
+     "so_lenh": 232,
+     "lai_moi_nam": -21.36,
+     "dat": true,
+     "ly_do": null
+    }
    },
    "2025": {
     "R_khi_thang": 1.979,
@@ -751,7 +783,39 @@
     "tong_R": 7.28,
     "ty_le_thang": 28.2,
     "von_cuoi": 10124.78,
-    "von_dau": 10000.0
+    "von_dau": 10000.0,
+    "_diem": {
+     "tuan": {
+      "trung_binh": 0.0235,
+      "dao_dong": 1.2584,
+      "diem": 0.0187,
+      "co_lenh": 53,
+      "so_ky": 53,
+      "ty_le_co_lenh": 1.0,
+      "lo_trung_binh": -0.7324,
+      "te_nhat": -2.7758,
+      "tot_nhat": 3.1903
+     },
+     "thang": {
+      "trung_binh": 0.104,
+      "dao_dong": 3.0502,
+      "diem": 0.0341,
+      "co_lenh": 12,
+      "so_ky": 12,
+      "ty_le_co_lenh": 1.0,
+      "lo_trung_binh": -1.7439,
+      "te_nhat": -6.3099,
+      "tot_nhat": 6.3477
+     },
+     "ky": "tuan",
+     "diem": 0.0187,
+     "sut_von_pt": 9.21,
+     "lai_pt": 1.25,
+     "so_lenh": 284,
+     "lai_moi_nam": 1.23,
+     "dat": true,
+     "ly_do": null
+    }
    }
   }
  }

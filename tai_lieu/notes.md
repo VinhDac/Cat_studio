@@ -112,6 +112,21 @@ cất cạnh kho nến. Thiếu thứ nào thì app **nổ kèm lời giải th�
 ⚠ Một thứ **chưa ai bắt**: mật độ nến M1 thật. Meta kho nến có thể ghi 2016→2026 trong khi
 M1 thật chỉ từ giữa 2021. Tự soi: `số nến ÷ số ngày` phải ≈ 1.130 *(§15.0)*.
 
+### Thêm một CỬA SỔ (4 nơi)
+
+1. `api.py` — lớp `ApiXxx(NenCuaSo)` *(hoặc `NenChay` nếu cửa sổ đó CHẠY trên dữ liệu)*,
+   `_HAU_TO` riêng, bề mặt **hẹp**.
+2. `api.Api.mo_xxx` — `create_window(url=…?xxx=1, js_api=<ApiXxx>)`, rồi
+   `events.closed += quen_di` và một luồng `_va_khung("— Xxx")`.
+3. `webui/src/main.tsx` — thêm một dòng `?xxx=1`. **Đừng** thêm entry cho Vite.
+4. `webui/src/api.ts` — một `pyXxx` riêng. Gọi nhầm `py.*` ở cửa sổ đó sẽ trả *"api.py
+   không có hàm …"* chứ không âm thầm đụng cửa sổ chính.
+
+⚠ `js_api=` phải là **thể hiện riêng**, không phải `self` — xem `NenCuaSo`, ba lỗi đã có
+thật (bấm ✕ ở cửa sổ con đóng cửa sổ chính…).
+⚠ Quyết định **đóng cửa sổ = dừng hay không**. Live thì DỪNG; RL thì KHÔNG (sổ ở
+`luot_tim`, mức module). Chọn sai là món nợ §14.4.
+
 ### Thêm một ô CÀI ĐẶT
 
 1. `luu_tru.CAI_DAT_MAC_DINH["test"]`
@@ -144,6 +159,21 @@ chạy khác nhau bị lịch sử ghi là một, và "so với lần trước" 
 
 ## 3. Bẫy đã cắn thật — đừng đạp lại
 
+- **Thứ phải sống lâu hơn cửa sổ thì đừng giữ trên `Api`.** `Api` dựng lại mỗi lần mở cửa
+  sổ. Sổ lượt tìm nằm ở **mức module** vì thế — và phép kiểm là *vứt sạch tham chiếu rồi
+  `gc.collect()`, nó vẫn phải còn*. Đây là món nợ §14.4 (*"đóng cửa sổ Live là dừng
+  phiên"*) không được mắc lại. *(§18.8)*
+- **Một SƠ ĐỒ hỏng ≠ một LƯỢT CHẠY hỏng.** `LoiChay` thì đếm rồi chạy tiếp; lỗi khác thì
+  tắt cờ và ghi lý do. Lẫn hai thứ: hoặc một sơ đồ rác giết cả đêm chạy, hoặc luồng nền
+  chết im lặng và thanh tiến trình quay mãi. *(§18.8)*
+- **"Bốc đều" trong một danh sách LỆCH là một thiên kiến không ai khai.** `vao_lenh` chiếm
+  56 % kho nước đi, `het` chiếm 1 ô — bốc đều từng ô thì mỗi bước là một lần thử đặt lệnh.
+  Bốc HAI TẦNG (loại trước, ô sau). Và nó không chỉ làm lệch thống kê: bộ bốc cũ không bao
+  giờ đụng `hop_le`, nên hai lỗ hổng lọt qua 60 sơ đồ mà bài kiểm vẫn xanh. **Bộ bốc nào
+  thì tìm ra lỗi nấy.** *(§18.8)*
+- **"Có zone chưa" và "chỉ được MỘT zone" là HAI câu hỏi, hai biến.** Cái đầu theo **vị
+  trí** (cất vào ngăn xếp lúc rẽ nhánh — nhánh song song không thừa hưởng), cái sau **toàn
+  cục** (hai cổng ở hai nhánh vẫn là hai cổng). Nghe giống nhau, trả lời khác nhau. *(§18.8)*
 - **Một luật cấm ĐÚNG ở từng bước vẫn dồn người đi vào chỗ chết.** Người bày phải trả lời
   được *"đi nước này rồi còn về đích được không"*, không chỉ *"nước này hợp lệ không"* —
   nên nước đẻ CỔNG phải chừa sẵn một suất khối cho hành động đóng nó. *(§18.7.4)*
@@ -196,11 +226,21 @@ cat_studio/
                    └─ LUAT_DO_THI: mỗi luật một hàm `_lt_*`, thêm luật = thêm một dòng
   nguoi_bay.py     §17 nhìn NGƯỢC: sơ đồ dở → nước đi hợp lệ, và sơ đồ → chuỗi nước đi
                    └─ KHO_NUOC_DI cố định + mat_na() thay đổi. Chỗ mọi máy tìm cắm vào.
+  cham_diem.py     §18.2: chuỗi lãi/lỗ theo TUẦN → trung bình ÷ dao động, + mấy cái CỬA
+                   └─ chấm bằng TIỀN. `tong_R` mù hoa hồng nên không dùng để chấm.
+  tim_kiem.py      dò NGẪU NHIÊN — đối chứng mà mọi cách tìm sau phải thắng
+                   └─ bốc HAI TẦNG (loại trước, ô sau) · tái lập bằng hạt giống
+  luot_tim.py      vòng đời một lượt tìm: bắt đầu · dừng · tiến độ · kết quả
+                   └─ SỔ Ở MỨC MODULE — lượt chạy sống khi cửa sổ đóng (§18.6.2)
   bo_chay.py       CaiDat · một nhịp · vào/sửa lệnh · quy đổi đơn vị · thống kê
   khop_lenh.py     phần việc của SÀN: khớp lúc nào, ở giá nào (hàm thuần, không numpy)
   kho/             danh mục app tính được — nen_tang · chi_bao · zone
   mau/             sơ đồ mẫu, là JSON như mọi chiến lược khác
   api.py           bề mặt DUY NHẤT giao diện gọi tới (JS → api → core/bo_chay)
+                   └─ Api (cửa sổ vẽ) · ApiTester · ApiLive · ApiRL — mỗi cửa sổ MỘT
+                      thể hiện, bề mặt hẹp. NenCuaSo lo khung, NenChay lo nến+CaiDat.
+webui/src/
+  App.tsx          cửa sổ VẼ · tester/ · live/ · rl/ — main.tsx rẽ bằng ?tester ?live ?rl
 tools/
   chay_test · van_tay · soi_rac · build_ui · chay · dong_goi
 tai_lieu/

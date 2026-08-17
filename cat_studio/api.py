@@ -23,9 +23,12 @@ import traceback
 
 from . import core
 from . import kho
+from . import cham_diem
 from . import gui_lenh
 from . import ket_noi
 from . import khung_cua_so
+from . import luot_tim
+from . import nguoi_bay
 from . import phien_live
 from . import bo_chay
 from . import lich_su
@@ -373,6 +376,8 @@ class Api(NenCuaSo):
         self._api_tester = None      # Api RIÊNG của cửa sổ đó
         self._live = None            # cửa sổ Live
         self._api_live = None
+        self._rl = None              # cửa sổ RL (§18.6)
+        self._api_rl = None
         self._doc_tester = None
         self._cai_dat = core.load_settings()
         self._khoa = threading.Lock()
@@ -715,6 +720,57 @@ class Api(NenCuaSo):
                          daemon=True).start()
         return _ok({"da_mo": True})
 
+    def _nhan_so_do_may(self, doc):
+        """Cửa sổ RL đẩy sang một sơ đồ máy vẽ — mở nó ở cửa sổ VẼ.
+
+        ⭐ Nó là file chiến lược BÌNH THƯỜNG (§18.6.5): cùng JSON, cùng canvas, cùng
+        Tester. Nên chỗ này không có đường riêng nào — bắn đúng sự kiện mà "mở file"
+        vẫn dùng, rồi kéo cửa sổ lên.
+
+        Bắn TRƯỚC rồi mới kéo: kéo trước thì cửa sổ hiện ra trong một nhịp còn chưa có
+        gì thay đổi, nhìn như bấm hụt (bài học của `test_soi_luot`)."""
+        self._ban("so_do_may", core.normalize_process(doc))
+        self._khung.keo_len_truoc()
+
+    @_bat_loi
+    def mo_rl(self):
+        """Mở CỬA SỔ RL — bàn điều khiển máy tìm chiến lược (§18.6).
+
+        Không kiểm gì cả: cửa sổ này không chạy sơ đồ đang vẽ, nó tự sinh ra sơ đồ.
+        Cửa sổ còn sống thì KÉO LÊN, không dựng lại — một lượt tìm có thể đang chạy
+        trong đó, và dựng lại là mất chỗ nhìn nó."""
+        import webview
+        trang = luu_tru.trang_giao_dien()
+        co_trang = os.path.exists(trang)
+
+        if self._rl is not None:
+            self._api_rl._khung.keo_len_truoc()
+            return _ok({"da_mo": True})
+
+        self._api_rl = ApiRL(self)
+        self._rl = webview.create_window(
+            "Cat Studio — RL",
+            url=f"{trang.replace(os.sep, '/')}?rl=1" if co_trang else None,
+            html=None if co_trang else _TRANG_TESTER_TAM,
+            js_api=self._api_rl,              # ⚠ KHÔNG phải `self` — xem `NenCuaSo`
+            width=1180, height=800, min_size=(940, 620),
+            background_color="#202020",
+            frameless=True, easy_drag=False)
+        self._api_rl._gan_window(self._rl)
+
+        def quen_di():
+            # ⚠ CHỈ quên CỬA SỔ, KHÔNG dừng lượt tìm nào. Sổ nằm ở `luot_tim` (mức
+            # module) đúng để chuyện này an toàn: đóng cửa sổ RL rồi mở lại là thấy
+            # lượt cũ vẫn đang chạy. Ngược hẳn với `mo_live`, nơi đóng cửa sổ = dừng
+            # phiên — và §18.6.2 chốt là RL không được mắc lại món nợ đó.
+            self._rl = None
+            self._api_rl = None
+
+        self._rl.events.closed += quen_di
+        ar = self._api_rl
+        threading.Thread(target=lambda: ar._va_khung("— RL"), daemon=True).start()
+        return _ok({"da_mo": True})
+
     def _mo_cua_so_tester(self, doc):
         """Cửa sổ thứ hai.
 
@@ -881,7 +937,111 @@ class Api(NenCuaSo):
             pass
 
 
-class ApiTester(NenCuaSo):
+class NenChay(NenCuaSo):
+    """Phần CHUNG của cửa sổ nào có CHẠY trên dữ liệu: lo nến và điều kiện chạy.
+
+    `ApiTester` và `ApiRL` đều cần đúng hai việc: *thiếu nến thì tải*, và *dựng
+    `CaiDat` từ Cài đặt của cửa sổ chính*. Chép ra hai bản là hai bản trôi được — mà
+    trôi ở đây thì tester và máy tìm chạy trên hai bộ điều kiện khác nhau, và mọi so
+    sánh giữa chúng thành vô nghĩa mà không ai thấy.
+
+    Bề mặt vẫn HẸP: lớp này không thêm một hàm nào cho JS gọi, nó chỉ gom hai phép
+    dựng. Cửa sổ nào lộ ra cái gì vẫn do lớp con quyết."""
+
+    def __init__(self):
+        super().__init__()
+        self._tt = {}
+
+    def _tai_neu_thieu(self, sym, tu, den):
+        """Thiếu nến cho khoảng này thì TỰ TẢI đúng phần thiếu, rồi chạy tiếp.
+
+        Bỏ nút "Tải thêm" đi được là nhờ chỗ này. Luật cũ ghi ở `nguon_uoc_tinh` là
+        *"không bao giờ tải lén"*, và nó vẫn đúng — chỉ là cách giữ luật đổi: thay vì
+        bắt bấm thêm một nút, tải cứ tải nhưng **nói ra** trên chính thanh tiến trình,
+        kèm số MB. Gõ nhầm `2015` thay vì `2025` thì thấy ngay `≈180 MB` mà đóng lại,
+        không cần một hộp xác nhận nào.
+
+        `khoang_thieu` vốn chỉ trả về những mẩu CÒN THIẾU nên đây là tải bổ sung, không
+        phải tải lại từ đầu; đủ rồi thì không đụng tới MT5 một lần nào."""
+        # ⚠ Chặn khoảng RỖNG ngay đây. `khoang_thieu` trả `[]` cho cả hai trường hợp
+        # "đã đủ nến" LẪN "không đọc nổi mốc thời gian" — mà `[]` được hiểu là "khỏi
+        # tải". Nên máy mới, ô From/To chưa đặt, bấm ▶ là KHÔNG tải gì rồi báo "Không
+        # có nến nào cho XAUUSD", đổ tội cho mã symbol trong khi lỗi thật là chưa đặt
+        # khoảng.
+        if nguon_nen.thoi_diem(tu) is None or nguon_nen.thoi_diem(den) is None:
+            raise RuntimeError(
+                "Chưa đặt khoảng thời gian để chạy.\n\n"
+                "Mở Cài đặt → Strategy Test và điền hai ô Từ / Đến "
+                "(dạng 2025-01-01), rồi bấm ▶ lại.")
+        thieu = nguon_nen.khoang_thieu(sym, tu, den)
+        if not thieu:
+            return
+        ut = nguon_nen.uoc_tinh(thieu)
+        self._tt.update({"da": 0, "tong": 0,
+                         "chu": f"đang tải nến {sym} từ MT5 (≈{ut['mb']} MB)…"})
+        try:
+            nguon_nen.tai(sym, tu, den, tien_do=lambda i, n, c: self._tt.update(
+                {"da": int(i), "tong": int(n),
+                 "chu": f"đang tải nến {sym} từ MT5 · {c}"}))
+        except nguon_nen.LoiNguon as e:
+            # Trước đây lỗi này rơi vào nút "Tải thêm" nên tự nó đã rõ. Giờ nó rơi vào
+            # GIỮA một lần chạy, nên phải tự nói ra là đang thiếu gì.
+            a, b = thieu[0][0], thieu[-1][1]
+            raise RuntimeError(
+                f"Thiếu nến {sym} khoảng {nguon_nen._ngay(a)} → {nguon_nen._ngay(b)} "
+                f"và không tải được.\n\n{e}") from None
+
+        # ⚠ Tải xong mà ĐẦU khoảng vẫn thiếu = nguồn không có dữ liệu xa tới thế. Phải
+        # dừng, vì hai lý do:
+        #   1. chạy tiếp trên một khoảng ngắn hơn thì người dùng tưởng mình đang
+        #      backtest từ 2015 trong khi thật ra từ 2016;
+        #   2. khoảng đó KHÔNG BAO GIỜ lấp được, nên mỗi lần bấm ▶ lại mở MT5 tải lại
+        #      một lượt vô ích — cái giá này chỉ xuất hiện từ khi bỏ nút "Tải thêm".
+        # Chỉ xét đầu khoảng: thiếu ở ĐUÔI là chuyện thường (dữ liệu chỉ có tới hôm
+        # nay), không có lý do gì chặn.
+        con = nguon_nen.khoang_thieu(sym, tu, den)
+        t0 = nguon_nen.thoi_diem(tu)
+        if con and t0 is not None and con[0][0] <= t0:
+            tt = nguon_nen.tom_tat(sym)
+            raise RuntimeError(
+                f"MT5 không có nến {sym} sớm tới {nguon_nen._ngay(t0)}.\n"
+                f"Nguồn chỉ có từ {tt['tu_chu']} đến {tt['den_chu']}.\n\n"
+                f'Sửa ô "Từ" ở Cài đặt → Strategy Test thành {tt["tu_chu"][:10]} '
+                f"trở đi rồi chạy lại.")
+
+    #: Khối cài đặt lớp con này chạy theo. `ApiRL` đổi thành `"rl"` — RL có khoảng
+    #: TRAIN và khoảng KHOÁ, hình dạng khác hẳn `test` (§18.3).
+    _KHOI_CAI_DAT = "test"
+
+    def _nen_va_cd(self, ci):
+        """`(nến, CaiDat, ci đã gộp)` — MỘT chỗ dựng điều kiện chạy, mọi cửa sổ dùng.
+
+        ⚠ ĐỌC LẠI cài đặt từ cửa sổ chính mỗi lần, không dùng bản JS nhớ từ lúc mở cửa
+        sổ: người dùng sửa Cài đặt rồi bấm ▶ lại thì phải ăn ngay. Cửa sổ phụ sống lâu
+        hơn một lần chạy, nên mọi thứ nó "nhớ" đều có nguy cơ cũ."""
+        k = self._KHOI_CAI_DAT
+        luu = dict(luu_tru.CAI_DAT_MAC_DINH[k])
+        luu.update((self._cha._cai_dat or {}).get(k) or {})
+        luu.update(ci or {})
+        sym = luu.get("symbol") or "XAUUSD"
+        self._tai_neu_thieu(sym, luu.get("tu"), luu.get("den"))
+        m = nguon_nen.doc_meta(sym) or {}
+        nen = nguon_nen.doc(sym, luu.get("tu"), luu.get("den"))
+        if not len(nen):
+            raise RuntimeError(
+                f"Không có nến nào cho {sym} trong khoảng này. Kiểm tra lại mã symbol "
+                f"và khoảng From→To ở Cài đặt → Strategy Test.")
+        cd = bo_chay.CaiDat(
+            symbol=sym, tu=luu.get("tu"), den=luu.get("den"),
+            spread_diem=_spread(sym, luu, m),
+            truot_diem=luu.get("truot_diem", 0),
+            deposit=luu.get("deposit", 10000.0),
+            commission=luu.get("commission", 0.0),
+            **_thong_so(sym, m), **_luat_san(sym, luu))
+        return nen, cd, luu
+
+
+class ApiTester(NenChay):
     """Bề mặt của CỬA SỔ Strategy Tester. Tách hẳn khỏi `Api` — xem `NenCuaSo`.
 
     Cố ý HẸP: cửa sổ tester không được lưu chiến lược, không mở hộp thoại file, không
@@ -942,62 +1102,6 @@ class ApiTester(NenCuaSo):
         finally:
             self._tt["dang_chay"] = False
 
-    def _tai_neu_thieu(self, sym, tu, den):
-        """Thiếu nến cho khoảng này thì TỰ TẢI đúng phần thiếu, rồi chạy tiếp.
-
-        Bỏ nút "Tải thêm" đi được là nhờ chỗ này. Luật cũ ghi ở `nguon_uoc_tinh` là
-        *"không bao giờ tải lén"*, và nó vẫn đúng — chỉ là cách giữ luật đổi: thay vì bắt
-        bấm thêm một nút, tải cứ tải nhưng **nói ra** trên chính thanh tiến trình, kèm số
-        MB. Gõ nhầm `2015` thay vì `2025` thì thấy ngay `≈180 MB` mà đóng lại, không cần
-        một hộp xác nhận nào.
-
-        `khoang_thieu` vốn chỉ trả về những mẩu CÒN THIẾU nên đây là tải bổ sung, không
-        phải tải lại từ đầu; đủ rồi thì không đụng tới MT5 một lần nào."""
-        # ⚠ Chặn khoảng RỖNG ngay đây. `khoang_thieu` trả `[]` cho cả hai trường hợp
-        # "đã đủ nến" LẪN "không đọc nổi mốc thời gian" — mà `[]` được hiểu là "khỏi
-        # tải". Nên máy mới, ô From/To chưa đặt, bấm ▶ là KHÔNG tải gì rồi báo "Không có
-        # nến nào cho XAUUSD", đổ tội cho mã symbol trong khi lỗi thật là chưa đặt khoảng.
-        if nguon_nen.thoi_diem(tu) is None or nguon_nen.thoi_diem(den) is None:
-            raise RuntimeError(
-                "Chưa đặt khoảng thời gian để chạy.\n\n"
-                "Mở Cài đặt → Strategy Test và điền hai ô Từ / Đến "
-                "(dạng 2025-01-01), rồi bấm ▶ lại.")
-        thieu = nguon_nen.khoang_thieu(sym, tu, den)
-        if not thieu:
-            return
-        ut = nguon_nen.uoc_tinh(thieu)
-        self._tt.update({"da": 0, "tong": 0,
-                         "chu": f"đang tải nến {sym} từ MT5 (≈{ut['mb']} MB)…"})
-        try:
-            nguon_nen.tai(sym, tu, den, tien_do=lambda i, n, c: self._tt.update(
-                {"da": int(i), "tong": int(n),
-                 "chu": f"đang tải nến {sym} từ MT5 · {c}"}))
-        except nguon_nen.LoiNguon as e:
-            # Trước đây lỗi này rơi vào nút "Tải thêm" nên tự nó đã rõ. Giờ nó rơi vào
-            # GIỮA một lần chạy, nên phải tự nói ra là đang thiếu gì.
-            a, b = thieu[0][0], thieu[-1][1]
-            raise RuntimeError(
-                f"Thiếu nến {sym} khoảng {nguon_nen._ngay(a)} → {nguon_nen._ngay(b)} "
-                f"và không tải được.\n\n{e}") from None
-
-        # ⚠ Tải xong mà ĐẦU khoảng vẫn thiếu = nguồn không có dữ liệu xa tới thế. Phải
-        # dừng, vì hai lý do:
-        #   1. chạy tiếp trên một khoảng ngắn hơn thì người dùng tưởng mình đang backtest
-        #      từ 2015 trong khi thật ra từ 2016;
-        #   2. khoảng đó KHÔNG BAO GIỜ lấp được, nên mỗi lần bấm ▶ lại mở MT5 tải lại một
-        #      lượt vô ích — cái giá này chỉ xuất hiện từ khi bỏ nút "Tải thêm".
-        # Chỉ xét đầu khoảng: thiếu ở ĐUÔI là chuyện thường (dữ liệu chỉ có tới hôm nay),
-        # không có lý do gì chặn.
-        con = nguon_nen.khoang_thieu(sym, tu, den)
-        t0 = nguon_nen.thoi_diem(tu)
-        if con and t0 is not None and con[0][0] <= t0:
-            tt = nguon_nen.tom_tat(sym)
-            raise RuntimeError(
-                f"MT5 không có nến {sym} sớm tới {nguon_nen._ngay(t0)}.\n"
-                f"Nguồn chỉ có từ {tt['tu_chu']} đến {tt['den_chu']}.\n\n"
-                f'Sửa ô "Từ" ở Cài đặt → Strategy Test thành {tt["tu_chu"][:10]} '
-                f"trở đi rồi chạy lại.")
-
     def _chay_that(self, ci, doc=None):
         # ĐỌC LẠI cài đặt từ cửa sổ chính mỗi lần chạy, không dùng bản JS nhớ từ lúc mở
         # cửa sổ: người dùng sửa Cài đặt rồi bấm ▶ lại thì phải ăn ngay. Cửa sổ tester
@@ -1006,28 +1110,10 @@ class ApiTester(NenCuaSo):
         # `doc` truyền vào = đang MỞ LẠI một mục lịch sử: sơ đồ và cài đặt lấy từ mục đó
         # chứ không phải từ cửa sổ chính, nếu không thì "mở lại" chạy ra một lần chạy
         # khác hẳn và cái tên lịch sử thành nói dối.
-        luu = dict(luu_tru.CAI_DAT_MAC_DINH["test"])
-        luu.update((self._cha._cai_dat or {}).get("test") or {})
-        luu.update(ci or {})
-        ci = luu
         doc = doc or self._cha._doc_tester
         if not doc:
             raise RuntimeError("Chưa có sơ đồ nào để chạy.")
-        sym = ci.get("symbol") or "XAUUSD"
-        self._tai_neu_thieu(sym, ci.get("tu"), ci.get("den"))
-        m = nguon_nen.doc_meta(sym) or {}
-        nen = nguon_nen.doc(sym, ci.get("tu"), ci.get("den"))
-        if not len(nen):
-            raise RuntimeError(
-                f"Không có nến nào cho {sym} trong khoảng này. Kiểm tra lại mã symbol và "
-                f"khoảng From→To ở Cài đặt → Strategy Test.")
-        cd = bo_chay.CaiDat(
-            symbol=ci.get("symbol") or "XAUUSD", tu=ci.get("tu"), den=ci.get("den"),
-            spread_diem=_spread(sym, ci, m),
-            truot_diem=ci.get("truot_diem", 0),
-            deposit=ci.get("deposit", 10000.0),
-            commission=ci.get("commission", 0.0),
-            **_thong_so(sym, m), **_luat_san(sym, ci))
+        nen, cd, ci = self._nen_va_cd(ci)      # NenChay — dùng chung với cửa sổ RL
         cu = self._tom_tat_lan_truoc()
         self._tt.update({"tong": 0, "chu": "đang biên dịch sơ đồ…"})
 
@@ -2179,3 +2265,310 @@ def _so_do_mau():
     with open(_DUONG_MAU, encoding="utf-8") as f:
         return json.load(f)
 
+
+
+#: Mấy nhóm THẺ tắt được, kèm nhãn tiếng Việt và thứ tự bày ra — core.md §18.6.1.
+#:
+#: ⚠ Chỉ mang NHÃN và THỨ TỰ. Danh sách giá trị lấy từ `nguoi_bay.THE_CHON`, thứ tự
+#: quét thẳng từ kho nước đi — nên thêm một toán hạng, một nấc thang, một chế độ sửa là
+#: panel có ngay, không phải sửa ở đây. Nhóm nào không khai dưới đây thì KHÔNG bày ra,
+#: và đó là cách duy nhất một nhóm bị bỏ sót — nên bài kiểm canh đúng chuyện ấy.
+_NHOM_CHON = [
+    ("kho", "th", "Toán hạng", None),
+    ("kho", "tf", "Khung giờ", None),
+    ("kho", "moc", "Mốc neo vào lệnh", None),
+    ("kho", "huong", "Hướng lệnh", None),
+    ("kho", "loai", "Loại lệnh", None),
+    ("kho", "sua", "Chế độ Sửa lệnh", None),
+    ("thang", "nguong", "Ngưỡng cổng", "× đơn vị toán hạng"),
+    ("thang", "sl", "Stop Loss", "× ATR / ATR zone"),
+    ("thang", "tp", "Take Profit", "× R"),
+    ("thang", "rui_ro", "Rủi ro mỗi lệnh", "% vốn"),
+    ("thang", "dem_vao", "Đệm quanh mốc neo", "× ATR"),
+    ("thang", "dem_nen", "Đếm nến", "nến"),
+    ("thang", "dem_lenh", "Đếm lệnh", "lệnh"),
+    ("thang", "pt_von", "Sụt vốn", "%"),
+    ("thang", "boi_R", "Lãi đang có", "× R"),
+    ("thang", "chu_ky", "Chu kỳ chỉ báo", "nến"),
+]
+
+#: Nhãn cho mấy giá trị KHÔNG phải số. Số thì tự nó là nhãn.
+_NHAN_THE = {
+    **{t["key"]: t["nhan"] for t in kho.TOAN_HANG},
+    **core.MOC_ENTRY, **core.HUONG, **core.LOAI_LENH, **core.SUA_CHE_DO,
+}
+
+
+def _chon_rl():
+    """Mọi thứ tầng CHỌN bật/tắt được, đã gom nhóm và gắn nhãn.
+
+    Giao diện chỉ cầm CHUỖI THẺ (`th:atr`, `sl:1.5`) rồi gửi ngược lại — nó không cần
+    biết một thẻ nghĩa là gì, nên thêm chiều mới là việc của Python một mình."""
+    def _sap(v):
+        try:
+            return (0, float(v), "")
+        except ValueError:
+            return (1, 0.0, v)
+
+    ra = []
+    for cho, nhom, nhan, don_vi in _NHOM_CHON:
+        gia = nguoi_bay.THE_CHON.get(nhom)
+        if not gia:
+            continue
+        ra.append({
+            "cho": cho, "nhom": nhom, "nhan": nhan, "don_vi": don_vi,
+            "muc": [{"the": f"{nhom}:{g}",
+                     "nhan": _NHAN_THE.get(g, g),
+                     # Toán hạng zone chỉ có nghĩa SAU cổng zone (§12.6c) — đánh dấu
+                     # để người dùng hiểu vì sao tắt nó lại kéo theo mấy cái khác.
+                     "z": nhom == "th" and g in kho.CAN_ZONE,
+                     "manage": nhom == "th"
+                               and list(_TH_TAB.get(g) or ()) == [core.TAB_MANAGE]}
+                    for g in sorted(gia, key=_sap)],
+        })
+    return ra
+
+
+_TH_TAB = {t["key"]: t.get("tabs") for t in kho.TOAN_HANG}
+
+
+class _BaoQuaLuot(dict):
+    """`self._tt` của `NenChay` nhưng đổ thẳng vào bảng trạng thái của một `LuotTim`.
+
+    `NenChay._tai_neu_thieu` báo tiến trình tải nến bằng `self._tt.update(...)`. Cửa sổ
+    RL thì chỉ hỏi `rl_trang_thai(ma)` — nó không biết `self._tt` tồn tại. Không bắc
+    cầu ở đây thì suốt lúc tải nến (có thể hàng phút) thanh tiến trình đứng im và người
+    dùng tưởng treo. Kế thừa `dict` để `NenChay` không phải biết gì về chuyện này."""
+
+    def __init__(self, luot):
+        super().__init__()
+        self._luot = luot
+
+    def update(self, *a, **k):          # noqa: D102 — xem docstring lớp
+        super().update(*a, **k)
+        self._luot._ghi(da_chay=self.get("da", 0), tong=self.get("tong", 0),
+                        chu=self.get("chu", ""))
+
+
+class ApiRL(NenChay):
+    """Bề mặt của CỬA SỔ RL — bàn điều khiển máy tìm chiến lược.
+
+        core.md §18.6
+
+    Cố ý HẸP như `ApiTester`: cửa sổ này không lưu chiến lược, không mở hộp thoại file,
+    không đổi cài đặt. Nó **đặt · chạy · nhìn · mở** (§18.6.2), hết.
+
+    ⚠ Và nó KHÔNG giữ lượt chạy nào. Sổ nằm ở `luot_tim` — mức module, sống theo tiến
+    trình. Đóng cửa sổ RL không dừng lượt tìm; mở lại là thấy nó vẫn đang chạy. Đó là
+    món nợ §14.4 (*"đóng cửa sổ Live là dừng phiên"*) cố ý không mắc lại.
+    """
+
+    _HAU_TO = "RL"
+    #: ⭐ RL có CÀI ĐẶT RIÊNG. Strategy Test có đúng MỘT khoảng; RL cần ít nhất HAI —
+    #: đoạn máy đào và đoạn KHOÁ (§18.3). Mượn khối `test` là sai từ gốc: hình dạng ấy
+    #: không diễn tả nổi thứ RL cần.
+    _KHOI_CAI_DAT = "rl"
+
+    def __init__(self, cha):
+        super().__init__()
+        self._cha = cha          # `Api` của cửa sổ chính — chỉ ĐỌC
+
+    def _dat(self):
+        """Cài đặt RL hiện tại, đã trộn mặc định."""
+        d = dict(luu_tru.CAI_DAT_MAC_DINH["rl"])
+        d.update((self._cha._cai_dat or {}).get("rl") or {})
+        return d
+
+    @_bat_loi
+    def rl_luu_dat(self, d):
+        """Ghi cài đặt RIÊNG của RL. Danh sách trắng — không cho JS nhét khoá lạ vào."""
+        cu = self._dat()
+        moi = {k: (d or {}).get(k, cu[k]) for k in luu_tru.CAI_DAT_MAC_DINH["rl"]}
+        # ⚠ `khoa_da_mo` KHÔNG cho giao diện ghi. Nó là cái đồng hồ đếm số lần đoạn
+        # khoá bị nhìn; cho JS đặt lại là cho phép xoá dấu vết, mà cả điểm của nó là
+        # KHÔNG xoá được.
+        moi["khoa_da_mo"] = cu["khoa_da_mo"]
+        self._cha._cai_dat = {**(self._cha._cai_dat or {}), "rl": moi}
+        core.save_settings(self._cha._cai_dat)
+        return _ok(moi)
+
+    # ------------------------------------------------------------------ ĐẶT
+    @_bat_loi
+    def rl_boot(self):
+        """Mọi thứ bàn điều khiển cần, lấy MỘT lần lúc mở cửa sổ.
+
+        ⭐ Mọi danh sách ở đây lấy TỪ NGUỒN, không gõ tay: thêm một toán hạng vào kho
+        là panel có ngay, thêm một nấc thang là ô chọn dài thêm."""
+        ci = self._dat()
+        return _ok({
+            "phien_ban": core.PHIEN_BAN,
+            "accent": (self._cha._cai_dat or {}).get("accent"),
+            # --- tầng CHỌN (§18.6.1) ---
+            "chon": _chon_rl(),
+            "tran": dict(nguoi_bay.TRAN),
+            "cua": dict(cham_diem.CUA_MAC_DINH),
+            "tuan_co_lenh_toi_thieu": cham_diem.TUAN_CO_LENH_TOI_THIEU,
+            "so_nuoc_di": len(nguoi_bay.KHO_NUOC_DI),
+            # --- điều kiện chạy ---
+            # Mặc định lấy từ Cài đặt của cửa sổ vẽ, nhưng SỬA ĐƯỢC ngay tại đây: bàn
+            # điều khiển mà phải sang cửa sổ khác mới đổi được khoảng thời gian thì nó
+            # không phải bàn điều khiển. `_nen_va_cd` vốn đã nhận đè, chỉ thiếu ô nhập.
+            "cai_dat": ci,
+            "kho_nen": self._kho_nen(ci.get("symbol") or "XAUUSD"),
+            "luot": luot_tim.danh_sach(),
+        })
+
+    @_bat_loi
+    def rl_kho_nen(self, symbol):
+        """Kho nến của symbol này đang có gì — gọi lại khi người dùng đổi mã.
+
+        ⭐ Hiện TRƯỚC khi bấm chạy. Không có nó thì đặt khoảng ngoài dải đã tải rồi
+        ngồi đợi, cuối cùng nhận *"không có nến nào"* — hoặc tệ hơn, app lặng lẽ tải
+        180 MB từ MT5."""
+        return _ok(self._kho_nen(str(symbol or "").strip().upper()))
+
+    @staticmethod
+    def _kho_nen(sym):
+        try:
+            t = nguon_nen.tom_tat(sym)
+        except Exception as e:                    # noqa: BLE001
+            return {"symbol": sym, "co": False, "chu": f"{type(e).__name__}: {e}"[:120]}
+        return {"symbol": sym, "co": bool(t["so_nen"]),
+                "so_nen": t["so_nen"], "tu": t["tu_chu"], "den": t["den_chu"],
+                "so_lo_hong": t["so_lo_hong"], "spread_tb": t.get("spread_tb")}
+
+    # ------------------------------------------------------------------ CHẠY
+    @_bat_loi
+    def rl_chay(self, dat):
+        """Mở một lượt tìm trên LUỒNG NỀN, trả về mã ngay.
+
+        Nến có thể phải tải từ MT5 (vài chục giây), nên chuyện đó cũng đẩy sang luồng
+        nền: cửa sổ không được đứng hình trong lúc tải."""
+        dat = dat or {}
+        l = luot_tim.LuotTim(str(dat.get("ten") or "Lượt tìm"))
+        l._ghi(tong=int(dat.get("so_luot") or 100), chu="đang chuẩn bị nến…")
+        luot_tim._ghi_so(l)
+        threading.Thread(target=self._chay_nen_rl, args=(l, dat),
+                         daemon=True).start()
+        return _ok({"ma": l.ma})
+
+    def _chay_nen_rl(self, l, dat):
+        try:
+            # ⚠ Báo tiến trình TẢI NẾN vào chính bảng của lượt tìm, không vào `self._tt`
+            # riêng: cửa sổ chỉ hỏi `rl_trang_thai(ma)`, nên thứ nó không hỏi thì nó
+            # không thấy — và người dùng ngồi nhìn một thanh đứng im suốt lúc tải.
+            self._tt = _BaoQuaLuot(l)
+            nen, cd, _ = self._nen_va_cd(dat.get("cai_dat") or {})
+            # Tải xong thì TRẢ THANH TIẾN TRÌNH VỀ việc thật. Lúc tải, `da/tong` là số
+            # nến; để nguyên thì thanh nhảy về 100% rồi mới bò lại từ 0, và câu "đang
+            # chuẩn bị nến…" nói dối suốt lượt chạy.
+            l._ghi(chu="", da_chay=0, tong=int(dat.get("so_luot") or 100))
+            gio = dat.get("gio_toi_da")
+            l._chay(nen, cd, int(dat.get("so_luot") or 100),
+                    hat=int(dat.get("hat") or 0),
+                    cua=dat.get("cua") or None,
+                    tran=dat.get("tran") or None,
+                    tat=tuple(dat.get("tat") or ()),
+                    giu=int(dat.get("giu") or luot_tim.tim_kiem.GIU_DAU_BANG),
+                    han_giay=float(gio) * 3600 if gio else None,
+                    phang_toi_da=int(dat["phang_toi_da"])
+                    if dat.get("phang_toi_da") else None)
+        except Exception as e:                    # noqa: BLE001
+            # Hỏng lúc CHUẨN BỊ (thiếu nến, chưa đặt khoảng…) cũng phải hiện ra ở đúng
+            # chỗ người dùng đang nhìn, chứ không im lặng để thanh tiến trình quay mãi.
+            l._ghi(loi=f"{type(e).__name__}: {e}", dang_chay=False,
+                   xong_luc=time.time())
+
+    @_bat_loi
+    def rl_dung(self, ma):
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        l.dung()
+        return _ok(True)
+
+    @_bat_loi
+    def rl_xoa(self, ma):
+        return _ok(luot_tim.xoa(str(ma)))
+
+    # ------------------------------------------------------------------ NHÌN
+    @_bat_loi
+    def rl_trang_thai(self, ma):
+        """Tiến trình một lượt. Giao diện hỏi ~500 ms một lần."""
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        return _ok({**l.trang_thai(), "dau_bang": l.tom_tat()})
+
+    @_bat_loi
+    def rl_danh_sach(self):
+        return _ok({"ds": luot_tim.danh_sach()})
+
+    # --------------------------------------------------------------- MỞ KHOÁ
+    @_bat_loi
+    def rl_mo_khoa(self, ma, so_luong=5):
+        """⭐ Chạy nhóm đầu bảng trên ĐOẠN KHOÁ — đoạn chưa từng dùng để chọn.
+
+            core.md §18.3
+
+        Đây là thứ biến *"sơ đồ khớp dữ liệu"* thành *"sơ đồ đạt"*. Mọi con số khác
+        trên bàn điều khiển đều là số TRAIN — đo trên chính đoạn máy vừa đào bới hàng
+        nghìn lượt; con số đáng tin duy nhất là con số đo ở đây.
+
+        ⚠ **ĐẾM, không chặn.** Đây là studio, không phải cái lồng: bấm bao nhiêu lần
+        cũng được. Nhưng mỗi lần bấm thì `khoa_da_mo` tăng và nằm đó — để lần thứ mười
+        người đọc biết ngay con số mình đang tin đã mòn tới đâu. Nhìn một đoạn dữ liệu
+        đủ nhiều lần thì nó thôi là "chưa thấy", và cái đồng hồ này là chỗ duy nhất nói
+        ra chuyện đó.
+        """
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        d = self._dat()
+        if not (d.get("khoa_tu") and d.get("khoa_den")):
+            return _loi("Chưa đặt ĐOẠN KHOÁ.\n\nMở Dữ liệu và điền hai ô «khoá từ / "
+                        "đến» — một khoảng KHÔNG nằm trong đoạn train. Không có nó thì "
+                        "mọi con số vẫn chỉ là số TRAIN.")
+        dau = l.tom_tat(int(so_luong))
+        if not dau:
+            return _loi("Lượt này chưa có sơ đồ nào qua cửa.")
+
+        nen, cd, _ = self._nen_va_cd({"tu": d["khoa_tu"], "den": d["khoa_den"]})
+        ra = []
+        for x in dau:
+            doc = l.so_do(x["hang"])
+            if doc is None:
+                continue
+            try:
+                diem = cham_diem.cham(bo_chay.chay(doc, nen, cd))
+            except Exception as e:              # noqa: BLE001
+                ra.append({"hang": x["hang"], "loi": f"{type(e).__name__}: {e}"[:120]})
+                continue
+            ra.append({"hang": x["hang"], "train": x["diem"], "khoa": diem["diem"],
+                       "khoa_lai_pt": diem["lai_pt"],
+                       "khoa_sut_von_pt": diem["sut_von_pt"],
+                       "khoa_so_lenh": diem["so_lenh"],
+                       "khoa_tuan": diem["tuan"], "khoa_dat": diem["dat"],
+                       "khoa_ly_do": diem["ly_do"]})
+
+        d["khoa_da_mo"] = int(d.get("khoa_da_mo") or 0) + 1
+        self._cha._cai_dat = {**(self._cha._cai_dat or {}), "rl": d}
+        core.save_settings(self._cha._cai_dat)
+        return _ok({"ds": ra, "da_mo": d["khoa_da_mo"],
+                    "tu": d["khoa_tu"], "den": d["khoa_den"]})
+
+    # ------------------------------------------------------------------ MỞ
+    @_bat_loi
+    def rl_mo_so_do(self, ma, hang):
+        """Đẩy sơ đồ hạng `hang` sang CỬA SỔ VẼ và kéo cửa sổ đó lên trước.
+
+        ⭐ Nó là một file chiến lược BÌNH THƯỜNG (§18.6.5) — cùng JSON, cùng cửa sổ vẽ,
+        cùng Tester. Không có loại "sơ đồ của máy"."""
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        doc = l.so_do(int(hang))
+        if doc is None:
+            return _loi(f"Lượt này không có sơ đồ hạng {hang}.")
+        self._cha._nhan_so_do_may(doc)
+        return _ok({"ten": doc["name"]})

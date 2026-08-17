@@ -115,6 +115,22 @@ def _thang_cho(t):
     return None
 
 
+def _thang_ten(key):
+    """Toán hạng này so với thang nào — cùng nguồn với `_thang_cho`, tra bằng tên."""
+    t = next((x for x in kho.TOAN_HANG if x["key"] == key), None)
+    if t is None:
+        raise KhongDocDuoc(f"Toán hạng `{key}` không có trong kho.")
+    loai = t.get("loai")
+    if loai == "boi_R":
+        return "boi_R"
+    if loai == "dem":
+        ten = _THANG_THEO_DON_VI.get(t.get("don_vi"))
+        if ten is None:
+            raise KhongDocDuoc(f"Toán hạng `{key}` đếm bằng đơn vị chưa có thang.")
+        return ten
+    return "nguong"
+
+
 # ---------------------------------------------------------------------------
 # KHO NƯỚC ĐI — cố định, sinh từ kho × thang
 # ---------------------------------------------------------------------------
@@ -232,18 +248,18 @@ class Ban:
 
     __slots__ = ("chuoi", "tab", "so_do", "khoi", "canh", "diem", "ngan_xep",
                  "cong", "ds", "dk", "hd", "co_zone", "co_nhip", "xong",
-                 "x", "y", "dem_nhanh", "cuoi", "co_con")
+                 "x", "y", "dem_nhanh", "cuoi", "co_con", "co_hop_le",
+                 "zone_o_entry", "hop_le_o_entry")
 
     def __init__(self):
         self.chuoi = []                 # [chỉ số nước đi]
         self.tab = 0
         self.so_do = {t: {"steps": [], "edges": []} for t in core.TABS}
         self.xong = False
-        # ⭐ Thuộc về cả CHIẾN LƯỢC, không phải một sơ đồ: cổng zone nằm ở Entry, mà
-        # §12.6d nói Manage vẫn ĐỌC được zone. Đặt lại theo tab thì `lenh_thuoc_zone`
-        # (toán hạng chỉ có ở Manage, lại cần zone) vĩnh viễn không dùng được — một
-        # toán hạng chết mà không ai thấy vì sao.
-        self.co_zone = False
+        #: Entry đã đặt cổng zone chưa — THEO CẢ CHIẾN LƯỢC. §12.6d: cổng zone nằm ở
+        #: Entry mà Manage vẫn ĐỌC được zone; đặt lại theo tab thì `lenh_thuoc_zone`
+        #: (toán hạng chỉ có ở Manage, lại cần zone) vĩnh viễn không dùng được.
+        self.zone_o_entry = self.hop_le_o_entry = False
         self._mo_tab()
 
     # ---- dựng ----
@@ -264,7 +280,17 @@ class Ban:
         self.dk = None                  # điều kiện vừa thêm (chỗ bổ nghĩa bám vào)
         self.hd = None                  # khối Vào lệnh vừa thêm (chỗ `dem` bám vào)
         self.co_nhip = False
-        # ⚠ `co_zone` KHÔNG đặt lại ở đây — xem `__init__`.
+        # ⭐ `co_zone` và `co_hop_le` đi theo VỊ TRÍ, không theo cả sơ đồ: chúng được
+        # cất vào ngăn xếp lúc `mo_nhanh` và lấy lại lúc `dong_nhanh`.
+        #
+        # ⚠ Đây là chỗ đã cắn: để chúng toàn cục thì một nhánh SONG SONG với cổng zone
+        # vẫn tưởng mình có zone — mà §12.6c đòi khối phải nằm SAU cổng zone trên đồ
+        # thị, chứ không phải "sơ đồ có một cổng zone ở đâu đó". Đo được 11 lỗi
+        # *"đọc Zone … nhưng KHÔNG nằm sau cổng zone"* trên 60 sơ đồ sinh tự động.
+        #
+        # Manage thì kế thừa từ Entry (§12.6d) — nó không có cổng zone của riêng mình.
+        self.co_zone = bool(self.tab) and self.zone_o_entry
+        self.co_hop_le = bool(self.tab) and self.hop_le_o_entry
 
     def _gan(self, st):
         """Treo một khối vào điểm hiện tại rồi dời điểm tới nó.
@@ -313,6 +339,8 @@ class Ban:
             self.cong.setdefault(self.ds, []).append(self.dk)
             if loai == "dk_gia":
                 self.cong["so_dai_luong"] = True
+            if self.ds == "dk_hop_le":
+                self.co_hop_le = self.hop_le_o_entry = True
             self.hd = None
         elif loai in ("tf_trai", "chu_ky_trai"):
             self.dk["trai"]["tf" if loai == "tf_trai" else "period"] = n[1]
@@ -341,16 +369,19 @@ class Ban:
             self._het_cong()
             self.cong = self._gan(core.make_action_step(
                 {"type": core.CHECK_COND, "conditions": [], "cong_zone": True}))
-            self.co_zone = True
+            self.co_zone = self.zone_o_entry = True
         elif loai == "hop_le":
             self.ds, self.dk = "dk_hop_le", None
         elif loai == "mo_nhanh":
             self._het_cong()
-            # Chỉ nhớ chỗ để quay về. Dời chỗ là việc của `_gan` — xem chú thích ở đó.
-            self.ngan_xep.append((self.diem, self.x, self.y, self.cuoi))
+            # Nhớ chỗ để quay về, KÈM `co_zone`/`co_hop_le`: chúng đi theo vị trí, nên
+            # nhánh sau không được thừa hưởng cổng zone của nhánh trước.
+            self.ngan_xep.append((self.diem, self.x, self.y, self.cuoi,
+                                  self.co_zone, self.co_hop_le))
         elif loai == "dong_nhanh":
             self._het_cong()
-            self.diem, self.x, self.y, self.cuoi = self.ngan_xep.pop()
+            (self.diem, self.x, self.y, self.cuoi,
+             self.co_zone, self.co_hop_le) = self.ngan_xep.pop()
         elif loai == "het":
             self._het_cong()
             if self.tab + 1 < len(core.TABS):
@@ -371,13 +402,10 @@ class Ban:
 
 
 def _du_tham_so(doc):
-    """Điền sẵn THAM SỐ NGẦM — thứ bộ chạy đọc mà không khối nào gọi tên.
+    """Điền sẵn `core.THAM_SO_NGAM` — thứ bộ chạy đọc mà không khối nào gọi tên.
 
-    `core.can_tham_so_ngam` quyết định có cần hay không; ở đây chỉ điền. Cần mà thiếu
-    là `LoiChay`, không cần mà thừa là cảnh báo "không khối nào dùng tới" — cả hai đều
-    do một chỗ trả lời, nên không bao giờ lệch nhau."""
-    if not core.can_tham_so_ngam(doc):
-        return doc
+    Thiếu là `LoiChay` ngay khi dựng chương trình. Hỏi `core` chứ không viết tay tên
+    nào: danh sách đổi thì chỗ này tự theo."""
     co = {t["ten"] for t in doc["tham_so"]}
     them = [core.make_tham_so(k, "chu kỳ ATR", 14, "nen")
             for k in core.THAM_SO_NGAM if k not in co]
@@ -459,17 +487,79 @@ def _dieu_kien(n):
 _TAB_CUA = {t["key"]: tuple(t.get("tabs") or core.TABS) for t in kho.TOAN_HANG}
 
 
-def mat_na(b, tran=None):
+def mat_na(b, tran=None, tat=()):
     """Danh sách `bool` dài đúng `len(KHO_NUOC_DI)` — nước nào đi được LÚC NÀY.
 
     ⭐ Danh sách CỐ ĐỊNH, mặt nạ THAY ĐỔI. Đó là §18.7.2, và là lý do một mạng nơ-ron
     cắm vào được mà không phải sửa gì.
 
-    `tran` là trần độ phức tạp (§15.5) — cài đặt của tầng CHỌN, `None` là lấy `TRAN`."""
+    `tran` — trần độ phức tạp (§15.5), `None` là lấy `TRAN`.
+    `tat`  — THẺ người dùng không muốn dùng lần này (§18.6.1 tầng CHỌN). Xem `the()`.
+
+    ⚠ `tat` là tầng CHỌN, KHÔNG phải tầng LUẬT: tắt một thứ chỉ là "lần này tôi không
+    muốn dùng", không phải "cái này hỏng". Vì thế nó là tham số chứ không nằm trong
+    `_duoc` — và tắt hết cũng không sao, mặt nạ vẫn còn đường về đích."""
     if b.xong:
         return [False] * len(KHO_NUOC_DI)
     c = _BoiCanh(b, tran or TRAN)
-    return [_duoc(n, c) for n in KHO_NUOC_DI]
+    tat = frozenset(tat or ())
+    if not tat:
+        return [_duoc(n, c) for n in KHO_NUOC_DI]
+    return [False if tat & the(n) else _duoc(n, c) for n in KHO_NUOC_DI]
+
+
+def the(n):
+    """Nước đi này DÙNG những thẻ nào — tắt một thẻ là tắt mọi nước mang nó.
+
+    ⭐ MỘT cơ chế cho MỌI thứ tầng CHỌN tắt được: toán hạng, khung giờ, mốc neo, hướng
+    lệnh, loại lệnh, chế độ sửa, **và từng NẤC của thang số**.
+
+    Nấc thang là chỗ đáng nói: tắt nấc `SL 0,5` không hề đụng tới `THANG` hay
+    `KHO_NUOC_DI` — kho vẫn y nguyên 1.863 ô, chỉ là mấy ô mang thẻ `sl:0.5` bị mặt nạ
+    che. Giữ được §18.7.2 (*danh sách CỐ ĐỊNH, mặt nạ thay đổi*) mà vẫn cho người dùng
+    sửa thang: sửa thang thật thì một mạng đã học phải học lại, còn che mặt nạ thì không.
+    """
+    loai = n[0]
+    if loai == "dk_so":
+        # Tên thang THẬT của toán hạng ấy, không gộp hết vào "ngưỡng": `zone_dem` đo
+        # bằng NẾN, `so_vi_the` bằng LỆNH, `drawdown_pt` bằng % VỐN, `lenh_lai_R` bằng
+        # bội R. Gộp lại thì panel bày ra một cái thang trộn bốn đơn vị, vô nghĩa.
+        return {f"th:{n[1]}", f"{_thang_ten(n[1])}:{n[3]}"}
+    if loai == "dk_gia":
+        return {f"th:{n[1]}", f"th:{n[3]}"}
+    if loai == "dk_ds":
+        return {f"th:{n[1]}"}
+    if loai in ("nhip", "tf_trai", "tf_phai"):
+        return {f"tf:{n[1]}"}
+    if loai in ("chu_ky_trai", "chu_ky_phai"):
+        return {f"chu_ky:{n[1]}"}
+    if loai == "vao_lenh":
+        _, h, l, m, sl, tp, rr = n
+        return {f"huong:{h}", f"loai:{l}", f"moc:{m}",
+                f"sl:{sl}", f"tp:{tp}", f"rui_ro:{rr}"}
+    if loai == "dem":
+        return {f"dem_vao:{n[1]}"}
+    if loai == "sua_lenh":
+        return {f"sua:{n[1]}"} | ({f"sl:{n[2]}"} if n[2] is not None else set())
+    return frozenset()          # nước CẤU TRÚC — không tắt được, chúng là bộ xương
+
+
+def _gom_the():
+    """Mọi thẻ CÓ THẬT trong kho, gom theo nhóm — quét từ `KHO_NUOC_DI`, không gõ tay.
+
+    ⚠ Quét chứ không liệt kê: thêm một toán hạng, một nấc thang, một chế độ sửa là
+    panel tầng CHỌN có ngay. Gõ tay một bản thứ hai ở đây là dựng lại đúng cái bẫy
+    `CAN_ZONE` và `MOC_ENTRY` đã cắn (§15.8)."""
+    ra = {}
+    for n in KHO_NUOC_DI:
+        for t in the(n):
+            nhom, gia = t.split(":", 1)
+            ra.setdefault(nhom, set()).add(gia)
+    return ra
+
+
+#: `{nhóm thẻ: {giá trị}}` — nguồn của panel "Kho đồ" và "Thang số" ở cửa sổ RL.
+THE_CHON = _gom_the()
 
 
 #: Trường của ô toán hạng → tên nước đi bổ nghĩa nó.
@@ -590,6 +680,13 @@ def _duoc(n, c):
             return False               # toán hạng của Manage, đặt ở Entry là vô nghĩa
         if k in kho.CAN_ZONE and not b.co_zone:
             return False               # §12.6c: toán hạng zone chỉ SAU cổng zone
+        # ⚠ `zone_hop_le` có HAI luật riêng, cả hai đều do `_soat_cong_zone` canh:
+        #   · VÒNG TRÒN — cổng zone hỏi nó là hỏi kết quả của chính nó (và bộ chạy thì
+        #     TỪNG tràn ngăn xếp ở đấy). Cấm cả ở phần ĐẾM lẫn phần HỢP LỆ.
+        #   · CHƯA ĐỊNH NGHĨA — hỏi khi cổng zone chưa khai phần HỢP LỆ là hỏi một khái
+        #     niệm chưa ai định nghĩa.
+        if k == "zone_hop_le" and ((b.cong or {}).get("cong_zone") or not b.co_hop_le):
+            return False
         if k in c.da_hoi:
             return False               # hỏi hai lần cùng một thứ trong một cổng
         if c.kieu is not None and c.kieu != ("gia" if loai == "dk_gia" else "so"):
@@ -644,8 +741,11 @@ def _duoc(n, c):
         return (b.cong is not None and c.cong_du and not c.het_cho_cong
                 and c.con_sua_duoc)
     if loai == "cong_zone":
-        # MỘT cổng zone mỗi sơ đồ — nhiều zone cùng lúc đang hoãn có chủ ý (§15.11).
-        return (not b.co_zone and c.tab == core.TAB_ENTRY and c.cong_du
+        # MỘT cổng zone mỗi CHIẾN LƯỢC — nhiều zone cùng lúc đang hoãn có chủ ý
+        # (§15.11). Hỏi `zone_o_entry` (toàn cục) chứ KHÔNG hỏi `co_zone` (theo vị
+        # trí): cổng zone ở nhánh A rồi thêm một cổng nữa ở nhánh B là "có 2 cổng
+        # zone", dù đứng ở B thì `co_zone` đã về false.
+        return (not b.zone_o_entry and c.tab == core.TAB_ENTRY and c.cong_du
                 and not c.het_cho_cong)
     if loai == "hop_le":
         # `dk_hop_le` chỉ có nghĩa trên chính cổng ĐỊNH NGHĨA zone (§12.6f), và phần
@@ -656,8 +756,14 @@ def _duoc(n, c):
         # TRẦN §15.5: một ngã rẽ bao nhiêu nhánh thì thôi — quá nhiều đường thì không
         # theo dõi nổi. Nhánh mới mở đầu bằng CỔNG (§5) nên cũng phải chừa chỗ cho
         # hành động đóng nó.
-        return (c.cong_du and not c.dau and not c.het_nhanh and not c.het_cho_cong
-                and c.con_sua_duoc)
+        #
+        # ⚠ Và KHÔNG mở nhánh khi nhánh hiện tại còn RỖNG. Hai `mo_nhanh` liên tiếp đẩy
+        # CÙNG MỘT chỗ rẽ vào ngăn xếp hai lần; đóng nhánh trong xong thì `diem` bằng
+        # đúng đỉnh ngăn xếp, nên nhánh ngoài trông rỗng VĨNH VIỄN — mở nhánh bị cấm
+        # (rỗng), đóng nhánh bị cấm (rỗng), đẻ cổng bị cấm (hết chỗ). Ngõ cụt, và mặt
+        # nạ tắt sạch: đo được **80/150** lượt đi chết ở đúng đây.
+        return (c.cong_du and not c.dau and not c.nhanh_rong and not c.het_nhanh
+                and not c.het_cho_cong and c.con_sua_duoc)
     # ⚠ NHÁNH KHÔNG ĐƯỢC KẾT THÚC BẰNG CỔNG (`_lt_cong_cut`): "khớp điều kiện rồi thì
     # không có gì phía sau" — chiến lược dừng ngay tại đó, tức cái cổng vừa hỏi xong
     # một câu rồi không làm gì với câu trả lời.
@@ -855,22 +961,6 @@ class _Doc:
         if i is None:
             raise KhongDocDuoc(f"{cho}: {n!r} không có trong kho nước đi.")
         self.ra.append(i)
-
-
-def _thang_ten(key):
-    """Toán hạng này so với thang nào — cùng nguồn với `_thang_cho`, tra bằng tên."""
-    t = next((x for x in kho.TOAN_HANG if x["key"] == key), None)
-    if t is None:
-        raise KhongDocDuoc(f"Toán hạng `{key}` không có trong kho.")
-    loai = t.get("loai")
-    if loai == "boi_R":
-        return "boi_R"
-    if loai == "dem":
-        ten = _THANG_THEO_DON_VI.get(t.get("don_vi"))
-        if ten is None:
-            raise KhongDocDuoc(f"Toán hạng `{key}` đếm bằng đơn vị chưa có thang.")
-        return ten
-    return "nguong"
 
 
 # ---------------------------------------------------------------------------

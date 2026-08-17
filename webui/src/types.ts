@@ -583,3 +583,158 @@ export interface KetQuaHieuChuan {
   de_nghi: DeNghi | null
   stops_level_that: number | null
 }
+
+/* ==========================================================================
+ *  CỬA SỔ RL — bàn điều khiển máy tìm chiến lược (core.md §18.6)
+ * ========================================================================== */
+
+/** Một THẺ tắt được ở tầng CHỌN — `th:atr`, `sl:1.5`, `tf:M5`… (§18.6.1).
+ *
+ * Giao diện chỉ cầm chuỗi `the` rồi gửi ngược lại; nó KHÔNG cần biết một thẻ nghĩa là
+ * gì. Thêm một chiều mới (chế độ sửa, nấc thang, khung giờ…) là việc của Python một
+ * mình — panel tự dài ra. */
+export interface MucChon {
+  the: string; nhan: string
+  /** Toán hạng zone — chỉ có nghĩa SAU cổng zone (§12.6c). */
+  z?: boolean
+  /** Chỉ dùng được ở sơ đồ Manage. */
+  manage?: boolean
+}
+
+export interface NhomChon {
+  /** `kho` = panel Kho đồ · `thang` = panel Thang số. */
+  cho: 'kho' | 'thang'
+  nhom: string; nhan: string
+  don_vi: string | null
+  muc: MucChon[]
+}
+
+/** Ba con số của §18.2 cho một kỳ (tuần hoặc tháng). */
+export interface BaSo {
+  trung_binh: number; dao_dong: number; diem: number
+  co_lenh: number; so_ky: number; ty_le_co_lenh: number
+  lo_trung_binh: number; te_nhat: number; tot_nhat: number
+}
+
+/** Một dòng trong nhóm đầu bảng. */
+export interface DauBang {
+  hang: number; diem: number; so_lenh: number
+  sut_von_pt: number; lai_pt: number
+  tuan: BaSo; so_nuoc: number; ten: string
+}
+
+export interface ThongKeTim {
+  da_chay: number; trung_lap: number; ket: number; no: number
+  khong_lenh: number; rot_cua: number; qua: number
+  hat: number; so_luot: number
+  /** Vì sao lượt chạy ngừng: đủ số lượt · hết giờ · phẳng · người dùng dừng. */
+  vi_sao_ngung?: string
+  ly_do_rot: Record<string, number>
+  no_vi?: string[]
+}
+
+/** Trạng thái một lượt tìm. `luot_tim.LuotTim.trang_thai()` + nhóm đầu bảng. */
+export interface TrangThaiLuot {
+  ma: string; ten: string
+  dang_chay: boolean
+  da_chay: number; tong: number
+  diem_tot_nhat: number | null
+  bat_dau: number; xong_luc: number | null
+  loi: string | null
+  dung_giua_chung: boolean
+  thong_ke: ThongKeTim | null
+  /** ĐƯỜNG điểm tốt nhất — `[[đã chấm, điểm], …]`, chỉ có BẬC (điểm chỉ tăng). */
+  duong: [number, number][]
+  /** Giây trung bình một sơ đồ, đo THẬT trên lô đang chạy (không ước bằng số nến). */
+  giay_moi_luot?: number
+  /** Giây còn lại ước tính. */
+  con_lai?: number
+  /** Chỉ có ở `rl_trang_thai`, không có ở `rl_danh_sach`. */
+  dau_bang?: DauBang[]
+  /** Câu đang làm gì lúc chuẩn bị (tải nến…). */
+  chu?: string
+}
+
+export interface RLBoot {
+  phien_ban: string
+  accent?: string
+  chon: NhomChon[]
+  tran: Record<string, number>
+  cua: CuaRL
+  tuan_co_lenh_toi_thieu: number
+  so_nuoc_di: number
+  cai_dat: Record<string, unknown>
+  kho_nen: KhoNen
+  luot: TrangThaiLuot[]
+}
+
+/** Mấy cái CỬA — "cái gì tôi KHÔNG nhận". `null` = không lọc.
+ *
+ * ⚠ Toàn là cửa, không cái nào là cân: sụt vốn không đổi chác được với lãi. Và xếp
+ * hạng thì LUÔN là `trung bình ÷ dao động` — chỉnh được *thích gì*, không chỉnh được
+ * *đo bằng gì* (§18.6.4). */
+export interface CuaRL {
+  /** Chấm theo `tuan` hay `thang`. `null` = tuần. */
+  ky: string | null
+  tuan_co_lenh: number | null
+  sut_von_toi_da: number | null
+  lai_toi_thieu: number | null
+  so_lenh_toi_thieu: number | null
+  te_nhat_toi_da: number | null
+  dao_dong_toi_da: number | null
+  diem_toi_thieu: number | null
+}
+
+/** Kho nến đang có gì — hiện TRƯỚC khi bấm chạy, để khỏi đặt khoảng ngoài dải rồi
+ *  ngồi đợi mới biết. */
+export interface KhoNen {
+  symbol: string
+  co: boolean
+  so_nen?: number
+  tu?: string
+  den?: string
+  so_lo_hong?: number
+  spread_tb?: number | null
+  chu?: string
+}
+
+/** Bộ ĐẶT gửi sang Python khi bấm Chạy. */
+export interface DatRL {
+  ten: string
+  so_luot: number
+  hat: number
+  cua: Record<string, number | string | null>
+  tran: Record<string, number>
+  /** Thẻ KHÔNG dùng lần này — `th:atr`, `sl:1.5`, `tf:M5`… */
+  tat: string[]
+  /** Đè lên Cài đặt → Strategy Test: symbol · từ · đến · vốn · phí · spread · trượt. */
+  cai_dat: Record<string, unknown>
+  /** Giữ bao nhiêu sơ đồ đầu bảng. */
+  giu?: number
+  /** Chạy quá ngần này GIỜ thì thôi — hợp lý hơn đặt số lượt khi chạy qua đêm. */
+  gio_toi_da?: number | null
+  /** Phẳng ngần này lượt liền thì tự dừng — bản tự động của thứ `DuongDiem` mách. */
+  phang_toi_da?: number | null
+}
+
+/** Một dòng so TRAIN với ĐOẠN KHOÁ (§18.3). */
+export interface DongKhoa {
+  hang: number
+  train?: number
+  khoa?: number
+  khoa_lai_pt?: number
+  khoa_sut_von_pt?: number
+  khoa_so_lenh?: number
+  khoa_tuan?: BaSo
+  khoa_dat?: boolean
+  khoa_ly_do?: string | null
+  loi?: string
+}
+
+export interface KetQuaKhoa {
+  ds: DongKhoa[]
+  /** Đã mở đoạn khoá bao nhiêu lần. KHÔNG chặn, chỉ ĐẾM. */
+  da_mo: number
+  tu: string
+  den: string
+}

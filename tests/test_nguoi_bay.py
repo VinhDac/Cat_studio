@@ -171,10 +171,17 @@ def sinh(rng, toi_da=200):
             tien = [i for i in duoc if nb.KHO_NUOC_DI[i][0] not in
                     ("dk_so", "dk_gia", "dk_ds")]
             duoc = tien or duoc
+        # ⭐ BỐC HAI TẦNG: loại trước, ô sau. Bốc đều từng ô là một thiên kiến rất mạnh
+        # (`vao_lenh` chiếm 56% kho) — và nó KHÔNG chỉ làm lệch thống kê: bộ đi bừa cũ
+        # gần như không bao giờ đụng tới `hop_le`, nên hai lỗ hổng quanh `zone_hop_le`
+        # lọt qua 60 sơ đồ mà bài này vẫn báo xanh. Bộ bốc nào thì tìm ra lỗi nấy.
+        theo_loai = {}
+        for i in duoc:
+            theo_loai.setdefault(nb.KHO_NUOC_DI[i][0], []).append(i)
         # Và nghiêng về `het` khi chuỗi đã dài.
         i = nb.CHI_SO[("het",)]
         b.di(i if (mn[i] and rng.random() < len(b.chuoi) / 40.0)
-             else rng.choice(duoc))
+             else rng.choice(theo_loai[rng.choice(sorted(theo_loai))]))
     return (b.tai_lieu() if b.xong else None), b.chuoi
 
 
@@ -231,16 +238,23 @@ for _k, _g in enumerate(_gia):
 
 _CD = bc.CaiDat(point=1.0, contract_size=1.0, digits=2, spread_diem=0.0,
                 deposit=10_000.0, lot_min=0.01, lot_buoc=0.01, lot_max=100.0)
-_no_khi_chay, _co_lenh = [], 0
+_no_khi_chay, _co_lenh, _thieu_nen = [], 0, 0
 for _d, _ in _ds[:25]:
     try:
         _kq = bc.chay(_d, _nen, _CD)
     except Exception as e:                       # noqa: BLE001 — đang ĐO xem có nổ không
+        # ⚠ "Không đủ nến" KHÔNG phải lỗi sơ đồ: máy được chọn khung W1/MN1, mà bộ nến
+        # tổng hợp ở đây chỉ dài 3000 phút. Đó là dữ liệu của bài kiểm thiếu, không
+        # phải người bày sai — và nó nói to, đúng nếp.
+        if "không đủ nến" in str(e).lower():
+            _thieu_nen += 1
+            continue
         _no_khi_chay.append(f"{type(e).__name__}: {e}"[:90])
         continue
     _co_lenh += bool(_kq.so.lenh)
 kiem("không sơ đồ nào làm bộ chạy NỔ", not _no_khi_chay,
-     f"— {len(_no_khi_chay)}, ví dụ: {_no_khi_chay[:2]}")
+     f"— {len(_no_khi_chay)}, ví dụ: {_no_khi_chay[:2]}"
+     + (f" (bỏ qua {_thieu_nen} ca thiếu nến)" if _thieu_nen else ""))
 # Không đòi con nào cũng vào lệnh: phần lớn sơ đồ sinh bừa có cổng không bao giờ cùng
 # đúng, và đó là chuyện BÌNH THƯỜNG — chính nó quyết định ngân sách thật của máy tìm
 # (§18.7.4). Chỉ đòi cơ chế thông suốt: phải có ÍT NHẤT một cái vào được lệnh.
@@ -269,7 +283,12 @@ _b.di(nb.CHI_SO[("cong_zone",)])
 _mn = nb.mat_na(_b)
 kiem("sau cổng zone: toán hạng zone BẬT",
      any(_mn[i] for i, n in enumerate(nb.KHO_NUOC_DI)
-         if n[0] == "dk_ds" and n[1] == "zone_hop_le"))
+         if n[0] == "dk_so" and n[1] == "zone_dem"))
+# ⚠ `zone_hop_le` là ngoại lệ và có luật riêng: nó là KẾT QUẢ của chính cổng zone, và
+# chưa khai phần HỢP LỆ thì nó còn là một khái niệm chưa ai định nghĩa.
+kiem("nhưng `zone_hop_le` thì KHÔNG — nó là kết quả của chính cổng này",
+     not any(_mn[i] for i, n in enumerate(nb.KHO_NUOC_DI)
+             if n[0] == "dk_ds" and n[1] == "zone_hop_le"))
 kiem("nhưng cổng zone thứ hai thì KHÔNG (§15.11 — nhiều zone đang hoãn)",
      not _mn[nb.CHI_SO[("cong_zone",)]])
 kiem("cổng RỖNG chưa được đóng (§6.0 — cổng không điều kiện thì luôn khớp)",
@@ -346,6 +365,59 @@ kiem("nhưng đóng cổng thì vẫn được (không phải ngõ cụt)",
 kiem("nới trần thì thêm được ngay (trần là cài đặt, không phải luật)",
      any(x for i, x in enumerate(nb.mat_na(_bt, {**nb.TRAN, "dk_moi_cong": 9}))
          if nb.KHO_NUOC_DI[i][0] in ("dk_so", "dk_gia", "dk_ds")))
+
+
+# ---- TẦNG CHỌN: tắt THẺ (§18.6.1) ----
+print("\n▸ Tầng CHỌN — tắt thẻ")
+
+# ⭐ MỘT cơ chế cho MỌI chiều: toán hạng, khung giờ, mốc neo, hướng, loại lệnh, chế độ
+# sửa, VÀ từng nấc thang. Bài này canh cả bảy, không chỉ toán hạng.
+_MAU_THE = {
+    "th": "th:atr", "tf": "tf:M5", "moc": "moc:zone_HH", "huong": "huong:mua",
+    "loai": "loai:market", "sua": "sua:hoa_von", "sl": "sl:1.5", "tp": "tp:2.0",
+    "nguong": "nguong:0.75", "rui_ro": "rui_ro:0.5", "chu_ky": "chu_ky:14",
+}
+_thieu_the = [k for k, v in _MAU_THE.items()
+              if v.split(":", 1)[1] not in nb.THE_CHON.get(k, ())]
+kiem("mọi nhóm thẻ ĐỀU có mặt trong kho", not _thieu_the, f"— thiếu {_thieu_the}")
+
+_hong = []
+for _nhom, _the in _MAU_THE.items():
+    _b2 = nb.Ban()
+    _co = any(_the in nb.the(n) for n in nb.KHO_NUOC_DI)
+    # Tắt thẻ ⇒ KHÔNG nước đi nào mang thẻ đó còn bật, ở bất kỳ trạng thái nào.
+    _mn = nb.mat_na(_b2, None, {_the})
+    if not _co or any(x and _the in nb.the(nb.KHO_NUOC_DI[i])
+                      for i, x in enumerate(_mn)):
+        _hong.append(_the)
+kiem("tắt một thẻ thì MỌI nước mang thẻ đó tắt theo", not _hong, f"— {_hong}")
+
+# ⚠ Kho nước đi KHÔNG đổi khi tắt thẻ — đó là cả điểm của cách làm này (§18.7.2).
+_truoc = len(nb.KHO_NUOC_DI)
+nb.mat_na(nb.Ban(), None, set(_MAU_THE.values()))
+kiem("và KHO NƯỚC ĐI không hề đổi (mặt nạ che, không sửa kho)",
+     len(nb.KHO_NUOC_DI) == _truoc, f"— {_truoc} → {len(nb.KHO_NUOC_DI)}")
+
+# Tắt hết vẫn phải đi tới đích được — `tat` là CHỌN, không được biến thành ngõ cụt.
+_b3 = nb.Ban()
+_tat_nhieu = {f"tf:{t}" for t in core.TIMEFRAMES[3:]} | {"loai:stop", "huong:ban"}
+_ket = 0
+for _ in range(200):
+    if _b3.xong:
+        break
+    _mn = nb.mat_na(_b3, None, _tat_nhieu)
+    _duoc = [i for i, x in enumerate(_mn) if x]
+    if not _duoc:
+        _ket = 1
+        break
+    _tl = {}
+    for i in _duoc:
+        _tl.setdefault(nb.KHO_NUOC_DI[i][0], []).append(i)
+    _b3.di(_rng.choice(_tl[_rng.choice(sorted(_tl))]))
+kiem("tắt nhiều thẻ vẫn đi tới đích được (CHỌN không được thành ngõ cụt)",
+     _b3.xong and not _ket, f"— {len(_b3.chuoi)} nước, kẹt={_ket}")
+kiem("và sơ đồ ra lò vẫn qua soát tĩnh",
+     _b3.xong and not core.validate_process(_b3.tai_lieu()))
 
 print(f"\n{'=' * 68}")
 print(f"  {dung}/{dung + sai} kiểm qua" if not sai else f"  ✘ {sai} bài HỎNG")

@@ -1,0 +1,200 @@
+"""MỘT LƯỢT TÌM — bắt đầu · dừng · hỏi tiến độ · lấy kết quả.
+
+    core.md §18.6.2, §18.8
+
+⭐ **MÁY TÌM KHÔNG SỐNG TRONG CỬA SỔ.** Một lượt chạy mất cả đêm (§18.4); đóng cửa sổ RL
+để mở một sơ đồ ra ngắm mà giết luôn sáu tiếng đã chạy là hỏng. Cửa sổ chỉ là **cái để
+nhìn** — nó hỏi `trang_thai()`, không giữ lượt chạy.
+
+Vì thế **sổ lượt chạy nằm ở mức MODULE**, không nằm trên `Api`. `Api` bị dựng lại mỗi lần
+mở cửa sổ; module thì sống theo tiến trình. Đây chính là món nợ §14.4 (*"đóng cửa sổ Live
+là dừng phiên"*) — chỗ này làm đúng ngay từ đầu vì cái giá cao hơn hẳn.
+
+⚠ **Một luồng, chưa song song.** Đúng một luồng nền cho mỗi lượt, nên hôm nay là một
+nhân. §18.4 đo được 8 nhân cho ~10.000 sơ đồ một đêm — nhân lên 8 lần là một việc RIÊNG
+(tiến trình con, không phải luồng: `bo_chay` là Python thuần nên GIL chặn). Chưa làm vì
+chưa chạy thật lần nào; xem `notes.md`.
+"""
+import threading
+import time
+import uuid
+
+from . import tim_kiem
+
+#: Giữ tối đa ngần này lượt trong sổ. Lượt XONG cũ nhất bị dọn trước; lượt đang chạy
+#: không bao giờ bị dọn — dọn mất một lượt đang chạy là mất luôn cách dừng nó.
+GIU_LUOT = 20
+
+_SO = {}
+_KHOA = threading.Lock()
+
+
+class LuotTim:
+    """Một lượt tìm đang (hoặc đã) chạy. Giao diện chỉ ĐỌC, không bao giờ ghi."""
+
+    __slots__ = ("ma", "ten", "_tt", "_kq", "_xin_dung", "_khoa", "_luong", "_duong",
+                 "_dau_bang", "_t0_cham")
+
+    def __init__(self, ten):
+        self.ma = "L-" + uuid.uuid4().hex[:8]
+        self.ten = ten
+        self._kq = None
+        self._xin_dung = False
+        self._khoa = threading.Lock()
+        self._luong = None
+        #: ĐƯỜNG ĐIỂM TỐT NHẤT — `[[đã chấm, điểm], …]`, chỉ ghi khi điểm ĐỔI.
+        #:
+        #: ⭐ Nó trả lời đúng một câu, và là câu thực dụng nhất của cả bàn điều khiển:
+        #: *"còn tìm được gì nữa không — dừng được chưa"*. Đường phẳng vài nghìn lượt
+        #: là tín hiệu tắt máy, khỏi đốt cả đêm.
+        #:
+        #: Ghi khi ĐỔI chứ không mỗi lượt: điểm tốt nhất chỉ tăng, nên đây là một hàm
+        #: bậc thang — mọi điểm ở giữa hai bậc đều suy ra được. 10.000 lượt thường chỉ
+        #: đẻ ra vài chục bậc, tức vài trăm byte thay vì vài trăm KB qua cầu nối.
+        self._duong = []
+        #: NHÓM ĐẦU BẢNG hiện tại — cập nhật mỗi lượt, KHÔNG đợi chạy xong.
+        #:
+        #: ⭐ Đây là chỗ khiến bàn điều khiển sống: chạy tám tiếng thì tám tiếng nhìn
+        #: thấy kết quả lớn dần, và mở được sơ đồ ra xem ngay giữa chừng. Trước đây
+        #: `tom_tat` đòi `_kq` — thứ chỉ có KHI XONG — nên bảng rỗng suốt lượt chạy.
+        #:
+        #: `tim_kiem` gán một list MỚI mỗi lần nên đọc từ luồng khác an toàn.
+        self._dau_bang = []
+        #: Mốc lượt CHẤM đầu tiên — để tính "còn bao lâu". Cố ý không dùng `bat_dau`:
+        #: khoảng giữa hai mốc ấy là lúc TẢI NẾN, có thể hàng phút, và tính nó vào thì
+        #: ước lượng đầu lượt sai lệch rất nặng.
+        self._t0_cham = None
+        self._tt = {"ma": self.ma, "ten": ten, "dang_chay": True, "da_chay": 0,
+                    "tong": 0, "diem_tot_nhat": None, "bat_dau": time.time(),
+                    "xong_luc": None, "loi": None, "dung_giua_chung": False,
+                    "thong_ke": None}
+
+    # ---- giao diện đọc ----
+    def trang_thai(self):
+        """Ảnh chụp tiến trình. Trả BẢN SAO — giao diện cầm bản gốc là cầm thứ luồng
+        nền đang ghi vào.
+
+        ⚠ `duong` cũng phải chép: `dict()` chỉ sao chép NÔNG, nên để nguyên là giao
+        diện cầm đúng cái list luồng nền đang `append` vào giữa lúc nó đang duyệt."""
+        with self._khoa:
+            return {**self._tt, "duong": list(self._duong)}
+
+    def ket_qua(self):
+        """`KetQuaTim` khi đã xong, `None` khi còn chạy."""
+        return self._kq
+
+    def tom_tat(self, so_luong=10):
+        """Nhóm đầu bảng, dạng JSON thuần — không kèm `KetQua` nào (nặng).
+
+        Đọc `_dau_bang` chứ KHÔNG đọc `_kq`: `_kq` chỉ có khi chạy xong, mà bàn điều
+        khiển phải thấy kết quả lớn dần ngay trong lúc chạy."""
+        return [{"hang": k, "diem": d["diem"], "so_lenh": d["so_lenh"],
+                 "sut_von_pt": d["sut_von_pt"], "lai_pt": d["lai_pt"],
+                 "tuan": d["tuan"], "so_nuoc": len(chuoi), "ten": doc["name"]}
+                for k, (doc, chuoi, d) in enumerate(self._dau_bang[:so_luong], 1)]
+
+    def so_do(self, hang):
+        """Tài liệu chiến lược của cái xếp hạng `hang` (1 là đầu bảng).
+
+        ⭐ Trả về một file chiến lược BÌNH THƯỜNG (§18.6.5) — cùng JSON, mở bằng cùng
+        cửa sổ vẽ, chạy bằng cùng Tester. Và mở được NGAY GIỮA CHỪNG, không đợi xong."""
+        ds = self._dau_bang
+        return ds[hang - 1][0] if 1 <= hang <= len(ds) else None
+
+    # ---- điều khiển ----
+    def dung(self):
+        """Xin dừng. Lượt đang chấm một sơ đồ thì chấm nốt rồi mới ngừng — cắt ngang
+        giữa một backtest là để lại một bảng số nửa vời.
+
+        ⚠ Và NÓI RA chuyện đó. Một sơ đồ bệnh có thể chấm mất hàng phút; không nói thì
+        người dùng bấm Dừng rồi ngồi nhìn nút không phản ứng, tưởng hỏng."""
+        self._xin_dung = True
+        self._ghi(chu="đang dừng — chấm nốt sơ đồ dở")
+
+    def dang_chay(self):
+        return bool(self._luong and self._luong.is_alive())
+
+    # ---- luồng nền ----
+    def _ghi(self, **kw):
+        with self._khoa:
+            self._tt.update(kw)
+
+    def _nhip(self, da, tong, qua):
+        """Một lượt vừa chấm xong. Chạy trên LUỒNG NỀN — chỉ đụng thứ có khoá."""
+        tot = qua[0][2]["diem"] if qua else None
+        self._dau_bang = qua                  # gán nguyên: list MỚI, xem `tim_kiem`
+        if self._t0_cham is None:
+            self._t0_cham = time.time()
+        with self._khoa:
+            if tot is not None and (not self._duong or self._duong[-1][1] != tot):
+                self._duong.append([da, tot])
+        # CÒN BAO LÂU — đo thật trên chính lô đang chạy. Không ước bằng số nến: đo được
+        # cùng số nến mà sơ đồ này 3 giây, sơ đồ kia 24 giây (§18.4), vì chi phí đi theo
+        # SỐ LỆNH sơ đồ đẻ ra chứ không theo số nến.
+        troi = max(time.time() - self._t0_cham, 1e-6)
+        moi = troi / max(da, 1)
+        self._ghi(da_chay=da, tong=tong, diem_tot_nhat=tot,
+                  giay_moi_luot=round(moi, 3),
+                  con_lai=round(moi * max(tong - da, 0)))
+
+    def _chay(self, nen, cd, so_luot, **kw):
+        try:
+            kq = tim_kiem.tim(
+                nen, cd, so_luot, tien_do=self._nhip,
+                dung=lambda: self._xin_dung, **kw)
+            self._kq = kq
+            self._ghi(thong_ke=kq.thong_ke, dung_giua_chung=self._xin_dung, chu="")
+        except Exception as e:                    # noqa: BLE001
+            # ⚠ NỔ THÌ NÓI TO. Luồng nền chết im lặng là cửa sổ quay mãi thanh tiến
+            # trình mà không ai hiểu vì sao — đúng loại hỏng lặng cả app này cấm.
+            self._ghi(loi=f"{type(e).__name__}: {e}")
+        finally:
+            self._ghi(dang_chay=False, xong_luc=time.time())
+
+
+def bat_dau(nen, cd, so_luot, ten="Lượt tìm", **kw):
+    """Mở một lượt tìm trên LUỒNG NỀN và trả về ngay.
+
+    `kw` chuyển thẳng cho `tim_kiem.tim` (`hat`, `cua`, `tran`, `giu`)."""
+    l = LuotTim(ten)
+    l._ghi(tong=so_luot)
+    l._luong = threading.Thread(target=l._chay, args=(nen, cd, so_luot),
+                                kwargs=kw, daemon=True)
+    _ghi_so(l)
+    l._luong.start()
+    return l
+
+
+def lay(ma):
+    with _KHOA:
+        return _SO.get(ma)
+
+
+def danh_sach():
+    """Mọi lượt trong sổ, mới nhất trước."""
+    with _KHOA:
+        ds = list(_SO.values())
+    return [l.trang_thai() for l in sorted(ds, key=lambda x: -x._tt["bat_dau"])]
+
+
+def xoa(ma):
+    """Bỏ một lượt ĐÃ XONG khỏi sổ. Lượt đang chạy thì không — phải `dung()` trước."""
+    with _KHOA:
+        l = _SO.get(ma)
+        if l is None or l.dang_chay():
+            return False
+        del _SO[ma]
+        return True
+
+
+def _ghi_so(l):
+    with _KHOA:
+        _SO[l.ma] = l
+        if len(_SO) <= GIU_LUOT:
+            return
+        # Dọn lượt XONG cũ nhất. Không đụng lượt đang chạy: dọn nó là mất luôn cách
+        # dừng nó, và luồng vẫn chạy tiếp — một lượt chạy MA, không ai gọi lại được.
+        cu = sorted((x for x in _SO.values() if not x.dang_chay()),
+                    key=lambda x: x._tt["bat_dau"])
+        for x in cu[:len(_SO) - GIU_LUOT]:
+            del _SO[x.ma]

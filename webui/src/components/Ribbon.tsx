@@ -112,6 +112,9 @@ const I = {
   motSo: <svg viewBox="0 0 22 22" width="22" height="22"><circle {...S} cx="11" cy="11" r="7.8" /><path {...S} d="M9.6 8.6L11.4 7.4v7.4M9.8 14.8h3.4" /></svg>,
   ghim: <svg viewBox="0 0 22 22" width="22" height="22"><path {...S} d="M13.2 2.6l6.2 6.2-2.5 1.4-4-4z" /><path {...S} d="M12.9 6.2L6.4 11.4l4.2 4.2 4.5-6.2" /><path {...S} d="M8.6 13.4L3.2 18.8" /></svg>,
   fit: <svg viewBox="0 0 22 22" width="22" height="22"><path {...S} d="M4 8V4.5h3.5M18 8V4.5h-3.5M4 14v3.5h3.5M18 14v3.5h-3.5" /><rect {...S} x="8" y="8" width="6" height="6" rx="1" /></svg>,
+  // RL: một CÂY nhánh — đúng thứ máy tìm đang làm, dò nhiều đường rồi giữ đường tốt.
+  // Cố ý KHÁC hẳn `branch` (cổng rẽ trên sơ đồ): hai thứ đó không được trông giống nhau.
+  rl: <svg viewBox="0 0 22 22" width="22" height="22"><circle {...S} cx="11" cy="4" r="1.9" /><path {...S} d="M11 5.9v3.2M11 9.1H5.4v2.6M11 9.1h5.6v2.6M11 9.1v9" /><circle {...S} cx="5.4" cy="13.6" r="1.9" /><circle {...S} cx="16.6" cy="13.6" r="1.9" /><circle {...S} cx="11" cy="18.1" r="1.9" /></svg>,
 }
 
 export interface RibbonProps {
@@ -136,6 +139,7 @@ export interface RibbonProps {
   datSymbol: (v: string) => void
   chay: () => void
   live: () => void
+  rl: () => void
   coChon: boolean
   chonDaGhim: boolean
   coTheHoanTac: boolean
@@ -217,6 +221,15 @@ export default function Ribbon(p: RibbonProps) {
       <Nhom ten="Template">
         <NutMenu ten="Lưu" icon={I.save} muc={p.mucLuu} />
         <NutMenu ten="Mở" icon={I.open} muc={p.mucMo} />
+      </Nhom>
+
+      {/* NHÓM RIÊNG, không nằm trong cụm chạy. Ba nút ở cụm kia đều CHẠY SƠ ĐỒ ĐANG VẼ;
+          RL thì không — nó tự sinh ra sơ đồ. Xếp chung là mời người ta hiểu nhầm rằng
+          bấm nó sẽ đem sơ đồ trên màn hình đi đâu đó. */}
+      <Nhom ten="RL">
+        <Nut ten="Tìm" icon={I.rl} onClick={p.rl}
+             title={'Mở cửa sổ RL — máy tự tìm chiến lược trong đúng kho đồ và luật '
+                    + 'chơi này. Kết quả là một sơ đồ đọc được, mở ra sửa tay được.'} />
       </Nhom>
 
       {/* Cụm chạy — ghim mép phải. Hai tầng: tên chiến lược ở trên, hàng nút hạ xuống

@@ -32,7 +32,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 GOC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, GOC)
 
-from cat_studio import api, bo_chay as bc, core, kho, nguoi_bay as nb   # noqa: E402
+from cat_studio import api, bo_chay as bc, cham_diem, core, kho   # noqa: E402
+from cat_studio import nguoi_bay as nb   # noqa: E402
 from cat_studio import nguon_nen as nn   # noqa: E402
 
 FILE = os.path.join(GOC, "tai_lieu", "van_tay.json")
@@ -104,12 +105,16 @@ def _thu_thap():
         cd = bc.CaiDat(symbol=SYMBOL, tu=tu, den=den,
                        point=0.001, digits=3, contract_size=100.0,
                        spread_diem=97, commission=3.5, deposit=10_000.0, **luat)
-        tk = bc.chay(doc, nen, cd).thong_ke
+        kq = bc.chay(doc, nen, cd)
+        tk = kq.thong_ke
         # `drawdown_luc` là một MỐC THỜI GIAN, không phải kết quả — bỏ ra để vân tay
         # không đổi chỉ vì kho nến được tải thêm vài nến ở đuôi.
         # Khoá là CHỮ: file JSON đọc lại chỉ có khoá chữ, để int vào đây thì phần so
         # sánh bên dưới tra trượt và in ra "cũ null" thay vì chỗ đổi thật.
         ra["backtest"][str(n)] = {k: tk[k] for k in sorted(tk) if k != "drawdown_luc"}
+        # ĐIỂM — thứ mọi máy tìm tối ưu vào. Đổi công thức chấm mà không ai biết là đổi
+        # cái đích, và mọi kết quả cũ hết so được với kết quả mới.
+        ra["backtest"][str(n)]["_diem"] = cham_diem.cham(kq)
     return ra
 
 

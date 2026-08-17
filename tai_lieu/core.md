@@ -5130,6 +5130,27 @@ liệu thì app nổ kèm lời giải thích, không đoán.
 Với không gian đã bị chặn bởi trần độ phức tạp (§15.5) và thang số thô (§18.1), chừng đó
 **đủ**. Không làm gì thêm.
 
+#### ⚠ Con số trên là SÀN, không phải trung bình — đo bằng sơ đồ NGƯỜI viết
+
+Bảng trên đo bằng **sơ đồ mẫu**: một sơ đồ người viết cẩn thận, cổng chặt, 929 lệnh trong
+3,5 năm. Sơ đồ máy sinh bừa thì khác hẳn, và khác **rất** nhiều:
+
+| chạy | nến | giây / sơ đồ |
+|---|---|---|
+| sơ đồ mẫu | 1,24 triệu (3,5 năm) | **17,2** |
+| máy vẽ, lô A | 121 nghìn (12 tuần) | **3,3** |
+| máy vẽ, lô B | 60 nghìn (6 tuần) | **24,3** |
+
+Lô B **ít nến hơn một nửa** mà **đắt gấp 7 lần** lô A. Vì:
+
+⭐ **Chi phí một lượt chấm KHÔNG tỉ lệ với số nến — nó tỉ lệ với SỐ LỆNH sơ đồ đẻ ra.**
+Sơ đồ sinh bừa hay có cổng lỏng, vào lệnh gần như mỗi nến; đo được một cái đẻ **10.220
+lệnh** trên 12 tuần. Sổ lệnh dài thì mọi phép hỏi trên nó cũng dài theo.
+
+Hệ quả cho việc đặt ngân sách: **không ước lượng thời gian bằng số nến.** Phải đo giây
+thật trên chính lô đang chạy — và đó cũng là thứ bàn điều khiển nên hiện ra (còn bao lâu),
+vì "không chạy mù" gồm cả chuyện biết khi nào xong.
+
 Sàn nhà nằm ở `bo_chay.mot_nhip` — chạy **một lần mỗi nến M1** bằng Python thuần. Muốn
 nhanh hơn nhiều lần thì phải viết lại lõi; chưa có bộ sinh thì chưa biết cần nhanh tới đâu,
 nên **không viết lại**.
@@ -5630,36 +5651,219 @@ Mấy câu ở §18.3, §18.4, §18.5 đang cất lại chính là mấy câu n�
 - một vòng cuốn tới tốn bao lâu thật *(quyết định A hay B, và có cần nhanh 30× không)*
 - chia dữ liệu hai/ba phần hay cuốn tới — cái nào cho con số ngoài mẫu ổn định hơn
 
-### 18.8 ⏳ CÒN THIẾU trước khi làm frontend — ba món, theo thứ tự
+### 18.8 ✅ BA MÓN trước frontend — XONG CẢ BA
 
-⚠ **Chưa làm được cửa sổ RL.** §18.6.2 chốt cửa sổ có bốn việc; ba trong bốn hiện **không
-có gì phía sau**:
+> §18.6.2 chốt cửa sổ RL có bốn việc, mà ba trong bốn từng **không có gì phía sau**. Làm
+> frontend lúc ấy là dựng đúng thứ §18.6.2 vừa cấm: **nút hứa suông**.
+>
+> Ba món dưới đã cài xong, mỗi món một module và một bài kiểm.
 
-| việc | có chưa | thiếu gì |
-|---|---|---|
-| **ĐẶT** | gần đủ — kho, thang, trần đều lộ ra được | chỉ là bày lên màn hình |
-| **CHẠY** | ✘ | **không có vòng tìm nào**; người bày sinh ra sơ đồ nhưng chưa ai gọi nó |
-| **NHÌN** | ✘ | không có tiến độ để đọc, không có điểm để hiện |
-| **MỞ** | ✔ | sơ đồ máy vẽ đã là file bình thường (§18.6.5) |
+**1. ✅ CHẤM ĐIỂM — ĐÃ CÀI: `cat_studio/cham_diem.py`, test 22/22**
 
-⭐ Làm frontend trước là dựng đúng thứ §18.6.2 vừa cấm: **nút hứa suông**. Ba món dưới
-phải xong trước, và cả ba đều nhỏ:
+```
+chuoi_ky(kq, TUAN|THANG)  →  lãi/lỗ mỗi kỳ tính bằng % vốn ĐẦU, KỂ CẢ kỳ trắng
+cham(kq, cua)             →  ba con số + mọi cửa + `dat` / `ly_do`
+xep_hang(ds, cua)         →  (qua, rớt) — rớt vẫn giữ, không im lặng biến mất
+```
 
-**1. CHẤM ĐIỂM vào code** — §18.2 hôm nay mới là thiết kế. `bo_chay._thong_ke` trả `lai_pt`
-và `drawdown_pt` nhưng **không có chuỗi lãi/lỗ theo tuần**, tức chưa tính được `trung bình ÷
-dao động`. Cần: gom `KetQua` thành chuỗi tuần, ba con số, kèm **cửa** §18.2a và mấy cửa ưu
-tiên §18.6.4.
+Đối chiếu với số đo tay ở §18.2c — **khớp tới chữ số cuối**:
 
-**2. MỘT VÒNG TÌM, đơn giản nhất** — dò ngẫu nhiên: `Ban` + `mat_na` + chấm + giữ nhóm đầu
-bảng. Không chọn thuật toán gì cả (§18.5 vẫn để ngỏ) — nó là **đối chứng** mà mọi cách tìm
-sau này phải thắng, nên kiểu gì cũng phải có.
+| | trung bình tuần | dao động | điểm |
+|---|---|---|---|
+| SL 1,5 | −0,161% | 1,115% | **−0,145** |
+| SL 3,0 | +0,001% | 1,311% | **+0,001** |
 
-**3. "MỘT LƯỢT CHẠY" thành một ĐỐI TƯỢNG** — bắt đầu · dừng · hỏi tiến độ · lấy kết quả,
-và **sống ngoài cửa sổ** (§18.6.2). Đây là chỗ dễ mắc lại món nợ §14.4 nhất, nên làm đúng
-ngay từ đầu.
+⭐ **Cửa §18.2a chặn đúng lỗ hổng nó sinh ra để chặn.** Sơ đồ vào một lệnh trong 3,5 năm
+ăn điểm **−0,065**, cao hơn sơ đồ thật (**−0,145**) — rồi rớt cửa với dòng *"tuần có lệnh
+1/236 (0%) — dưới 50%"*. Bài kiểm viết đẳng thức ấy ra: một kỳ có lệnh trong N kỳ **luôn**
+cho `±1/√(N−1)`, thử ở N = 10 · 100 · 236 với lệnh 0,5 · 5 · 500 — cùng một con số.
 
-Xong ba món thì frontend chỉ còn là **bày ra thứ đã có**, đúng bất biến *"chỉ bày ra thứ
-dùng được"*.
+Ba điều đáng ghi lại:
+
+- **Chia cho vốn ĐẦU, không phải vốn lúc đó.** Chia cho vốn lúc đó là trộn lãi kép vào
+  chuỗi: cùng một lệnh thắng ở tuần 200 thành số nhỏ hơn ở tuần 1 chỉ vì vốn đã khác — mà
+  dao động lại đo trên chính chuỗi ấy.
+- **Đếm kỳ theo NẾN, không theo ô `tu`/`den`.** Ô ấy là thứ người dùng gõ; đặt rộng quá là
+  đẻ ra hàng trăm tuần trắng ma và cửa `tuan_co_lenh` đánh trượt mọi chiến lược.
+- **`bo_chay.lai_lenh` tách ra thành một chỗ duy nhất**, `_thong_ke` và `cham_diem` cùng
+  gọi. Chép công thức tiền ra hai bản là bảng số liệu nói một đằng, điểm chấm nói một nẻo.
+
+⚠ **Một lần tự phức tạp hoá, đã rút lại:** thử làm `chu_ky_atr` thành "chỉ cần khi sơ đồ
+đụng zone hoặc `× ATR`". SAI — `bo_chay._dung_cot` xin cột ATR **vô điều kiện** (có chủ ý),
+nên một chiến lược chỉ so `close > open` cũng chết `KeyError`. Cách đúng đơn giản hơn hẳn:
+nó **luôn** cần, và `_tham_so_dang_dung` **luôn** tính nó là đang dùng — `core.THAM_SO_NGAM`.
+
+**2. ✅ VÒNG TÌM — ĐÃ CÀI: `cat_studio/tim_kiem.py`, test 21/21**
+
+Dò ngẫu nhiên. **Không phải "thuật toán đã chọn"** — §18.5 vẫn để ngỏ; đây là **đối chứng**
+mà mọi cách tìm sau phải thắng. Không thắng nổi nó thì cách ấy chẳng làm gì cả.
+
+```
+tim(nen, cd, so_luot, hat, cua, tran, tien_do, dung)  →  KetQuaTim(qua, rot, thong_ke)
+```
+
+`hat` cho tái lập · `tien_do` cho cửa sổ RL đọc · `dung()` cho dừng **từ ngoài** (§18.6.2).
+
+##### ⭐ Bốc HAI TẦNG — "đều" trong kho KHÔNG phải "đều" giữa các lựa chọn
+
+Kho nước đi lệch nặng: `vao_lenh` một mình chiếm **1.050/1.863 ô (56 %)**, `het` đúng **1**
+ô. Bốc đều từng ô thì mỗi bước là một lần thử đặt lệnh, và "ngẫu nhiên" hoá ra là một thiên
+kiến rất mạnh **mà không ai khai**. Nên: chọn LOẠI nước trước (đều giữa mấy loại đang bật),
+rồi mới chọn ô trong loại ấy — loại đông nhất tụt từ 20 % xuống 12 %, không núm nào để vặn.
+
+⚠ **Và nó không chỉ làm lệch thống kê.** Bộ đi bừa cũ (bốc đều) gần như không bao giờ đụng
+tới `hop_le`, nên **hai lỗ hổng quanh `zone_hop_le` lọt qua 60 sơ đồ mà bài kiểm vẫn xanh**.
+*Bộ bốc nào thì tìm ra lỗi nấy* — đó là lý do bài `test_nguoi_bay` nay cũng bốc hai tầng.
+
+##### Bốn ngõ cụt / lỗ hổng nữa, cả bốn đều do vòng tìm phát hiện
+
+| chỗ hỏng | biểu hiện |
+|---|---|
+| `mo_nhanh` **hai lần liên tiếp** ở cùng chỗ rẽ | cùng một chỗ vào ngăn xếp hai lần ⇒ nhánh ngoài trông RỖNG vĩnh viễn: mở cấm, đóng cấm, đẻ cổng cấm. **80/150 lượt chết** |
+| `zone_hop_le` trong `dk_hop_le` | định nghĩa một khái niệm bằng chính nó ⇒ **tràn ngăn xếp**, sập cả lượt tìm |
+| `zone_hop_le` khi cổng zone **chưa khai** phần hợp lệ | hỏi một khái niệm chưa ai định nghĩa |
+| **`co_zone` toàn cục** thay vì theo VỊ TRÍ | nhánh SONG SONG với cổng zone vẫn tưởng mình có zone — §12.6c đòi khối nằm **sau** cổng zone *trên đồ thị*, không phải "sơ đồ có cổng zone ở đâu đó". **11 lỗi** trên 60 sơ đồ |
+
+⭐ Cái cuối là lỗi *khái niệm*, không phải lỗi cẩu thả: `co_zone`, `co_hop_le` đi theo **vị
+trí** nên phải cất vào ngăn xếp lúc `mo_nhanh` và lấy lại lúc `dong_nhanh`. Còn *"chỉ MỘT
+cổng zone"* thì ngược lại — **toàn cục**, vì hai cổng ở hai nhánh vẫn là hai cổng. Hai câu
+hỏi nghe giống nhau, trả lời bằng hai biến khác nhau.
+
+##### Một lỗi của APP nữa
+
+`Ctx.zone_hop_le` **tràn ngăn xếp** khi `dk_hop_le` hỏi `zone_hop_le`. Soát tĩnh CÓ bắt ca
+đó (*"đó là kết quả của chính nó"*) và chú thích ngay đấy còn hứa *"bộ chạy trả NaN"* —
+nhưng bộ chạy không trả NaN, nó gọi lại chính mình tới khi Python hết ngăn xếp. Ai gọi
+thẳng `bo_chay.chay` là bỏ qua soát tĩnh, nên nay có chốt chặn ngay trong `Ctx`.
+
+##### Số đo đầu tiên của một lượt tìm thật
+
+150 lượt trên 12 tuần nến tổng hợp: **115/150 sơ đồ không vào nổi một lệnh (77 %)** ·
+148/150 rớt cửa, phần lớn vì *"tuần có lệnh"* · **2 cái qua**. Đó chính là con số §18.7.4
+đặt ra để quyết định ngân sách thật.
+
+**3. ✅ LƯỢT CHẠY — ĐÃ CÀI: `cat_studio/luot_tim.py`, test 35/35**
+
+```
+bat_dau(nen, cd, so_luot, …)  →  LuotTim      trả về NGAY, chạy trên luồng nền
+  .trang_thai()   ảnh chụp tiến độ, là BẢN SAO
+  .dung()         xin dừng — chấm nốt sơ đồ đang dở rồi mới ngừng
+  .tom_tat()      nhóm đầu bảng, JSON thuần
+  .so_do(hạng)    file chiến lược BÌNH THƯỜNG (§18.6.5)
+lay(ma) · danh_sach() · xoa(ma)
+```
+
+⭐ **Sổ lượt chạy nằm ở mức MODULE, không nằm trên `Api`.** Đây là cả điểm của món này:
+`Api` bị dựng lại mỗi lần mở cửa sổ, module thì sống theo tiến trình. Bài kiểm thử đúng
+chuyện ấy — **vứt sạch mọi tham chiếu rồi `gc.collect()`, lượt chạy vẫn còn và vẫn lấy
+được kết quả**. Đó là món nợ §14.4 (*"đóng cửa sổ Live là dừng phiên"*) không được mắc lại.
+
+**Hai loại hỏng, hai cách xử — không lẫn:**
+
+| | |
+|---|---|
+| một SƠ ĐỒ chạy không được (`LoiChay`) | **đếm rồi chạy tiếp** — sơ đồ hỏng, không phải lượt hỏng |
+| luồng nền chết (lỗi khác) | tắt cờ, **ghi lý do vào trạng thái**, không có kết quả giả |
+
+Cửa sổ quay mãi thanh tiến trình mà không ai hiểu vì sao là đúng loại hỏng lặng cả app này
+cấm — nên `dang_chay` luôn được tắt trong `finally`, và `loi` luôn có mặt.
+
+Kèm mấy chi tiết nhỏ mà thiếu là đau: `trang_thai()` trả **bản sao** (giao diện cầm bản
+gốc là cầm thứ luồng nền đang ghi vào) · dừng giữa chừng thì **đánh dấu**, không giả vờ đã
+xong · dọn sổ **không bao giờ đụng lượt đang chạy** (dọn nó là mất cách dừng nó, mà luồng
+vẫn chạy tiếp — một lượt chạy MA).
+
+⚠ **Một luồng, chưa song song.** Hôm nay là một nhân. §18.4 đo 8 nhân cho ~10.000 sơ đồ
+một đêm — nhân lên 8 lần là việc RIÊNG và phải dùng **tiến trình con**, không phải luồng
+(`bo_chay` là Python thuần nên GIL chặn). Chưa làm vì chưa chạy thật lần nào.
+
+#### Ba món xong — frontend giờ chỉ còn là BÀY RA thứ đã có
+
+| việc §18.6.2 | dựa vào |
+|---|---|
+| **ĐẶT** | `kho.TOAN_HANG` · `nguoi_bay.THANG` · `nguoi_bay.TRAN` · `cham_diem.CUA_MAC_DINH` |
+| **CHẠY** | `luot_tim.bat_dau` / `.dung()` |
+| **NHÌN** | `luot_tim.trang_thai()` · `.tom_tat()` |
+| **MỞ** | `luot_tim.so_do(hạng)` → file chiến lược bình thường |
+
+### 18.9 ✅ CỬA SỔ RL — đã dựng
+
+| | |
+|---|---|
+| Python | `api.ApiRL` — bề mặt hẹp, đúng 8 hàm |
+| JS | `webui/src/rl/RL.tsx` · `pyRL` trong `api.ts` · route `?rl=1` |
+| vào từ đâu | nút **✦ RL** trên ribbon cửa sổ vẽ |
+
+Bốn việc §18.6.2, mỗi việc một chỗ:
+
+```
+ĐẶT    kho (bật/tắt từng toán hạng) · trần · cửa ưu tiên · ngân sách + hạt giống
+CHẠY   rl_chay → mã lượt, trả về NGAY;  rl_dung(ma)
+NHÌN   rl_trang_thai(ma) mỗi 500 ms — tiến độ · điểm tốt nhất · vì sao rớt
+MỞ     rl_mo_so_do(ma, hạng) → bắn `so_do_may` sang cửa sổ vẽ
+```
+
+⭐ **`ApiRL` KHÔNG giữ lượt chạy nào.** Sổ ở `luot_tim` (mức module), nên `quen_di` lúc
+đóng cửa sổ chỉ quên **cửa sổ** — khác hẳn `mo_live`, nơi đóng cửa sổ = dừng phiên. Mở
+lại cửa sổ RL là `rl_boot` thấy lượt cũ vẫn chạy và tự bám vào nó.
+
+⭐ **Sơ đồ máy đẩy sang đi ĐÚNG đường "mở file"**, không có nhánh riêng: `_nhan_so_do_may`
+bắn một sự kiện, `App.tsx` gọi `chup()` rồi `nap()` — nên **Ctrl+Z lấy lại được bản đang
+vẽ**. Thứ máy đẩy sang không được nuốt mất việc người đang làm.
+
+#### 18.9a ✅ Ô nhìn thứ nhất — ĐƯỜNG ĐIỂM TỐT NHẤT
+
+Trả lời đúng một câu, và là câu thực dụng nhất của cả bàn điều khiển: **"còn tìm được gì
+nữa không — dừng được chưa"**. Đường phẳng vài nghìn lượt là tín hiệu tắt máy, khỏi đốt
+cả đêm cho phần cuối không tìm thêm được gì.
+
+| | |
+|---|---|
+| Python | `luot_tim.LuotTim._duong` — `[[đã chấm, điểm], …]` |
+| JS | `webui/src/rl/DuongDiem.tsx` |
+
+**Chỉ ghi khi điểm ĐỔI.** Điểm tốt nhất chỉ tăng, nên đây là một hàm **bậc thang** — mọi
+điểm giữa hai bậc đều suy ra được. 10.000 lượt thường chỉ đẻ vài chục bậc: vài trăm byte
+qua cầu nối thay vì vài trăm KB. Đo trên một lượt thật: **2 bậc cho 6 lượt**.
+
+Ba chi tiết nhỏ mà thiếu là sai:
+
+- **Vẽ bậc thang thật** (`H` rồi `V`), không nối xiên. Nối xiên là vẽ ra một cú cải thiện
+  từ từ đã không hề xảy ra — nó nhảy đúng một cái, tại đúng một lượt.
+- **Luôn kẻ mốc 0.** Điểm âm là chuyện thường (phần lớn sơ đồ sinh bừa đều lỗ), nên một
+  đường đi lên mà không biết đã qua vạch 0 chưa thì đọc ra nghĩa ngược.
+- **`trang_thai()` phải chép cả `duong`.** `dict()` sao chép NÔNG — để nguyên là giao diện
+  cầm đúng cái list luồng nền đang `append` vào giữa lúc nó đang duyệt.
+
+Và con số đáng nhìn nhất không nằm trên đường mà ở dòng chữ dưới nó: **phẳng bao nhiêu lượt
+gần nhất**. Quá 35% cả lượt chạy thì mách thẳng *"dừng được rồi"*.
+
+⚠ **Bài kiểm gọi thẳng `_nhip`, không chạy một lượt tìm thật** — và đó là bài học phải
+ghi: lần đầu thử bằng lượt tìm thật thì **37 lượt trên 6 tuần nến mất 15 phút và KHÔNG sơ
+đồ nào qua cửa**, nên đường rỗng và bài kiểm chẳng kiểm được gì. Phép ghi đường là một luật
+thuần tuý; thử nó bằng backtest thật là vừa chậm vừa phụ thuộc may rủi.
+
+#### Ba chỗ dọn được nhờ đợt này
+
+- **`NenChay`** — lớp nền mới, gom *"thiếu nến thì tải"* và *"dựng `CaiDat` từ Cài đặt
+  cửa sổ chính"*. `ApiTester` và `ApiRL` cùng dùng. Chép ra hai bản là tester và máy tìm
+  chạy trên hai bộ điều kiện khác nhau, và mọi so sánh giữa chúng thành vô nghĩa mà không
+  ai thấy. `_chay_that` ngắn đi 20 dòng.
+- **`nguoi_bay.mat_na(b, tran, tat)`** — thêm `tat`: khoá toán hạng không dùng lần này.
+  Là tầng CHỌN nên nó là **tham số**, không nằm trong `_duoc` (§18.6.1).
+- **`_BaoQuaLuot`** — bắc cầu tiến trình TẢI NẾN vào bảng của lượt tìm. Không có nó thì
+  suốt lúc tải (có thể hàng phút) thanh tiến trình đứng im và người dùng tưởng treo, vì
+  cửa sổ chỉ hỏi `rl_trang_thai(ma)` — thứ nó không hỏi thì nó không thấy.
+
+⚠ Và một chi tiết nhỏ mà đúng nếp cả app: tải xong thì **trả thanh tiến trình về việc
+thật** (`da=0, tong=số sơ đồ`) và **xoá câu "đang chuẩn bị nến…"**. Để nguyên thì thanh
+nhảy lên 100% rồi bò lại từ 0, và dòng chữ nói dối suốt lượt chạy.
+
+#### Đã đi trọn một vòng thật
+
+`ĐẶT → CHẠY → NHÌN → MỞ` trên XAUUSD 2025-01 → 2025-03, tắt bớt `ma` và `drawdown_pt`:
+6 sơ đồ · 3 không vào lệnh nào · 4 rớt cửa (*"tuần có lệnh"*) · **2 qua** · sơ đồ đầu bảng
+đẩy sang cửa sổ vẽ và **soát tĩnh 0 vấn đề**.
 
 ---
 

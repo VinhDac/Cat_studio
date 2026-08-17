@@ -106,7 +106,8 @@ bao("Khoá CÀI ĐẶT không ai đọc", thua,
 chet = []
 for f in ("cat_studio/core.py", "cat_studio/bo_chay.py", "cat_studio/khop_lenh.py",
           "cat_studio/ket_noi.py", "cat_studio/so_lenh.py", "cat_studio/tinh_toan.py",
-          "cat_studio/nguoi_bay.py"):
+          "cat_studio/nguoi_bay.py", "cat_studio/cham_diem.py",
+          "cat_studio/tim_kiem.py", "cat_studio/luot_tim.py"):
     src = PY.get(f, "")
     ten = set(re.findall(r"^([A-Z][A-Z0-9_]{2,})\s*=", src, re.M))
     ten |= set(re.findall(r"^def ([a-z]\w+)\(", src, re.M))

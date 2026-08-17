@@ -228,11 +228,22 @@ function Ung() {
     setSoi(d)
   }
 
+  /** Cửa sổ RL đẩy sang một sơ đồ máy vẽ. Cùng `ref` một lý do với `soiRef`. */
+  const soDoMayRef = useRef<((d: ProcessDoc) => void) | null>(null)
+  soDoMayRef.current = (d: ProcessDoc) => {
+    // ⭐ ĐI ĐÚNG ĐƯỜNG "mở file", không có nhánh riêng nào: sơ đồ máy vẽ là file chiến
+    // lược BÌNH THƯỜNG (§18.6.5). Có `chup()` nên Ctrl+Z lấy lại được bản đang vẽ —
+    // thứ máy đẩy sang không được nuốt mất việc người đang làm.
+    chup()
+    nap(d, `nhận sơ đồ từ RL: ${d.name}`, null)
+  }
+
   useEffect(() => {
     window.__su_kien = (ten, d) => {
       // Qua `ref` chứ không đóng gói `tab`/`doiTab` vào effect: gắn lại listener mỗi
       // lần đổi tab là thừa, mà quên phụ thuộc thì nó tô nhầm tab — bẫy cũ, tránh hẳn.
       if (ten === 'soi_luot') soiRef.current?.(d as SoiLuot)
+      else if (ten === 'so_do_may') soDoMayRef.current?.(d as ProcessDoc)
     }
     return () => { window.__su_kien = undefined }
   }, [])
@@ -844,6 +855,17 @@ function Ung() {
     setTrangThai('đã mở Live')
   }, [layDoc, ghi])
 
+  /* --------------------------------- ✦ RL ---------------------------------
+   *
+   * ⚠ KHÔNG truyền sơ đồ đang vẽ: cửa sổ RL không chạy nó, nó tự SINH ra sơ đồ
+   * (core.md §18.6). Nút này chỉ mở cửa. */
+  const moRL = useCallback(async () => {
+    const r = await py.mo_rl()
+    if (!r.ok) { window.alert(r.error ?? 'không mở được RL'); return }
+    ghi('✦ mở cửa sổ RL', 'ok')
+    setTrangThai('đã mở RL')
+  }, [ghi])
+
   /** Vẽ lại thẻ CẢ HAI sơ đồ theo bảng tham số `ds`. Tách ra vì hai chỗ cần: sửa bảng
    *  tham số, và đặt tên cho một con số (chỗ đó còn sửa cả các bước trước khi gọi).
    *
@@ -1255,6 +1277,7 @@ function Ung() {
         symbol={symbol} datSymbol={setSymbol}
         chay={chay}
         live={moLive}
+        rl={moRL}
         coChon={dangChon.length > 0}
         chonDaGhim={dangChon.length > 0
           && dangChon.every(n => (n.data as { step: Step }).step.ghim)}

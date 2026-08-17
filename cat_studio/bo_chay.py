@@ -149,7 +149,7 @@ class Ctx:
     thêm một nguồn dữ liệu là sửa đúng một chỗ."""
 
     __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts",
-                 "zone_da_xet", "zone_thu")
+                 "zone_da_xet", "zone_thu", "_dang_hop_le")
 
     def __init__(self, ct, so, ts):
         self.ct, self.so, self.ts = ct, so, ts
@@ -164,6 +164,8 @@ class Ctx:
         #: ZONE THỬ — bản zone SẼ THÀNH nếu nến này được nuốt. Chỉ khác `None` trong
         #: đúng lúc CỔNG ZONE đang được đánh giá; mọi khối khác đọc zone thật.
         self.zone_thu = None
+        #: Đang ở giữa một lượt tính "hợp lệ" — chốt chặn vòng tròn, xem `zone_hop_le`.
+        self._dang_hop_le = False
 
     def zone_hop_le(self):
         """Zone hiện hành có đạt phần "hợp lệ" của cổng zone không.
@@ -178,14 +180,24 @@ class Ctx:
           có zone, có định nghĩa  → đúng/sai
 
         ⚠ Đọc zone THẬT, không đọc zone thử: "hợp lệ" nói về cây zone đã chốt, còn zone
-        thử chỉ tồn tại trong đúng lúc cổng đếm đang cân nhắc có nuốt nến này không."""
+        thử chỉ tồn tại trong đúng lúc cổng đếm đang cân nhắc có nuốt nến này không.
+
+        ⚠ VÒNG TRÒN → NaN, chứ không TRÀN NGĂN XẾP. `dk_hop_le` mà lại hỏi `Zone hợp lệ`
+        là định nghĩa một khái niệm bằng chính nó. Soát tĩnh CÓ bắt ca đó (`_soat_cong_zone`
+        — *"đó là kết quả của chính nó"*) và chú thích ở đấy còn ghi *"bộ chạy trả NaN"* —
+        nhưng bộ chạy KHÔNG trả NaN, nó gọi lại chính mình tới khi Python hết ngăn xếp.
+        Đo được lúc dựng `tim_kiem`: một sơ đồ sinh tự động làm sập cả lượt tìm.
+        Ai gọi thẳng `bo_chay.chay` là bỏ qua soát tĩnh, nên chốt chặn phải nằm ở đây."""
         if not self.ct.dk_hop_le or self.so.zone_hien_hanh() is None:
             return NAN
+        if self._dang_hop_le:
+            return NAN
         thu, self.zone_thu = self.zone_thu, None
+        self._dang_hop_le = True
         try:
             khop, _ = _xet_dieu_kien(self.ct.dk_hop_le, self)
         finally:
-            self.zone_thu = thu
+            self.zone_thu, self._dang_hop_le = thu, False
         return bool(khop)
 
     # -- giá --
@@ -235,19 +247,15 @@ class ChuongTrinh:
 
     # ---------------------------------------------------------------- tham số
     def _kiem_tham_so(self):
-        """Tham số NGẦM — bộ chạy đọc mà không khối nào gọi tên. Đòi ĐÚNG lúc cần.
+        """Tham số NGẦM — bộ chạy đọc mà không khối nào gọi tên (`core.THAM_SO_NGAM`).
 
-        ⚠ LỖI ĐÃ SỬA: trước đây đòi VÔ ĐIỀU KIỆN, và lý do ghi ở đây ("engine Compress
-        nuôi vùng nén") chỉ đúng một nửa — `chu_ky_atr` còn là chu kỳ của cái ATR mà
-        MỌI phép đổi `× ATR` dùng. Hậu quả: một chiến lược không đụng zone, không đụng
-        `× ATR` nào vẫn phải khai nó mới chạy — mà khai thì soát tĩnh mắng "không khối
-        nào dùng tới". Hai bên đòi ngược nhau. Đo được lúc dựng `nguoi_bay`: 25/25 sơ
-        đồ sinh tự động rơi vào đúng cái kẹp ấy.
+        ⚠ Lý do cũ ghi ở đây ("engine Compress nuôi vùng nén") chỉ đúng một nửa:
+        `chu_ky_atr` còn là chu kỳ của cái ATR mà MỌI phép đổi `× ATR` dùng, và
+        `_dung_cot` xin cột ấy vô điều kiện. Nên nó LUÔN cần — sửa lời, không sửa luật.
 
-        `core.can_tham_so_ngam` là chỗ DUY NHẤT trả lời "có cần không", để soát tĩnh và
-        bộ chạy không bao giờ nói ngược nhau."""
-        if not core.can_tham_so_ngam(self.doc):
-            return
+        ⚠ Phía soát tĩnh đã được sửa cho khớp: `core._tham_so_dang_dung` nay tính
+        `THAM_SO_NGAM` là ĐANG DÙNG. Trước đó hai bên đòi ngược nhau — thiếu thì chết
+        `KeyError`, có thì bị mắng "không khối nào dùng tới"."""
         thieu = [k for k in core.THAM_SO_NGAM if k not in self.ts]
         if thieu:
             raise LoiChay(
@@ -1170,6 +1178,9 @@ class KetQua:
         self.so, self.nhat_ky, self.cot = so, nhat_ky, cot
         self.thong_ke = thong_ke
         self.doc = ct.doc
+        #: ĐIỀU KIỆN đã chạy. `cham_diem` cần `deposit`/`commission`/`contract_size`
+        #: để dựng lại chuỗi lãi lỗ; bắt nó với qua `_ct` là bắt nó dùng thứ riêng tư.
+        self.cd = ct.cd
         #: `[[t, vốn, sụt_giảm_%], …]` — mỗi nến trục có lệnh đóng một điểm. Cố định,
         #: không theo con trỏ: đây là tổng kết cả lượt chạy (`_thong_ke`).
         self.duong_von = []
@@ -1198,6 +1209,33 @@ class KetQua:
                                                          is not None else i] >= tu_t)]
 
 
+def lenh_da_dong(so):
+    """Lệnh đã đóng, xếp theo THỨ TỰ ĐÓNG.
+
+    ⚠ Thứ tự đóng, không phải thứ tự tạo: tổng thì thứ tự nào cũng ra một số, nhưng
+    ĐƯỜNG ĐI của vốn thì không — mà sụt giảm và chuỗi lãi/lỗ theo tuần đều đo trên
+    chính đường đi ấy. Đo trên một năm thật: 9/386 lệnh đóng đảo thứ tự so với lúc đặt.
+    """
+    return sorted((l for l in so.lenh
+                   if l.nen_dong is not None and l.gia_dong is not None
+                   and l.gia_khop is not None),
+                  key=lambda l: (l.nen_dong, l.id))
+
+
+def lai_lenh(l, cd):
+    """Lãi/lỗ bằng TIỀN của một lệnh đã đóng — round-turn, đã trừ hoa hồng.
+
+    ⚠ MỘT CHỖ DUY NHẤT. `_thong_ke` và `cham_diem` đều gọi nó; chép ra hai bản là hai
+    bản trôi được, và trôi ở đây thì bảng số liệu nói một đằng điểm chấm nói một nẻo.
+
+    ⚠ Hoa hồng KHÔNG vào R — đó là định nghĩa, không phải sót (core.md §18.2b): R đo
+    *giá đi được bao nhiêu lần khoảng SL*, còn hoa hồng là tiền. Vì thế `tong_R` không
+    dùng để chấm điểm được, và `cham_diem` chấm bằng chính con số này."""
+    chieu = 1.0 if l.huong == sl.MUA else -1.0
+    return ((l.gia_dong - l.gia_khop) * chieu * l.lot * cd.contract_size
+            - cd.commission * l.lot)           # round-turn, trừ một lần lúc đóng
+
+
 def _thong_ke(so, cd, ct):
     """Bảng tổng kết + ĐƯỜNG VỐN. Lãi/lỗ bằng TIỀN suy ra từ giá, không lưu thêm trường.
 
@@ -1210,10 +1248,7 @@ def _thong_ke(so, cd, ct):
     Trả `(bảng_số, đường_vốn)`. Cả hai ra từ MỘT vòng lặp nên điểm cuối đường vốn bằng
     đúng `von_cuoi` và đáy sâu nhất bằng đúng `drawdown_pt` — không có hai nguồn để lệch.
     """
-    xong = sorted((l for l in so.lenh
-                   if l.nen_dong is not None and l.gia_dong is not None
-                   and l.gia_khop is not None),
-                  key=lambda l: (l.nen_dong, l.id))
+    xong = lenh_da_dong(so)
 
     lai, thang, thua, tong_r = 0.0, 0, 0, 0.0
     r_thang, r_thua, lai_duong, lo_am = [], [], 0.0, 0.0
@@ -1224,8 +1259,7 @@ def _thong_ke(so, cd, ct):
 
     for l in xong:
         chieu = 1.0 if l.huong == sl.MUA else -1.0
-        tien = (l.gia_dong - l.gia_khop) * chieu * l.lot * cd.contract_size
-        tien -= cd.commission * l.lot           # round-turn, trừ một lần lúc đóng
+        tien = lai_lenh(l, cd)
         lai += tien
         von += tien
         r = (l.gia_dong - l.gia_khop) * chieu / l.R if l.R else 0.0

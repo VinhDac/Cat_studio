@@ -2306,47 +2306,28 @@ def validate_process(doc):
     return ra
 
 
-#: Tham số mà BỘ CHẠY đọc mà KHÔNG khối nào gọi tên — nên không phép quét nào thấy.
+#: THAM SỐ NGẦM — bộ chạy đọc mà KHÔNG khối nào gọi tên, nên không phép quét nào thấy.
 #:
 #: ⚠ `chu_ky_atr` là chu kỳ của cái ATR mà MỌI phép đổi `× ATR` dùng (`bo_chay._quy_doi`,
-#: `_khoang`, `quy_doi_cot`) và cũng là cái vùng nén cộng dồn để ra `zone_atr_tb`, thứ
-#: định nghĩa 1R. Nó là một CÀI ĐẶT CHUNG của chiến lược, không phải một ô của khối nào.
+#: `_khoang`, `quy_doi_cot`), và cũng là cái vùng nén cộng dồn để ra `zone_atr_tb` — thứ
+#: định nghĩa 1R. Nó là một CÀI ĐẶT CHUNG của chiến lược, không phải một ô của khối nào,
+#: và `bo_chay._dung_cot` xin cột ấy **vô điều kiện** (có chủ ý — quét sáu chỗ để tiết
+#: kiệm một cột là chỗ chắc chắn có ngày bỏ sót). Nên nó LUÔN cần.
 #:
-#: Bỏ sót chỗ này thì hai bên đòi ngược nhau: bộ chạy chết `KeyError` nếu THIẾU, soát
-#: tĩnh mắng "không khối nào dùng tới" nếu CÓ — không cách nào làm vừa lòng cả hai. Đo
-#: được lúc dựng `nguoi_bay`: 20/25 sơ đồ sinh tự động rơi vào đúng cái kẹp ấy.
+#: ⚠ LỖI ĐÃ SỬA: chỗ này từng không được tính là "đang dùng", nên hai bên đòi ngược
+#: nhau — bộ chạy chết `KeyError` nếu THIẾU, soát tĩnh mắng *"tham số không khối nào
+#: dùng tới"* nếu CÓ. Không cách nào làm vừa lòng cả hai. Đo được lúc dựng `nguoi_bay`:
+#: 20/25 sơ đồ sinh tự động rơi vào đúng cái kẹp ấy.
+#:
+#: ⚠ Và ĐÃ THỬ hẹp lại thành "chỉ cần khi sơ đồ đụng zone hoặc × ATR" — SAI, vì
+#: `_dung_cot` đọc nó bất kể sơ đồ hỏi gì. Một chiến lược chỉ so `close > open` cũng
+#: chết `KeyError`. Đơn giản là đúng ở đây: nó luôn cần, luôn tính là đang dùng.
 THAM_SO_NGAM = ("chu_ky_atr",)
-
-#: Đơn vị nào phải quy qua ATR — dùng nó là dùng `chu_ky_atr`, dù không gọi tên.
-_DON_VI_CAN_ATR = ("atr", "atr_zone")
-
-
-def can_tham_so_ngam(doc):
-    """Sơ đồ này có đụng tới `THAM_SO_NGAM` không.
-
-    MỘT chỗ trả lời, ba người hỏi: `bo_chay._kiem_tham_so` (đòi trước khi chạy),
-    `_tham_so_dang_dung` (đừng mắng oan), `nguoi_bay._du_tham_so` (điền sẵn cho sơ đồ
-    máy vẽ). Ba bản chép tay là ba bản trôi được."""
-    for tab in TABS:
-        for st in ((doc or {}).get(tab) or {}).get("steps") or []:
-            if not isinstance(st, dict):
-                continue
-            if st.get("cong_zone"):
-                return True
-            for k in ("dem", "sl", "tp", "khoang"):
-                if isinstance(st.get(k), dict) \
-                        and st[k].get("tinh") in _DON_VI_CAN_ATR:
-                    return True
-            for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or []):
-                p = (c or {}).get("phai")
-                if isinstance(p, dict) and p.get("tinh") in _DON_VI_CAN_ATR:
-                    return True
-    return False
 
 
 def _tham_so_dang_dung(doc):
     """Tên tham số đang thật sự được khối nào đó tham chiếu."""
-    ra = set(THAM_SO_NGAM) if can_tham_so_ngam(doc) else set()
+    ra = set(THAM_SO_NGAM)
 
     def them(v):
         if isinstance(v, str) and v:

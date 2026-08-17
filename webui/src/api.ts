@@ -8,6 +8,7 @@ import type {
   LoNhatKy, ProcEdge, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
   DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
   TinKetNoi, VanDeLive, KetQuaHieuChuan, DePhong,
+  RLBoot, DatRL, TrangThaiLuot, KhoNen, KetQuaKhoa,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -127,6 +128,8 @@ export const py = {
   mo_tester: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_tester', doc),
   /** Mở cửa sổ Live. Python CHẶN nếu sơ đồ còn lỗi — chốt thứ hai sau hộp thoại. */
   mo_live: (doc: ProcessDoc) => goi<{ da_mo: boolean }>('mo_live', doc),
+  /** Mở cửa sổ RL. KHÔNG truyền sơ đồ: cửa sổ đó tự SINH ra sơ đồ (§18.6). */
+  mo_rl: () => goi<{ da_mo: boolean }>('mo_rl'),
 
   // --- cửa sổ (thanh tiêu đề tự vẽ) ---
   vung_khong_keo: (vung: number[][], cao: number) => goi<null>('vung_khong_keo', vung, cao),
@@ -236,6 +239,43 @@ export const pyLive = {
    *  `lapToiDa` lượt hoặc tới khi không còn gì để chỉnh. */
   live_test_ket_noi: (soVong: number, nghiGiay: number, lapToiDa: number) =>
     goi<KetQuaHieuChuan>('live_test_ket_noi', soVong, nghiGiay, lapToiDa),
+
+  cua_so_thu_nho: () => goi<null>('cua_so_thu_nho'),
+  cua_so_phong_to: () => goi<boolean>('cua_so_phong_to'),
+  cua_so_dang_phong_to: () => goi<boolean>('cua_so_dang_phong_to'),
+  cua_so_dong: () => goi<null>('cua_so_dong'),
+  vung_khong_keo: (vung: number[][], cao: number) => goi<null>('vung_khong_keo', vung, cao),
+  keo_cua_so: (ht: number) => goi<boolean>('keo_cua_so', ht),
+}
+
+/** Bề mặt của CỬA SỔ RL — `ApiRL` bên Python (core.md §18.6).
+ *
+ * Hẹp như `ApiTester`: không lưu chiến lược, không mở hộp thoại file, không đổi cài
+ * đặt. Đúng bốn việc của §18.6.2 — ĐẶT · CHẠY · NHÌN · MỞ.
+ *
+ * ⚠ Cửa sổ này KHÔNG giữ lượt chạy nào. Sổ nằm ở `luot_tim` bên Python (mức module),
+ * nên đóng cửa sổ RL không dừng lượt tìm — mở lại là thấy nó vẫn chạy. Vì thế mọi hàm
+ * ở đây nhận `ma` chứ không dựa vào trạng thái nhớ trong JS.
+ */
+export const pyRL = {
+  rl_boot: () => goi<RLBoot>('rl_boot'),
+  /** Kho nến của một symbol — gọi lại khi người dùng đổi mã. */
+  rl_kho_nen: (symbol: string) => goi<KhoNen>('rl_kho_nen', symbol),
+  rl_chay: (dat: DatRL) => goi<{ ma: string }>('rl_chay', dat as unknown as Record<string, unknown>),
+  rl_dung: (ma: string) => goi<boolean>('rl_dung', ma),
+  rl_xoa: (ma: string) => goi<boolean>('rl_xoa', ma),
+  /** Ghi cài đặt RIÊNG của RL (train · KHOÁ · chi phí). */
+  rl_luu_dat: (d: Record<string, unknown>) =>
+    goi<Record<string, unknown>>('rl_luu_dat', d),
+  /** ⭐ Chạy nhóm đầu bảng trên ĐOẠN KHOÁ — thứ biến "khớp dữ liệu" thành "đạt".
+   *  Mỗi lần gọi là `khoa_da_mo` tăng một; không chặn, chỉ đếm (§18.3). */
+  rl_mo_khoa: (ma: string, soLuong = 5) =>
+    goi<KetQuaKhoa>('rl_mo_khoa', ma, soLuong),
+  rl_trang_thai: (ma: string) => goi<TrangThaiLuot>('rl_trang_thai', ma),
+  rl_danh_sach: () => goi<{ ds: TrangThaiLuot[] }>('rl_danh_sach'),
+  /** Đẩy sơ đồ hạng `hang` sang CỬA SỔ VẼ. Nó là file chiến lược bình thường (§18.6.5). */
+  rl_mo_so_do: (ma: string, hang: number) =>
+    goi<{ ten: string }>('rl_mo_so_do', ma, hang),
 
   cua_so_thu_nho: () => goi<null>('cua_so_thu_nho'),
   cua_so_phong_to: () => goi<boolean>('cua_so_phong_to'),
