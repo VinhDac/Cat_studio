@@ -493,24 +493,9 @@ BIEN_KEP = 1.2
 BIEN_TRUOT = 1.5
 
 
-def rac_con_lai(symbol):
-    """Còn vị thế / lệnh chờ nào của BÀI KIỂM sót lại không.
-
-    ⚠ Sinh ra từ một lần chạy thật: bài kiểm đứt giữa chừng vì mất cầu nối, để lại một
-    vị thế đang mở. Nếu không ai soi thì nó nằm đó âm thầm ăn/lỗ, và người dùng mở Live
-    lên chẳng thấy gì bất thường. Đây là đúng loại lỗi ẩn cần chặn."""
-    ra = {"vi_the": [], "lenh_cho": [], "chu": ""}
-    if mt5 is None or not nn.CO_MT5:
-        return ra
-    try:
-        with nn._KetNoi():
-            ra["vi_the"] = [int(p.ticket) for p in (mt5.positions_get(symbol=symbol) or ())
-                            if p.magic == MAGIC_KIEM]
-            ra["lenh_cho"] = [int(o.ticket) for o in (mt5.orders_get(symbol=symbol) or ())
-                              if o.magic == MAGIC_KIEM]
-    except Exception as e:                      # noqa: BLE001
-        ra["chu"] = f"{type(e).__name__}: {e}"
-    return ra
+# ⚠ `rac_con_lai()` ĐÃ XOÁ — nó chỉ ĐẾM rác mà không ai gọi, trong khi `don_rac()` vừa
+# dọn vừa KÊU RA thứ nó không dọn được (§14.8d). Hai hàm cho một việc, một cái chết:
+# giữ lại chỉ tổ khiến người sau tưởng phải gọi cả hai.
 
 
 def don_rac(symbol):

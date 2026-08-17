@@ -274,9 +274,12 @@ print("\n▸ 5. ĐƠN VỊ THUỘC VỀ CÁI Ô — ai điền vào cũng phải
 # Giờ nó là một KHOÁ, và nó quyết định tham số ấy được mời vào ô nào. Ba việc dựa vào
 # đúng một hàm `don_vi_cua_o` và phải nhất trí: nút ▾ lọc · ô đơn vị khoá · soát tĩnh.
 kiem("chu kỳ luôn đo bằng NẾN", core.don_vi_cua_o("chu_ky") == "nen")
-kiem("lot luôn đo bằng LOT", core.don_vi_cua_o("lot") == "lot")
 kiem("rủi ro luôn đo bằng % VỐN — không phải % giá (§15.13)",
      core.don_vi_cua_o("rui_ro") == "pt_von")
+# `lot` đã bỏ khỏi cả khối Vào lệnh lẫn bảng đơn vị: không ô nào nhận nó nữa, nên một
+# tham số khai `lot` là con số không dùng được ở đâu cả.
+kiem("`lot` biến khỏi bảng đơn vị — bày ra thứ không ô nào nhận là rác",
+     "lot" not in core.NHAN_DON_VI and "lot" not in core.DON_VI_THAM_SO_CU)
 kiem("khoảng cách lấy đơn vị ĐANG CHỌN",
      core.don_vi_cua_o("sl", tinh="atr_zone") == "atr_zone")
 kiem("toán hạng đúng/sai KHÔNG có đơn vị",

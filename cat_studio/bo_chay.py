@@ -59,7 +59,7 @@ class CaiDat:
 
     def __init__(self, symbol="XAUUSD", tu=None, den=None, spread_diem=20.0,
                  point=0.01, contract_size=100.0, digits=2,
-                 deposit=10_000.0, commission=0.0, don_bay=100,
+                 deposit=10_000.0, commission=0.0,
                  lot_min=0.01, lot_buoc=0.01, lot_max=200.0, stops_level=0,
                  truot_diem=0.0):
         self.symbol = symbol
@@ -70,7 +70,6 @@ class CaiDat:
         self.digits = int(digits)
         self.deposit = float(deposit)
         self.commission = float(commission)     # USD mỗi lot, tính ROUND-TURN
-        self.don_bay = don_bay
 
         # ---- LUẬT SÀN — core.md §16.1 ----
         # Backtest phải chơi theo ĐÚNG luật live đã đo (§14.1 "một đoạn code cho cả
@@ -299,7 +298,7 @@ class ChuongTrinh:
     def _dung_cot(self):
         """Tính TRƯỚC mọi chỉ báo sơ đồ dùng tới, mỗi (tên, tf, chu kỳ, kiểu) một lần.
 
-        Sơ đồ mẫu hỏi `atr_bps(M5, 14)` ở HAI chỗ (cổng vào và cổng huỷ) — tính hai lần
+        Sơ đồ mẫu hỏi `atr(M5, 14)` ở HAI chỗ (cổng vào và cổng huỷ) — tính hai lần
         là phí đúng gấp đôi, mà kết quả bắt buộc phải giống nhau."""
         for tab in core.TABS:
             for st in (self.doc.get(tab) or {}).get("steps") or []:

@@ -264,7 +264,7 @@ input, textarea { user-select: text; }
    `min-width: 0` vẫn phải giữ: con flex mặc định `min-width: auto` nên không có nó
    thì phần tử cứ nở ra thay vì xuống dòng.
    `break-word` chứ không `anywhere`: chỉ bẻ khi MỘT từ dài quá khổ, để tên tham số
-   như `nguong_nen_bps` không bị chặt làm đôi giữa chừng. */
+   như `nguong_nen` không bị chặt làm đôi giữa chừng. */
 .hop .dong > span:last-child {
   flex: 1 1 auto;
   min-width: 0;

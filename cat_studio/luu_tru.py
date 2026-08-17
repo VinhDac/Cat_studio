@@ -67,7 +67,11 @@ CAI_DAT_MAC_DINH = {
         "truot_diem": 0,
         "deposit": 10000.0,
         "commission": 0.0,        # USD mỗi lot, ROUND-TURN
-        "don_bay": 100,
+        # ⚠ `don_bay` ĐÃ BỎ. Nó nằm trong cài đặt, đi qua `CaiDat`, hiện lên hộp thoại —
+        # mà bộ chạy KHÔNG ĐỌC nó một lần nào: không có phép kiểm ký quỹ nào cả. Một ô
+        # hứa suông còn tệ hơn không có ô, vì người dùng tưởng mình đã đặt giới hạn.
+        # Trần vị thế thật là `lot_max` của sàn (§16.1). Cần kiểm ký quỹ thì cài cho tử
+        # tế rồi hãy bày ô ra.
         "delay_ms": 60,           # nhịp PHÁT LẠI, không phải tốc độ mô phỏng
 
         # ---- LUẬT SÀN (core.md §16.1) ----

@@ -30,8 +30,6 @@ app_dir = luu_tru.thu_muc_app
 load_settings = luu_tru.doc_cai_dat
 save_settings = luu_tru.ghi_cai_dat
 
-SETTINGS_DEFAULT = luu_tru.CAI_DAT_MAC_DINH
-
 ACCENT_PRESETS = {
     "Cam": "#ffa657", "Xanh dương": "#4a9eff", "Lục": "#3fb950", "Tím": "#a371f7",
     "Đỏ": "#f85149", "Vàng": "#d29922", "Hồng": "#db61a2", "Xanh ngọc": "#39c5cf",
@@ -135,12 +133,6 @@ ACTION_TABS = {
     SUA_LENH: (TAB_MANAGE,),
 }
 
-
-def hanh_dong_cua_tab(tab):
-    return [t for t in ACTION_TYPES if tab in ACTION_TABS[t]]
-
-# Hành động QUYẾT ĐỊNH ĐƯỜNG ĐI: không khớp thì nhánh đang chạy chết tại đó.
-BRANCH_TYPES = (CHECK_COND,)
 
 # ---- Toán hạng của "Kiểm tra điều kiện" -----------------------------------
 # KHÔNG khai ở đây nữa: danh sách do `kho/` gom từ các module con, mỗi module khai
@@ -292,7 +284,10 @@ LOAI_CO_DON_VI = "khoang_cach"
 #: ⚠ `pt_von` là "% của VỐN", KHÔNG phải "% của giá". Chữ `%` trần cố ý không dùng: `pt`
 #: (% của giá) vừa bị bỏ vì trùng nghĩa với `bps`, nên một cái nhãn `%` đứng trơ ở đây
 #: sẽ đọc ra thành đúng cái vừa bỏ. Nhãn phải đúng khi đứng một mình.
-DON_VI_DEM = {"nen": "nến", "lenh": "lệnh", "lot": "lot", "pt_von": "% vốn"}
+#: ⚠ `lot` ĐÃ BỎ cùng với trường `lot` của khối Vào lệnh (§15.13). Không ô nào nhận đơn
+#: vị đó nữa, nên một tham số khai `lot` là một con số không dùng được ở đâu cả — bày ra
+#: một lựa chọn vô nghĩa đúng thứ `DON_VI_CHO` đã cấm.
+DON_VI_DEM = {"nen": "nến", "lenh": "lệnh", "pt_von": "% vốn"}
 
 #: MỌI đơn vị, một bảng nhãn. Bảng tham số khai `don_vi` bằng một khoá ở đây.
 NHAN_DON_VI = {**DON_VI, **DON_VI_DEM}
@@ -321,7 +316,7 @@ TOAN_HANG_DON_VI = {t["key"]: t["don_vi"] for t in TOAN_HANG if t.get("don_vi")}
 #: Một phép đổi đúng-một-nửa là loại hỏng tệ nhất (file vẫn chạy, chỉ sai), nên để rỗng
 #: và soát tĩnh nói to.
 DON_VI_THAM_SO_CU = {
-    "nen": "nen", "nến": "nen", "lot": "lot",
+    "nen": "nen", "nến": "nen",
     "lệnh": "lenh", "giá": "gia", "giá tuyệt đối": "gia",
     "× ATR": "atr", "× ATR hiện tại": "atr",
     "× ATR zone": "atr_zone", "× ATR vùng": "atr_zone",
@@ -397,8 +392,6 @@ def don_vi_cua_o(o_dau, ten=None, tinh=None):
     """
     if o_dau == "chu_ky":
         return "nen"
-    if o_dau == "lot":
-        return "lot"
     if o_dau == "rui_ro":
         return "pt_von"
     if o_dau == "dieu_kien":
@@ -855,12 +848,6 @@ def dong_khoi(a, tham_so=None, tab=None):
     return [action_display(a, tham_so)]
 
 
-def step_display(step):
-    if is_start_step(step):
-        return "◆ Bắt đầu   ·  mỗi nến chạy lại từ đây"
-    return f"⚡ {action_display(step)}"
-
-
 # ---------------------------------------------------------------------------
 # ĐỒ THỊ
 # ---------------------------------------------------------------------------
@@ -1176,11 +1163,6 @@ def flow_order(steps, edges):
     }
 
 
-def canh_quay_lai(steps, edges):
-    """Tập {(từ, tới)} các cạnh quay lại — giao diện vẽ nét đứt cho chúng."""
-    return {tuple(c) for c in flow_order(steps, edges)["quay_lai"]}
-
-
 # ---------------------------------------------------------------------------
 # Soát lỗi
 # ---------------------------------------------------------------------------
@@ -1190,382 +1172,471 @@ def _loi(ds, sev, sid, msg):
     ds.append({"severity": sev, "step": sid, "index": None, "message": msg})
 
 
-def validate_flow_graph(steps, edges):
-    """Soát riêng phần ĐỒ THỊ — lỗi ở mức nối dây, không phải ở mức một hành động."""
-    ra = []
-    ds = [s for s in (steps or []) if isinstance(s, dict) and s.get("id")]
-    if not ds:
-        return ra
+# ---------------------------------------------------------------------------
+# LUẬT ĐỒ THỊ — mỗi luật MỘT HÀM, gọi qua một danh sách
+# ---------------------------------------------------------------------------
+#
+# ⚠ VÌ SAO TÁCH RA. `validate_flow_graph` từng là MỘT hàm 381 dòng, và mỗi luật mới lại
+# nối dài nó thêm — riêng năm luật kết hợp (§17) đổ vào đó ~150 dòng. Đến ngưỡng đó thì
+# không ai đọc hết một lượt được nữa, mà đây lại đúng là chỗ sẽ còn phình.
+#
+# Giờ: mỗi luật là một hàm `_lt_*(b)` tự chứa, và `LUAT_DO_THI` là danh sách chạy chúng.
+# **Thêm một luật = viết một hàm + thêm MỘT DÒNG vào danh sách.** Không hàm nào phải
+# biết hàm nào, nên xoá một luật cũng không làm gãy luật khác.
+#
+# `b` là BỐI CẢNH dựng sẵn — đồ thị đã tra, nhãn đã đánh. Dựng một lần cho mọi luật thay
+# vì mỗi luật tự tra lại: `flow_order` không rẻ, và hai luật tra hai lần là hai kết quả
+# có thể lệch nhau.
 
-    theo_id, ke = flow_map(steps, edges)
-    kq = flow_order(steps, edges)
-    nhan = kq["order"]
 
-    def ten(sid):
+class _BoiCanh:
+    """Thứ MỌI luật đồ thị đều cần. Đọc-thôi với luật, trừ `ra` (chỗ ghi lỗi)."""
+
+    __slots__ = ("ra", "ds", "edges", "theo_id", "ke", "kq", "nhan", "_truoc")
+
+    def __init__(self, steps, edges):
+        self.ra = []
+        self.ds = [s for s in (steps or []) if isinstance(s, dict) and s.get("id")]
+        self.edges = [e for e in (edges or []) if isinstance(e, dict)]
+        self.theo_id, self.ke = flow_map(steps, edges)
+        self.kq = flow_order(steps, edges)
+        self.nhan = self.kq["order"]
+        self._truoc = None
+
+    def ten(self, sid):
         """Tên khối kèm NHÃN THẬT trên huy hiệu.
 
         Cố ý không dùng index trong danh sách: Auto_Clicker ghi f"Bước {i+1}" nên panel
         Vấn đề có thể nói "Bước 7" về một khối mà huy hiệu ghi "4A.2" (core.md §3.3)."""
-        n = nhan.get(sid)
-        return f'[{n}] "{step_title(theo_id[sid])}"' if n else f'"{step_title(theo_id[sid])}"'
+        n = self.nhan.get(sid)
+        goc = step_title(self.theo_id[sid])
+        return f'[{n}] "{goc}"' if n else f'"{goc}"'
 
-    # ---- Khối trùng id ----
-    # `flow_map` tra theo id nên hai khối cùng id thì một cái BIẾN MẤT khỏi sơ đồ:
-    # không nhãn, không dấu vết. Nhìn canvas thấy đủ khối, chạy thì thiếu.
+    def loi(self, sev, sid, msg):
+        _loi(self.ra, sev, sid, msg)
+
+    @property
+    def truoc(self):
+        """Bảng NGƯỢC: khối nào dẫn vào khối nào. Dựng lười — chỉ vài luật cần."""
+        if self._truoc is None:
+            self._truoc = {}
+            for e in self.edges:
+                if e.get("to") in self.theo_id and e.get("from") in self.theo_id:
+                    self._truoc.setdefault(e["to"], []).append(e["from"])
+        return self._truoc
+
+    def nga_re(self):
+        """Mọi ngã rẽ thật: (khối, [nhánh…]) với từ hai nhánh trở lên."""
+        return [(sid, nh) for sid, nh in self.ke.items()
+                if len(nh) >= 2 and sid in self.theo_id]
+
+    def cap(self, nhanh, loai):
+        """Mọi CẶP nhánh cùng một `type` — dùng cho luật "hai nhánh giẫm nhau"."""
+        for x in range(len(nhanh)):
+            for y in range(x + 1, len(nhanh)):
+                a, b = self.theo_id[nhanh[x]], self.theo_id[nhanh[y]]
+                if a.get("type") == loai and b.get("type") == loai:
+                    yield nhanh[x], nhanh[y], a, b
+
+
+def _khoa_lenh(st):
+    """Mọi thứ định nghĩa MỘT lệnh. Khác nhau một khoá thôi là hai lệnh khác nhau."""
+    return json.dumps({k: st.get(k) for k in _KHOA_MOT_LENH},
+                      sort_keys=True, ensure_ascii=False)
+
+
+# ---- luật: khối và đường nối ----------------------------------------------
+
+
+def _lt_trung_id(b):
+    """`flow_map` tra theo id nên hai khối cùng id thì một cái BIẾN MẤT khỏi sơ đồ:
+    không nhãn, không dấu vết. Nhìn canvas thấy đủ khối, chạy thì thiếu."""
     dem = {}
-    for s in ds:
+    for s in b.ds:
         dem[s["id"]] = dem.get(s["id"], 0) + 1
     for sid, n in dem.items():
         if n > 1:
-            _loi(ra, "error", sid,
-                 f'Có {n} khối trùng id với nhau ({ten(sid)}) — chỉ MỘT cái được chạy, '
-                 f"những cái còn lại biến mất khỏi sơ đồ mà không báo gì. "
-                 f"Hãy xoá bớt rồi tạo lại.")
+            b.loi("error", sid,
+                  f'Có {n} khối trùng id với nhau ({b.ten(sid)}) — chỉ MỘT cái được chạy, '
+                  f"những cái còn lại biến mất khỏi sơ đồ mà không báo gì. "
+                  f"Hãy xoá bớt rồi tạo lại.")
 
-    # ---- Khối Bắt đầu ----
-    bd = [s for s in ds if is_start_step(s)]
+
+def _lt_khoi_bat_dau(b):
+    """Đúng MỘT khối Bắt đầu, và nó không bao giờ nhận đường vào (§4.2)."""
+    bd = [s for s in b.ds if is_start_step(s)]
     if len(bd) > 1:
-        _loi(ra, "error", bd[1]["id"],
-             f"Sơ đồ có {len(bd)} khối Bắt đầu — chỉ được đúng một. "
-             f"Hãy xoá bớt, giữ lại một cái.")
+        b.loi("error", bd[1]["id"],
+              f"Sơ đồ có {len(bd)} khối Bắt đầu — chỉ được đúng một. "
+              f"Hãy xoá bớt, giữ lại một cái.")
     if not bd:
-        _loi(ra, "warning", None,
-             "Sơ đồ chưa có khối Bắt đầu. Thêm một cái để việc đánh số có điểm neo cố "
-             "định — không có nó, một vòng lặp nối ngược lên trên có thể làm mất luôn "
-             "điểm bắt đầu và mọi khối đều mất số.")
+        b.loi("warning", None,
+              "Sơ đồ chưa có khối Bắt đầu. Thêm một cái để việc đánh số có điểm neo cố "
+              "định — không có nó, một vòng lặp nối ngược lên trên có thể làm mất luôn "
+              "điểm bắt đầu và mọi khối đều mất số.")
     for s in bd:
-        vao = [e for e in (edges or [])
-               if isinstance(e, dict) and e.get("to") == s["id"]]
+        vao = [e for e in b.edges if e.get("to") == s["id"]]
         if vao:
-            _loi(ra, "error", s["id"],
-                 f"Khối Bắt đầu có {len(vao)} đường nối ĐI VÀO. Nó là điểm neo, "
-                 f"không bao giờ được chạy tới từ chỗ khác. Hãy gỡ mấy đường đó.")
+            b.loi("error", s["id"],
+                  f"Khối Bắt đầu có {len(vao)} đường nối ĐI VÀO. Nó là điểm neo, "
+                  f"không bao giờ được chạy tới từ chỗ khác. Hãy gỡ mấy đường đó.")
 
-    # ---- Đường nối trỏ về chính nó ----
-    for e in (edges or []):
-        if isinstance(e, dict) and e.get("from") and e.get("from") == e.get("to") \
-                and e["from"] in theo_id:
-            _loi(ra, "error", e["from"],
-                 f"{ten(e['from'])} có đường nối trỏ về CHÍNH NÓ — chạy tới đây là quay "
-                 f"lại chính mình mãi mãi. Muốn lặp thì nối về một khối phía trước và "
-                 f"ghim số khối đó.")
 
-    # ---- HAI khối Vào lệnh trên CÙNG một đường ----
-    #
-    # ⭐ LUẬT HỎI VỀ *LỆNH*, KHÔNG HỎI VỀ *HÌNH VẼ*.
-    #
-    # Bản trước chặn MỌI cặp Vào lệnh nối tiếp nhau, lý do ghi là "cổng số lệnh chờ = 0
-    # chỉ được hỏi một lần đầu lượt". Sai ở chỗ đó là luật về SỐ KHỐI TRÊN ĐƯỜNG chứ
-    # không phải về hai cái lệnh — và nó khoá chết một chiến lược hoàn toàn hợp lệ:
-    # straddle nén (Buy Stop trên đỉnh zone + Sell Stop dưới đáy zone, chờ giá phá ra
-    # bên nào thì ăn bên đó). Hai lệnh ấy **cùng tồn tại được** trong sổ, nên không có
-    # gì để chặn.
-    #
-    # Tệ hơn: câu nó khuyên — *"Hãy tách chúng thành hai NHÁNH"* — lại chỉ thẳng vào thứ
-    # luật rẽ nhánh cấm (nhánh phải mở đầu bằng cổng), mà tách có cổng thì thành XOR nên
-    # chỉ ra MỘT lệnh. Người dùng đi vòng tròn giữa hai câu lỗi và không có đường nào
-    # hợp lệ. Đo được: nối song song chạy 3 tháng ra 182 lệnh, **0/182 nến đẻ ra hai
-    # lệnh** — khối thứ hai chết vĩnh viễn; nối tiếp ra 167/167 nến đẻ đúng một cặp
-    # Mua/Bán cùng `zone_id`. Bộ chạy vốn đã làm đúng, chỉ luật này chặn.
-    #
-    # LUẬT MỚI: chỉ chặn khi hai khối tạo ra **ĐÚNG MỘT LỆNH GIỐNG HỆT** — cùng hướng,
-    # cùng loại, cùng mốc neo, cùng đệm, cùng SL/TP/lot. Chỉ khi ấy chúng mới rơi vào
-    # đúng một chỗ trong sổ, tức không phải hai lệnh mà là một lệnh viết hai lần (gần
-    # như luôn là hậu quả của `Ctrl+D` rồi quên sửa).
-    #
-    # ⚠ SL/TP/lot NẰM TRONG khoá so sánh, và đó là chủ ý. Cùng giá vào mà khác TP là hai
-    # chân chốt lời hai mức — sàn giữ cả hai, cùng tồn tại được. Bỏ chúng khỏi khoá là
-    # chặn nhầm đúng cái luật này vừa mở ra.
-    #
-    # ⚠ So THÔ, không quy tên tham số về giá trị. `dem = 0.1` và `dem = dem_vao_lenh`
-    # (= 0.1) ra cùng một giá nhưng ở đây coi là khác nhau — CỐ Ý, để tầng nào lo việc
-    # tầng ấy: "hai chỗ cùng một SỐ" là việc của `_soat_so_lap` (§6.4), còn luật này chỉ
-    # lo "hai khối cùng một LỆNH". Trộn vào là `validate_flow_graph` — vốn là hàm thuần
-    # về đồ thị — phải biết bảng giá trị tham số.
-    #
-    # Chặn ở đây chứ không chặn trong bộ chạy: bộ chạy phải làm ĐÚNG những gì sơ đồ vẽ,
-    # còn thứ không nên vẽ thì đừng cho vẽ. Bộ chạy tự ý dừng sau lệnh đầu là nó âm thầm
-    # bỏ qua một khối người dùng đã đặt vào.
-    def _khoa_lenh(st):
-        """Mọi thứ định nghĩa MỘT lệnh. Khác nhau một khoá thôi là hai lệnh khác nhau."""
-        return json.dumps({k: st.get(k) for k in _KHOA_MOT_LENH},
-                          sort_keys=True, ensure_ascii=False)
+def _lt_tu_noi(b):
+    for e in b.edges:
+        if e.get("from") and e.get("from") == e.get("to") and e["from"] in b.theo_id:
+            b.loi("error", e["from"],
+                  f"{b.ten(e['from'])} có đường nối trỏ về CHÍNH NÓ — chạy tới đây là quay "
+                  f"lại chính mình mãi mãi. Muốn lặp thì nối về một khối phía trước và "
+                  f"ghim số khối đó.")
 
-    vao_lenh = [sid for sid, st in theo_id.items() if st.get("type") == VAO_LENH]
-    for sid in vao_lenh:
-        khoa = _khoa_lenh(theo_id[sid])
-        tham, hang = {sid}, list(ke.get(sid, []))
+
+def _lt_khong_co_diem_bat_dau(b):
+    if b.kq["entry"] is None:
+        b.loi("error", None,
+              "Không tìm được khối bắt đầu — mọi khối đều có đường nối đi vào. Hãy thêm "
+              "một khối Bắt đầu, hoặc gỡ bớt một đường nối.")
+
+
+# ---- luật: hai lệnh trùng nhau (§5.1 · §17.4) ------------------------------
+#
+# ⭐ LUẬT HỎI VỀ *LỆNH*, KHÔNG HỎI VỀ *HÌNH VẼ*.
+#
+# Bản trước chặn MỌI cặp Vào lệnh nối tiếp nhau, lý do ghi là "cổng số lệnh chờ = 0 chỉ
+# được hỏi một lần đầu lượt". Sai ở chỗ đó là luật về SỐ KHỐI TRÊN ĐƯỜNG chứ không phải
+# về hai cái lệnh — và nó khoá chết một chiến lược hoàn toàn hợp lệ: straddle nén (Buy
+# Stop trên đỉnh zone + Sell Stop dưới đáy zone). Hai lệnh ấy CÙNG TỒN TẠI ĐƯỢC trong
+# sổ, nên không có gì để chặn. Đo được: nối tiếp chạy ra 167/167 nến đẻ đúng một cặp
+# Mua/Bán cùng `zone_id` — bộ chạy vốn đã làm đúng, chỉ luật này chặn.
+#
+# LUẬT MỚI: chỉ chặn khi hai khối tạo ra ĐÚNG MỘT LỆNH GIỐNG HỆT — cùng hướng, loại, mốc
+# neo, đệm, SL/TP/rủi ro. Chỉ khi ấy chúng mới rơi vào đúng một chỗ trong sổ, tức không
+# phải hai lệnh mà là một lệnh viết hai lần (gần như luôn là `Ctrl+D` rồi quên sửa).
+#
+# ⚠ SL/TP/rủi ro NẰM TRONG khoá, có chủ ý: cùng giá vào mà khác TP là hai chân chốt lời
+#   hai mức, sàn giữ cả hai. Bỏ chúng khỏi khoá là chặn nhầm đúng cái luật này vừa mở ra.
+# ⚠ So THÔ, không quy tên tham số về giá trị — để tầng nào lo việc tầng ấy: "hai chỗ cùng
+#   một SỐ" là việc của `_soat_so_lap` (§6.4), luật này chỉ lo "hai khối cùng một LỆNH".
+
+
+def _lt_lenh_trung_doc(b):
+    """Hai khối Vào lệnh giống hệt NỐI TIẾP trên cùng một đường."""
+    for sid, st in b.theo_id.items():
+        if st.get("type") != VAO_LENH:
+            continue
+        khoa = _khoa_lenh(st)
+        tham, hang = {sid}, list(b.ke.get(sid, []))
         while hang:
             uv = hang.pop(0)
             if uv in tham:
                 continue
             tham.add(uv)
-            st_uv = theo_id.get(uv, {})
+            st_uv = b.theo_id.get(uv, {})
             if st_uv.get("type") == VAO_LENH and _khoa_lenh(st_uv) == khoa:
-                _loi(ra, "error", uv,
-                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường và tạo ra ĐÚNG "
-                     f"MỘT LỆNH GIỐNG HỆT — cùng hướng, cùng loại, cùng mốc neo, cùng "
-                     f"đệm, cùng SL/TP/lot. Hai lệnh trùng khít nhau thì không phải hai "
-                     f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc cho "
-                     f"chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
+                b.loi("error", uv,
+                      f"{b.ten(uv)} nằm SAU {b.ten(sid)} trên cùng một đường và tạo ra ĐÚNG "
+                      f"MỘT LỆNH GIỐNG HỆT — cùng hướng, cùng loại, cùng mốc neo, cùng "
+                      f"đệm, cùng SL/TP/lot. Hai lệnh trùng khít nhau thì không phải hai "
+                      f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc cho "
+                      f"chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
                 break
-            hang += ke.get(uv, [])
+            hang += b.ke.get(uv, [])
 
-    # ---- Sau "Kết thúc lệnh này" thì LỆNH ĐÃ CHẾT ----
-    #
-    # core.md §17.1. `_sua_lenh` mở đầu bằng `if not l.con_song: return None`, nên mọi
-    # khối phía sau chạy qua mà KHÔNG làm gì và KHÔNG báo gì. Sơ đồ vẽ hai việc, lượt
-    # chạy làm một — đúng loại im lặng cả kiến trúc này dựng lên để tránh.
-    #
-    # Chặn ở ĐƯỜNG NỐI chứ không ở bộ chạy, cùng lý lẽ với luật hai khối Vào lệnh trùng
-    # nhau ở trên: bộ chạy phải làm đúng những gì sơ đồ vẽ, còn thứ không nên vẽ thì
-    # đừng cho vẽ.
-    #
-    # Báo cả khi khối sau là một CỔNG: cổng vẫn đánh giá được (nó đọc thị trường), nhưng
-    # nhánh nó dẫn tới thì chết, và mấy toán hạng "Lệnh này" khi đó đang hỏi về một cái
-    # lệnh đã đóng — một câu hỏi không còn nghĩa.
-    for sid, st in theo_id.items():
+
+def _lt_lenh_trung_ngang(b):
+    """Hai khối Vào lệnh giống hệt là hai NHÁNH của cùng một ngã rẽ VÀ — §17.4.
+
+    `_lt_lenh_trung_doc` chỉ loang DỌC THEO ĐƯỜNG nên nó mù với ca này, mà ngã rẽ VÀ thì
+    chạy cả hai nhánh: đẻ ra đúng hai lệnh trùng khít y như ca nối tiếp. Cùng một cái
+    sai, chỉ khác hình vẽ."""
+    for sid, nhanh in b.nga_re():
+        if not la_nga_re_va([b.theo_id[uv] for uv in nhanh]):
+            continue
+        for x, y, a_, b_ in b.cap(nhanh, VAO_LENH):
+            if _khoa_lenh(a_) != _khoa_lenh(b_):
+                continue
+            b.loi("error", y,
+                  f"{b.ten(x)} và {b.ten(y)} là hai nhánh của "
+                  f"{b.ten(sid)} và tạo ra ĐÚNG MỘT LỆNH GIỐNG HỆT — cùng hướng, "
+                  f"cùng loại, cùng mốc neo, cùng đệm, cùng SL/TP/rủi ro. Ngã rẽ "
+                  f"này LÀM HẾT nên nó đặt hai lệnh trùng khít: không phải hai "
+                  f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc "
+                  f"cho chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
+
+
+# ---- luật KẾT HỢP của khối Sửa lệnh (§17) ----------------------------------
+#
+# Một câu cho cả nhóm: SƠ ĐỒ KHÔNG ĐƯỢC NÓI DỐI. Vẽ hai việc thì lượt chạy phải làm hai
+# việc. `_sua_lenh` mở đầu bằng `if not l.con_song: return None` nên nó IM LẶNG nuốt mọi
+# khối vô nghĩa — mấy luật dưới là chỗ duy nhất bắt được chúng.
+
+
+def _lt_sau_ket_thuc(b):
+    """§17.1 — sau `Kết thúc lệnh này` thì lệnh đã chết, mọi khối phía sau là mã chết.
+
+    Báo cả khi khối sau là một CỔNG: cổng vẫn đánh giá được (nó đọc thị trường), nhưng
+    nhánh nó dẫn tới thì chết, và mấy toán hạng "Lệnh này" khi đó đang hỏi về một cái
+    lệnh đã đóng — câu hỏi không còn nghĩa."""
+    for sid, st in b.theo_id.items():
         if not (st.get("type") == SUA_LENH and st.get("che_do") == "ket_thuc"):
             continue
-        for uv in ke.get(sid, []):
-            _loi(ra, "error", uv,
-                 f"{ten(uv)} nằm SAU {ten(sid)} — mà {ten(sid)} đã đóng/huỷ lệnh rồi. "
-                 f"Bộ chạy đi qua khối này rồi bỏ qua, không làm gì và không báo gì: "
-                 f"sơ đồ trông như có hai việc, lượt chạy chỉ có một. "
-                 f'Hãy gỡ đường nối, hoặc đưa "{SUA_CHE_DO["ket_thuc"]}" xuống cuối.')
+        for uv in b.ke.get(sid, []):
+            b.loi("error", uv,
+                  f"{b.ten(uv)} nằm SAU {b.ten(sid)} — mà {b.ten(sid)} đã đóng/huỷ lệnh rồi. "
+                  f"Bộ chạy đi qua khối này rồi bỏ qua, không làm gì và không báo gì: "
+                  f"sơ đồ trông như có hai việc, lượt chạy chỉ có một. "
+                  f'Hãy gỡ đường nối, hoặc đưa "{SUA_CHE_DO["ket_thuc"]}" xuống cuối.')
 
-    # ---- HAI lần sửa CÙNG MỘT THỨ trên cùng một đường ----
-    #
-    # core.md §17.3 — cùng một luật với §17.2, chỉ khác hình vẽ. Một lượt Manage đi qua
-    # cả hai khối, khối sau ghi đè khối trước, nên khối TRÊN không để lại dấu vết gì.
-    #
-    # ⚠ CỔNG Ở GIỮA thì KHÔNG phải lỗi, và đó là chỗ phải phân biệt cho sạch: cổng có
-    # thể TRƯỢT, nên khối dưới không chắc chạy — lúc đó khối trên có tác dụng thật.
-    # Vì thế phép loang DỪNG ở mọi cổng thay vì đi xuyên qua.
-    #
-    # Nguồn là `ket_thuc` thì bỏ qua: luật ngay trên đã chặn MỌI khối sau nó bằng một
-    # câu chính xác hơn, hai câu cho một lỗi là ồn.
-    for sid, st in theo_id.items():
+
+def _lt_sua_de_doc(b):
+    """§17.3 — hai khối Sửa lệnh ghi CÙNG MỘT THỨ, nối tiếp, KHÔNG cổng ở giữa.
+
+    ⚠ CỔNG Ở GIỮA thì KHÔNG phải lỗi — cổng TRƯỢT ĐƯỢC nên khối dưới không chắc chạy,
+    lúc đó khối trên có tác dụng thật. Vì thế phép loang DỪNG ở mọi cổng.
+
+    Nguồn là `ket_thuc` thì bỏ qua: §17.1 đã chặn bằng câu chính xác hơn, hai câu cho
+    một lỗi là ồn."""
+    for sid, st in b.theo_id.items():
         if st.get("type") != SUA_LENH:
             continue
         cd0 = st.get("che_do")
         if cd0 not in SUA_GHI_LEN or cd0 == "ket_thuc":
             continue
-        tham, hang = {sid}, list(ke.get(sid, []))
+        tham, hang = {sid}, list(b.ke.get(sid, []))
         while hang:
             uv = hang.pop(0)
             if uv in tham:
                 continue
             tham.add(uv)
-            st_uv = theo_id.get(uv, {})
+            st_uv = b.theo_id.get(uv, {})
             if is_branch_gate(st_uv):
                 continue                      # cổng trượt được → dừng loang ở đây
-            if st_uv.get("type") == SUA_LENH \
-                    and sua_dung_do(cd0, st_uv.get("che_do")):
+            if st_uv.get("type") == SUA_LENH and sua_dung_do(cd0, st_uv.get("che_do")):
                 cai = ("cả cái lệnh" if SUA_GHI_LEN.get(st_uv.get("che_do")) == "*"
                        else SUA_GHI_LEN[cd0].upper())
-                _loi(ra, "error", uv,
-                     f"{ten(uv)} nằm SAU {ten(sid)} trên cùng một đường, KHÔNG có cổng "
-                     f"nào ở giữa, mà cả hai đều ghi lên {cai}. Một lượt đi qua cả hai "
-                     f"nên khối dưới ghi đè khối trên ngay lập tức — {ten(sid)} không "
-                     f"để lại dấu vết gì. Xoá bớt một khối, hoặc chen một cổng "
-                     f'"{ACTION_LABELS[CHECK_COND]}" vào giữa để khối dưới chỉ chạy '
-                     f"khi thật sự cần.")
+                b.loi("error", uv,
+                      f"{b.ten(uv)} nằm SAU {b.ten(sid)} trên cùng một đường, KHÔNG có cổng "
+                      f"nào ở giữa, mà cả hai đều ghi lên {cai}. Một lượt đi qua cả hai "
+                      f"nên khối dưới ghi đè khối trên ngay lập tức — {b.ten(sid)} không "
+                      f"để lại dấu vết gì. Xoá bớt một khối, hoặc chen một cổng "
+                      f'"{ACTION_LABELS[CHECK_COND]}" vào giữa để khối dưới chỉ chạy '
+                      f"khi thật sự cần.")
                 break
-            hang += ke.get(uv, [])
+            hang += b.ke.get(uv, [])
 
-    # ---- "Hoà vốn" chạy cả trên lệnh CHƯA KHỚP ----
-    #
-    # core.md §17.5. Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh CHỜ. Mà
-    # `hoà vốn` nghĩa là "SL = giá vào" — lệnh chờ chưa có giá vào, nên `_sua_lenh` gặp
-    # nó là `return None`: khối chạy qua và KHÔNG làm gì, im lặng.
-    #
-    # ⚠ CẢNH BÁO chứ không phải lỗi, và đó là chủ ý: cách lọc lệnh chờ có nhiều đường —
-    # cổng `Lệnh này đã khớp`, hoặc `lãi (×R) ≥ 1` (lệnh chờ luôn 0R nên cũng lọc được),
-    # hoặc cách khác. Đòi đúng một toán hạng là chặn nhầm những cách viết hợp lệ.
-    # Chỉ nhắc khi phía trên KHÔNG CÓ CỔNG NÀO — lúc đó chắc chắn không có gì lọc.
-    truoc = {}
-    for e in (edges or []):
-        if isinstance(e, dict) and e.get("to") in theo_id and e.get("from") in theo_id:
-            truoc.setdefault(e["to"], []).append(e["from"])
-    for sid, st in theo_id.items():
+
+def _lt_va_ghi_de(b):
+    """§17.2 — ngã rẽ VÀ có hai hành động ghi lên CÙNG MỘT THỨ.
+
+    Ngã rẽ VÀ LÀM HẾT, và "làm hết" chỉ có nghĩa khi mấy việc đó không giẫm lên nhau.
+    Ba nhánh cùng ghi SL thì làm xong cả ba, SL bằng đúng cái CUỐI — hai khối trên không
+    để lại dấu vết gì."""
+    for sid, nhanh in b.nga_re():
+        if not la_nga_re_va([b.theo_id[uv] for uv in nhanh]):
+            continue
+        for x, y, a_, b_ in b.cap(nhanh, SUA_LENH):
+            if not sua_dung_do(a_.get("che_do"), b_.get("che_do")):
+                continue
+            cai = ("cả cái lệnh"
+                   if "*" in (SUA_GHI_LEN.get(a_.get("che_do")),
+                              SUA_GHI_LEN.get(b_.get("che_do")))
+                   else SUA_GHI_LEN.get(a_.get("che_do"), "?").upper())
+            b.loi("error", y,
+                  f"{b.ten(x)} và {b.ten(y)} là hai nhánh của "
+                  f"{b.ten(sid)} — ngã rẽ này LÀM HẾT, mà cả hai đều ghi lên "
+                  f"{cai}. Làm xong thì chỉ cái DƯỚI còn dấu vết; cái trên "
+                  f"không đổi gì cả, nên sơ đồ vẽ hai việc mà lượt chạy có "
+                  f"một. Muốn CHỌN MỘT thì cho mỗi nhánh một cổng "
+                  f'"{ACTION_LABELS[CHECK_COND]}" — khi đó nó thành ngã rẽ '
+                  f"HOẶC và chỉ một nhánh chạy.")
+
+
+def _lt_hoa_von_khong_cong(b):
+    """§17.5 — `Hoà vốn` chạy cả trên lệnh CHƯA KHỚP.
+
+    Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh CHỜ. Mà `hoà vốn` là
+    "SL = giá vào" — lệnh chờ chưa có giá vào, nên `_sua_lenh` trả `None`: khối chạy qua
+    và KHÔNG làm gì, im lặng.
+
+    ⚠ CẢNH BÁO chứ không phải lỗi, có chủ ý: cách lọc lệnh chờ có nhiều đường — cổng
+    `Lệnh này đã khớp`, hoặc `lãi (×R) ≥ 1` (lệnh chờ luôn 0R nên cũng lọc được), hoặc
+    cách khác. Đòi đúng một toán hạng là chặn nhầm những cách viết hợp lệ. Chỉ nhắc khi
+    phía trên KHÔNG CÓ CỔNG NÀO — lúc đó chắc chắn không có gì lọc."""
+    for sid, st in b.theo_id.items():
         if not (st.get("type") == SUA_LENH and st.get("che_do") == "hoa_von"):
             continue
-        tham, hang, co_cong = {sid}, list(truoc.get(sid, [])), False
+        tham, hang, co_cong = {sid}, list(b.truoc.get(sid, [])), False
         while hang and not co_cong:
             uv = hang.pop(0)
             if uv in tham:
                 continue
             tham.add(uv)
-            if is_branch_gate(theo_id.get(uv, {})):
+            if is_branch_gate(b.theo_id.get(uv, {})):
                 co_cong = True
                 break
-            hang += truoc.get(uv, [])
+            hang += b.truoc.get(uv, [])
         if not co_cong:
-            _loi(ra, "warning", sid,
-                 f'{ten(sid)} — "{SUA_CHE_DO["hoa_von"]}" chỉ có nghĩa với lệnh ĐÃ '
-                 f"KHỚP, mà Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh "
-                 f"CHỜ. Không có cổng nào ở phía trên nên khối này còn chạy trên cả "
-                 f"lệnh chờ và không làm gì ở đó — nhìn sơ đồ không thấy điều đó. "
-                 f'Thường bạn muốn một cổng "{TOAN_HANG_LABELS.get("lenh_da_khop")}" '
-                 f"ở trên.")
+            b.loi("warning", sid,
+                  f'{b.ten(sid)} — "{SUA_CHE_DO["hoa_von"]}" chỉ có nghĩa với lệnh ĐÃ '
+                  f"KHỚP, mà Manage chạy một lượt cho MỖI lệnh đang sống, kể cả lệnh "
+                  f"CHỜ. Không có cổng nào ở phía trên nên khối này còn chạy trên cả "
+                  f"lệnh chờ và không làm gì ở đó — nhìn sơ đồ không thấy điều đó. "
+                  f'Thường bạn muốn một cổng "{TOAN_HANG_LABELS.get("lenh_da_khop")}" '
+                  f"ở trên.")
 
-    # ---- Cổng khớp rồi mà phía sau trống ----
-    for sid, st in theo_id.items():
-        if is_branch_gate(st) and not ke.get(sid):
-            _loi(ra, "warning", sid,
-                 f"{ten(sid)} khớp điều kiện rồi thì không có gì phía sau — chiến lược "
-                 f"kết thúc ngay tại đó. Nối tiếp một khối vào nếu bạn muốn nhánh này "
-                 f"làm gì đó.")
 
-    # ---- Luật rẽ nhánh ----
-    # Nhiều đường ra KHÔNG phải lỗi, nhưng phải quyết định được đi đường nào. Ở điểm rẽ
-    # các nhánh được thử lần lượt trên->dưới, nên mỗi nhánh phải mở đầu bằng một CỔNG,
-    # trừ tối đa MỘT nhánh mặc định — và nhánh mặc định luôn khớp nên bắt buộc xếp CUỐI.
-    for sid, nhanh in ke.items():
-        if len(nhanh) < 2 or sid not in theo_id:
-            continue
-        # Cạnh QUAY LẠI (trỏ vào khối đã ghim) không cần cổng và luôn được thử cuối —
-        # nghĩa của nó vốn đã là "không nhánh nào khớp thì quay về trên", tức đúng vai
-        # nhánh mặc định. Bắt nó phải có cổng là bắt viết lại điều kiện phủ định của
-        # tất cả các nhánh trên, thừa và dễ sai.
-        quay = [uv for uv in nhanh if theo_id[uv].get("ghim")]
+# ---- luật RẼ NHÁNH (§5) ----------------------------------------------------
+
+
+def _lt_cong_cut(b):
+    for sid, st in b.theo_id.items():
+        if is_branch_gate(st) and not b.ke.get(sid):
+            b.loi("warning", sid,
+                  f"{b.ten(sid)} khớp điều kiện rồi thì không có gì phía sau — chiến lược "
+                  f"kết thúc ngay tại đó. Nối tiếp một khối vào nếu bạn muốn nhánh này "
+                  f"làm gì đó.")
+
+
+def _lt_re_nhanh(b):
+    """Mỗi nhánh phải mở đầu bằng một CỔNG, trừ tối đa MỘT nhánh mặc định — và nhánh
+    mặc định luôn khớp nên bắt buộc xếp CUỐI.
+
+    Cạnh QUAY LẠI (trỏ vào khối đã ghim) không cần cổng và luôn được thử cuối: nghĩa của
+    nó vốn đã là "không nhánh nào khớp thì quay về trên", tức đúng vai nhánh mặc định.
+
+    CỐ Ý KHÔNG cảnh báo "nhánh nào cũng có điều kiện": cả sơ đồ là một vòng lặp chạy lại
+    mỗi nến, nên không khớp gì = HẾT LƯỢT, nến sau chạy lại. Đó là cách "chờ" được diễn
+    tả, và là trường hợp thường gặp nhất."""
+    for sid, nhanh in b.nga_re():
+        quay = [uv for uv in nhanh if b.theo_id[uv].get("ghim")]
         thang = [uv for uv in nhanh if uv not in quay]
-        khong_cong = [uv for uv in thang if not is_branch_gate(theo_id[uv])]
-        if la_nga_re_va([theo_id[uv] for uv in nhanh]):
-            # NGÃ RẼ VÀ — mọi đầu nhánh đều là hành động, nên không có gì để chọn: bộ
-            # chạy LÀM HẾT, theo thứ tự trên xuống. Hợp lệ, không phải lỗi.
-            #
-            # ⚠ Nhưng "làm hết" chỉ có nghĩa khi mấy việc đó KHÔNG GIẪM LÊN NHAU. Ba
-            # nhánh cùng ghi SL thì làm xong cả ba, SL bằng đúng cái CUỐI — hai khối
-            # trên không để lại dấu vết gì. Sơ đồ vẽ ba việc, lượt chạy có một:
-            # SƠ ĐỒ NÓI DỐI, và đó là thứ duy nhất app này không được cho qua.
-            # core.md §17.2.
-            for x in range(len(nhanh)):
-                for y in range(x + 1, len(nhanh)):
-                    a_, b_ = theo_id[nhanh[x]], theo_id[nhanh[y]]
-                    if a_.get("type") != SUA_LENH or b_.get("type") != SUA_LENH:
-                        continue
-                    if not sua_dung_do(a_.get("che_do"), b_.get("che_do")):
-                        continue
-                    cai = ("cả cái lệnh"
-                           if "*" in (SUA_GHI_LEN.get(a_.get("che_do")),
-                                      SUA_GHI_LEN.get(b_.get("che_do")))
-                           else SUA_GHI_LEN.get(a_.get("che_do"), "?").upper())
-                    _loi(ra, "error", nhanh[y],
-                         f"{ten(nhanh[x])} và {ten(nhanh[y])} là hai nhánh của "
-                         f"{ten(sid)} — ngã rẽ này LÀM HẾT, mà cả hai đều ghi lên "
-                         f"{cai}. Làm xong thì chỉ cái DƯỚI còn dấu vết; cái trên "
-                         f"không đổi gì cả, nên sơ đồ vẽ hai việc mà lượt chạy có "
-                         f"một. Muốn CHỌN MỘT thì cho mỗi nhánh một cổng "
-                         f'"{ACTION_LABELS[CHECK_COND]}" — khi đó nó thành ngã rẽ '
-                         f"HOẶC và chỉ một nhánh chạy.")
-
-            # ---- HAI khối Vào lệnh GIỐNG HỆT, song song ----
-            #
-            # core.md §17.4. Luật `_KHOA_MOT_LENH` ở trên chỉ loang DỌC THEO ĐƯỜNG, nên
-            # nó không thấy hai khối là hai NHÁNH của cùng một ngã rẽ — mà ngã rẽ VÀ thì
-            # chạy cả hai, đẻ ra đúng hai lệnh trùng khít y như ca nối tiếp.
-            # Cùng một cái sai, chỉ khác hình vẽ.
-            for x in range(len(nhanh)):
-                for y in range(x + 1, len(nhanh)):
-                    a_, b_ = theo_id[nhanh[x]], theo_id[nhanh[y]]
-                    if a_.get("type") != VAO_LENH or b_.get("type") != VAO_LENH:
-                        continue
-                    if _khoa_lenh(a_) != _khoa_lenh(b_):
-                        continue
-                    _loi(ra, "error", nhanh[y],
-                         f"{ten(nhanh[x])} và {ten(nhanh[y])} là hai nhánh của "
-                         f"{ten(sid)} và tạo ra ĐÚNG MỘT LỆNH GIỐNG HỆT — cùng hướng, "
-                         f"cùng loại, cùng mốc neo, cùng đệm, cùng SL/TP/rủi ro. Ngã rẽ "
-                         f"này LÀM HẾT nên nó đặt hai lệnh trùng khít: không phải hai "
-                         f"lệnh, mà là một lệnh viết hai lần. Xoá bớt một khối, hoặc "
-                         f"cho chúng khác nhau ở hướng · mốc neo · đệm · SL/TP.")
-        elif len(khong_cong) > 1:
-            ds_ten = ", ".join(ten(uv) for uv in khong_cong)
-            _loi(ra, "error", sid,
-                 f"{ten(sid)} rẽ {len(nhanh)} nhánh, TRỘN câu hỏi với hành động "
-                 f"({ds_ten} không có cổng kiểm tra) — chạy tới đây không biết là CHỌN "
-                 f"hay LÀM HẾT. Ngã rẽ toàn câu hỏi nghĩa là HOẶC (chọn một); ngã rẽ "
-                 f"toàn hành động nghĩa là VÀ (làm hết). Trộn hai thứ thì không đọc ra "
-                 f"được: hoặc cho mỗi nhánh một cổng "
-                 f'"{ACTION_LABELS[CHECK_COND]}" (chừa nhiều nhất một nhánh làm mặc '
-                 f"định), hoặc bỏ hết cổng đi để thành ngã rẽ VÀ.")
+        khong_cong = [uv for uv in thang if not is_branch_gate(b.theo_id[uv])]
+        if la_nga_re_va([b.theo_id[uv] for uv in nhanh]):
+            continue          # ngã rẽ VÀ — hợp lệ, xem `la_nga_re_va` và §17.2
+        if len(khong_cong) > 1:
+            ds_ten = ", ".join(b.ten(uv) for uv in khong_cong)
+            b.loi("error", sid,
+                  f"{b.ten(sid)} rẽ {len(nhanh)} nhánh, TRỘN câu hỏi với hành động "
+                  f"({ds_ten} không có cổng kiểm tra) — chạy tới đây không biết là CHỌN "
+                  f"hay LÀM HẾT. Ngã rẽ toàn câu hỏi nghĩa là HOẶC (chọn một); ngã rẽ "
+                  f"toàn hành động nghĩa là VÀ (làm hết). Trộn hai thứ thì không đọc ra "
+                  f"được: hoặc cho mỗi nhánh một cổng "
+                  f'"{ACTION_LABELS[CHECK_COND]}" (chừa nhiều nhất một nhánh làm mặc '
+                  f"định), hoặc bỏ hết cổng đi để thành ngã rẽ VÀ.")
         elif khong_cong and khong_cong[0] != thang[-1]:
-            _loi(ra, "error", sid,
-                 f"{ten(khong_cong[0])} là nhánh mặc định (không có cổng kiểm tra) "
-                 f"nhưng không nằm dưới cùng của {ten(sid)} — nhánh mặc định luôn khớp "
-                 f"nên các nhánh xếp dưới nó không bao giờ chạy tới. Hãy kéo nó xuống "
-                 f"thấp nhất.")
-        # CỐ Ý KHÔNG cảnh báo "nhánh nào cũng có điều kiện". Trước đây có, vì tưởng
-        # không khớp nhánh nào là chiến lược chết đứng. Sai: cả sơ đồ là một vòng lặp
-        # chạy lại ở mỗi nến, nên không khớp gì = HẾT LƯỢT, nến sau chạy lại từ đầu.
-        # Đó là cách "chờ" được diễn tả, và nó là trường hợp thường gặp nhất.
+            b.loi("error", sid,
+                  f"{b.ten(khong_cong[0])} là nhánh mặc định (không có cổng kiểm tra) "
+                  f"nhưng không nằm dưới cùng của {b.ten(sid)} — nhánh mặc định luôn khớp "
+                  f"nên các nhánh xếp dưới nó không bao giờ chạy tới. Hãy kéo nó xuống "
+                  f"thấp nhất.")
 
-        # ---- Thứ tự nhánh phải NHÌN THẤY ĐƯỢC ----
-        # `_khoa_nhanh` xếp nhánh theo (ghim, y, x, id). Hai đầu nhánh chênh `y` vài
-        # pixel thì mắt thấy chúng ngang nhau, nhưng bộ chạy vẫn thử một cái trước —
-        # và nếu chênh 0 thì phân định bằng `id`, một uuid KHÔNG ai nhìn thấy và không
-        # ai đổi được. Kết quả backtest khi đó phụ thuộc toạ độ canvas: hai file có đồ
-        # thị y hệt mà khác vị trí sẽ chạy ra khác nhau.
-        # Báo LỖI chứ không cảnh báo: sửa chỉ tốn một cú kéo, còn để nguyên thì cái sai
-        # không bao giờ lộ ra — sơ đồ trông vẫn đúng.
+
+def _lt_nhanh_ngang_nhau(b):
+    """Thứ tự nhánh phải NHÌN THẤY ĐƯỢC.
+
+    `_khoa_nhanh` xếp nhánh theo (ghim, y, x, id). Hai đầu nhánh chênh `y` vài pixel thì
+    mắt thấy chúng ngang nhau, nhưng bộ chạy vẫn thử một cái trước — và nếu chênh 0 thì
+    phân định bằng `id`, một uuid KHÔNG ai nhìn thấy và không ai đổi được. Kết quả
+    backtest khi đó phụ thuộc toạ độ canvas.
+
+    Báo LỖI chứ không cảnh báo: sửa chỉ tốn một cú kéo, còn để nguyên thì cái sai không
+    bao giờ lộ ra — sơ đồ trông vẫn đúng."""
+    for sid, nhanh in b.nga_re():
+        thang = [uv for uv in nhanh if not b.theo_id[uv].get("ghim")]
         for i, a in enumerate(thang):
-            for b in thang[i + 1:]:
-                ya, yb = _khoa_nhanh(theo_id[a])[1], _khoa_nhanh(theo_id[b])[1]
+            for c in thang[i + 1:]:
+                ya, yb = _khoa_nhanh(b.theo_id[a])[1], _khoa_nhanh(b.theo_id[c])[1]
                 if abs(ya - yb) >= LECH_TOI_THIEU:
                     continue
-                _loi(ra, "error", a,
-                     f"{ten(a)} và {ten(b)} là hai nhánh của {ten(sid)} nhưng nằm "
-                     f"NGANG NHAU (lệch {abs(ya - yb):.0f} px). Nhánh nào được thử "
-                     f"trước là do vị trí quyết, nên đặt ngang nhau là để máy tự chọn "
-                     f"bằng thứ mắt không thấy. Hãy kéo một trong hai lên hoặc xuống "
-                     f"ít nhất {LECH_TOI_THIEU:.0f} px.")
+                b.loi("error", a,
+                      f"{b.ten(a)} và {b.ten(c)} là hai nhánh của {b.ten(sid)} nhưng nằm "
+                      f"NGANG NHAU (lệch {abs(ya - yb):.0f} px). Nhánh nào được thử "
+                      f"trước là do vị trí quyết, nên đặt ngang nhau là để máy tự chọn "
+                      f"bằng thứ mắt không thấy. Hãy kéo một trong hai lên hoặc xuống "
+                      f"ít nhất {LECH_TOI_THIEU:.0f} px.")
 
-        # Hai cổng cùng điều kiện y hệt: cái dưới không bao giờ tới lượt.
+
+def _lt_cong_trung_dieu_kien(b):
+    """Hai cổng cùng điều kiện y hệt: cái dưới không bao giờ tới lượt."""
+    for sid, nhanh in b.nga_re():
         da_thay = {}
         for uv in nhanh:
-            if not is_branch_gate(theo_id[uv]):
+            if not is_branch_gate(b.theo_id[uv]):
                 continue
-            khoa = _khoa_dieu_kien(theo_id[uv].get("conditions"))
+            khoa = _khoa_dieu_kien(b.theo_id[uv].get("conditions"))
             if khoa in da_thay:
-                _loi(ra, "warning", uv,
-                     f"{ten(uv)} có điều kiện giống hệt {ten(da_thay[khoa])} xếp trên — "
-                     f"khớp thì nhánh trên thắng, nhánh này không bao giờ chạy.")
+                b.loi("warning", uv,
+                      f"{b.ten(uv)} có điều kiện giống hệt {b.ten(da_thay[khoa])} xếp trên — "
+                      f"khớp thì nhánh trên thắng, nhánh này không bao giờ chạy.")
             else:
                 da_thay[khoa] = uv
 
-    # ---- Điểm bắt đầu ----
-    if kq["entry"] is None:
-        _loi(ra, "error", None,
-             "Không tìm được khối bắt đầu — mọi khối đều có đường nối đi vào. Hãy thêm "
-             "một khối Bắt đầu, hoặc gỡ bớt một đường nối.")
 
-    # ---- Vòng lặp CHƯA ghim ----
-    for tu, toi in kq["vong_ho"]:
-        _loi(ra, "warning", toi,
-             f"{ten(tu)} nối ngược về {ten(toi)} tạo thành VÒNG LẶP, nhưng {ten(toi)} "
-             f'chưa được ghim số. Bấm chuột phải vào nó → "Ghim số" để xác nhận đây là '
-             f"vòng lặp cố ý — số của nó sẽ được giữ nguyên và cảnh báo này biến mất. "
-             f"Vòng chỉ dừng khi chạy đủ {MAX_PROCESS_STEPS} bước.")
+# ---- luật: hệ quả của phép đánh số -----------------------------------------
 
-    # ---- Nhánh chụm không đều ----
-    # KHÔNG gọi là vòng lặp. Đây là lúc `diem_gop` không tìm ra khối chung cho MỌI
-    # nhánh (vd 3 nhánh mà chỉ 2 nhánh gặp nhau), nên số không quay về được mức trên.
-    for sid in kq["lech_nhanh"]:
-        _loi(ra, "warning", sid,
-             f"{ten(sid)} được nhiều nhánh cùng dẫn tới, nhưng KHÔNG PHẢI mọi nhánh của "
-             f"điểm rẽ đều dẫn tới đây — nên số không quay về được mức trên cùng và khối "
-             f"này mang nhãn của nhánh chạm tới nó trước. Nối nốt các nhánh còn lại vào "
-             f"đây nếu bạn muốn nó là điểm gộp thật.")
 
-    # ---- Khối không bao giờ chạy tới ----
-    for sid in kq["unreachable"]:
-        _loi(ra, "warning", sid,
-             f"{ten(sid)} không bao giờ chạy tới — chưa có đường nối dẫn vào từ khối "
-             f"bắt đầu.")
+def _lt_vong_chua_ghim(b):
+    for tu, toi in b.kq["vong_ho"]:
+        b.loi("warning", toi,
+              f"{b.ten(tu)} nối ngược về {b.ten(toi)} tạo thành VÒNG LẶP, nhưng {b.ten(toi)} "
+              f'chưa được ghim số. Bấm chuột phải vào nó → "Ghim số" để xác nhận đây là '
+              f"vòng lặp cố ý — số của nó sẽ được giữ nguyên và cảnh báo này biến mất. "
+              f"Vòng chỉ dừng khi chạy đủ {MAX_PROCESS_STEPS} bước.")
 
-    return ra
+
+def _lt_chum_khong_deu(b):
+    """KHÔNG gọi là vòng lặp. Đây là lúc `diem_gop` không tìm ra khối chung cho MỌI
+    nhánh (vd 3 nhánh mà chỉ 2 nhánh gặp nhau), nên số không quay về được mức trên."""
+    for sid in b.kq["lech_nhanh"]:
+        b.loi("warning", sid,
+              f"{b.ten(sid)} được nhiều nhánh cùng dẫn tới, nhưng KHÔNG PHẢI mọi nhánh của "
+              f"điểm rẽ đều dẫn tới đây — nên số không quay về được mức trên cùng và khối "
+              f"này mang nhãn của nhánh chạm tới nó trước. Nối nốt các nhánh còn lại vào "
+              f"đây nếu bạn muốn nó là điểm gộp thật.")
+
+
+def _lt_khong_toi_duoc(b):
+    for sid in b.kq["unreachable"]:
+        b.loi("warning", sid,
+              f"{b.ten(sid)} không bao giờ chạy tới — chưa có đường nối dẫn vào từ khối "
+              f"bắt đầu.")
+
+
+#: MỌI LUẬT ĐỒ THỊ, theo thứ tự chạy. Thêm luật = viết một hàm rồi thêm MỘT DÒNG vào đây.
+#:
+#: Thứ tự có ý nghĩa cho việc ĐỌC (lỗi cấu trúc nặng hiện trước lỗi chi tiết), không cho
+#: việc chạy: không luật nào phụ thuộc luật nào, nên đổi thứ tự chỉ đổi thứ tự dòng lỗi.
+LUAT_DO_THI = (
+    _lt_trung_id,
+    _lt_khoi_bat_dau,
+    _lt_tu_noi,
+    _lt_khong_co_diem_bat_dau,
+    _lt_lenh_trung_doc,
+    _lt_lenh_trung_ngang,
+    _lt_sau_ket_thuc,
+    _lt_sua_de_doc,
+    _lt_va_ghi_de,
+    _lt_hoa_von_khong_cong,
+    _lt_cong_cut,
+    _lt_re_nhanh,
+    _lt_nhanh_ngang_nhau,
+    _lt_cong_trung_dieu_kien,
+    _lt_vong_chua_ghim,
+    _lt_chum_khong_deu,
+    _lt_khong_toi_duoc,
+)
+
+
+def validate_flow_graph(steps, edges):
+    """Soát riêng phần ĐỒ THỊ — lỗi ở mức nối dây, không phải ở mức một hành động.
+
+    Chỉ là vòng lặp quanh `LUAT_DO_THI`; mọi luật nằm ở các hàm `_lt_*` phía trên."""
+    b = _BoiCanh(steps, edges)
+    if not b.ds:
+        return []
+    for luat in LUAT_DO_THI:
+        luat(b)
+    return b.ra
 
 
 # ---- soát HÀNH ĐỘNG -------------------------------------------------------

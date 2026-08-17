@@ -3,7 +3,7 @@
 VÌ SAO BÀI NÀY PHẢI CÓ
 ----------------------
 Trước đây zone do `engine_d02.Engine.moi_nen()` dựng: chạy mỗi nến, TRƯỚC mọi sơ đồ, và
-viết cứng điều kiện đếm là "atr_bps dưới ngưỡng". Hai hậu quả:
+viết cứng điều kiện đếm là "ATR dưới ngưỡng". Hai hậu quả:
 
   · nhìn sơ đồ không thấy zone sinh ra ở đâu — nó chỉ đột nhiên có mặt;
   · chiến lược thứ hai muốn đếm theo điều kiện khác thì phải SỬA ENGINE.
@@ -148,7 +148,7 @@ kiem("zone chết đúng lúc giá vượt 105",
      abs(kq2.so.zone[0].dinh - 100.0) < 1e-9, f"— HH {kq2.so.zone[0].dinh}")
 
 print("\n▸ 3. KHÔNG có cổng zone → engine không dựng sẵn zone nào")
-kq3 = chay(so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai"), YEN + DONG)
+kq3 = chay(so_do(DK_NEN, cong_zone=False, moc="close"), YEN + DONG)
 kiem("không cổng zone thì KHÔNG có zone nào", len(kq3.so.zone) == 0,
      f"— {len(kq3.so.zone)} zone")
 kiem("nhưng lệnh neo GIÁ HIỆN TẠI vẫn đặt được", len(kq3.so.lenh) > 0,
@@ -192,7 +192,7 @@ d5 = so_do(DK_NEN, cong_zone=False)         # mốc zone_HH nhưng không cổng
 kiem("mốc neo zone mà thiếu cổng → lỗi",
      any("cổng zone" in m for m in loi(d5)), f"— {(loi(d5) or [''])[0][:60]}")
 
-d6 = so_do([{"trai": {"ten": "zone_dem"}, "phep": ">=", "phai": {"value": 5}}], cong_zone=False, moc="gia_hien_tai")
+d6 = so_do([{"trai": {"ten": "zone_dem"}, "phep": ">=", "phai": {"value": 5}}], cong_zone=False, moc="close")
 kiem("toán hạng zone mà thiếu cổng → lỗi",
      any("cổng zone" in m for m in loi(d6)), f"— {(loi(d6) or [''])[0][:60]}")
 
@@ -224,7 +224,7 @@ l9 = kq9.so.lenh[0] if kq9.so.lenh else None
 kiem("neo ĐỈNH zone: giá đặt = HH + đệm",
      l9 is not None and abs(l9.gia_dat - 101.0) < 1e-6, f"— {l9 and l9.gia_dat}")
 
-kq10 = chay(so_do(DK_NEN, moc="gia_hien_tai"), YEN + DONG)
+kq10 = chay(so_do(DK_NEN, moc="close"), YEN + DONG)
 kiem("neo GIÁ HIỆN TẠI vẫn đặt được lệnh", len(kq10.so.lenh) > 0,
      f"— {len(kq10.so.lenh)} lệnh")
 
@@ -264,7 +264,7 @@ def so_do_ti(nguong, don_vi="atr_nen"):
          "phep": "<", "phai": {"value": nguong}}
     if don_vi:
         c["don_vi"] = don_vi
-    return so_do([c], moc="gia_hien_tai")
+    return so_do([c], moc="close")
 
 
 duoi = chay(so_do_ti(tay * 0.5), GIA7)
@@ -286,7 +286,7 @@ kiem("cùng ngưỡng: KHÔNG đơn vị (thô) → ATR thô TRÊN ngưỡng →
      "— quy đổi có thật, không phải ngưỡng tình cờ")
 
 # Đơn vị chỉ sống với `khoang_cach`. Gắn vào toán hạng ĐẾM phải bị normalize vứt.
-d7 = so_do([{"trai": {"ten": "so_lenh_cho"}, "phep": "<", "phai": {"value": 4, "tinh": "atr"}}], moc="gia_hien_tai")
+d7 = so_do([{"trai": {"ten": "so_lenh_cho"}, "phep": "<", "phai": {"value": 4, "tinh": "atr"}}], moc="close")
 kiem("đơn vị gắn vào toán hạng ĐẾM bị vứt (`so_lenh_cho < 4 × ATR` vô nghĩa)",
      "tinh" not in d7["entry"]["steps"][1]["conditions"][0]["phai"])
 kiem("còn gắn vào `atr` thì giữ",
@@ -309,7 +309,7 @@ kiem("CHÍNH cổng zone CŨNG nằm trong danh sách — nó nhìn ZONE THỬ (
      "g1" in sau)
 kiem("khối Bắt đầu (đứng TRƯỚC cổng) cũng không",
      d8["entry"]["steps"][0]["id"] not in sau)
-d8b = so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai")
+d8b = so_do(DK_NEN, cong_zone=False, moc="close")
 kiem("không có cổng zone thì danh sách RỖNG",
      core.khoi_sau_cong_zone(d8b["entry"]["steps"], d8b["entry"]["edges"]) == set())
 
@@ -336,7 +336,7 @@ kiem("mọi khối Manage đều được phép đọc zone",
      f"— {len(_cho[core.TAB_MANAGE])} khối")
 
 # Hai ca NGƯỢC — luật cũ đúng chỗ nào thì phải giữ nguyên chỗ đó.
-_d_khong = core.normalize_process(so_do(DK_NEN, cong_zone=False, moc="gia_hien_tai"))
+_d_khong = core.normalize_process(so_do(DK_NEN, cong_zone=False, moc="close"))
 kiem("Entry KHÔNG có cổng zone → Manage cũng KHÔNG đọc được (không có zone để mà đọc)",
      core.khoi_doc_duoc_zone(_d_khong)[core.TAB_MANAGE] == set())
 

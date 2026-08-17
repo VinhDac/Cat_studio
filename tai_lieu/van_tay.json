@@ -1,0 +1,451 @@
+{
+ "bam": "1e2443bfefabd77d",
+ "chi_tiet": {
+  "kho": {
+   "toan_hang": [
+    [
+     "close",
+     "Giá",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "open",
+     "Giá",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "high",
+     "Giá",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "low",
+     "Giá",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "so_vi_the",
+     "Sổ lệnh",
+     "dem",
+     "lenh",
+     [],
+     false
+    ],
+    [
+     "so_lenh_cho",
+     "Sổ lệnh",
+     "dem",
+     "lenh",
+     [],
+     false
+    ],
+    [
+     "drawdown_pt",
+     "Sổ lệnh",
+     "dem",
+     "pt_von",
+     [],
+     false
+    ],
+    [
+     "lenh_da_khop",
+     "Lệnh này",
+     "dung_sai",
+     null,
+     [
+      "manage"
+     ],
+     true
+    ],
+    [
+     "lenh_sl_hoa_von",
+     "Lệnh này",
+     "dung_sai",
+     null,
+     [
+      "manage"
+     ],
+     true
+    ],
+    [
+     "lenh_lai_R",
+     "Lệnh này",
+     "boi_R",
+     null,
+     [
+      "manage"
+     ],
+     false
+    ],
+    [
+     "lenh_la_mua",
+     "Lệnh này",
+     "dung_sai",
+     null,
+     [
+      "manage"
+     ],
+     true
+    ],
+    [
+     "lenh_so_nen_song",
+     "Lệnh này",
+     "dem",
+     "nen",
+     [
+      "manage"
+     ],
+     false
+    ],
+    [
+     "lenh_thuoc_zone",
+     "Lệnh này",
+     "dung_sai",
+     null,
+     [
+      "manage"
+     ],
+     true
+    ],
+    [
+     "atr",
+     "Chỉ báo",
+     "khoang_cach",
+     null,
+     [],
+     false
+    ],
+    [
+     "ma",
+     "Chỉ báo",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "zone_dem",
+     "Zone",
+     "dem",
+     "nen",
+     [],
+     false
+    ],
+    [
+     "zone_HH",
+     "Zone",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "zone_LL",
+     "Zone",
+     "muc_gia",
+     null,
+     [],
+     false
+    ],
+    [
+     "zone_range",
+     "Zone",
+     "khoang_cach",
+     null,
+     [],
+     false
+    ],
+    [
+     "zone_atr_tb",
+     "Zone",
+     "khoang_cach",
+     null,
+     [],
+     false
+    ],
+    [
+     "zone_hop_le",
+     "Zone",
+     "dung_sai",
+     null,
+     [],
+     true
+    ],
+    [
+     "zone_da_sinh_lenh",
+     "Zone",
+     "dung_sai",
+     null,
+     [],
+     true
+    ]
+   ],
+   "chi_bao": [
+    "atr",
+    "ma"
+   ],
+   "can_zone": [
+    "zone_dem",
+    "zone_HH",
+    "zone_LL",
+    "zone_range",
+    "zone_atr_tb",
+    "zone_da_sinh_lenh",
+    "zone_hop_le",
+    "lenh_thuoc_zone"
+   ],
+   "module": [
+    "nen_tang",
+    "chi_bao",
+    "zone"
+   ]
+  },
+  "bang": {
+   "DON_VI": {
+    "gia": "giá tuyệt đối",
+    "atr": "× ATR",
+    "atr_nen": "× ATR nền",
+    "atr_zone": "× ATR zone",
+    "R": "× R (rủi ro)",
+    "bien_zone": "mép zone đối diện"
+   },
+   "DON_VI_CHO": {
+    "dieu_kien": [
+     "gia",
+     "atr",
+     "atr_nen",
+     "atr_zone"
+    ],
+    "dem": [
+     "gia",
+     "atr",
+     "atr_nen",
+     "atr_zone"
+    ],
+    "sl": [
+     "gia",
+     "atr",
+     "atr_nen",
+     "atr_zone",
+     "bien_zone"
+    ],
+    "tp": [
+     "gia",
+     "atr",
+     "atr_nen",
+     "atr_zone",
+     "R",
+     "bien_zone"
+    ],
+    "sua": [
+     "gia",
+     "atr",
+     "atr_nen",
+     "atr_zone",
+     "R"
+    ]
+   },
+   "DON_VI_DEM": {
+    "nen": "nến",
+    "lenh": "lệnh",
+    "pt_von": "% vốn"
+   },
+   "PHEP_SO": {
+    "<": "<",
+    "<=": "≤",
+    ">": ">",
+    ">=": "≥",
+    "==": "=",
+    "!=": "≠",
+    "la_dung": "là ĐÚNG",
+    "la_sai": "là SAI"
+   },
+   "SUA_CHE_DO": {
+    "doi_sl": "Dời Stop Loss",
+    "doi_tp": "Dời Take Profit",
+    "hoa_von": "Dời SL về hoà vốn",
+    "ket_thuc": "Kết thúc lệnh này"
+   },
+   "SUA_GHI_LEN": {
+    "doi_sl": "sl",
+    "hoa_von": "sl",
+    "doi_tp": "tp",
+    "ket_thuc": "*"
+   },
+   "MOC_ENTRY": {
+    "close": "Giá đóng cửa",
+    "open": "Giá mở cửa",
+    "high": "Giá cao nhất",
+    "low": "Giá thấp nhất",
+    "zone_HH": "Zone — đỉnh (HH)",
+    "zone_LL": "Zone — đáy (LL)"
+   },
+   "MOC_CAN_ZONE": [
+    "zone_HH",
+    "zone_LL"
+   ],
+   "HUONG": {
+    "mua": "Mua",
+    "ban": "Bán"
+   },
+   "LOAI_LENH": {
+    "market": "Thị trường",
+    "stop": "Chờ Stop"
+   },
+   "ACTION_TYPES": [
+    "check_cond",
+    "vao_lenh",
+    "sua_lenh"
+   ],
+   "CHU_KY_ATR_NEN": 100,
+   "KHOA_MOT_LENH": [
+    "huong",
+    "loai",
+    "rui_ro",
+    "entry",
+    "dem",
+    "sl",
+    "tp"
+   ],
+   "LUAT_DO_THI": [
+    "_lt_trung_id",
+    "_lt_khoi_bat_dau",
+    "_lt_tu_noi",
+    "_lt_khong_co_diem_bat_dau",
+    "_lt_lenh_trung_doc",
+    "_lt_lenh_trung_ngang",
+    "_lt_sau_ket_thuc",
+    "_lt_sua_de_doc",
+    "_lt_va_ghi_de",
+    "_lt_hoa_von_khong_cong",
+    "_lt_cong_cut",
+    "_lt_re_nhanh",
+    "_lt_nhanh_ngang_nhau",
+    "_lt_cong_trung_dieu_kien",
+    "_lt_vong_chua_ghim",
+    "_lt_chum_khong_deu",
+    "_lt_khong_toi_duoc"
+   ]
+  },
+  "bootstrap_khoa": [
+   "accent_presets",
+   "action_labels",
+   "action_tabs",
+   "action_types",
+   "app_dir",
+   "branch_type",
+   "co_mt5",
+   "don_vi",
+   "don_vi_can_zone",
+   "don_vi_chinh_no",
+   "don_vi_cho",
+   "don_vi_dem",
+   "don_vi_ngan",
+   "don_vi_o",
+   "huong",
+   "kind_labels",
+   "kinds",
+   "loai_co_don_vi",
+   "loai_lenh",
+   "luat_san",
+   "ma_methods",
+   "max_process_steps",
+   "moc_can_zone",
+   "moc_entry",
+   "nguon",
+   "nhan_don_vi",
+   "nhip_mac_dinh",
+   "nhom_lenh_nay",
+   "phep_so",
+   "phien_ban",
+   "settings",
+   "sua_can_gia",
+   "sua_che_do",
+   "tab_labels",
+   "tabs",
+   "template_kinds",
+   "timeframes",
+   "toan_hang",
+   "toan_hang_can_zone",
+   "toan_hang_don_vi",
+   "toan_hang_dung_sai",
+   "toan_hang_loai"
+  ],
+  "mau_soat": [],
+  "mau_the": [
+   "Tìm tín hiệu: None",
+   "Nến này có nén không?: ATR(M5, chu_ky_atr=?) < nguong_nen = ? × ATR nền",
+   "Zone đã đủ điều kiện chưa?: Zone hiện hành hợp lệ là ĐÚNG VÀ Zone này đã sinh lệnh là SAI",
+   "Còn chỗ cho lệnh mới?: Số lệnh chờ = 0 VÀ Số vị thế đang mở < so_vi_the_toi_da = ?",
+   "Xu hướng LÊN?: Giá đóng cửa(M15) > Đường trung bình MA(M15, chu_ky_ma=?, SMA)",
+   "Buy Stop trên đỉnh vùng: Vào lệnh Mua Chờ Stop  ·  rủi ro rui_ro_pt = ? % vốn  ·  đệm dem_vao_lenh = ? × ATR ngoài mép vùng  ·  SL sl_theo_atr_vung = ? × ATR zone  ·  TP ty_le_RR = ? × R (rủi ro)",
+   "Xu hướng XUỐNG?: Giá đóng cửa(M15) < Đường trung bình MA(M15, chu_ky_ma=?, SMA)",
+   "Sell Stop dưới đáy vùng: Vào lệnh Bán Chờ Stop  ·  rủi ro rui_ro_pt = ? % vốn  ·  đệm dem_vao_lenh = ? × ATR ngoài mép vùng  ·  SL sl_theo_atr_vung = ? × ATR zone  ·  TP ty_le_RR = ? × R (rủi ro)",
+   "Quản lý lệnh: None",
+   "Chưa khớp mà nén đã tan?: Lệnh này đã khớp là SAI VÀ ATR(M5, chu_ky_atr=?) ≥ nguong_nen = ? × ATR nền",
+   "Huỷ lệnh chờ: Kết thúc lệnh này",
+   "Đã khớp, đủ 1R, SL chưa hoà vốn?: Lệnh này đã khớp là ĐÚNG VÀ SL của lệnh này đã ở hoà vốn là SAI VÀ Lãi của lệnh này (× R) ≥ hoa_von_tai = ?",
+   "Dời SL về giá vào: Dời SL về hoà vốn"
+  ],
+  "backtest": {
+   "2023": {
+    "R_khi_thang": 1.079,
+    "R_khi_thua": -0.996,
+    "R_moi_lenh": -0.173,
+    "chuoi_thua": 17,
+    "drawdown_pt": 23.7,
+    "drawdown_tien": 2435.9,
+    "he_so_lai": 0.66,
+    "lai_pt": -21.36,
+    "lai_tien": -2135.84,
+    "nen_mo_ho": 0,
+    "so_dong": 232,
+    "so_huy": 147,
+    "so_lenh": 379,
+    "so_luot": 117927,
+    "so_zone": 938,
+    "thang": 92,
+    "thua": 140,
+    "tong_R": -40.12,
+    "ty_le_thang": 39.7,
+    "von_cuoi": 7864.16,
+    "von_dau": 10000.0
+   },
+   "2025": {
+    "R_khi_thang": 1.979,
+    "R_khi_thua": -0.74,
+    "R_moi_lenh": 0.026,
+    "chuoi_thua": 19,
+    "drawdown_pt": 9.21,
+    "drawdown_tien": 921.43,
+    "he_so_lai": 1.02,
+    "lai_pt": 1.25,
+    "lai_tien": 124.78,
+    "nen_mo_ho": 0,
+    "so_dong": 284,
+    "so_huy": 163,
+    "so_lenh": 447,
+    "so_luot": 108025,
+    "so_zone": 1119,
+    "thang": 80,
+    "thua": 204,
+    "tong_R": 7.28,
+    "ty_le_thang": 28.2,
+    "von_cuoi": 10124.78,
+    "von_dau": 10000.0
+   }
+  }
+ }
+}

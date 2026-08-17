@@ -185,7 +185,7 @@ export default function Ribbon(p: RibbonProps) {
         )}
         {p.tab === 'manage' && (
           <Nut ten="Sửa lệnh" icon={I.sua} onClick={p.themSuaLenh}
-               title="Tác động lên lệnh ĐÃ CÓ: dời SL, dời TP, hoà vốn, trailing, đóng, huỷ chờ" />
+               title="Tác động lên lệnh ĐÃ CÓ — bốn chế độ: dời SL · dời TP · SL về hoà vốn · kết thúc lệnh này" />
         )}
       </Nhom>
 

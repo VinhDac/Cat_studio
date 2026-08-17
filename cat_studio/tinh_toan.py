@@ -7,7 +7,7 @@ không được phép làm đổi kết quả backtest.
 BA LUẬT CỦA FILE NÀY
 --------------------
 1. **Vùng chưa đủ dữ liệu trả `NaN`, không trả 0.** `0` là một lời nói dối lọt qua mọi
-   phép so: `atr_bps < 7` sẽ ĐÚNG suốt 14 nến đầu và chiến lược vào lệnh giữa lúc chưa
+   phép so: `atr < 0,75 [x ATR nen]` sẽ ĐÚNG suốt 14 nến đầu và chiến lược vào lệnh giữa lúc chưa
    có chỉ báo nào. `NaN` thì mọi phép so đều trả False — cổng trượt, và nhật ký ghi
    được lý do.
 
@@ -29,7 +29,7 @@ import numpy as np
 
 from . import core
 
-#: Kiểu số dùng xuyên suốt. float64 vì `atr_bps` là hiệu của hai số lớn gần bằng nhau —
+#: Kiểu số dùng xuyên suốt. float64 vì True Range là hiệu của hai số lớn gần bằng nhau —
 #: float32 mất chữ số đúng ở chỗ quan trọng nhất.
 F = np.float64
 
@@ -169,7 +169,7 @@ def atr(h, l, c, chu_ky):
     bằng trung bình cộng TR[1..period] (:83), các giá trị sau là cửa sổ trượt
     `ATR[i] = ATR[i-1] + (TR[i] − TR[i-period]) / period` (:92) — chính là SMA tính tăng
     dần. Wilder/SMMA cho số LỚN HƠN và mượt hơn ở cùng chu kỳ, nên chép nhầm là
-    `atr_bps` khác → nến nào là "nến nén" khác → cả chuỗi lệnh lệch, mà ngưỡng 7,0 bps
+    ATR khác → nến nào là "nến nén" khác → cả chuỗi lệnh lệch, mà ngưỡng nén
     của D_02 lại được dò ra trên chính con số `iATR` trả về."""
     tr = true_range(h, l, c)
     return _tb_truot(tr, int(chu_ky))

@@ -41,7 +41,6 @@
   /* Màu nhận dạng các loại khối. Cố ý nhạt: 20 hộp trên canvas mà hộp nào cũng
      rực lên thì không còn gì nổi bật nữa. */
   --start: #4ec96a;
-  --loop: #ffa657;
   --group: #6cb6ff;
   --action: #a8a8a8;
 

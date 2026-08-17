@@ -29,7 +29,9 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
   const [truot, setTruot] = useState(Number(t.truot_diem ?? 0))
   const [deposit, setDeposit] = useState(Number(t.deposit ?? 10000))
   const [phi, setPhi] = useState(Number(t.commission ?? 0))
-  const [donBay, setDonBay] = useState(Number(t.don_bay ?? 100))
+  // ⚠ `don_bay` ĐÃ BỎ — nó đi qua cài đặt, qua `CaiDat`, hiện lên hộp thoại, mà bộ chạy
+  // không đọc một lần nào. Một ô hứa suông tệ hơn không có ô. Trần vị thế thật là
+  // `lot_max` ở mục Luật sàn ngay dưới.
   const [delay, setDelay] = useState(Number(t.delay_ms ?? 60))
 
   // ---- LUẬT SÀN (core.md §16.1) — mấy ô này là DỰ PHÒNG ----
@@ -71,7 +73,7 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       await py.save_settings({ symbol, accent }),
       await py.save_test_settings({
         symbol: tSymbol, tu, den, spread_diem: spread, truot_diem: truot,
-        deposit, commission: phi, don_bay: donBay, delay_ms: delay,
+        deposit, commission: phi, delay_ms: delay,
         lot_min: lotMin, lot_buoc: lotBuoc, lot_max: lotMax, stops_level: stops,
       }),
     ]) {
@@ -209,8 +211,6 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
           Phí<input className="o nho" type="number" value={phi}
               onChange={e => setPhi(+e.target.value)} />USD/lot
         </label>
-        <label>Đòn bẩy 1:<input className="o nho" type="number" value={donBay}
-               onChange={e => setDonBay(+e.target.value)} /></label>
       </div>
 
       {/* ⭐ LUẬT SÀN — backtest phải chơi theo đúng luật live đã đo (core.md §16.1).

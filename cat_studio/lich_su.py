@@ -98,9 +98,14 @@ def ghi(kq, cd, tom_tat):
 def _cai_dat(cd):
     """Những ô cài đặt THẬT SỰ đổi kết quả. `delay_ms` không nằm đây — nó chỉ là tốc độ
     phát lại, đổi nó mà coi là một lần chạy khác thì lịch sử đầy rác."""
+    # ⚠ Danh sách này phải KÍN: thiếu một ô đổi được kết quả thì hai lần chạy khác nhau
+    # bị ghi là một, và "so với lần trước" nói dối. `don_bay` đã bỏ (nó chưa từng đổi
+    # kết quả — bộ chạy không đọc). Bốn ô mới của §16 thì CÓ đổi, nên phải nằm đây.
     return {"symbol": cd.symbol, "tu": cd.tu, "den": cd.den,
-            "spread_diem": cd.spread_diem, "deposit": cd.deposit,
-            "commission": cd.commission, "don_bay": getattr(cd, "don_bay", None)}
+            "spread_diem": cd.spread_diem, "truot_diem": cd.truot_diem,
+            "deposit": cd.deposit, "commission": cd.commission,
+            "lot_min": cd.lot_min, "lot_buoc": cd.lot_buoc, "lot_max": cd.lot_max,
+            "stops_level": cd.stops_level}
 
 
 def _ghi_file(m):

@@ -89,7 +89,7 @@ export const py = {
   // --- khối ---
   new_step: (kind: string, actionType?: string) =>
     goi<{ step: Step; card: Card }>('new_step', kind, actionType ?? null),
-  /** `tham_so` = bảng của sơ đồ ĐÍCH. Thiếu nó thì thẻ ghi `nguong_nen_bps = ?`. */
+  /** `tham_so` = bảng của sơ đồ ĐÍCH. Thiếu nó thì thẻ ghi `nguong_nen = ?`. */
   clone_steps: (steps: Step[], tham_so?: ThamSo[]) =>
     goi<{ steps: Step[]; map: Record<string, string>; cards: Card[] }>(
       'clone_steps', steps, tham_so ?? []),

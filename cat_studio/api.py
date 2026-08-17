@@ -413,8 +413,7 @@ class Api(NenCuaSo):
             "sua_che_do": core.SUA_CHE_DO,
             "sua_can_gia": list(core.SUA_CAN_GIA),
 
-            "don_vi_o": {k: core.don_vi_cua_o(k)
-                         for k in ("chu_ky", "lot", "rui_ro")},
+            "don_vi_o": {k: core.don_vi_cua_o(k) for k in ("chu_ky", "rui_ro")},
             "template_kinds": core.TEMPLATE_KINDS,
             "accent_presets": core.ACCENT_PRESETS,
             "max_process_steps": core.MAX_PROCESS_STEPS,
@@ -792,7 +791,7 @@ class Api(NenCuaSo):
                     cu[k] = float(t[k])
                 except (TypeError, ValueError):
                     pass
-        for k in ("don_bay", "delay_ms"):
+        for k in ("delay_ms",):
             if k in t:
                 try:
                     cu[k] = int(t[k])
@@ -994,7 +993,6 @@ class ApiTester(NenCuaSo):
             digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            don_bay=ci.get("don_bay", 100),
             **_luat_san(sym, ci))
         cu = self._tom_tat_lan_truoc()
         self._tt.update({"tong": 0, "chu": "đang biên dịch sơ đồ…"})
@@ -1819,7 +1817,6 @@ class ApiLive(ApiTester):
             digits=m.get("digits") or 2,
             deposit=ci.get("deposit", 10000.0),
             commission=ci.get("commission", 0.0),
-            don_bay=ci.get("don_bay", 100),
             **_luat_san(symbol, ci))
         self.phien = phien_live.PhienLive(doc, symbol, cd)
         threading.Thread(target=self._vong, daemon=True).start()

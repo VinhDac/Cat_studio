@@ -608,7 +608,7 @@ function Ung() {
     buoc: Step[], canh: ProcEdge[], taiDay?: { x: number; y: number }, ts?: ThamSo[],
   ) => {
     if (!buoc.length) return 0
-    // Bảng tham số phải đi kèm, nếu không thẻ dựng ra ghi `nguong_nen_bps = ?`. Với lần
+    // Bảng tham số phải đi kèm, nếu không thẻ dựng ra ghi `nguong_nen = ?`. Với lần
     // NHẬP thì phải là bảng ĐÃ GỘP — tham số mới thêm chưa nằm trong `thamSo` của lần
     // render này.
     const r = await py.clone_steps(buoc, ts ?? thamSo)
