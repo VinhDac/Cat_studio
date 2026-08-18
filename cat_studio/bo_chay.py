@@ -51,6 +51,53 @@ class LoiChay(Exception):
     """Lỗi nói được thành lời, kèm nhãn khối. Không phải traceback."""
 
 
+class NaLenh(LoiChay):
+    """Sơ đồ vào lệnh với nhịp không sơ đồ thật nào có — BỎ DỞ, không chấm nốt.
+
+        core.md §18.4a
+
+    ⚠ Đây KHÔNG phải lỗi, và cũng không phải một cái cửa. Cửa (`cham_diem`) xét SAU khi
+    chạy xong; cái này cắt NGAY GIỮA CHỪNG, và lý do là thời gian: chi phí một lượt chấm
+    đi theo SỐ LỆNH sơ đồ đẻ ra, nên một con nã lệnh nuốt vài phút trong khi sơ đồ người
+    viết chấm cả 3,5 năm hết 17 giây. Đo được: 15 phút chỉ chấm nổi **38** sơ đồ, mà một
+    cái trong đó đẻ 11.425 lệnh trong một quý.
+
+    ⭐ Chỉ bật cho MÁY TÌM. Người vẽ tay bao nhiêu lệnh cũng được — mặc định `0` là tắt,
+    và khối cài đặt của Strategy Test không có ô này."""
+
+    def __init__(self, so_lenh, ngan_sach, tran, tuan):
+        self.so_lenh, self.ngan_sach, self.tran = so_lenh, ngan_sach, tran
+        super().__init__(
+            f"nã lệnh — quá {ngan_sach:,.0f} lệnh "
+            f"({tran:,.0f}/tuần × {tuan:.1f} tuần)".replace(",", "."))
+
+
+class QuaNang(LoiChay):
+    """Sơ đồ chạy quá nhiều LƯỢT trên mỗi nến — BỎ DỞ.
+
+        core.md §18.4d
+
+    ⚠ Khác hẳn `NaLenh`, và đây là chỗ phải phân biệt. `NaLenh` bắt sơ đồ **nã lệnh**;
+    cái này bắt sơ đồ **ôm lệnh không đóng**. Đo được, một sơ đồ đúng 864 lệnh trong một
+    quý — lọt trần nã lệnh dễ dàng — mà chạy sơ đồ **25,8 triệu lượt** và ngốn **60% cả
+    lô 60 sơ đồ**. Vì Manage chạy MỘT LƯỢT CHO MỖI LỆNH ĐANG SỐNG, mỗi nhịp: giữ 300
+    lệnh sống là mỗi nến trả giá 300 lần.
+
+    ⭐ Nên chi phí thật KHÔNG đi theo số lệnh, nó đi theo **số lượt chạy sơ đồ**. Và
+    `lượt ÷ nến` đọc ra được thành một câu người nói được: *"trung bình có bao nhiêu
+    lệnh sống cùng lúc"*.
+
+    ⚠ Và phải chặn bằng con số ĐẾM ĐƯỢC chứ không bằng THỜI GIAN. Chặn bằng giây thì máy
+    chậm cắt nhiều hơn máy nhanh — cùng hạt giống ra hai kết quả khác nhau, tức mất tính
+    tái lập (§18.5), thứ đang là ràng buộc cứng."""
+
+    def __init__(self, so_luot, ngan_sach, tran, nen):
+        self.so_luot, self.ngan_sach, self.tran = so_luot, ngan_sach, tran
+        super().__init__(
+            f"quá nặng — {so_luot:,} lượt chạy sơ đồ, quá {ngan_sach:,.0f} "
+            f"({tran:,.0f} lượt/nến × {nen:,} nến)".replace(",", "."))
+
+
 # ---------------------------------------------------------------------------
 # Cấu hình một lần chạy
 # ---------------------------------------------------------------------------
@@ -68,7 +115,8 @@ class CaiDat:
                  point=1.0, contract_size=1.0, digits=2,
                  deposit=10_000.0, commission=0.0,
                  lot_min=0.01, lot_buoc=0.01, lot_max=200.0, stops_level=0,
-                 truot_diem=0.0):
+                 truot_diem=0.0, lenh_moi_tuan_toi_da=0,
+                 luot_moi_nen_toi_da=0):
         self.symbol = symbol
         self.tu, self.den = tu, den
         self.spread_diem = float(spread_diem)
@@ -100,6 +148,28 @@ class CaiDat:
         #: đo được `p95 = 0` nhưng chỉ với n = 3 — quá ít để tin, mà bịa thì tệ hơn.
         #: Bằng 0 thì bảng số liệu nói thẳng là backtest đang LẠC QUAN ở khoản này.
         self.truot_diem = float(truot_diem or 0)
+
+        #: TRẦN NHỊP VÀO LỆNH (lệnh mỗi tuần) — `0` = không chặn. core.md §18.4a.
+        #:
+        #: ⭐ Đây là cái van THỜI GIAN của máy tìm, không phải một tiêu chuẩn về chiến
+        #: lược. Vượt trần thì `chay()` ném `NaLenh` và bỏ dở — vì chấm nốt một con nã
+        #: lệnh là tiêu vài phút cho một kết quả đằng nào cũng vứt.
+        #:
+        #: ⚠ Là NHỊP (mỗi tuần), không phải TỔNG. Một con số tổng thì vừa quá chặt cho
+        #: 3,5 năm vừa quá lỏng cho một quý — mà máy tìm chạy trên đủ loại độ dài. Nhân
+        #: với số tuần của dải là ra NGÂN SÁCH, và `chay()` xét đúng ngân sách ấy.
+        self.lenh_moi_tuan_toi_da = float(lenh_moi_tuan_toi_da or 0)
+
+        #: TRẦN LƯỢT CHẠY SƠ ĐỒ (lượt mỗi nến M1) — `0` = không chặn. core.md §18.4d.
+        #:
+        #: ⭐ Đây mới là cái van THỜI GIAN đúng chỗ. `lenh_moi_tuan_toi_da` bắt sơ đồ nã
+        #: lệnh; cái này bắt sơ đồ ÔM LỆNH — Manage chạy một lượt cho mỗi lệnh đang
+        #: sống, nên giữ 300 lệnh là mỗi nến trả giá 300 lần. Đo được: một sơ đồ như thế
+        #: ngốn 60% cả một lô 60 sơ đồ, và song song KHÔNG gỡ được (Amdahl).
+        #:
+        #: `lượt ÷ nến` ≈ *trung bình bao nhiêu lệnh sống cùng lúc*. Sơ đồ mẫu người
+        #: viết: 0,35. Sơ đồ máy nặng nhất còn dùng được: 7,4. Con quái: 299.
+        self.luot_moi_nen_toi_da = float(luot_moi_nen_toi_da or 0)
 
     @property
     def spread_gia(self):
@@ -149,10 +219,12 @@ class Ctx:
     thêm một nguồn dữ liệu là sửa đúng một chỗ."""
 
     __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts",
-                 "zone_da_xet", "zone_thu", "_dang_hop_le")
+                 "zone_da_xet", "zone_thu", "_dang_hop_le", "ghi_nk")
 
-    def __init__(self, ct, so, ts):
+    def __init__(self, ct, so, ts, ghi_nk=True):
         self.ct, self.so, self.ts = ct, so, ts
+        #: Có dựng NHẬT KÝ không. Xem `chay(..., ghi_nhat_ky=)`.
+        self.ghi_nk = ghi_nk
         self.i = 0            # chỉ số trên trục quyết định (nến M5)
         self.j = 0            # chỉ số trên trục M1
         self.tab = core.TAB_ENTRY
@@ -666,7 +738,14 @@ def _xet_dieu_kien(ds, ctx):
     quên luật "đại lượng hay lượng suy từ khoá `ten`".
 
     LUÔN tính đủ mọi điều kiện, không ngắt ở cái sai đầu tiên — vết đó là thứ duy nhất
-    trả lời được "cổng trượt vì con số nào" khi nhật ký được đọc lại."""
+    trả lời được "cổng trượt vì con số nào" khi nhật ký được đọc lại.
+
+    ⚠ **VẪN không ngắt sớm kể cả khi tắt nhật ký**, và đây là chỗ suýt sai. Ngắt sớm
+    nghe như món quà kèm theo, nhưng `zone_hop_le` ĐẶT `ctx.zone_da_xet` như một hiệu
+    ứng phụ, và bước 5 của `mot_nhip` đọc đúng cờ ấy để quyết định zone sống hay chết.
+    Bỏ qua một điều kiện là đổi thời điểm zone chết — tức đổi KẾT QUẢ, không phải đổi
+    tốc độ. Tắt nhật ký chỉ được phép bỏ việc GHI, không được bỏ việc TÍNH."""
+    ghi = ctx.ghi_nk
     vet, khop = [], True
     for c in ds or []:
         phep = c.get("phep") or "<"
@@ -688,7 +767,8 @@ def _xet_dieu_kien(ds, ctx):
             except LoiChay:
                 p = NAN
         dat = _so_sanh(t, phep, p)
-        vet.append({"trai": _js(t), "phai": _js(p), "dat": bool(dat)})
+        if ghi:
+            vet.append({"trai": _js(t), "phai": _js(p), "dat": bool(dat)})
         khop = khop and dat
     return khop, vet
 
@@ -1061,6 +1141,7 @@ def _chay_so_do(tab, ctx):
 
     Vì thế `cham_thi_truong` được hỏi ở MỨC ĐANG QUAY VỀ, không hỏi một lần cho cả lượt:
     cùng một cú "hết nhánh ở đây" mang hai nghĩa tuỳ mức cha là VÀ hay HOẶC."""
+    ghi = ctx.ghi_nk
     ct = ctx.ct
     L = ct.luong[tab]
     theo_id, ke = L["theo_id"], L["ke"]
@@ -1100,7 +1181,8 @@ def _chay_so_do(tab, ctx):
                     _dat_zone_thu(ctx)
                 khop, vet = _xet_cong(st, ctx)
                 ctx.zone_thu = None
-                cong.append({"khoi": s, "ve": vet, "khop": bool(khop)})
+                if ghi:
+                    cong.append({"khoi": s, "ve": vet, "khop": bool(khop)})
                 if st.get("cong_zone"):
                     _nuoi_zone(ctx, bool(khop))
                 if not khop:
@@ -1120,13 +1202,14 @@ def _chay_so_do(tab, ctx):
                 break
             continue
 
-        duong.append(di)
+        if ghi:
+            duong.append(di)
         st = theo_id[di]
         t = st.get("type")
         if t == core.VAO_LENH:
             v = _vao_lenh(st, ctx)
             cham_thi_truong = True
-            if v:
+            if v and ghi:
                 # ⚠ Gắn KHỐI vào việc. Một lượt qua ngã rẽ VÀ đặt hai lệnh ở hai khối
                 # khác nhau; không có khoá này thì nhật ký có hai dòng `lenh_dat` mà
                 # không nói được cái nào của khối nào — đúng câu người ta cần khi debug.
@@ -1134,7 +1217,7 @@ def _chay_so_do(tab, ctx):
         elif t == core.SUA_LENH:
             v = _sua_lenh(st, ctx)
             cham_thi_truong = True
-            if v:
+            if v and ghi:
                 viec.append(dict(v, khoi=di))
 
         ngan.append(list(ke.get(di, [])))
@@ -1154,6 +1237,8 @@ def _chay_so_do(tab, ctx):
         raise LoiChay(f"Sơ đồ {tab} chạy quá {core.MAX_PROCESS_STEPS} bước — có vòng "
                       f"lặp không thoát được.")
 
+    if not ghi:
+        return None
     return {"nen": ctx.i, "j": ctx.j, "tab": tab,
             "lenh_id": ctx.lenh.id if ctx.lenh is not None else None,
             "duong": duong, "ket": ket, "cong": cong,
@@ -1351,7 +1436,7 @@ class PhienChay:
     trường đã đóng từ hai phút trước.
     """
 
-    def __init__(self, doc, nen1, cd, tien_do=None):
+    def __init__(self, doc, nen1, cd, tien_do=None, ghi_nhat_ky=True):
         # ⚠ `cd` BẮT BUỘC. Trước đây là `cd or CaiDat()` — không caller nào dùng nhánh
         # ấy, nhưng nếu lỡ rơi vào thì cả lượt chạy dùng point/spread giả mà không báo.
         doc = core.normalize_process(doc)
@@ -1360,7 +1445,10 @@ class PhienChay:
         self.tien_do = tien_do
         self.ct = ct = ChuongTrinh(doc, nen1, cd)
         self.so = so = sl.SoLenh()
-        self.ctx = Ctx(ct, so, ct.ts)
+        self.ctx = Ctx(ct, so, ct.ts, ghi_nhat_ky)
+        #: Đếm THẲNG, không suy từ `len(nhat_ky)` — tắt nhật ký thì cái list ấy rỗng,
+        #: mà số lượt chạy sơ đồ vẫn là một con số thật và bảng số liệu vẫn hỏi tới.
+        self.so_luot = 0
 
         # Vốn ĐÃ CHỐT (chỉ tính lệnh đã đóng) — đủ để `drawdown_pt` có nguồn thật thay vì
         # trả 0. Lãi nổi cố tình KHÔNG tính vào: drawdown theo lãi nổi đổi từng nến M1 và
@@ -1479,6 +1567,7 @@ class PhienChay:
                 if not l.con_song:
                     continue        # vừa bị chính lượt Manage trước đó đóng
                 ctx.lenh = l
+                self.so_luot += 1
                 r = _chay_so_do(core.TAB_MANAGE, ctx)
                 if r:
                     r["seq"] = len(self.nhat_ky)
@@ -1488,6 +1577,7 @@ class PhienChay:
         # ---- 4. ENTRY — đúng một lượt ----
         if ct.la_nhip5[j]:
             ctx.tab = core.TAB_ENTRY
+            self.so_luot += 1
             r = _chay_so_do(core.TAB_ENTRY, ctx)
             if r:
                 r["seq"] = len(self.nhat_ky)
@@ -1527,7 +1617,7 @@ class PhienChay:
         Nhờ vậy `Chart`, `BangSoLieu`, `Journey` chạy ở Live mà không sửa một dòng: hai
         cửa sổ đọc CÙNG một hình dạng dữ liệu, từ cùng một đoạn code."""
         kq = KetQua(self.ct, self.so, self.nhat_ky, self.ct._cot,
-                    {"so_luot": len(self.nhat_ky), "nen_mo_ho": self.mo_ho})
+                    {"so_luot": self.so_luot, "nen_mo_ho": self.mo_ho})
         kq.duong_von = []
         kq.cot_zone = self.cot_zone
         kq.zone_id = self.zone_id
@@ -1551,7 +1641,7 @@ class PhienChay:
 
         tk, duong_von = _thong_ke(so, self.cd, ct)
         tk["nen_mo_ho"] = self.mo_ho
-        tk["so_luot"] = len(self.nhat_ky)
+        tk["so_luot"] = self.so_luot
         kq = KetQua(ct, so, self.nhat_ky, ct._cot, tk)
         kq.duong_von = duong_von
         kq.cot_zone = self.cot_zone
@@ -1560,14 +1650,48 @@ class PhienChay:
         return kq
 
 
-def chay(doc, nen1, cd, tien_do=None):
+def chay(doc, nen1, cd, tien_do=None, ghi_nhat_ky=True):
     """Chạy trọn một backtest. Trả `KetQua` bất biến.
 
+    ⭐ `ghi_nhat_ky=False` cho MÁY TÌM (§18.4b). Nhật ký là thứ cửa sổ Tester đọc để
+    trả lời *"cổng này trượt vì con số nào"* — đắt và đúng chỗ ở đó. Máy tìm không bao
+    giờ mở nó ra: đo được **124.944 mục nhật ký** cho MỘT sơ đồ trên MỘT năm, và
+    907.666 lượt gọi `_js` chỉ để đổi số cho mấy mục ấy.
+
     Chỉ là vòng lặp quanh `PhienChay.mot_nhip` — mọi luật nằm ở đó, xem docstring của
-    lớp. Giữ hàm này vì nó là cửa mà cả app lẫn bộ test gọi vào."""
-    phien = PhienChay(doc, nen1, cd, tien_do)
-    for j in range(len(phien.ct.nen1)):
+    lớp. Giữ hàm này vì nó là cửa mà cả app lẫn bộ test gọi vào.
+
+    Ném `NaLenh` nếu `cd.lenh_moi_tuan_toi_da` bị vượt — xem lớp ấy."""
+    phien = PhienChay(doc, nen1, cd, tien_do, ghi_nhat_ky)
+    # NGÂN SÁCH CẢ DẢI, tính một lần: `trần/tuần × số tuần của dải nến`.
+    #
+    # ⚠ Cố ý KHÔNG so với "số tuần đã trôi qua". Luật ấy cắt sớm hơn thật, nhưng nó cắt
+    # nhầm: một sơ đồ dồn 300 lệnh vào hai giờ đầu rồi thôi hẳn có nhịp CẢ DẢI rất thấp,
+    # mà xét theo tuần-đã-trôi thì ngay tuần đầu nó đã "quá nhịp". Ngân sách cả dải phát
+    # biểu đúng thứ ta muốn loại — *"sơ đồ vào lệnh với nhịp không sơ đồ thật nào có"* —
+    # và không có ca nào cắt oan.
+    #
+    # `max(…, 1)` để một dải ngắn hơn một tuần vẫn được trọn một tuần ngân sách.
+    tran = cd.lenh_moi_tuan_toi_da
+    ngan_sach = tuan = 0.0
+    n_nen = len(phien.ct.nen1)
+    if tran:
+        t = phien.ct.nen1["t"]
+        tuan = max((float(t[-1]) - float(t[0])) / 604_800.0, 1.0)
+        ngan_sach = tran * tuan
+    # Cùng một hình dạng ngân sách: `trần × cỡ dải`. Xem `QuaNang`.
+    tran_luot = cd.luot_moi_nen_toi_da
+    ngan_luot = tran_luot * n_nen
+    for j in range(n_nen):
         phien.mot_nhip(j)
+        # Kiểm thưa (mỗi 2.000 nến ≈ 1,4 ngày). Một phép so là vài chục nano giây so
+        # với `mot_nhip`, nhưng thưa thì khỏi phải nghĩ tới nó nữa.
+        if j % 2000:
+            continue
+        if ngan_sach and phien.so._dem_lenh > ngan_sach:
+            raise NaLenh(phien.so._dem_lenh, ngan_sach, tran, tuan)
+        if ngan_luot and phien.so_luot > ngan_luot:
+            raise QuaNang(phien.so_luot, ngan_luot, tran_luot, n_nen)
     return phien.ket_thuc()
 
 

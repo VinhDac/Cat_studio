@@ -284,14 +284,16 @@ function Ung() {
         if (ui.panel_cao) setPanelCao(Math.max(CAO_TOI_THIEU, Math.min(600, Number(ui.panel_cao))))
         if (ui.panel_gap) setPanelGap(true)
 
-        const ds = await py.list_templates()
-        const co = ds.ok && (ds.value?.length ?? 0) > 0
-        // Chưa có template nào thì mở sơ đồ MỚI (chỉ có khối Bắt đầu), không phải sơ đồ
-        // mẫu. Mẫu chỉ để xem thử; mở app ra đã thấy sẵn 8 khối lạ thì lần nào cũng
-        // phải xoá đi mới bắt đầu làm được. Vẫn mở lại được từ menu "Mở ▾".
-        const r = co ? await py.load_process(ds.value![0]) : await py.new_process()
-        if (r.ok && r.value) nap(r.value, co ? `mở "${ds.value![0]}"` : 'sơ đồ mới',
-                                co ? ds.value![0] : null)
+        // ⭐ MỞ APP LÀ MỘT TỜ TRẮNG, LUÔN LUÔN — chỉ có khối Bắt đầu.
+        //
+        // Trước đây nó tự mở template ĐẦU TIÊN trong kho. Hai chỗ sai: cái "đầu tiên"
+        // ấy do thứ tự kho quyết định chứ không phải người dùng chọn, và mở app ra đã
+        // thấy sẵn một sơ đồ cũ thì mỗi lần muốn làm việc mới đều phải dọn trước.
+        //
+        // Cũng KHÔNG mở sơ đồ mẫu: mẫu chỉ để xem thử. Muốn cái cũ thì menu "Mở ▾" —
+        // đó là một câu người dùng nói ra, không phải thứ app đoán hộ.
+        const r = await py.new_process()
+        if (r.ok && r.value) nap(r.value, 'sơ đồ mới', null)
         setSanSang(true)
         setTrangThai('sẵn sàng')
       } catch (e) {

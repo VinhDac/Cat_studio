@@ -115,6 +115,44 @@ CAI_DAT_MAC_DINH = {
         #: phải cái lồng. Nhưng mỗi lần bấm thì con số tăng và nằm đó, để lần thứ mười
         #: người đọc biết ngay con số mình đang tin đã mòn tới đâu.
         "khoa_da_mo": 0,
+        # GHI CHÚ — vì sao lượt này đặt như thế.
+        #
+        # ⭐ Không phải đồ trang trí. Tới lượt thứ hai mươi thì không ai nhớ nổi vì sao
+        # lượt số bảy đặt "chỉ nhìn lãi". Bảng số nói CÁI GÌ xảy ra; đây là chỗ duy
+        # nhất nói ĐỊNH LÀM GÌ — và nó được chụp lại theo mỗi lượt chạy.
+        "ghi_chu": "",
+        # ⭐ TRẦN NHỊP VÀO LỆNH — lệnh mỗi tuần, `0` = không chặn (core.md §18.4a).
+        #
+        # ⚠ Khối `test` cố ý KHÔNG có ô này: người vẽ tay bao nhiêu lệnh cũng được. Đây
+        # là van thời gian của MÁY TÌM. Đo được: máy sinh ra sơ đồ 11.425 lệnh trong một
+        # quý (≈ 879/tuần) trong khi sơ đồ mẫu người viết là ≈ 4/tuần — và chính mấy con
+        # ấy nuốt hết ngân sách, khiến 15 phút chỉ chấm nổi 38 sơ đồ.
+        #
+        # 200/tuần ≈ 40 lệnh một ngày — cao hơn hẳn mọi chiến lược thật, nên nó cắt rác
+        # mà không phán xét phong cách. Cố ý không đặt sát: cái van này để lấy TỐC ĐỘ,
+        # còn "vào lệnh thế nào là hợp lý" là việc của mấy cái cửa ở panel Thưởng·Phạt.
+        "lenh_moi_tuan_toi_da": 200,
+        # ⭐ TRẦN LƯỢT CHẠY SƠ ĐỒ mỗi nến — bắt sơ đồ ÔM LỆNH (core.md §18.4d).
+        #
+        # `lượt ÷ nến` ≈ trung bình bao nhiêu lệnh sống cùng lúc. Đo được: sơ đồ mẫu
+        # người viết 0,35 · sơ đồ máy nặng nhất còn dùng được 7,4 · một con ôm ~300 lệnh
+        # thì 299 — và riêng nó ngốn 60% cả lô 60 sơ đồ.
+        #
+        # 30 là hơn 4 lần cái nặng nhất còn dùng được, nên nó cắt quái vật mà không đụng
+        # sơ đồ tử tế. Khối `test` KHÔNG có ô này — người vẽ tay muốn ôm bao nhiêu lệnh
+        # cũng được.
+        "luot_moi_nen_toi_da": 30,
+        # ⭐ CÁCH CHIA THỜI GIAN — `mot_khoi` hay `cuon_toi` (core.md §18.3).
+        #
+        # `cuon_toi` chia đoạn khoá thành nhiều CỬA SỔ nối nhau và chấm từng cái. Vì
+        # "kiếm đều" chỉ có nghĩa khi đo QUA THỜI GIAN: một con số gộp cả dải vẫn đẹp
+        # với chiến lược ăn đậm quý đầu rồi lỗ năm quý sau.
+        #
+        # ⚠ Bước nhỏ nhất là THÁNG, không có "tuần". Đo được: hai chiến lược chênh nhau
+        # 38 điểm % qua 4,5 năm mà xét từng tuần chỉ hơn nhau ở 52% số tuần — tung đồng
+        # xu. Cấu trúc cuốn-tới thì đúng; chỉ cái BƯỚC phải đủ dài để mang tin.
+        "cach_chia": "cuon_toi",
+        "buoc_cuon": "quy",
         "spread_diem": 0, "truot_diem": 0,
         "deposit": 10000.0, "commission": 0.0,
     },

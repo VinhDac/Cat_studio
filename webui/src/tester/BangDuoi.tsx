@@ -92,6 +92,11 @@ export default function BangDuoi({ tabs, epTab, epLan = 0 }: {
         </button>
       </div>
 
+      {/* ⚠ `ve()` gọi như HÀM THƯỜNG, nên tab KHÔNG ĐƯỢC dùng hook nào bên trong.
+          Hook trong đó sẽ thành hook của chính `BangDuoi`, và đổi sang tab có số hook
+          khác là React ném lỗi — cả cửa sổ chết. Đã cắn một lần thật ở cửa sổ cài đặt
+          RL (xem chú thích `MUC` trong `rl/CaiDatLuot.tsx`).
+          Cần hook thì làm tab ấy thành component và dựng bằng JSX. */}
       {!gap && dang?.ve()}
     </div>
   )

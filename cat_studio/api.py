@@ -13,6 +13,7 @@ Hai luật của file này:
    Window, nó đọc trúng property `width`/`title`… mà mấy property đó lại quay về
    UI thread đang bị chặn → app treo "Not Responding" vĩnh viễn.
 """
+import datetime
 import functools
 import inspect
 import json
@@ -1037,6 +1038,10 @@ class NenChay(NenCuaSo):
             truot_diem=luu.get("truot_diem", 0),
             deposit=luu.get("deposit", 10000.0),
             commission=luu.get("commission", 0.0),
+            # 0 = tắt. Khối `test` không có khoá này nên Tester không bao giờ bị cắt —
+            # người vẽ tay bao nhiêu lệnh cũng được (§18.4a).
+            lenh_moi_tuan_toi_da=luu.get("lenh_moi_tuan_toi_da", 0),
+            luot_moi_nen_toi_da=luu.get("luot_moi_nen_toi_da", 0),
             **_thong_so(sym, m), **_luat_san(sym, luu))
         return nen, cd, luu
 
@@ -2350,6 +2355,32 @@ class _BaoQuaLuot(dict):
                         chu=self.get("chu", ""))
 
 
+def _nhan_cau_hinh(dat, ci):
+    """Một DÒNG mô tả lượt này chạy với gì — để sổ lượt phân biệt được.
+
+    Cố ý ngắn và cố ý chỉ nói thứ NGƯỜI DÙNG ĐÃ ĐỔI so với mặc định. Liệt kê hết thì
+    hai mươi dòng giống nhau y như lúc không có dòng nào."""
+    cua = dat.get("cua") or {}
+    ky = cua.get("ky") or "tuan"
+    p = [f"{ci.get('symbol') or '—'}",
+         f"{ci.get('tu') or '?'}→{ci.get('den') or '?'}",
+         "tháng" if ky == "thang" else "tuần"]
+    # ⚠ KHÔNG `or 1`: `manh_deu = 0` là một lựa chọn THẬT ("chỉ nhìn lãi") mà `0 or 1`
+    # nuốt mất, và nhãn im lặng nói dối đúng cái nó sinh ra để nói.
+    md = cua.get("manh_deu")
+    if (1 if md is None else int(md)) <= 0:
+        p.append("chỉ lãi")
+    n = sum(1 for k, v in cua.items()
+            if v is not None and k not in ("ky", "tuan_co_lenh", "manh_deu"))
+    if n:
+        p.append(f"{n} phạt")
+    if dat.get("tat"):
+        p.append(f"tắt {len(dat['tat'])} thẻ")
+    p.append(f"{int(dat.get('so_luot') or 0):,} sơ đồ".replace(",", "."))
+    p.append(f"hạt {int(dat.get('hat') or 0)}")
+    return " · ".join(p)
+
+
 class ApiRL(NenChay):
     """Bề mặt của CỬA SỔ RL — bàn điều khiển máy tìm chiến lược.
 
@@ -2445,7 +2476,16 @@ class ApiRL(NenChay):
         Nến có thể phải tải từ MT5 (vài chục giây), nên chuyện đó cũng đẩy sang luồng
         nền: cửa sổ không được đứng hình trong lúc tải."""
         dat = dat or {}
+        # ⭐ CHẠY LẠI Y HỆT — dựng lại từ ẢNH CHỤP của lượt cũ, không từ trạng thái
+        # giao diện lúc này. Giao diện đã trôi đi (người dùng vặn vài núm rồi), nên
+        # "y hệt" mà lấy từ đó thì không y hệt. Đây cũng là chỗ rẻ nhất: không phải
+        # bơm hai chục ô ngược lên JS rồi bơm xuôi lại.
+        cu = luot_tim.lay(str(dat.get("tu_luot") or ""))
+        if cu is not None and cu.cau_hinh:
+            dat = {**cu.cau_hinh, "ten": f"Chạy lại {cu.ten}"}
         l = luot_tim.LuotTim(str(dat.get("ten") or "Lượt tìm"))
+        l.cau_hinh = dict(dat)
+        l._ghi(nhan=_nhan_cau_hinh(dat, self._dat()))
         l._ghi(tong=int(dat.get("so_luot") or 100), chu="đang chuẩn bị nến…")
         luot_tim._ghi_so(l)
         threading.Thread(target=self._chay_nen_rl, args=(l, dat),
@@ -2472,12 +2512,21 @@ class ApiRL(NenChay):
                     giu=int(dat.get("giu") or luot_tim.tim_kiem.GIU_DAU_BANG),
                     han_giay=float(gio) * 3600 if gio else None,
                     phang_toi_da=int(dat["phang_toi_da"])
-                    if dat.get("phang_toi_da") else None)
+                    if dat.get("phang_toi_da") else None,
+                    so_nhan=int(dat.get("so_nhan") or 1))
         except Exception as e:                    # noqa: BLE001
             # Hỏng lúc CHUẨN BỊ (thiếu nến, chưa đặt khoảng…) cũng phải hiện ra ở đúng
             # chỗ người dùng đang nhìn, chứ không im lặng để thanh tiến trình quay mãi.
             l._ghi(loi=f"{type(e).__name__}: {e}", dang_chay=False,
                    xong_luc=time.time())
+
+    @_bat_loi
+    def rl_cau_hinh(self, ma):
+        """Ảnh chụp cấu hình của một lượt — cho người đọc soi lại mình đã chạy với gì."""
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        return _ok({"cau_hinh": l.cau_hinh, "nhan": l.trang_thai().get("nhan") or ""})
 
     @_bat_loi
     def rl_dung(self, ma):
@@ -2534,27 +2583,53 @@ class ApiRL(NenChay):
             return _loi("Lượt này chưa có sơ đồ nào qua cửa.")
 
         nen, cd, _ = self._nen_va_cd({"tu": d["khoa_tu"], "den": d["khoa_den"]})
+        # ⚠ ĐÚNG bộ cửa lượt train đã dùng, không phải mặc định. Chọn bằng một thước
+        # rồi nghiệm thu bằng thước khác thì cái chênh lệch đọc ra là chênh của THƯỚC.
+        cua = l.cua
+        cuon = str(d.get("cach_chia") or "cuon_toi") == "cuon_toi"
+        buoc = str(d.get("buoc_cuon") or "quy")
+        t0 = nguon_nen.thoi_diem(d["khoa_tu"])
+        t1 = nguon_nen.thoi_diem(d["khoa_den"])
+        moc = (datetime.datetime.fromtimestamp(t0, datetime.UTC).date(),
+               datetime.datetime.fromtimestamp(t1, datetime.UTC).date())
+
         ra = []
         for x in dau:
             doc = l.so_do(x["hang"])
             if doc is None:
                 continue
             try:
-                diem = cham_diem.cham(bo_chay.chay(doc, nen, cd))
+                # Không nhật ký: chỗ này chỉ CHẤM (§18.4b). Muốn xem nhật ký thì mở
+                # sơ đồ sang cửa sổ vẽ rồi chạy Tester — ở đó nó đầy đủ.
+                kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False)
+                diem = cham_diem.cham(kq, cua)
+                # ⭐ CUỐN TỚI: chấm TỪNG cửa sổ, từ CÙNG một lượt chạy. Sáu cửa sổ mà
+                # chạy sáu lượt là đắt gấp sáu — chuỗi lãi/lỗ theo tuần đã có sẵn cả
+                # dải, chỉ việc bỏ vào đúng rổ (§18.3).
+                cs = cham_diem.cham_cuon(kq, *moc, buoc, cua) if cuon else []
             except Exception as e:              # noqa: BLE001
                 ra.append({"hang": x["hang"], "loi": f"{type(e).__name__}: {e}"[:120]})
                 continue
+            duong = sum(1 for w in cs if w["diem"] > 0)
             ra.append({"hang": x["hang"], "train": x["diem"], "khoa": diem["diem"],
                        "khoa_lai_pt": diem["lai_pt"],
                        "khoa_sut_von_pt": diem["sut_von_pt"],
                        "khoa_so_lenh": diem["so_lenh"],
                        "khoa_tuan": diem["tuan"], "khoa_dat": diem["dat"],
-                       "khoa_ly_do": diem["ly_do"]})
+                       "khoa_ly_do": diem["ly_do"],
+                       # Điểm TỪNG cửa sổ — thứ trả lời "có đều QUA THỜI GIAN không",
+                       # mà một con số gộp cả dải không nói ra được.
+                       "cua_so": [{"tu": w["tu"], "den": w["den"], "diem": w["diem"],
+                                   "trung_binh": w["trung_binh"],
+                                   "dao_dong": w["dao_dong"],
+                                   "co_lenh": w["co_lenh"], "so_ky": w["so_ky"]}
+                                  for w in cs],
+                       "cua_so_duong": duong, "so_cua_so": len(cs)})
 
         d["khoa_da_mo"] = int(d.get("khoa_da_mo") or 0) + 1
         self._cha._cai_dat = {**(self._cha._cai_dat or {}), "rl": d}
         core.save_settings(self._cha._cai_dat)
-        return _ok({"ds": ra, "da_mo": d["khoa_da_mo"],
+        return _ok({"ds": ra, "da_mo": d["khoa_da_mo"], "cuon": cuon, "buoc": buoc,
                     "tu": d["khoa_tu"], "den": d["khoa_den"]})
 
     # ------------------------------------------------------------------ MỞ

@@ -262,6 +262,8 @@ export const pyRL = {
   /** Kho nến của một symbol — gọi lại khi người dùng đổi mã. */
   rl_kho_nen: (symbol: string) => goi<KhoNen>('rl_kho_nen', symbol),
   rl_chay: (dat: DatRL) => goi<{ ma: string }>('rl_chay', dat as unknown as Record<string, unknown>),
+  rl_cau_hinh: (ma: string) =>
+    goi<{ cau_hinh: Record<string, unknown>; nhan: string }>('rl_cau_hinh', ma),
   rl_dung: (ma: string) => goi<boolean>('rl_dung', ma),
   rl_xoa: (ma: string) => goi<boolean>('rl_xoa', ma),
   /** Ghi cài đặt RIÊNG của RL (train · KHOÁ · chi phí). */

@@ -1,5 +1,5 @@
 {
- "bam": "e5dad4159653f389",
+ "bam": "8a3d55dbd852dc74",
  "chi_tiet": {
   "kho": {
    "toan_hang": [
@@ -753,6 +753,7 @@
       "tot_nhat": 2.1461
      },
      "ky": "tuan",
+     "manh_deu": 1,
      "diem": -0.3519,
      "sut_von_pt": 23.7,
      "lai_pt": -21.36,
@@ -808,6 +809,7 @@
       "tot_nhat": 6.3477
      },
      "ky": "tuan",
+     "manh_deu": 1,
      "diem": 0.0187,
      "sut_von_pt": 9.21,
      "lai_pt": 1.25,

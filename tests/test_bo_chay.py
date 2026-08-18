@@ -685,5 +685,157 @@ kiem("và False→SAI khớp, →ĐÚNG trượt",
 kiem("phép so SỐ trên NaN vẫn trượt như cũ",
      not any(bc._so_sanh(_NAN, p, 1.0) for p in ("<", "<=", ">", ">=", "==")))
 
+
+# ================= TRẦN NHỊP VÀO LỆNH — cắt rác GIỮA CHỪNG =================
+print("\n▸ Trần nhịp vào lệnh (§18.4a) — bỏ dở, không chấm nốt")
+
+# VÌ SAO BÀI NÀY PHẢI CÓ. Chi phí một lượt chấm đi theo SỐ LỆNH sơ đồ đẻ ra, không theo
+# số nến. Máy tìm sinh ra sơ đồ 11.425 lệnh trong một quý trong khi sơ đồ người viết là
+# ~4 lệnh/tuần — và chính mấy con ấy nuốt hết ngân sách (đo được: 15 phút chỉ chấm nổi
+# 38 sơ đồ). Van này cắt vòng luẩn quẩn ấy; nó hỏng thì máy tìm chậm lại mà KHÔNG báo
+# gì — đúng loại hỏng lặng phải có lưới.
+#
+# ⚠ Giá đi LÊN ĐỀU chứ không phẳng, cố ý: giá phẳng thì mọi lệnh nằm mở tới cuối, sổ
+# lệnh phình, Manage quét lại cả sổ mỗi nhịp và chính BÀI KIỂM chạy mất mấy phút — tức
+# là bài kiểm mắc đúng cái bệnh nó sinh ra để bắt. Giá lên đều thì TP ăn sớm, sổ ngắn.
+_TUAN_M1 = 7 * 24 * 60
+_N3 = _TUAN_M1 * 3
+_RAMP = [100.0 + 60.0 * k / _N3 for k in range(_N3)]
+
+
+def _so_do_na(cong_ten, nguong, nhip="M15"):
+    bd = core.make_start_step("bắt đầu", nhip)
+    bd["pos"] = [0.0, 0.0]
+    g = cong(cong_ten, "close", ">", nguong)
+    v = vao("mua")
+    d = so_do([bd, g, v], [])
+    e = d["entry"]["steps"]
+    d["entry"]["edges"] = [day(e[0], e[1]), day(e[1], e[2])]
+    return d
+
+
+_NA = _so_do_na("luôn đúng", 0.0)
+_cd0 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0)
+_n0 = len(bc.chay(_NA, nen_m1(_RAMP), _cd0).so.lenh)
+kiem("trần 0 = KHÔNG cắt, chạy hết dải (người vẽ tay bao nhiêu lệnh cũng được)",
+     _n0 > 20 * 3, f"— {_n0} lệnh / 3 tuần")
+
+_cd1 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                 lenh_moi_tuan_toi_da=20)
+try:
+    bc.chay(_NA, nen_m1(_RAMP), _cd1)
+    _loi = None
+except bc.NaLenh as e:
+    _loi = e
+kiem("vượt trần thì ném `NaLenh`", _loi is not None,
+     f"— {_loi}" if _loi else "— KHÔNG ném")
+kiem("và `NaLenh` là một `LoiChay` (chỗ bắt cũ không bị thủng)",
+     isinstance(_loi, bc.LoiChay))
+kiem("ngân sách = trần × số tuần của DẢI, không phải trần × tuần đã trôi",
+     _loi is not None and abs(_loi.ngan_sach - 20 * 3) < 20,
+     f"— ngân sách {_loi.ngan_sach:.0f} lệnh cho 3 tuần" if _loi else "")
+kiem("nó bỏ DỞ chứ không chạy nốt",
+     _loi is not None and _loi.so_lenh < _n0,
+     f"— cắt ở {_loi.so_lenh}/{_n0} lệnh" if _loi else "")
+
+# ⚠ Ca cắt OAN mà luật "tuần đã trôi" mắc phải: dồn lệnh vào đoạn ĐẦU rồi thôi hẳn.
+# Nhịp CẢ DẢI của nó rất thấp, nên nó KHÔNG được cắt.
+# Mốc 100,5 = khoảng 4 giờ ĐẦU của dải 3 tuần → ~16 lệnh. Xét theo "tuần đã trôi" thì
+# nhịp lúc ấy là ~670/tuần (cắt oan); xét theo ngân sách cả dải là 5,3/tuần (không cắt).
+# Đó chính là chỗ hai luật cho hai đáp án khác nhau, nên mốc này phải giữ nguyên.
+_DON = _so_do_na("giá < 100,5", -1e9)
+_DON["entry"]["steps"][1]["conditions"][0]["phep"] = "<"
+_DON["entry"]["steps"][1]["conditions"][0]["phai"] = {"value": 100.5}
+try:
+    _sl = len(bc.chay(_DON, nen_m1(_RAMP), _cd1).so.lenh)
+    _oan = False
+except bc.NaLenh:
+    _sl, _oan = -1, True
+kiem("KHÔNG cắt oan sơ đồ dồn lệnh ở đoạn đầu rồi thôi hẳn",
+     not _oan and 0 < _sl < 60,
+     f"— {_sl} lệnh, đều trong 4 giờ đầu (ngân sách 60)" if not _oan else "— BỊ CẮT")
+
+_cd2 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                 lenh_moi_tuan_toi_da=1e9)
+kiem("trần cao thì không đụng gì tới kết quả",
+     len(bc.chay(_NA, nen_m1(_RAMP), _cd2).so.lenh) == _n0)
+
+
+# =============== TRẦN LƯỢT CHẠY SƠ ĐỒ — bắt sơ đồ ÔM LỆNH ===============
+print("\n▸ Trần lượt chạy sơ đồ (§18.4d) — thứ `NaLenh` KHÔNG bắt được")
+
+# VÌ SAO PHẢI CÓ CÁI THỨ HAI. Đo trên nến thật: một sơ đồ đúng **864 lệnh** trong một quý
+# — lọt trần nã lệnh dễ dàng — mà chạy sơ đồ **25,8 triệu lượt** và ngốn **60% cả lô 60
+# sơ đồ**. Nó không nã lệnh, nó ÔM lệnh: Manage chạy một lượt cho MỖI lệnh đang sống, nên
+# giữ ~300 lệnh là mỗi nến trả giá 300 lần. Song song KHÔNG gỡ được (Amdahl) — một sơ đồ
+# thì không chẻ ra cho nhiều nhân.
+#
+# Sơ đồ thử: vào lệnh THƯA (H4 — 126 lệnh cho cả 3 tuần, thấp hơn hẳn trần nã lệnh),
+# nhưng TP xa tít nên chẳng lệnh nào đóng → sổ phình dần. Đúng cái `NaLenh` mù.
+_bdo = core.make_start_step("bắt đầu", "H4")
+_bdo["pos"] = [0.0, 0.0]
+# ⚠ SL phải là số THẬT. Đặt SL = 1e6 thì R = 1e6 → lot tính ra bé hơn `lot_min` và sàn
+# từ chối sạch, sơ đồ ra 0 lệnh — đồ thử hỏng mà nhìn như code hỏng. Chỉ TP mới cần xa
+# tít: nó là thứ khiến lệnh không bao giờ đóng, tức sổ phình dần.
+_vo = core.make_action_step({
+    "type": core.VAO_LENH, "name": "ôm", "huong": "mua", "loai": "market",
+    "rui_ro": 0.5, "sl": {"tinh": "gia", "value": 1.0},
+    "tp": {"tinh": "R", "value": 1e6}})
+_vo["pos"] = [0.0, 0.0]
+_OM = so_do([_bdo, cong("luôn đúng", "close", ">", 0.0), _vo], [])
+_e = _OM["entry"]["steps"]
+_OM["entry"]["edges"] = [day(_e[0], _e[1]), day(_e[1], _e[2])]
+
+_cd3 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0)
+_kq3 = bc.chay(_OM, nen_m1(_RAMP), _cd3)
+_luot0, _lenh0 = _kq3.thong_ke["so_luot"], len(_kq3.so.lenh)
+kiem("không trần thì nó ôm lệnh và lượt chạy phình theo BÌNH PHƯƠNG",
+     _luot0 > 20 * _lenh0,
+     f"— {_lenh0} lệnh nhưng {_luot0:,} lượt".replace(",", "."))
+
+kiem("⚠ và `NaLenh` KHÔNG bắt được nó — số lệnh vẫn thấp",
+     _lenh0 < 200 * 3, f"— {_lenh0} lệnh / 3 tuần, dưới trần 200/tuần")
+
+_cd4 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                 luot_moi_nen_toi_da=5)
+try:
+    bc.chay(_OM, nen_m1(_RAMP), _cd4)
+    _l4 = None
+except bc.QuaNang as e:
+    _l4 = e
+kiem("vượt trần lượt thì ném `QuaNang`", _l4 is not None,
+     f"— {_l4}" if _l4 else "— KHÔNG ném")
+kiem("và nó bỏ DỞ, không chạy nốt",
+     _l4 is not None and _l4.so_luot < _luot0,
+     f"— cắt ở {_l4.so_luot:,}/{_luot0:,} lượt".replace(",", ".") if _l4 else "")
+kiem("ngân sách = trần × SỐ NẾN (đếm được, không phải giây)",
+     _l4 is not None and abs(_l4.ngan_sach - 5 * len(_RAMP)) < 1,
+     f"— {_l4.ngan_sach:,.0f} lượt cho {len(_RAMP):,} nến".replace(",", ".")
+     if _l4 else "")
+
+_cd5 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                 luot_moi_nen_toi_da=1e9)
+kiem("trần 0 và trần cao đều KHÔNG đụng gì tới kết quả",
+     len(bc.chay(_OM, nen_m1(_RAMP), _cd5).so.lenh) == _lenh0)
+
+# ⚠ Sơ đồ ĐÓNG LỆNH SỚM không được dính, dù nó vào RẤT nhiều lệnh — đó là ranh giới
+# giữa hai cái trần: `NaLenh` xét SỐ LỆNH, `QuaNang` xét SỔ DÀI BAO NHIÊU.
+#
+# Giá phải dốc: TP nằm ở `vào + 2`, mà dải `_RAMP` chỉ lên 60 giá trong 3 tuần nên mỗi
+# lệnh sống ~1.000 nến và sổ đọng ~67 lệnh — tức chính `_RAMP` mới là cái ôm lệnh. Dốc
+# gấp năm thì lệnh đóng sau ~200 nến, sổ chỉ còn hơn chục.
+_DOC = [100.0 + 300.0 * k / _N3 for k in range(_N3)]
+_cd6 = bc.CaiDat(point=1.0, contract_size=1.0, spread_diem=0.0,
+                 luot_moi_nen_toi_da=30)
+_n6goc = len(bc.chay(_NA, nen_m1(_DOC), _cd0).so.lenh)
+try:
+    _n6 = len(bc.chay(_NA, nen_m1(_DOC), _cd6).so.lenh)
+    _oan6 = False
+except bc.QuaNang:
+    _n6, _oan6 = -1, True
+kiem("KHÔNG cắt oan sơ đồ đóng lệnh sớm (nhiều lệnh nhưng sổ luôn ngắn)",
+     not _oan6 and _n6 == _n6goc and _n6 > 200,
+     f"— {_n6} lệnh, qua trần 30 lượt/nến" if not _oan6 else "— BỊ CẮT OAN")
+
 print(f"\n{'=' * 52}\n  {dung} đúng, {sai} sai\n{'=' * 52}")
 sys.exit(1 if sai else 0)

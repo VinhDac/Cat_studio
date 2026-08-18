@@ -169,6 +169,13 @@ class SoLenh:
         self.zone = []
         self._dem_lenh = 0
         self._dem_vung = 0
+        #: Vùng nào ĐÃ từng sinh lệnh. Xem `zone_da_sinh_lenh`.
+        #:
+        #: ⚠ KHÔNG phải nguồn sự thật thứ hai, và đó là điều kiện để nó tồn tại: nó chỉ
+        #: được ghi ở ĐÚNG MỘT chỗ — `mo_lenh`, ngay cạnh `self.lenh.append(l)`. Hai
+        #: dòng liền nhau trong một hàm thì không có đường nào lệch. Và `zone_id` không
+        #: bao giờ bị sửa sau khi lệnh sinh ra (soi rồi), nên tập này không mốc được.
+        self._vung_co_lenh = set()
 
     # ---- vùng nén ----
     def mo_zone(self, nen):
@@ -190,13 +197,19 @@ class SoLenh:
         """Có lệnh nào mang id vùng này không — thay cho `COMP_CONSUMED`.
 
         Là phép TRA BẢNG, không phải cờ ẩn. Và tính cả lệnh đã chết: một cú nén một
-        lệnh, kể cả khi lệnh đó đã đóng từ lâu."""
+        lệnh, kể cả khi lệnh đó đã đóng từ lâu.
+
+        ⚠ Trước đây quét CẢ SỔ LỆNH mỗi lần hỏi. Đo được trên một năm: **89.306** câu
+        hỏi ngốn **8,13 triệu** vòng lặp — 13,8% cả lượt chạy, và nó lớn theo BÌNH
+        PHƯƠNG (sổ càng dài, mỗi câu hỏi càng lâu, mà câu hỏi cũng càng nhiều). §18.4
+        từng đo riêng nó chỉ 1,11× rồi gác lại; con số ấy đúng lúc nhật ký còn bật và
+        làm loãng mẫu số."""
         if zone_id is None:
             v = self.zone_hien_hanh()
             if not v:
                 return False
             zone_id = v.id
-        return any(l.zone_id == zone_id for l in self.lenh)
+        return zone_id in self._vung_co_lenh
 
     # ---- lệnh ----
     def mo_lenh(self, zone_id, sinh_tai, huong, loai, lot, gia_dat, sl, tp, R, nen):
@@ -204,6 +217,7 @@ class SoLenh:
         l = Lenh(f"L-{self._dem_lenh:04d}", zone_id, sinh_tai, huong, loai, lot,
                  gia_dat, sl, tp, R, nen)
         self.lenh.append(l)
+        self._vung_co_lenh.add(zone_id)      # ⚠ phải đi LIỀN dòng trên
         return l
 
     def dang_song(self):

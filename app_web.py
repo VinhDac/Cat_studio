@@ -4,6 +4,7 @@
 
 Giao diện là React + React Flow chạy trong WebView2; Python lo lõi.
 """
+import multiprocessing
 import os
 import sys
 
@@ -33,9 +34,13 @@ def _uu_tien_namespace_dotnet():
         sys.meta_path.insert(0, f)
 
 
-_uu_tien_namespace_dotnet()
-
-import webview                                    # noqa: E402
+# ⚠ `import webview` (và cái hàm trên) CỐ Ý nằm trong `main()`, không ở mức module.
+#
+# Máy tìm chạy SONG SONG bằng tiến trình con (§18.4c). Trên Windows đó là `spawn`, và
+# `spawn` NẠP LẠI module chính trong mỗi tiến trình con. Để ở mức module thì mỗi con
+# kéo theo cả pythonnet + .NET + WebView2 — vài giây mỗi con, cho một thứ nó không bao
+# giờ dùng. Cái chốt `if __name__ == "__main__"` chặn `main()` chạy lại, nhưng KHÔNG
+# chặn được mấy dòng import ở mức module.
 from cat_studio.api import Api                               # noqa: E402
 from cat_studio import luu_tru                                    # noqa: E402
 
@@ -125,6 +130,16 @@ def tim_cua_so(chua_chuoi=TIEU_DE_GOC):
 
 
 def main():
+    # ⚠ PHẢI đứng đầu, và phải trước mọi thứ khác. Bản ĐÓNG GÓI (PyInstaller) mà thiếu
+    # dòng này thì mỗi tiến trình con của máy tìm khởi động lại NGUYÊN CÁI APP — tám
+    # cửa sổ Cat Studio mở ra cùng lúc. Bản chạy từ mã nguồn không cần, nhưng đây đúng
+    # là loại lỗi chỉ lộ ra ở bản phát hành.
+    multiprocessing.freeze_support()
+
+    _uu_tien_namespace_dotnet()
+    global webview
+    import webview                                # noqa: F811 — xem chú thích ở trên
+
     trang = duong_dan_giao_dien()
     if not os.path.exists(trang):
         # Cũng phải báo bằng HỘP THOẠI, không chỉ stderr: shortcut trên Desktop chạy

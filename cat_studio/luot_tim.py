@@ -33,12 +33,27 @@ class LuotTim:
     """Một lượt tìm đang (hoặc đã) chạy. Giao diện chỉ ĐỌC, không bao giờ ghi."""
 
     __slots__ = ("ma", "ten", "_tt", "_kq", "_xin_dung", "_khoa", "_luong", "_duong",
-                 "_dau_bang", "_t0_cham")
+                 "_dau_bang", "_t0_cham", "cua", "cau_hinh")
 
     def __init__(self, ten):
         self.ma = "L-" + uuid.uuid4().hex[:8]
         self.ten = ten
         self._kq = None
+        #: CỬA lượt này chạy với. Giữ lại vì ĐOẠN KHOÁ phải chấm bằng ĐÚNG bộ cửa ấy:
+        #: chọn trên train bằng một thước rồi nghiệm thu bằng thước khác thì hai con số
+        #: không so được với nhau, và cái chênh lệch đọc ra sẽ là chênh của cái THƯỚC
+        #: chứ không phải của sơ đồ.
+        self.cua = None
+        #: ẢNH CHỤP TOÀN BỘ cấu hình lượt này chạy với — nguyên văn cái đã gửi sang.
+        #:
+        #: ⭐ Không có nó thì sổ lượt chạy là một danh sách **không phân biệt được**:
+        #: hai mươi dòng "Lượt 14:05" mà không dòng nào nói mình chạy với kho gì, cửa
+        #: gì, trên khoảng nào. Một bàn điều khiển đẻ ra kết quả mà không ghi lại thứ
+        #: đã đẻ ra chúng thì mấy con số ấy không dùng để so được.
+        #:
+        #: Và nó là thứ khiến `chạy lại y hệt` thành THẬT: chạy lại từ ảnh chụp này,
+        #: không phải từ trạng thái giao diện lúc này — trạng thái ấy đã trôi đi rồi.
+        self.cau_hinh = {}
         self._xin_dung = False
         self._khoa = threading.Lock()
         self._luong = None
@@ -64,7 +79,10 @@ class LuotTim:
         #: khoảng giữa hai mốc ấy là lúc TẢI NẾN, có thể hàng phút, và tính nó vào thì
         #: ước lượng đầu lượt sai lệch rất nặng.
         self._t0_cham = None
-        self._tt = {"ma": self.ma, "ten": ten, "dang_chay": True, "da_chay": 0,
+        # ⚠ `nhan` tính MỘT LẦN lúc bắt đầu, không mỗi nhịp: giao diện hỏi trạng thái
+        # 500 ms một lần, mà cấu hình thì đứng yên suốt lượt.
+        self._tt = {"ma": self.ma, "ten": ten, "nhan": "", "dang_chay": True,
+                    "da_chay": 0,
                     "tong": 0, "diem_tot_nhat": None, "bat_dau": time.time(),
                     "xong_luc": None, "loi": None, "dung_giua_chung": False,
                     "thong_ke": None}
@@ -89,9 +107,23 @@ class LuotTim:
         Đọc `_dau_bang` chứ KHÔNG đọc `_kq`: `_kq` chỉ có khi chạy xong, mà bàn điều
         khiển phải thấy kết quả lớn dần ngay trong lúc chạy."""
         return [{"hang": k, "diem": d["diem"], "so_lenh": d["so_lenh"],
+                 "ten": self._ten(k),
                  "sut_von_pt": d["sut_von_pt"], "lai_pt": d["lai_pt"],
-                 "tuan": d["tuan"], "so_nuoc": len(chuoi), "ten": doc["name"]}
+                 # ⭐ TRẢ CẢ HAI KỲ. Người dùng nói từ đầu là quan tâm cả tuần lẫn
+                 # tháng; `cham` đã tính sẵn cả hai nên giấu một cái đi là phí. Cột
+                 # nào dùng để chấm thì bảng tự đánh dấu.
+                 "tuan": d["tuan"], "thang": d["thang"], "ky": d["ky"],
+                 "so_nuoc": len(chuoi)}
                 for k, (doc, chuoi, d) in enumerate(self._dau_bang[:so_luong], 1)]
+
+    def _ten(self, hang):
+        """Tên của sơ đồ hạng `hang` — CÓ HẠNG và CÓ MÃ LƯỢT.
+
+        ⚠ Trước đây mọi sơ đồ máy đẻ ra đều tên đúng một chữ `"Máy vẽ"`. Mở ba cái liên
+        tiếp thì cửa sổ vẽ hiện cùng một cái tên trên thanh tiêu đề, và nó trông y hệt
+        MỘT sơ đồ bị vặn lại số — đúng thứ khiến người dùng tưởng máy đang sửa file của
+        mình. Một cái tên không phân biệt được là một lời nói dối rẻ tiền."""
+        return f"Máy vẽ #{hang} · {self.ma}"
 
     def so_do(self, hang):
         """Tài liệu chiến lược của cái xếp hạng `hang` (1 là đầu bảng).
@@ -99,7 +131,11 @@ class LuotTim:
         ⭐ Trả về một file chiến lược BÌNH THƯỜNG (§18.6.5) — cùng JSON, mở bằng cùng
         cửa sổ vẽ, chạy bằng cùng Tester. Và mở được NGAY GIỮA CHỪNG, không đợi xong."""
         ds = self._dau_bang
-        return ds[hang - 1][0] if 1 <= hang <= len(ds) else None
+        if not 1 <= hang <= len(ds):
+            return None
+        # Đặt tên lúc ĐƯA RA, không lúc sinh: lúc sinh chưa biết hạng, mà hạng là thứ
+        # người dùng đang nhìn trên bảng. Chép nông là đủ — chỉ đổi đúng một khoá.
+        return {**ds[hang - 1][0], "name": self._ten(hang)}
 
     # ---- điều khiển ----
     def dung(self):
@@ -138,6 +174,7 @@ class LuotTim:
                   con_lai=round(moi * max(tong - da, 0)))
 
     def _chay(self, nen, cd, so_luot, **kw):
+        self.cua = kw.get("cua")
         try:
             kq = tim_kiem.tim(
                 nen, cd, so_luot, tien_do=self._nhip,

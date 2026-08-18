@@ -620,22 +620,31 @@ export interface BaSo {
 export interface DauBang {
   hang: number; diem: number; so_lenh: number
   sut_von_pt: number; lai_pt: number
-  tuan: BaSo; so_nuoc: number; ten: string
+  /** CẢ HAI kỳ — `ky` nói cái nào đang được dùng để chấm. */
+  tuan: BaSo; thang: BaSo; ky: string
+  so_nuoc: number; ten: string
 }
 
 export interface ThongKeTim {
   da_chay: number; trung_lap: number; ket: number; no: number
   khong_lenh: number; rot_cua: number; qua: number
+  /** Bỏ dở giữa chừng vì vượt trần nhịp vào lệnh (§18.4a). Không phải lỗi. */
+  na_lenh?: number
   hat: number; so_luot: number
   /** Vì sao lượt chạy ngừng: đủ số lượt · hết giờ · phẳng · người dùng dừng. */
   vi_sao_ngung?: string
   ly_do_rot: Record<string, number>
   no_vi?: string[]
+  /** Đã chạy bằng mấy nhân THẬT — có thể nhỏ hơn số xin, nếu không mở được bể. */
+  so_nhan?: number
 }
 
 /** Trạng thái một lượt tìm. `luot_tim.LuotTim.trang_thai()` + nhóm đầu bảng. */
 export interface TrangThaiLuot {
   ma: string; ten: string
+  /** MỘT DÒNG mô tả lượt này chạy với gì — symbol · khoảng · kỳ · phạt · thẻ tắt · số
+   *  sơ đồ · hạt. Không có nó thì sổ lượt là hai chục dòng không phân biệt được. */
+  nhan?: string
   dang_chay: boolean
   da_chay: number; tong: number
   diem_tot_nhat: number | null
@@ -676,6 +685,12 @@ export interface RLBoot {
 export interface CuaRL {
   /** Chấm theo `tuan` hay `thang`. `null` = tuần. */
   ky: string | null
+  /** Vế DAO ĐỘNG có tham gia không: `0` chỉ nhìn lãi · `1` cân bằng. `null` = 1.
+   *
+   * ⚠ Không có nấc 2. Đo trên sơ đồ mẫu: trung bình −0,161% · dao động 1,115% ⇒
+   * `k=1` cho −0,1446 nhưng `k=2` cho −0,1296 — "ưu tiên đều" lại chấm CAO HƠN, vì
+   * trung bình ÂM thì càng chia càng gần 0. Tỉ số không đơn điệu theo mẫu số. */
+  manh_deu: number | null
   tuan_co_lenh: number | null
   sut_von_toi_da: number | null
   lai_toi_thieu: number | null
@@ -715,6 +730,15 @@ export interface DatRL {
   gio_toi_da?: number | null
   /** Phẳng ngần này lượt liền thì tự dừng — bản tự động của thứ `DuongDiem` mách. */
   phang_toi_da?: number | null
+  /** Mấy TIẾN TRÌNH chấm song song. `1` = chạy thẳng, `0` = tự chọn theo số nhân máy. */
+  so_nhan?: number
+}
+
+/** Điểm MỘT cửa sổ cuốn tới trong đoạn khoá (§18.3). */
+export interface CuaSoCham {
+  tu: string; den: string
+  diem: number; trung_binh: number; dao_dong: number
+  co_lenh: number; so_ky: number
 }
 
 /** Một dòng so TRAIN với ĐOẠN KHOÁ (§18.3). */
@@ -728,6 +752,10 @@ export interface DongKhoa {
   khoa_tuan?: BaSo
   khoa_dat?: boolean
   khoa_ly_do?: string | null
+  /** Điểm TỪNG cửa sổ cuốn tới — rỗng khi chia "một khối". */
+  cua_so?: CuaSoCham[]
+  cua_so_duong?: number
+  so_cua_so?: number
   loi?: string
 }
 
@@ -737,4 +765,7 @@ export interface KetQuaKhoa {
   da_mo: number
   tu: string
   den: string
+  /** Có chia cửa sổ cuốn tới không, và bước bao lâu (`thang` · `quy` · `nua_nam`). */
+  cuon: boolean
+  buoc: string
 }

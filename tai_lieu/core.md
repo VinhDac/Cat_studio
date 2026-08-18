@@ -5020,7 +5020,54 @@ biết tính phí. Nhúc nhích không theo chiều nào: nhiễu, càng không 
 | tuần trắng | 1/236 | 1/236 |
 | sụt vốn sâu nhất | 46,10% | 24,98% |
 
-### 18.3 ⏸ Dữ liệu — ĐÃ CHỐT một nửa, nửa còn lại CẤT LẠI có chủ ý
+#### 18.2d ✅ ĐIỂM CÓ HAI VẾ — và người dùng chỉnh được nâng vế nào
+
+Điều đầu tiên người dùng nói khi bàn về chấm điểm là **bốn** con số, không phải một:
+*"average return 1 tuần, average return 1 tháng, average risk 1 tuần, 1 tháng, và
+return/risk"*. Một ô ghi `điểm = 0,0187` trả lời được đúng con số cuối, ba con số kia
+biến mất — mà chúng mới là thứ đọc ra được *"kiếm bao nhiêu"* và *"kiếm có đều không"*.
+
+Nên panel Thưởng·Phạt tách công thức làm hai vế, và mỗi vế nói thẳng nó là gì:
+
+```
+vế TRÊN   trung bình   lãi mỗi tuần, tính bằng % vốn ĐẦU   → kiếm được BAO NHIÊU
+vế DƯỚI   dao động     chuỗi lãi tuần lệch nhau bao nhiêu  → kiếm có ĐỀU không
+```
+
+Và **cả hai kỳ** đều tính, đều trả về, đều hiện trên bảng đầu bảng — cặp cột đang dùng
+để chấm thì tô đậm. `cham()` vốn đã tính sẵn cả tuần lẫn tháng; giấu một cái đi là phí.
+
+| nấc `manh_deu` | điểm | nghĩa |
+|---|---|---|
+| `0` | `trung bình` | chỉ nhìn lãi, mặc kệ giật cục |
+| `1` *(mặc định)* | `trung bình ÷ dao động` | cân bằng |
+
+⚠ **Không phá luật §15.1 (*"cái thước không được là tham số"*).** Luật ấy cấm chỉnh cái
+**ĐO** — chu kỳ ATR, mẫu số chuẩn hoá. Còn `trung bình` và `dao động` đều đã đo xong
+bằng thước cố định; chọn coi trọng vế nào là **thích gì**, không phải **đo bằng gì** —
+đúng ranh giới §18.6.4.
+
+##### ⚠ KHÔNG có nấc 2 (`÷ dao động²`) — đã cài, đo, rồi bỏ
+
+Nấc thứ ba *"ưu tiên đều"* nghe rất thuận tai và **sai về số học**. Đo trên chính sơ đồ
+mẫu ở §18.2c:
+
+```
+trung bình −0,161%   dao động 1,115%
+    k = 1   →  −0,1446
+    k = 2   →  −0,1296      ← "ưu tiên đều" chấm CAO HƠN
+```
+
+Vì trung bình **ÂM** thì càng chia càng gần 0. Và không vá được bằng đổi dấu: với dao
+động **< 1** nó lật ngược thêm lần nữa. **Một tỉ số không đơn điệu theo mẫu số khi tử số
+âm** — mà phần lớn sơ đồ máy sinh ra đều có tử số âm, nên đây không phải trường hợp
+hiếm, nó là trường hợp thường.
+
+⭐ Muốn siết chặt hơn thì dùng **cửa** `dao_dong_toi_da`: nó đơn điệu, phát biểu được
+(*"tôi không nhận dao động quá 1,5%"*), và không đụng vào thước. Đúng bài học §18.6.4 —
+cửa, không phải cân.
+
+### 18.3 ⏸ Dữ liệu — KHOÁ + CUỐN TỚI đã cài, phần HỌC còn cất lại
 
 ⭐ **Đã chốt và không bàn lại:**
 
@@ -5030,8 +5077,9 @@ biết tính phí. Nhúc nhích không theo chiều nào: nhiễu, càng không 
 | **độ dài tối thiểu** | ≥ **48 tuần** — dưới ngưỡng đó con số là tung đồng xu, đo ở dưới |
 | **lấy theo M1 THẬT** | §15.0, không theo meta kho nến |
 
-⏸ **CẤT LẠI — cách chia phần còn lại.** Ba phương án đã bàn, không phương án nào **kiểm
-chứng được** cho tới khi có bộ sinh (§18.7). Ghi ra để khỏi bàn lại từ đầu:
+⏸ **Ba phương án chia phần còn lại**, bàn khi chưa có bộ sinh nên chưa kiểm chứng được
+cái nào. Ghi ra để khỏi bàn lại từ đầu — **đọc kèm §18.3b**, chỗ chốt rằng cột *"mất gì"*
+của hàng cuối chỉ đúng với phần HỌC, không đúng với phần NGHIỆM THU:
 
 | | hình | được gì | mất gì |
 |---|---|---|---|
@@ -5091,6 +5139,54 @@ tuần = chỉ đủ 5 lần chấm"*. Sai. **Nhiều sơ đồ chấm chung m�
 không bị tiêu theo từng sơ đồ. 48 tuần là độ dài một **cửa sổ**, không phải giá tiền mỗi
 lần thử. Thứ bị tiêu là **tính "chưa thấy" của đoạn khoá**, và nó chỉ bị tiêu khi ta *nhìn*
 vào đó — nên luật chỉ có một dòng: mở đúng một lần.
+
+#### 18.3b ✅ CUỐN TỚI — đã cài, ở ĐOẠN KHOÁ chứ không ở vòng tìm
+
+Bảng ba phương án ở trên ghi cái giá của "cuốn tới" là **×6 thời gian**. Cái giá ấy chỉ
+đúng nếu hiểu cuốn tới là *tìm lại từ đầu mỗi quý*. Nhưng thứ đắt giá nhất của nó —
+**nhiều lần chấm ngoài mẫu thay vì một** — lấy được gần như **miễn phí**:
+
+```
+chạy MỘT lượt backtest trên cả đoạn khoá
+    → chuỗi lãi/lỗ theo tuần đã có sẵn CẢ DẢI
+    → chỉ việc bỏ vào đúng rổ cửa sổ rồi chấm từng rổ
+```
+
+`cham_diem.cham_cuon(kq, t0, t1, buoc, cua)` — cắt chuỗi kỳ, không chạy lại backtest.
+Sáu cửa sổ mà chạy sáu lượt là đắt gấp sáu; cắt chuỗi thì gần như bằng không.
+
+⭐ **Vì sao đáng làm — một con số gộp cả dải giấu mất cấu trúc thời gian.** Đo trên
+XAUUSD 2021-07 → 2026-01, 18 quý, chỉ đổi SL:
+
+| | SL 1,5 | SL 3,0 |
+|---|---|---|
+| điểm **gộp** cả dải | −0,1446 | **+0,0009** |
+| **quý dương** | 4/18 | **8/18** |
+
+SL 3,0 có điểm gộp *dương* — nhìn qua thì đạt. Nhưng nó chỉ dương ở **8 trên 18 quý**;
+mười quý còn lại là lỗ. Một con số gộp không phân biệt được *"kiếm đều"* với *"ăn đậm
+một đợt rồi trả lại"*, mà đó đúng là câu hỏi §18.2 sinh ra để trả lời. Dải cửa sổ trả
+lời được, con số gộp thì không.
+
+⚠ **Bước nhỏ nhất là THÁNG, không có "tuần"** — `BUOC_CUON = {thang: 1, quy: 3,
+nua_nam: 6}`. Lý do là số đo ngay trên đầu mục này: hai chiến lược chênh nhau 38 điểm %
+qua 4,5 năm mà xét từng tuần chỉ hơn nhau ở **52%** số tuần. Một tuần lẻ không mang tin.
+
+| | |
+|---|---|
+| Python | `cham_diem.cua_so_cuon` · `cham_diem.cham_cuon` · `api.rl_mo_khoa` |
+| cài đặt | `cach_chia` (`mot_khoi` \| `cuon_toi`) · `buoc_cuon` — khối `"rl"` |
+| JS | panel **Dữ liệu** → *cách chia thời gian*; tab **Đoạn khoá** → dải ô từng cửa sổ |
+
+⚠ **`rl_mo_khoa` chấm bằng ĐÚNG bộ cửa lượt train đã dùng** — `LuotTim.cua`, cất lúc
+`_chay`. Chọn trên train bằng một thước rồi nghiệm thu bằng thước khác thì cái chênh
+lệch đọc ra là chênh của **THƯỚC**, không phải của sơ đồ. Lỗi này đã có thật một lượt:
+`cua` chưa hề được gán, `NameError` rơi vào `except` và mọi dòng mở khoá thành một dòng
+báo lỗi.
+
+⏸ **Vẫn CẤT LẠI: cuốn tới ở vòng TÌM** (tìm lại từ đầu mỗi quý, mang kinh nghiệm sang
+quý sau). Đó mới là cái ×6 thời gian, và nó cần thuật toán học của §18.5 — chưa chốt.
+Cái đã cài là phần **nghiệm thu**, không phải phần **học**.
 
 #### 18.3a ⭐ Hướng đi tiếp: NHIỀU SYMBOL, không phải nhiều lịch sử hơn
 
@@ -5178,6 +5274,105 @@ hơn — nó song song hoàn toàn theo ứng viên).
 30× là con số **đạt được**: vòng lặp Python từng nến là chỗ chậm nhất có thể, biên dịch hoặc
 vector hoá nó là việc đã biết cách làm, không phải nghiên cứu. **Nhưng không làm bây giờ** —
 tiến hoá chạy được ngay mà không cần, và chưa chạy thật lần nào thì chưa biết cần bao nhiêu.
+
+#### 18.4a ✅ CẮT RÁC — bỏ dở sơ đồ nã lệnh, **1,3×** (không phải 24× như đã đoán)
+
+Máy sinh ra sơ đồ vào lệnh mỗi nến. Đo trên một quý XAUUSD:
+
+```
+sơ đồ NGƯỜI viết       929 lệnh / 3,5 NĂM     ≈   4 lệnh/tuần
+máy vẽ #2            7.986 lệnh / 3 tháng     ≈ 614 lệnh/tuần
+máy vẽ #4           11.425 lệnh / 3 tháng     ≈ 879 lệnh/tuần
+```
+
+Luật, một câu: **cả dải chỉ được `trần/tuần × số tuần` lệnh. Vượt là ném `NaLenh` và bỏ
+dở ngay.** `CaiDat.lenh_moi_tuan_toi_da`, mặc định 200 cho khối `"rl"`; khối `"test"`
+KHÔNG có ô này nên người vẽ tay không bao giờ bị cắt.
+
+⚠ **Đã đổi luật một lần, ghi lại để đừng quay về.** Bản đầu so với **số tuần ĐÃ TRÔI**.
+Cắt sớm hơn thật, nhưng cắt oan: một sơ đồ dồn 16 lệnh vào 4 giờ đầu rồi thôi hẳn có
+nhịp cả dải 5,3/tuần, mà xét theo tuần-đã-trôi thì nó đang ở ~670/tuần. Ngân sách cả dải
+phát biểu đúng thứ cần loại và không có ca oan nào. Bài kiểm giữ đúng ca đó làm mốc.
+
+⚠ **Và đây là chỗ tôi đã hứa sai — ghi lại vì cái sai ấy đáng nhớ hơn con số.** Ước 24×,
+thực tế **1,3×**:
+
+| | trôi | sơ đồ | cắt | sơ đồ/giờ | vượt hạn |
+|---|---|---|---|---|---|
+| không trần | 402 s | 38 | 0 | 340 | 1,34× |
+| trần 200 | 315 s | 38 | 4 | **434** | **1,05×** |
+
+Sai vì tưởng rác chiếm phần lớn thời gian. Chỉ **4/38** vượt trần; thời gian nằm rải đều
+ở những sơ đồ *bình thường*. Bài học: **đừng ước bằng ca xấu nhất, phải đo phân bố.**
+
+Cái được thứ hai lại quan trọng ngang: **trần GIỜ thành thật** (vượt 1,05× thay vì
+1,34×). `han_giay` chỉ được kiểm giữa hai sơ đồ, nên một con nã lệnh đã bắt đầu là phải
+chấm nốt — đặt 8 tiếng rồi đi ngủ mà không có cái van này thì không có gì bảo đảm.
+
+#### 18.4b ✅ TẮT NHẬT KÝ + `zone_da_sinh_lenh` thành `set` — **1,43×**
+
+Profile một năm XAUUSD, sơ đồ mẫu. Hai chỗ chưa ai động tới:
+
+**1. Máy tìm vẫn dựng NHẬT KÝ mà không bao giờ đọc.**
+
+```
+một năm · MỘT sơ đồ  →  124.944 mục nhật ký  ·  907.666 lượt gọi `_js`
+```
+
+`chay(..., ghi_nhat_ky=False)`. Nhật ký là thứ cửa sổ Tester đọc để trả lời *"cổng này
+trượt vì con số nào"* — đắt và **đúng chỗ** ở đó. Mở sơ đồ đầu bảng sang cửa sổ vẽ là
+vẫn có đủ.
+
+⚠ **Ngắt sớm thì KHÔNG được, và đây là chỗ suýt sai.** Tắt nhật ký nghe như tặng kèm
+phép ngắt ở điều kiện sai đầu tiên. Nhưng `zone_hop_le` **đặt `ctx.zone_da_xet` như một
+hiệu ứng phụ**, và bước 5 của `mot_nhip` đọc đúng cờ ấy để quyết định zone sống hay
+chết. Bỏ qua một điều kiện là đổi thời điểm zone chết — đổi **KẾT QUẢ**, không phải đổi
+tốc độ. Tắt nhật ký chỉ được bỏ việc **GHI**, không được bỏ việc **TÍNH**.
+
+⚠ `so_luot` phải đếm THẲNG, không suy từ `len(nhat_ky)` — không thì tắt nhật ký là bảng
+số liệu lặng lẽ báo 0 lượt.
+
+**2. `zone_da_sinh_lenh` quét cả sổ lệnh mỗi lần hỏi.**
+
+```
+89.306 câu hỏi  →  8,13 TRIỆU vòng lặp   = 13,8% cả lượt chạy
+```
+
+Và nó lớn theo **bình phương**: sổ càng dài thì mỗi câu hỏi càng lâu, mà số câu hỏi cũng
+càng nhiều. Thay bằng một `set` ghi trong `mo_lenh`.
+
+⭐ §18.4 từng đo riêng nó **1,11×** rồi cất đi với lý do *"không đáng đánh đổi thêm một
+nguồn sự thật"*. Cả hai vế nay đã khác:
+
+- **con số cũ đo lúc nhật ký còn bật**, tức mẫu số bị thổi phồng;
+- **không có nguồn sự thật thứ hai**: tập được ghi ở ĐÚNG MỘT chỗ, dòng ngay dưới
+  `self.lenh.append(l)` trong `mo_lenh`. Hai dòng liền nhau thì không có đường nào lệch.
+  Và `zone_id` không bao giờ bị sửa sau khi lệnh sinh ra (đã soi).
+
+**Kết quả, cùng một sơ đồ trên một năm:**
+
+| | thời gian |
+|---|---|
+| trước | 4,11 s |
+| tắt nhật ký | 3,28 s |
+| + `set` | **2,87 s** |
+
+**1,43×**, và **vân tay TRÙNG KHÍT** — 445 lệnh · 967 zone · lãi −7,35% · −8,13 R ·
+điểm −0,1038, giống hệt từng con số.
+
+#### ⏸ Còn lại: 8 nhân, rồi mới tới viết lại lõi
+
+Sau hai đợt trên, thứ tự không đổi:
+
+| | được | giá |
+|---|---|---|
+| **song song 8 tiến trình** | ~8× | không đụng lõi — **và nó chính là nửa ACTOR của RL** |
+| **biên dịch sơ đồ thay vì đi bộ** | ~30× | viết lại lõi |
+
+⭐ Có một sự thật cấu trúc khiến cái 30× làm được, ghi lại để khỏi phải tìm lại: **điều
+kiện Entry hầu hết là hàm KHÔNG TRẠNG THÁI của mấy cột số.** `ATR(M5) < ngưỡng × ATR nền`
+tính sẵn được cho cả dải thành một mảng bool; lúc chạy chỉ còn tra chỉ số. Chỉ **lệnh** và
+**zone** mới thật sự tuần tự.
 
 #### Hai thứ đã đo rồi CẤT ĐI, đừng làm sớm
 
@@ -5842,6 +6037,23 @@ gần nhất**. Quá 35% cả lượt chạy thì mách thẳng *"dừng đượ
 ghi: lần đầu thử bằng lượt tìm thật thì **37 lượt trên 6 tuần nến mất 15 phút và KHÔNG sơ
 đồ nào qua cửa**, nên đường rỗng và bài kiểm chẳng kiểm được gì. Phép ghi đường là một luật
 thuần tuý; thử nó bằng backtest thật là vừa chậm vừa phụ thuộc may rủi.
+
+#### 18.9b ✅ Hai panel nói được thứ ta đã xây
+
+Panel *"ưu tiên"* cũ có đúng một dòng công thức khoá cứng và một xấp ô số. Nó **đúng**
+nhưng không nói ra được thứ đã có sẵn dưới lõi, nên bàn điều khiển trông như chỉnh được
+ít hơn hẳn thứ hệ thống làm được.
+
+**Thưởng·Phạt** — hai vế của điểm hiện thành hai dòng đọc được (§18.2d), nút *nâng vế
+nào* hai nấc, và ngay dưới là **con số đã giết nấc thứ ba**. Một chỗ trống ghi *"không
+có nấc 2"* mà không nói vì sao thì lần sau lại có người thêm nó vào.
+
+**Dữ liệu** — *cách chia thời gian* (§18.3b) nằm cạnh hai ô đoạn khoá, đúng chỗ nó có
+nghĩa. Chọn `cuon_toi` mới hiện nút chọn bước; chọn `mot_khoi` thì câu giải thích đổi
+theo, nói thẳng cái mình vừa mất.
+
+⚠ **`manh_deu` KHÔNG được đếm vào nhãn "n phạt" trên mặt nút.** Nó là nút của vế
+THƯỞNG; đếm vào đó thì nút nói dối ngay từ ngoài — *"1 phạt"* trong khi chưa lọc gì cả.
 
 #### Ba chỗ dọn được nhờ đợt này
 

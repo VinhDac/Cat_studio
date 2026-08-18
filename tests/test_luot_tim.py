@@ -186,8 +186,9 @@ def _qua(diem):
     """Nhóm đầu bảng giả — đúng hình dạng `(tài liệu, chuỗi, bảng điểm)` mà
     `tim_kiem` đưa sang, chỉ giữ đúng khoá `_nhip` đọc tới."""
     return [] if diem is None else [({"name": "x"}, [1, 2], {
-        "diem": diem, "so_lenh": 7, "sut_von_pt": 3.0, "lai_pt": 1.0,
-        "tuan": {"trung_binh": 0.1, "dao_dong": 0.5, "co_lenh": 4, "so_ky": 6}})]
+        "diem": diem, "so_lenh": 7, "sut_von_pt": 3.0, "lai_pt": 1.0, "ky": "tuan",
+        "tuan": {"trung_binh": 0.1, "dao_dong": 0.5, "co_lenh": 4, "so_ky": 6},
+        "thang": {"trung_binh": 0.4, "dao_dong": 0.9, "co_lenh": 1, "so_ky": 2}})]
 
 
 _L6 = lt.LuotTim("đường")

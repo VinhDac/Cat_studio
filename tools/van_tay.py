@@ -161,9 +161,31 @@ def main():
                     b = json.dumps((cu["chi_tiet"].get(k) or {}).get(k2),
                                    sort_keys=True, default=str)
                     if a != b:
-                        print(f"        {k2}:\n          cũ  {b[:150]}\n          mới {a[:150]}")
+                        print(f"        {k2}:")
+                        _khac(ra[k][k2], (cu["chi_tiet"].get(k) or {}).get(k2))
     print("\nCố ý đổi thì chạy lại với `--chot`. Không cố ý thì bạn vừa tìm ra một con bọ.")
     return 1
+
+
+def _khac(moi, cu, sau="          "):
+    """In ĐÚNG mấy khoá đã đổi, đệ quy vào trong.
+
+    ⚠ Trước đây chỗ này in cả khối JSON rồi cắt ở 150 ký tự — mà chỗ đổi thường nằm
+    ngoài 150 ký tự ấy, nên hai dòng "cũ/mới" in ra y hệt nhau và người đọc phải đi
+    dò tay. Một cái máy báo lệch mà không nói được lệch ở đâu thì không dùng được."""
+    if isinstance(moi, dict) and isinstance(cu, dict):
+        for k in sorted(set(moi) | set(cu)):
+            x, y = moi.get(k, "‹thiếu›"), cu.get(k, "‹thiếu›")
+            if x == y:
+                continue
+            if isinstance(x, dict) and isinstance(y, dict):
+                print(f"{sau}{k}:")
+                _khac(x, y, sau + "  ")
+            else:
+                print(f"{sau}{k}: cũ {y!r} → mới {x!r}")
+        return
+    print(f"{sau}cũ  {cu!r}")
+    print(f"{sau}mới {moi!r}")
 
 
 if __name__ == "__main__":

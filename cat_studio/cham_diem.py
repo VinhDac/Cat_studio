@@ -54,6 +54,25 @@ CUA_MAC_DINH = {
     # KỲ dùng để chấm và để xét cửa. Người dùng nói từ đầu là quan tâm cả tuần lẫn
     # tháng; chọn kỳ KHÔNG phải đổi thước, chỉ là đổi độ phân giải nhìn.
     "ky": None,                               # None = TUAN
+    # ⭐ ĐIỂM CÓ HAI VẾ, và đây là chỗ nói vế DAO ĐỘNG có tham gia hay không:
+    #
+    #     0   điểm = trung bình                  chỉ nhìn lãi, mặc kệ đều
+    #     1   điểm = trung bình ÷ dao động       cân bằng  ← mặc định
+    #
+    # ⚠ Đây KHÔNG phá luật *"cái thước không được là tham số"* (§15.1). Luật ấy cấm
+    # chỉnh cái ĐO — chu kỳ ATR, mẫu số chuẩn hoá. Còn `trung bình` và `dao động` đều
+    # đã đo xong bằng thước cố định; chọn coi trọng vế nào là **thích gì**, không phải
+    # **đo bằng gì** — đúng ranh giới §18.6.4.
+    #
+    # ⚠ **KHÔNG có nấc 2 (`÷ dao động²`), và đây là chỗ đã thử rồi bỏ.** Đo trên sơ đồ
+    # mẫu: trung bình −0,161% · dao động 1,115% ⇒ `k=1` cho −0,1446 nhưng `k=2` cho
+    # −0,1296 — tức "ưu tiên đều" lại chấm CAO HƠN. Vì trung bình ÂM thì càng chia càng
+    # gần 0. Và không vá được bằng đổi dấu: với dao động < 1 nó lật ngược lần nữa.
+    # Một tỉ số đơn giản là KHÔNG đơn điệu theo mẫu số khi tử số âm.
+    #
+    # Muốn siết chặt hơn nữa thì dùng CỬA `dao_dong_toi_da` — nó đơn điệu, phát biểu
+    # được, và không đụng vào thước.
+    "manh_deu": None,                         # None = 1
     "tuan_co_lenh": TUAN_CO_LENH_TOI_THIEU,   # tỉ lệ kỳ có lệnh đóng
     "sut_von_toi_da": None,                   # %
     "lai_toi_thieu": None,                    # % vốn mỗi năm
@@ -87,7 +106,61 @@ def _moi_ky(t0, t1, ky):
     return ra
 
 
-def chuoi_ky(kq, ky=TUAN):
+#: Bước CUỐN TỚI — §18.3. Số THÁNG mỗi cửa sổ.
+#:
+#: ⚠ KHÔNG có bước "tuần", và đó là số đo chứ không phải ý thích: hai chiến lược chênh
+#: nhau 38 điểm % qua 4,5 năm mà xét TỪNG TUẦN chỉ hơn nhau ở **52%** số tuần — tung
+#: đồng xu. Một tuần lẻ không mang tin. Quý = 13 tuần, gộp 6 quý là 78 tuần, trên
+#: ngưỡng nhiễu 48 tuần.
+BUOC_CUON = {"thang": 1, "quy": 3, "nua_nam": 6}
+
+
+def cua_so_cuon(t0, t1, buoc="quy"):
+    """Chia khoảng `[t0, t1)` thành mấy cửa sổ nối nhau → `[(tu, den), …]`.
+
+    ⭐ Đây là "cuốn tới" của §18.3: thay vì MỘT con số ngoài mẫu, ta có NHIỀU — mỗi
+    cửa sổ một lần chấm trên thứ chưa từng thấy. Một lần bốc thăm khác hẳn sáu lần."""
+    n = BUOC_CUON.get(buoc, 3)
+    ra, a = [], t0
+    while a < t1:
+        thang = a.month - 1 + n
+        b = a.replace(year=a.year + thang // 12, month=thang % 12 + 1, day=1)
+        ra.append((a, min(b, t1)))
+        a = b
+    return ra
+
+
+def cham_cuon(kq, t0, t1, buoc="quy", cua=None):
+    """Chấm TỪNG cửa sổ cuốn tới, từ MỘT lượt chạy.
+
+    ⚠ Cắt chuỗi kỳ chứ KHÔNG chạy lại backtest cho mỗi cửa sổ: sáu cửa sổ mà chạy sáu
+    lượt là đắt gấp sáu, trong khi chuỗi lãi/lỗ theo tuần đã có sẵn cả dải — chỉ việc
+    bỏ vào đúng rổ.
+
+    Trả `[{tu, den, …ba con số…}]`."""
+    c = {**CUA_MAC_DINH, **(cua or {})}
+    ky = c["ky"] if c["ky"] in (TUAN, THANG) else TUAN
+    goc = dict(chuoi_ky(kq, ky, kem_ngay=True))
+    ra = []
+    for a, b in cua_so_cuon(t0, t1, buoc):
+        v = [goc.get(_khoa(d, ky), 0.0) for d in _moi_ky_ngay(a, b, ky)]
+        ra.append({"tu": a.isoformat(), "den": b.isoformat(),
+                   **_ba_so(v, c["manh_deu"])})
+    return ra
+
+
+def _moi_ky_ngay(t0, t1, ky):
+    """Ngày ĐẦU của mỗi kỳ trong `[t0, t1)` — để tra vào chuỗi đã gom."""
+    ra, d = [], t0
+    while d < t1:
+        k = _khoa(d, ky)
+        if not ra or _khoa(ra[-1], ky) != k:
+            ra.append(d)
+        d += dt.timedelta(days=1)
+    return ra
+
+
+def chuoi_ky(kq, ky=TUAN, kem_ngay=False):
     """Lãi/lỗ mỗi kỳ, tính bằng **% vốn ĐẦU**, kể cả kỳ trắng.
 
     ⚠ Chia cho vốn ĐẦU, không phải vốn lúc đó. Chia cho vốn lúc đó là trộn lãi kép vào
@@ -100,7 +173,11 @@ def chuoi_ky(kq, ky=TUAN):
         ngay = dt.datetime.fromtimestamp(int(t[l.nen_dong]), dt.UTC).date()
         goc[_khoa(ngay, ky)] += bo_chay.lai_lenh(l, cd)
     von = cd.deposit or 1.0
-    return [goc.get(k, 0.0) / von * 100.0 for k in _moi_ky(*_khoang(kq), ky)]
+    ks = _moi_ky(*_khoang(kq), ky)
+    if kem_ngay:
+        # `[(khoá kỳ, % vốn)]` — cho `cham_cuon` bỏ vào đúng rổ cửa sổ.
+        return [(k, goc.get(k, 0.0) / von * 100.0) for k in ks]
+    return [goc.get(k, 0.0) / von * 100.0 for k in ks]
 
 
 def _khoang(kq):
@@ -115,8 +192,11 @@ def _khoang(kq):
     return d0, d1
 
 
-def _ba_so(v):
-    """Ba con số của §18.2 cho một chuỗi kỳ."""
+def _ba_so(v, manh_deu=1):
+    """Ba con số của §18.2 cho một chuỗi kỳ.
+
+    `manh_deu` — vế DAO ĐỘNG có tham gia không: `0` chỉ nhìn lãi · `1` cân bằng.
+    Xem `CUA_MAC_DINH["manh_deu"]` (và vì sao không có nấc 2)."""
     n = len(v)
     if not n:
         return {"trung_binh": 0.0, "dao_dong": 0.0, "diem": 0.0,
@@ -126,12 +206,19 @@ def _ba_so(v):
     sd = math.sqrt(sum((x - tb) ** 2 for x in v) / n)
     am = [x for x in v if x < 0]
     co = sum(1 for x in v if x != 0.0)
+    k = 1 if manh_deu is None else int(manh_deu)
+    if k <= 0:
+        diem = tb                          # chỉ nhìn lãi — vế dưới không tham gia
+    elif sd:
+        diem = tb / sd
+    else:
+        # ⭐ `sd == 0` nghĩa là mọi kỳ y hệt nhau — hoặc không lệnh nào (điểm 0, đúng),
+        # hoặc một chuỗi hằng số mà thực tế không xảy ra. Không bịa ra vô cực.
+        diem = 0.0
     return {
         "trung_binh": round(tb, 4),
         "dao_dong": round(sd, 4),
-        # ⭐ ĐIỂM. `sd == 0` nghĩa là mọi kỳ y hệt nhau — hoặc không lệnh nào (điểm 0,
-        # đúng), hoặc một chuỗi hằng số mà thực tế không xảy ra. Không bịa ra vô cực.
-        "diem": round(tb / sd, 4) if sd else 0.0,
+        "diem": round(diem, 4),
         "co_lenh": co,
         "so_ky": n,
         "ty_le_co_lenh": round(co / n, 4),
@@ -149,9 +236,13 @@ def cham(kq, cua=None):
     trống không."""
     c = {**CUA_MAC_DINH, **(cua or {})}
     ky = c["ky"] if c["ky"] in (TUAN, THANG) else TUAN
-    ra = {k: _ba_so(chuoi_ky(kq, k)) for k in (TUAN, THANG)}
+    md = c["manh_deu"]
+    # CẢ HAI kỳ đều tính và đều trả về — người dùng nói từ đầu là quan tâm cả tuần lẫn
+    # tháng. `ky` chỉ quyết định chấm theo cái nào, không giấu cái kia đi.
+    ra = {k: _ba_so(chuoi_ky(kq, k), md) for k in (TUAN, THANG)}
     t = ra[ky]
     ra["ky"] = ky
+    ra["manh_deu"] = 1 if md is None else int(md)
     ra["diem"] = t["diem"]
     ra["sut_von_pt"] = kq.thong_ke["drawdown_pt"]
     ra["lai_pt"] = kq.thong_ke["lai_pt"]
