@@ -39,14 +39,18 @@ const PHIM_CHON_NHIEU = ['Control', 'Meta', 'Shift']
 /* ---------- đổi qua lại giữa tài liệu của Python và node/edge của React Flow ------- */
 
 function so_do_sang_rf(doc: SoDo): { nodes: Node[]; edges: Edge[] } {
-  const theo_id = new Map(doc.cards.map(c => [c.id, c]))
-  const nodes: Node[] = doc.steps.map((s, i) => ({
+  // ⚠ `?? []` cho CẢ BA, dù `normalize_process` đã bảo đảm chúng có mặt. Một tài liệu
+  // thiếu khoá thì đáng ra hiện canvas rỗng, KHÔNG được làm trắng cả cửa sổ — đã cắn:
+  // sơ đồ máy vẽ thiếu `cards` và `doc.cards.map` ném
+  // `Cannot read properties of undefined`, nuốt luôn cú "Mở sơ đồ" từ cửa sổ RL.
+  const theo_id = new Map((doc.cards ?? []).map(c => [c.id, c]))
+  const nodes: Node[] = (doc.steps ?? []).map((s, i) => ({
     id: s.id,
     type: 'buoc',
     position: { x: s.pos?.[0] ?? 80 + i * 340, y: s.pos?.[1] ?? 120 },
     data: { step: s, card: theo_id.get(s.id) as Card },
   }))
-  const edges: Edge[] = doc.edges.map(e => ({
+  const edges: Edge[] = (doc.edges ?? []).map(e => ({
     id: `${e.from}->${e.to}:${e.port}`,
     source: e.from,
     target: e.to,

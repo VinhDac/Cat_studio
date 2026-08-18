@@ -90,6 +90,20 @@ _THANG_THEO_DON_VI = {"nen": "dem_nen", "lenh": "dem_lenh", "pt_von": "pt_von"}
 #: không bày (bất biến "chỉ bày ra thứ dùng được").
 PHEP_SO_HOC = tuple(k for k in core.PHEP_SO if k not in core.PHEP_KHONG_VE_PHAI)
 
+#: CẶP PHÉP của một nước CHIA — `(vế thuận, vế ngược)`. Hai vế phải **phủ kín**: không
+#: giá trị nào lọt ra ngoài cả hai, không giá trị nào rơi vào cả hai.
+#:
+#: ⭐ Đây là chỗ `chia` khác hẳn `dk`: thêm một điều kiện là VỨT phần không khớp, còn
+#: chia là GIỮ cả hai bên. Nối bốn cổng thì vùng còn lại co bốn lần và số lệnh rụng
+#: theo — chia bốn lần thì tổng số lệnh KHÔNG ĐỔI, chỉ chi tiết hơn. Đo được: 263/400
+#: sơ đồ máy vẽ chỉ có ĐÚNG MỘT đường ở Entry, tức một cái lọc chứ không phải chiến lược.
+#:
+#: ⚠ Cố ý KHÔNG có `==`/`!=`: một vế của phép chia ấy gần như rỗng, tức nó là cái lọc
+#: đội lốt phép chia — đúng thứ đang phải dẹp.
+PHEP_CHIA = ((">", "<="), (">=", "<"))
+#: Vế thuận → vế ngược. Cùng nguồn với `PHEP_CHIA`, không khai bản thứ hai.
+PHEP_NGUOC = dict(PHEP_CHIA)
+
 #: Toán hạng nào có ô `period` — hỏi kho, không khai tay.
 CO_CHU_KY = tuple(t["key"] for t in kho.TOAN_HANG if "period" in (t.get("tham_so") or ()))
 #: Toán hạng nào có ô `tf`.
@@ -147,6 +161,9 @@ def _thang_ten(key):
 #   ("vao_lenh", huong, loai, moc, sl, tp, rui_ro)
 #   ("dem", v)                                    đệm cho khối Vào lệnh vừa thêm
 #   ("sua_lenh", che_do, khoang|None)
+#   ("chia_so",  key, phep, gia_tri, don_vi|None)  CHIA ĐÔI theo một LƯỢNG
+#   ("chia_gia", key, phep, key2)                 chia đôi theo mức giá khác
+#   ("chia_ds",  key)                             chia đôi theo đúng/sai
 #   ("cong_moi",) ("cong_zone",) ("hop_le",) ("mo_nhanh",) ("dong_nhanh",) ("het",)
 
 
@@ -173,6 +190,34 @@ def _kho_dieu_kien():
         dvs = [None] if t.get("loai") == "dem" else (
             [d for d in core.don_vi_cho(k) if d != "gia"] or [None])
         ra += [("dk_so", k, p, g, d) for p in PHEP_SO_HOC for g in thang for d in dvs]
+    return ra
+
+
+def _kho_chia():
+    """Nước CHIA — một phép so **và phủ định của nó**, đẻ ra hai vế cùng một lúc.
+
+    Cùng nguồn với `_kho_dieu_kien`: cùng kho toán hạng, cùng thang số, cùng luật đơn
+    vị. Khác đúng hai chỗ — chỉ lấy MỘT phép mỗi cặp (vế kia suy ra được; bày cả hai là
+    hai cái tên cho một phép chia), và không có `==`."""
+    ra = []
+    gia = [t for t in kho.TOAN_HANG if t.get("loai") == "muc_gia"]
+    for t in kho.TOAN_HANG:
+        k = t["key"]
+        if t.get("loai") == "dung_sai":
+            # Đúng/sai chia sẵn làm đôi rồi — không phải chọn phép, cũng không có ngưỡng.
+            ra.append(("chia_ds", k))
+            continue
+        if t.get("loai") == "muc_gia":
+            ra += [("chia_gia", k, p, u["key"]) for p, _ in PHEP_CHIA
+                   for u in gia if u["key"] != k]
+            continue
+        thang = _thang_cho(t)
+        if not thang:
+            continue
+        dvs = [None] if t.get("loai") == "dem" else (
+            [d for d in core.don_vi_cho(k) if d != "gia"] or [None])
+        ra += [("chia_so", k, p, g, d) for p, _ in PHEP_CHIA for g in thang
+               for d in dvs]
     return ra
 
 
@@ -206,7 +251,7 @@ CAU_TRUC = ("cong_moi", "cong_zone", "hop_le", "mo_nhanh", "dong_nhanh", "het")
 
 KHO_NUOC_DI = tuple(
     [("nhip", tf) for tf in core.TIMEFRAMES]
-    + _kho_dieu_kien() + _kho_bo_nghia() + _kho_hanh_dong()
+    + _kho_dieu_kien() + _kho_chia() + _kho_bo_nghia() + _kho_hanh_dong()
     + [(c,) for c in CAU_TRUC])
 
 #: nước đi → chỉ số. Chiều ngược cần nó, và nó cũng là phép kiểm không có trùng lặp.
@@ -214,6 +259,7 @@ CHI_SO = {n: i for i, n in enumerate(KHO_NUOC_DI)}
 assert len(CHI_SO) == len(KHO_NUOC_DI), "KHO_NUOC_DI có nước đi TRÙNG"
 
 _DK = ("dk_so", "dk_gia", "dk_ds")
+_CHIA = ("chia_so", "chia_gia", "chia_ds")
 
 #: XẾP CHỖ trên canvas. Không phải chuyện thẩm mỹ: §17 đọc toạ độ để biết nhánh nào
 #: được thử trước (`_khoa_nhanh`), nên đây là một phần của NGHĨA sơ đồ. Lấy đúng bước
@@ -247,7 +293,7 @@ class Ban:
     là O(n²) trên thứ sẽ chạy hàng triệu lần."""
 
     __slots__ = ("chuoi", "tab", "so_do", "khoi", "canh", "diem", "ngan_xep",
-                 "cong", "ds", "dk", "hd", "co_zone", "co_nhip", "xong",
+                 "cong", "ds", "dk", "dk_doi", "hd", "co_zone", "co_nhip", "xong",
                  "x", "y", "dem_nhanh", "cuoi", "co_con", "co_hop_le",
                  "zone_o_entry", "hop_le_o_entry")
 
@@ -278,6 +324,12 @@ class Ban:
         self.cong = None                # cổng đang mở, còn nhận thêm điều kiện
         self.ds = "conditions"          # cổng đang mở đang điền danh sách nào
         self.dk = None                  # điều kiện vừa thêm (chỗ bổ nghĩa bám vào)
+        #: VẾ NGƯỢC của phép chia vừa đi — CÙNG MỘT đối tượng với điều kiện nằm trong
+        #: khối đang chờ trên ngăn xếp, nên bổ nghĩa `self.dk` là phải bổ nghĩa cả nó.
+        #: Hai vế chia đôi cùng một toán hạng thì khung giờ và chu kỳ bắt buộc giống
+        #: nhau — lệch một cái là hai vế thôi phủ kín, và cái lọt ra giữa đúng bằng thứ
+        #: phép chia sinh ra để xoá.
+        self.dk_doi = None
         self.hd = None                  # khối Vào lệnh vừa thêm (chỗ `dem` bám vào)
         self.co_nhip = False
         # ⭐ `co_zone` và `co_hop_le` đi theo VỊ TRÍ, không theo cả sơ đồ: chúng được
@@ -317,6 +369,7 @@ class Ban:
 
     def _het_cong(self):
         self.cong, self.ds, self.dk, self.hd = None, "conditions", None, None
+        self.dk_doi = None
 
     # ---- một nước ----
     def di(self, i):
@@ -335,17 +388,22 @@ class Ban:
             if self.cong is None:
                 self.cong = self._gan(core.make_action_step(
                     {"type": core.CHECK_COND, "conditions": []}))
-            self.dk = _dieu_kien(n)
+            # ⚠ `dk_doi` phải theo `dk` như hình với bóng. Để nó sống sót qua một
+            # điều kiện MỚI là bổ nghĩa của điều kiện ấy rơi vào vế ngược của phép chia
+            # trước đó — hai điều kiện chẳng liên quan gì nhau.
+            self.dk, self.dk_doi = _dieu_kien(n), None
             self.cong.setdefault(self.ds, []).append(self.dk)
             if loai == "dk_gia":
                 self.cong["so_dai_luong"] = True
             if self.ds == "dk_hop_le":
                 self.co_hop_le = self.hop_le_o_entry = True
             self.hd = None
-        elif loai in ("tf_trai", "chu_ky_trai"):
-            self.dk["trai"]["tf" if loai == "tf_trai" else "period"] = n[1]
-        elif loai in ("tf_phai", "chu_ky_phai"):
-            self.dk["phai"]["tf" if loai == "tf_phai" else "period"] = n[1]
+        elif loai in ("tf_trai", "chu_ky_trai", "tf_phai", "chu_ky_phai"):
+            ben = "trai" if loai.endswith("_trai") else "phai"
+            khoa = "tf" if loai.startswith("tf") else "period"
+            self.dk[ben][khoa] = n[1]
+            if self.dk_doi is not None:
+                self.dk_doi[ben][khoa] = n[1]
         elif loai == "vao_lenh":
             self._het_cong()
             _, h, l, m, sl, tp, rr = n
@@ -371,17 +429,41 @@ class Ban:
                 {"type": core.CHECK_COND, "conditions": [], "cong_zone": True}))
             self.co_zone = self.zone_o_entry = True
         elif loai == "hop_le":
-            self.ds, self.dk = "dk_hop_le", None
+            self.ds, self.dk, self.dk_doi = "dk_hop_le", None, None
+        elif loai in _CHIA:
+            self._het_cong()
+            ca, cb = _cap_dk(n)
+            co = {"so_dai_luong": True} if loai == "chia_gia" else {}
+            # ⭐ Vế NGƯỢC dựng SẴN nhưng chưa treo lên — `dong_nhanh` mới treo. Nhờ vậy
+            # thứ tự khối trong file đúng bằng lối duyệt sâu, tức `chia` và cặp
+            # `mo_nhanh` viết tay ra CÙNG một sơ đồ, giống tới từng toạ độ.
+            ve_nguoc = core.make_action_step(
+                {"type": core.CHECK_COND, "conditions": [cb], **co})
+            self.ngan_xep.append((self.diem, self.x, self.y, self.cuoi,
+                                  self.co_zone, self.co_hop_le, ve_nguoc))
+            self._gan(core.make_action_step(
+                {"type": core.CHECK_COND, "conditions": [ca], **co}))
+            # ⭐ NIÊM PHONG: `cong = None` nên không nước `dk_*` nào chui thêm vào được.
+            # Thêm một điều kiện vào một vế là hai vế thôi phủ kín, và cái lọt ra giữa
+            # đúng bằng thứ phép chia sinh ra để xoá. Vẫn giữ `dk` để bổ nghĩa bám vào —
+            # khung giờ và chu kỳ vẫn phải điền, và điền MỘT lần cho cả hai vế.
+            self.cong = None
+            self.dk, self.dk_doi = ca, ve_nguoc["conditions"][0]
         elif loai == "mo_nhanh":
             self._het_cong()
             # Nhớ chỗ để quay về, KÈM `co_zone`/`co_hop_le`: chúng đi theo vị trí, nên
-            # nhánh sau không được thừa hưởng cổng zone của nhánh trước.
+            # nhánh sau không được thừa hưởng cổng zone của nhánh trước. Ô cuối là VẾ
+            # NGƯỢC đang chờ — `mo_nhanh` không có vế nào nên `None`.
             self.ngan_xep.append((self.diem, self.x, self.y, self.cuoi,
-                                  self.co_zone, self.co_hop_le))
+                                  self.co_zone, self.co_hop_le, None))
         elif loai == "dong_nhanh":
             self._het_cong()
             (self.diem, self.x, self.y, self.cuoi,
-             self.co_zone, self.co_hop_le) = self.ngan_xep.pop()
+             self.co_zone, self.co_hop_le, ve_nguoc) = self.ngan_xep.pop()
+            if ve_nguoc is not None:
+                # Đóng vế THUẬN là mở ngay VẾ NGƯỢC. Cặp này sinh ra cùng nhau và không
+                # bao giờ đứng một mình — đó là cả nghĩa của phép chia.
+                self._gan(ve_nguoc)
         elif loai == "het":
             self._het_cong()
             if self.tab + 1 < len(core.TABS):
@@ -476,6 +558,22 @@ def _dieu_kien(n):
     return {"trai": _o(k), "phep": p, "phai": phai}
 
 
+def _cap_dk(n):
+    """Nước `chia_*` → `(điều kiện vế THUẬN, điều kiện vế NGƯỢC)`.
+
+    Đi qua đúng `_dieu_kien` như nước `dk_*` — một chỗ dựng điều kiện, không hai."""
+    if n[0] == "chia_ds":
+        return (_dieu_kien(("dk_ds", n[1], "la_dung")),
+                _dieu_kien(("dk_ds", n[1], "la_sai")))
+    if n[0] == "chia_gia":
+        _, k, p, k2 = n
+        return (_dieu_kien(("dk_gia", k, p, k2)),
+                _dieu_kien(("dk_gia", k, PHEP_NGUOC[p], k2)))
+    _, k, p, g, d = n
+    return (_dieu_kien(("dk_so", k, p, g, d)),
+            _dieu_kien(("dk_so", k, PHEP_NGUOC[p], g, d)))
+
+
 # ---------------------------------------------------------------------------
 # MẶT NẠ — §17 nhìn từ phía NGƯỜI BÀY
 # ---------------------------------------------------------------------------
@@ -527,8 +625,14 @@ def the(n):
         return {f"th:{n[1]}", f"{_thang_ten(n[1])}:{n[3]}"}
     if loai == "dk_gia":
         return {f"th:{n[1]}", f"th:{n[3]}"}
-    if loai == "dk_ds":
+    if loai in ("dk_ds", "chia_ds"):
         return {f"th:{n[1]}"}
+    # Chia mang ĐÚNG thẻ của điều kiện nó dựng ra: tắt một toán hạng là tắt cả nước hỏi
+    # nó lẫn nước chia theo nó. Một cơ chế, không hai.
+    if loai == "chia_so":
+        return {f"th:{n[1]}", f"{_thang_ten(n[1])}:{n[3]}"}
+    if loai == "chia_gia":
+        return {f"th:{n[1]}", f"th:{n[3]}"}
     if loai in ("nhip", "tf_trai", "tf_phai"):
         return {f"tf:{n[1]}"}
     if loai in ("chu_ky_trai", "chu_ky_phai"):
@@ -589,14 +693,20 @@ class _BoiCanh:
     __slots__ = ("b", "tab", "trong_nhanh", "nhanh_rong", "dau", "kieu", "da_hoi",
                  "cong_du", "co_vao_lenh", "no", "cuoi_la_cong", "can_dem",
                  "lenh_tren_duong", "het_khoi", "het_cho_cong", "het_dk", "het_nhanh",
-                 "con_sua_duoc")
+                 "con_sua_duoc", "het_cho_chia", "du_nhanh_chia", "chi_luong")
 
     def __init__(self, b, tran):
         self.b = b
         self.tab = core.TABS[b.tab]
         # ---- TRẦN §15.5 — ba phép đếm riêng, không cộng lại ----
+        # ⭐ CHỖ ĐÃ HỨA bị trừ RA KHỎI QUỸ ngay từ đầu. Mỗi phép chia còn treo trên
+        # ngăn xếp nợ hai khối chưa đặt xuống: vế NGƯỢC và một hành động cho nó. Đặt
+        # chỗ theo từng nước (mỗi `chia` tự kiểm "còn 4 chỗ không") thì ba phép chia
+        # lồng nhau cùng tranh MỘT quỹ và đều thấy đủ — đo được 60/60 lượt đi kẹt cứng
+        # ở đúng đấy. Trừ trước thì mọi phép đếm phía dưới tự đúng, khỏi nhớ thêm luật.
+        no_chia = 2 * sum(1 for e in b.ngan_xep if e[6] is not None)
         con = tran["khoi_entry" if self.tab == core.TAB_ENTRY
-                   else "khoi_manage"] - (len(b.khoi) - 1)
+                   else "khoi_manage"] - (len(b.khoi) - 1) - no_chia
         self.het_khoi = con < 1
         # ⭐ CHỪA CHỖ. Một cổng mới bắt buộc kéo theo một HÀNH ĐỘNG phía sau (§17
         # `_lt_cong_cut`), nên đẻ cổng lúc chỉ còn đúng một suất khối là tự đi vào ngõ
@@ -605,6 +715,11 @@ class _BoiCanh:
         self.het_cho_cong = con < 2
         self.het_dk = len((b.cong or {}).get(b.ds) or ()) >= tran["dk_moi_cong"]
         self.het_nhanh = b.dem_nhanh.get(b.diem, 0) >= tran["nhanh_moi_re"]
+        # ⭐ Một phép CHIA tốn BỐN suất khối: hai cổng + một hành động mỗi vế. Cùng cái
+        # bẫy `het_cho_cong` đã cắn một lần — chừa thiếu là đi thẳng vào ngõ cụt: vế
+        # ngược đứng đó, không đóng được, không `het` được, mặt nạ tắt sạch.
+        self.het_cho_chia = con < 4
+        self.du_nhanh_chia = b.dem_nhanh.get(b.diem, 0) + 2 <= tran["nhanh_moi_re"]
         # Cùng lý lẽ, ngõ cụt thứ hai: ở Manage một nhánh chỉ đóng được bằng khối Sửa
         # lệnh, mà §17.2 cấm hai khối ghi đè nhau — đường nào đã dùng hết các chế độ
         # thì cổng mới trên đó vĩnh viễn không có gì để nối tiếp.
@@ -618,6 +733,16 @@ class _BoiCanh:
         # Một cổng KHÔNG trộn hai kiểu so sánh: `so_dai_luong` là cờ của cả KHỐI.
         self.kieu = None if not ds else (
             "gia" if b.cong.get("so_dai_luong") else "so")
+        # ⭐ Danh sách HỢP LỆ thì LUÔN so với một LƯỢNG — `normalize_action` ép thế và
+        # nói rõ vì sao: cờ *"so hai đại lượng"* là của phần ĐẾM, để nó lan sang đây là
+        # âm thầm viết lại vế phải của định nghĩa hợp lệ.
+        #
+        # ⚠ Người bày phải nói ĐÚNG CÂU ẤY. Không nói thì `cong_zone → dk_ds → hop_le →
+        # dk_gia` đi lọt sạch mặt nạ, rồi `dk_gia` bật cờ và cờ ấy ép điều kiện ĐÚNG/SAI
+        # bên `conditions` thành *"so với một đại lượng"* — sơ đồ ra lò với một vế phải
+        # rỗng và người soát mắng. Lỗi này CÓ TRƯỚC nước `chia`; chia chỉ đổi xác suất
+        # bốc nên nó mới lộ ra.
+        self.chi_luong = b.ds == "dk_hop_le"
         self.da_hoi = {c["trai"]["ten"] for c in ds}
         # Cổng RỖNG luôn khớp (§6.0) — chưa có điều kiện thì chưa được đi tiếp.
         self.cong_du = b.cong is None or bool(b.cong.get(b.ds))
@@ -689,6 +814,8 @@ def _duoc(n, c):
             return False
         if k in c.da_hoi:
             return False               # hỏi hai lần cùng một thứ trong một cổng
+        if loai == "dk_gia" and c.chi_luong:
+            return False
         if c.kieu is not None and c.kieu != ("gia" if loai == "dk_gia" else "so"):
             return False
         if loai == "dk_gia":
@@ -697,6 +824,40 @@ def _duoc(n, c):
         # như dùng thẳng toán hạng zone — dễ quên vì cái zone nấp trong ĐƠN VỊ, không
         # nằm ở tên toán hạng.
         if loai == "dk_so" and n[4] == "atr_zone" and not b.co_zone:
+            return False
+        return True
+
+    if loai in _CHIA:
+        # Luật TOÁN HẠNG y hệt `dk_*` — cùng kho, cùng luật zone, cùng luật tab. Khác ở
+        # luật CHỖ: chia đẻ ra hai cổng và hai nhánh cùng lúc, nên nó là một nước CẤU
+        # TRÚC chứ không phải một nước điền vào cổng đang mở.
+        if c.het_cho_chia or not c.con_sua_duoc or not c.du_nhanh_chia:
+            return False
+        # §5 mỗi nhánh mở đầu bằng CỔNG: hai vế đều là cổng nên chia MỞ ĐẦU được một
+        # nhánh — nhưng không chia ngay trên một nhánh còn rỗng (nhánh ấy sẽ không có
+        # đầu của riêng nó), và cổng đang mở phải đủ điều kiện trước khi bị đóng lại.
+        if c.nhanh_rong or not c.cong_du:
+            return False
+        # ⭐ KHÔNG chia ngay dưới khối Bắt đầu — và đây là luật quan trọng nhất của nước
+        # này. Hai vế của một phép chia PHỦ KÍN, nên luôn có đúng một vế khớp: một cái
+        # cây toàn phép chia thì nến nào cũng rơi xuống một hành động, tức máy nã lệnh
+        # chứ không phải chiến lược. Phải có ít nhất một CÁI LỌC ở trên để sơ đồ còn
+        # được quyền KHÔNG LÀM GÌ — và chỗ rẻ nhất bảo đảm điều đó là ngay tại gốc.
+        #
+        # Đo được ngay khi thiếu luật này: 146/400 sơ đồ có đường tới hành động không
+        # qua một cái lọc nào. `mo_nhanh` cấm `dau` sẵn, nên đây cũng là chỗ nhất quán.
+        if c.dau:
+            return False
+        k = n[1]
+        if c.tab not in _TAB_CUA[k] or (k in kho.CAN_ZONE and not b.co_zone):
+            return False
+        # Hai vế nằm trên cổng MỚI, dưới cổng hiện tại — nên không có vòng tròn như khi
+        # chính cổng zone tự hỏi `zone_hop_le`. Chỉ cần phần HỢP LỆ đã được khai.
+        if k == "zone_hop_le" and not b.co_hop_le:
+            return False
+        if loai == "chia_gia":
+            return not (n[3] in kho.CAN_ZONE and not b.co_zone)
+        if loai == "chia_so" and n[4] == "atr_zone" and not b.co_zone:
             return False
         return True
 
@@ -768,6 +929,9 @@ def _duoc(n, c):
     # không có gì phía sau" — chiến lược dừng ngay tại đó, tức cái cổng vừa hỏi xong
     # một câu rồi không làm gì với câu trả lời.
     if loai == "dong_nhanh":
+        # ⚠ Đóng vế THUẬN của một phép chia là ĐẺ NGAY vế ngược + một hành động cho nó.
+        # KHÔNG phải kiểm chỗ ở đây: hai khối ấy đã bị trừ khỏi quỹ từ lúc `chia`, nên
+        # đóng nhánh chỉ TRẢ LẠI chỗ, không bao giờ tiêu thêm.
         return (c.trong_nhanh and not c.nhanh_rong and c.cong_du
                 and not c.cuoi_la_cong)
     if loai == "het":
@@ -841,6 +1005,7 @@ def doc_nguoc(doc, lam_tron=False):
         if bd.get("nhip") != core.NHIP_MAC_DINH[tab]:
             d.them(("nhip", bd.get("nhip")), f"nhịp của sơ đồ {tab}")
         con = {}
+        d.cong_mo = False
         for e in so["edges"]:
             con.setdefault(e["from"], []).append(e["to"])
         # ⚠ Sơ đồ RỖNG là hợp lệ ở Manage — "không quản lý gì cả" là một lựa chọn
@@ -861,6 +1026,13 @@ class _Doc:
 
     def __init__(self, gt, lam_tron):
         self.ra, self.tron, self.gt, self.lam_tron = [], [], gt, lam_tron
+        #: Có CỔNG đang mở không — tức nước điều kiện tiếp theo có phải đóng cổng cũ
+        #: trước không. Trước đây suy từ *"nước vừa rồi có phải `mo_nhanh`"*, mà đó chỉ
+        #: là một trong bốn đường làm cổng đóng lại (còn `dong_nhanh`, `chia_*`, và
+        #: chính khối hành động). Suy sai thì chuỗi mang một nước `cong_moi` mà mặt nạ
+        #: không cho đi — dựng lại vẫn ra đúng sơ đồ, nhưng chuỗi thôi là thứ đem so
+        #: được, và §18.7.2 sống bằng chuỗi.
+        self.cong_mo = False
 
     # ---- đồ thị ----
     def duyet(self, theo_id, con, sid):
@@ -872,17 +1044,78 @@ class _Doc:
             # Duyệt theo ĐÚNG thứ tự bộ chạy sẽ thử nhánh (`core._khoa_nhanh` — trên
             # xuống dưới, trái sang phải), không theo thứ tự cạnh nằm trong file. Sai
             # thứ tự ở đây là chuỗi dựng lại một sơ đồ chạy KHÁC.
-            for k in sorted(ke, key=lambda i: core._khoa_nhanh(theo_id[i])):
+            thu_tu = sorted(ke, key=lambda i: core._khoa_nhanh(theo_id[i]))
+            # ⭐ PHÉP CHIA đọc thành MỘT nước, không thành hai `mo_nhanh`. Hai lối viết
+            # ra cùng một sơ đồ, nên phải chọn lấy một làm chính tắc — không thì một sơ
+            # đồ có hai chuỗi, và "chuỗi là thứ đem đi so, đem đi lưu" mất nghĩa.
+            n = self.la_chia(theo_id, thu_tu)
+            if n is not None:
+                self.them(n, "phép chia")
+                self.cong_mo = False
+                # Bổ nghĩa điền MỘT lần cho cả hai vế — `Ban.dk_doi` chép sang vế kia.
+                self.bo_nghia(theo_id[thu_tu[0]]["conditions"][0], "phép chia")
+                self.duyet(theo_id, con, thu_tu[0])
+                self.ra.append(CHI_SO[("dong_nhanh",)])
+                self.cong_mo = False
+                # KHÔNG duyệt lại vế ngược như một khối: `dong_nhanh` vừa đẻ ra nó.
+                self.duyet(theo_id, con, thu_tu[1])
+                return
+            for k in thu_tu:
                 self.ra.append(CHI_SO[("mo_nhanh",)])
+                self.cong_mo = False
                 self.khoi(theo_id[k])
                 self.duyet(theo_id, con, k)
                 self.ra.append(CHI_SO[("dong_nhanh",)])
+                self.cong_mo = False
+
+    def la_chia(self, theo_id, ke):
+        """Ngã rẽ này có phải một PHÉP CHIA không → nước `chia_*`, hoặc `None`.
+
+        ⚠ CHẶT TAY có chủ ý — chỉ nhận đúng thứ `chia` đẻ ra: hai vế, mỗi vế một cổng
+        trần với ĐÚNG MỘT điều kiện, cùng toán hạng, cùng lượng, phép so là một cặp
+        trong `PHEP_CHIA` và vế thuận nằm TRÊN. Nhận rộng hơn là đọc một ngã rẽ bình
+        thường thành phép chia — rồi dựng xuôi lại ra một sơ đồ khác. Không nhận được
+        thì rơi về lối `mo_nhanh`, vẫn đúng, chỉ dài hơn."""
+        if len(ke) != 2:
+            return None
+        sa, sb = theo_id[ke[0]], theo_id[ke[1]]
+        for x in (sa, sb):
+            if (x.get("type") != core.CHECK_COND or x.get("cong_zone")
+                    or x.get("dk_hop_le") or len(x.get("conditions") or ()) != 1):
+                return None
+        if bool(sa.get("so_dai_luong")) != bool(sb.get("so_dai_luong")):
+            return None
+        ca, cb = sa["conditions"][0], sb["conditions"][0]
+        if ca.get("trai") != cb.get("trai"):
+            return None
+        pa, pb = ca.get("phep"), cb.get("phep")
+        ten = (ca.get("trai") or {}).get("ten")
+        if pa in core.PHEP_KHONG_VE_PHAI:
+            n = ("chia_ds", ten) if (pa, pb) == ("la_dung", "la_sai") else None
+        elif (pa, pb) not in PHEP_CHIA or ca.get("phai") != cb.get("phai"):
+            n = None
+        elif sa.get("so_dai_luong"):
+            n = ("chia_gia", ten, pa, (ca.get("phai") or {}).get("ten"))
+        else:
+            # ⚠ `nac` có thể LÀM TRÒN và ghi vào sổ `tron`. Ở đây nó mới chỉ đang DÒ
+            # xem có phải phép chia không, nên dò hụt là phải xoá dấu vết — không thì
+            # sổ làm tròn có một dòng cho thứ chưa hề đọc.
+            moc = len(self.tron)
+            try:
+                g = self.nac(ca.get("phai") or {}, _thang_ten(ten), "phép chia")
+            except KhongDocDuoc:
+                return None
+            n = ("chia_so", ten, pa, g, (ca.get("phai") or {}).get("tinh"))
+            if n not in CHI_SO:
+                del self.tron[moc:]
+        return n if n is not None and n in CHI_SO else None
 
     def khoi(self, s):
         t, ten = s.get("type"), core.step_title(s)
         if t == core.CHECK_COND:
-            if self.ra and KHO_NUOC_DI[self.ra[-1]][0] != "mo_nhanh":
+            if self.cong_mo:
                 self.ra.append(CHI_SO[("cong_moi",)])
+            self.cong_mo = True
             if s.get("cong_zone"):
                 self.ra.append(CHI_SO[("cong_zone",)])
             if not s.get("conditions"):
@@ -892,8 +1125,11 @@ class _Doc:
             if s.get("dk_hop_le"):
                 self.ra.append(CHI_SO[("hop_le",)])
                 for c in s["dk_hop_le"]:
+                    # `so_dai_luong=False`: danh sách HỢP LỆ luôn ở chế độ LƯỢNG, khớp
+                    # đúng `normalize_action`. Mặt nạ canh cùng câu ấy (`chi_luong`).
                     self.dieu_kien(c, dict(s, so_dai_luong=False), ten)
         elif t == core.VAO_LENH:
+            self.cong_mo = False
             self.them(("vao_lenh", s.get("huong"), s.get("loai"),
                        (s.get("entry") or {}).get("moc"),
                        self.nac(s.get("sl"), "sl", ten), self.nac(s.get("tp"), "tp", ten),
@@ -902,6 +1138,7 @@ class _Doc:
                 self.them(("dem", self.nac(s["dem"], "dem_vao", ten)),
                           f"đệm của “{ten}”")
         elif t == core.SUA_LENH:
+            self.cong_mo = False
             cd = s.get("che_do")
             self.them(("sua_lenh", cd,
                        self.nac(s.get("khoang"), "sl", ten)
@@ -922,7 +1159,14 @@ class _Doc:
             self.them(("dk_so", tr["ten"], phep,
                        self.nac(p, _thang_ten(tr["ten"]), ten), p.get("tinh")),
                       f"điều kiện ở “{ten}”")
-        for ben, o in (("trai", tr), ("phai", c.get("phai"))):
+        self.bo_nghia(c, ten)
+
+    def bo_nghia(self, c, ten):
+        """Khung giờ / chu kỳ của một điều kiện — phần bám SAU nước dựng ra nó.
+
+        Tách riêng vì phép CHIA cũng cần nó: nước `chia_*` dựng luôn hai điều kiện, còn
+        khung giờ và chu kỳ vẫn đi sau, và đi ĐÚNG MỘT lần cho cả hai vế."""
+        for ben, o in (("trai", c.get("trai")), ("phai", c.get("phai"))):
             if not isinstance(o, dict) or not o.get("ten"):
                 continue
             if o.get("tf"):

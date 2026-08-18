@@ -314,7 +314,7 @@ export const pyRL = {
   rl_danh_sach: () => goi<{ ds: TrangThaiLuot[] }>('rl_danh_sach'),
   /** Đẩy sơ đồ hạng `hang` sang CỬA SỔ VẼ. Nó là file chiến lược bình thường (§18.6.5). */
   rl_mo_so_do: (ma: string, hang: number) =>
-    goi<{ ten: string }>('rl_mo_so_do', ma, hang),
+    goi<{ ten: string; len_truoc: boolean }>('rl_mo_so_do', ma, hang),
 
   cua_so_thu_nho: () => goi<null>('cua_so_thu_nho'),
   cua_so_phong_to: () => goi<boolean>('cua_so_phong_to'),

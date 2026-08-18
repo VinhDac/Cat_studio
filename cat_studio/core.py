@@ -2751,7 +2751,15 @@ def _chuan_so_do(g, nhip="M5"):
     ensure_step_ids(steps)
     edges = (g or {}).get("edges")
     edges = default_edges(steps) if edges is None else clean_edges(edges, steps)
-    return {"steps": steps, "edges": edges}
+    # ⚠ `cards` PHẢI CÓ, dù rỗng. Nó là dữ liệu của canvas (thẻ ghi chú cạnh khối), nên
+    # Python không sinh ra nó — trước đây chỉ file ĐÃ LƯU mới có, vì giao diện ghi
+    # `cards: []` vào lúc lưu.
+    #
+    # Hậu quả đã cắn thật: sơ đồ MÁY VẼ và sơ đồ MẪU không đi qua chỗ lưu ấy, nên chúng
+    # thiếu khoá này; `App.tsx` đọc `doc.cards.map(...)` và nổ
+    # `Cannot read properties of undefined` — cửa sổ vẽ trắng bóc, còn cửa sổ RL thì
+    # trông như bấm hụt. Bảo đảm hình dạng ở ĐÂY, chỗ mọi tài liệu đều đi qua.
+    return {"steps": steps, "edges": edges, "cards": list((g or {}).get("cards") or [])}
 
 
 #: TÊN CŨ → TÊN MỚI, cho file đã lưu trước lần đổi "vùng nén" thành "zone".

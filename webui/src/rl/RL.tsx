@@ -254,8 +254,16 @@ export default function RL() {
 
   const moSoDo = useCallback(async (hang: number) => {
     if (!ma) return
+    setLoi('')
     const r = await pyRL.rl_mo_so_do(ma, hang)
-    if (!r.ok) setLoi(r.error || 'Không mở được sơ đồ.')
+    if (!r.ok) return setLoi(r.error || 'Không mở được sơ đồ.')
+    // ⚠ Sơ đồ ĐÃ sang cửa sổ vẽ, nhưng Windows không cho kéo cửa sổ ấy lên trước.
+    // Không nói ra thì màn hình RL không đổi gì và cú bấm trông y như rơi vào hư không
+    // — mà thật ra việc đã xong, chỉ là cửa sổ nằm dưới.
+    if (r.value && !r.value.len_truoc) {
+      setLoi(`Đã đẩy "${r.value.ten}" sang cửa sổ vẽ — nhưng Windows không cho kéo cửa `
+             + 'sổ ấy lên trước. Bấm vào nó trên thanh tác vụ.')
+    }
   }, [ma])
 
   if (loi && !boot) return <div className="rl-loi-to">{loi}</div>

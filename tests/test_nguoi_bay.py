@@ -80,6 +80,58 @@ kiem("lệnh thị trường chỉ có MỘT mốc neo (không đẻ nước đi
      _mkt == {"close"}, f"— {sorted(_mkt)}")
 
 
+
+def _hop_le_ca_chuoi(chuoi):
+    """Đi lại chuỗi từ đầu, mỗi nước phải được MẶT NẠ cho phép.
+
+    ⚠ `dung()` không kiểm gì cả, nên một chuỗi dựng đúng sơ đồ VẪN có thể chứa nước đi
+    máy không bao giờ đi được. Chuỗi như thế là thứ không đem đi so được."""
+    b = nb.Ban()
+    for i in chuoi:
+        if not nb.mat_na(b)[i]:
+            return False
+        b.di(i)
+    return True
+
+
+def _co_duong_khong_loc(d):
+    """Có đường nào từ Bắt đầu tới một HÀNH ĐỘNG mà không qua cổng LỌC nào không?
+
+    Cổng nằm trong một CẶP CHIA không lọc được gì — hai vế phủ kín nên luôn có đúng một
+    vế khớp. Chỉ cổng đứng một mình mới cho sơ đồ quyền KHÔNG LÀM GÌ."""
+    g = d[core.TAB_ENTRY]
+    st = {s["id"]: s for s in g["steps"]}
+    con = {}
+    for e in g["edges"]:
+        con.setdefault(e["from"], []).append(e["to"])
+    cap = set()
+    for ke in con.values():
+        if len(ke) != 2:
+            continue
+        sa, sb = st.get(ke[0]) or {}, st.get(ke[1]) or {}
+        if len(sa.get("conditions") or ()) != 1 or len(sb.get("conditions") or ()) != 1:
+            continue
+        ca, cb = sa["conditions"][0], sb["conditions"][0]
+        if ca.get("trai") != cb.get("trai") or ca.get("phai") != cb.get("phai"):
+            continue
+        pa, pb = ca.get("phep"), cb.get("phep")
+        if nb.PHEP_NGUOC.get(pa) == pb or {pa, pb} == {"la_dung", "la_sai"}:
+            cap |= {ke[0], ke[1]}
+    xau = []
+
+    def di(i, loc):
+        s = st.get(i) or {}
+        if s.get("type") == core.CHECK_COND and i not in cap:
+            loc = True
+        if s.get("type") in (core.VAO_LENH, core.SUA_LENH) and not loc:
+            xau.append(i)
+        for j in con.get(i, ()):
+            di(j, loc)
+
+    di(next(s["id"] for s in g["steps"] if core.is_start_step(s)), False)
+    return bool(xau)
+
+
 # ================= 2. HAI CHIỀU KHỚP NHAU =================
 print("\n▸ Hai chiều — đọc ngược sơ đồ mẫu rồi dựng xuôi lại")
 
@@ -156,7 +208,7 @@ print("\n▸ Sinh ngẫu nhiên — người bày và người soát phải nói
 DK_MOI_CONG = 3
 
 
-def sinh(rng, toi_da=200):
+def sinh_that(rng, toi_da=200):
     """Đi bừa trong mặt nạ cho tới khi xong. Trả `(tài liệu, chuỗi)`."""
     b = nb.Ban()
     for _ in range(toi_da):
@@ -188,7 +240,7 @@ def sinh(rng, toi_da=200):
 _rng = random.Random(20260817)
 _ds, _ket = [], 0
 for _ in range(60):
-    _d, _c = sinh(_rng)
+    _d, _c = sinh_that(_rng)
     if _d is None:
         _ket += 1
         continue
@@ -418,6 +470,145 @@ kiem("tắt nhiều thẻ vẫn đi tới đích được (CHỌN không đượ
      _b3.xong and not _ket, f"— {len(_b3.chuoi)} nước, kẹt={_ket}")
 kiem("và sơ đồ ra lò vẫn qua soát tĩnh",
      _b3.xong and not core.validate_process(_b3.tai_lieu()))
+
+# ================= 6. PHÉP CHIA =================
+print("\n▸ Phép chia — GIỮ cả hai bên, không vứt bên nào")
+
+# ⭐ VÌ SAO MỤC NÀY PHẢI CÓ. Nối thêm một cổng là VỨT phần không khớp: vùng còn lại co
+# lại, số lệnh rụng theo, và điểm của một sơ đồ ít lệnh là may rủi. Máy chỉ có nước
+# "thêm điều kiện" nên nó chỉ viết được CÁI LỌC — đo được 263/400 sơ đồ chỉ có ĐÚNG MỘT
+# đường ở Entry, và `nếu A … ngược lại …` tự mọc ra đúng 6/600 lần. Nước `chia` là chỗ
+# sửa đúng cái đó, nên mấy bất biến dưới đây là thứ giữ cho nó không trượt về cũ.
+
+_CHIA_MAU = ("chia_gia", "high", ">", "low")
+kiem("nước chia có trong kho", _CHIA_MAU in nb.CHI_SO)
+
+# Mỗi phép chia chỉ có MỘT tên. Bày cả `>` lẫn `<=` cho cùng một chỗ cắt là hai nước đi
+# ra cùng một sơ đồ — đúng thứ `_kho_hanh_dong` đã dẹp một lần ở mốc neo lệnh thị trường.
+_phep_chia = {n[2] for n in nb.KHO_NUOC_DI if n[0] == "chia_gia"}
+kiem("mỗi chỗ cắt chỉ có MỘT nước (không hai tên cho một phép chia)",
+     _phep_chia == {p for p, _ in nb.PHEP_CHIA}, f"— {sorted(_phep_chia)}")
+kiem("⚠ không có `==` — một vế của phép chia ấy gần như rỗng, tức cái lọc đội lốt",
+     not [n for n in nb.KHO_NUOC_DI if n[0] in nb._CHIA and "==" in n])
+
+# ---- đi một nước chia rồi soi cái bàn ----
+_bc = nb.Ban()
+for _n in [("dk_so", "atr", ">", 0.5, "atr_nen"), ("tf_trai", "M5"),
+           ("chu_ky_trai", 14), _CHIA_MAU]:
+    _bc.di(nb.CHI_SO[_n])
+
+kiem("chia xong: vế THUẬN đã treo lên, vế NGƯỢC nằm chờ trên ngăn xếp",
+     len(_bc.ngan_xep) == 1 and _bc.ngan_xep[-1][6] is not None)
+kiem("⭐ NIÊM PHONG — không cổng nào đang mở, nên không nhét thêm điều kiện vào được",
+     _bc.cong is None)
+_mn = nb.mat_na(_bc)
+kiem("và mặt nạ nói đúng câu ấy: mọi nước `dk_*` đều TẮT",
+     not [i for i, x in enumerate(_mn)
+          if x and nb.KHO_NUOC_DI[i][0] in nb._DK and nb.KHO_NUOC_DI[i][0] != "chia"],
+     "" if not [i for i, x in enumerate(_mn) if x and nb.KHO_NUOC_DI[i][0] in nb._DK]
+     else f"— còn bật {[nb.KHO_NUOC_DI[i] for i, x in enumerate(_mn) if x and nb.KHO_NUOC_DI[i][0] in nb._DK][:2]}")
+
+# Bổ nghĩa điền MỘT lần, phải sang CẢ HAI vế — lệch một cái là hai vế thôi phủ kín.
+_bc.di(nb.CHI_SO[("tf_trai", "H1")])
+_bc.di(nb.CHI_SO[("tf_phai", "H1")])
+_ve_a = _bc.khoi[-1]["conditions"][0]
+_ve_b = _bc.ngan_xep[-1][6]["conditions"][0]
+kiem("⭐ bổ nghĩa điền MỘT lần mà sang CẢ HAI vế",
+     _ve_a["trai"] == _ve_b["trai"] and _ve_a["phai"] == _ve_b["phai"],
+     f"— {_ve_a['trai']} vs {_ve_b['trai']}")
+kiem("hai vế là PHỦ ĐỊNH của nhau",
+     nb.PHEP_NGUOC.get(_ve_a["phep"]) == _ve_b["phep"],
+     f"— {_ve_a['phep']} ↔ {_ve_b['phep']}")
+
+# ---- đóng vế thuận thì vế ngược mọc ra ----
+_bc.di(nb.CHI_SO[("vao_lenh", "mua", "market", "close", 1.5, 2.0, 0.5)])
+_truoc_khoi = len(_bc.khoi)
+_bc.di(nb.CHI_SO[("dong_nhanh",)])
+kiem("đóng vế THUẬN là VẾ NGƯỢC mọc ra ngay (cặp này không đứng một mình)",
+     len(_bc.khoi) == _truoc_khoi + 1
+     and _bc.khoi[-1]["conditions"][0]["phep"] == _ve_b["phep"])
+
+_cha = [e["from"] for e in _bc.canh if e["to"] == _bc.khoi[-1]["id"]]
+_cha_a = [e["from"] for e in _bc.canh if e["to"] == _ve_a and False] or None
+kiem("hai vế cùng MỘT cha — đúng một ngã rẽ, không phải hai chỗ rẽ",
+     len(_cha) == 1 and sum(1 for e in _bc.canh if e["from"] == _cha[0]) == 2)
+
+_hai = [s for s in _bc.khoi if s["id"] in
+        {e["to"] for e in _bc.canh if e["from"] == _cha[0]}]
+kiem("và LỆCH NHAU theo trục dọc (§17 đọc toạ độ để biết thử nhánh nào trước)",
+     _hai[0]["pos"][1] != _hai[1]["pos"][1],
+     f"— y = {_hai[0]['pos'][1]} và {_hai[1]['pos'][1]}")
+kiem("⭐ bộ chạy đọc ngã rẽ này là HOẶC (chọn MỘT), không phải VÀ (làm hết)",
+     not core.la_nga_re_va(_hai))
+
+_bc.di(nb.CHI_SO[("vao_lenh", "ban", "market", "close", 1.5, 2.0, 0.5)])
+_bc.di(nb.CHI_SO[("het",)])
+_bc.di(nb.CHI_SO[("het",)])
+kiem("sơ đồ có phép chia QUA soát tĩnh, 0 lỗi 0 cảnh báo",
+     _bc.xong and not core.validate_process(_bc.tai_lieu()),
+     f"— {[x['message'][:60] for x in core.validate_process(_bc.tai_lieu())][:2]}")
+
+# ---- chiều ngược: một sơ đồ ↔ một chuỗi ----
+_c_nguoc, _ = nb.doc_nguoc(_bc.tai_lieu())
+kiem("⭐ đọc ngược ra nước CHIA, không phải hai `mo_nhanh` (một sơ đồ, một chuỗi)",
+     _CHIA_MAU in [nb.KHO_NUOC_DI[i] for i in _c_nguoc]
+     and nb.CHI_SO[("mo_nhanh",)] not in _c_nguoc,
+     f"— {[nb.KHO_NUOC_DI[i][0] for i in _c_nguoc]}")
+kiem("và chuỗi ấy dựng lại ĐÚNG sơ đồ vừa đọc",
+     hinh(nb.dung(_c_nguoc)) == hinh(_bc.tai_lieu()))
+kiem("mọi nước trong chuỗi đọc ngược đều HỢP LỆ với mặt nạ", _hop_le_ca_chuoi(_c_nguoc))
+
+# ---- luật QUAN TRỌNG NHẤT: phải còn được quyền KHÔNG LÀM GÌ ----
+# Hai vế phủ kín nên LUÔN có đúng một vế khớp. Một cái cây toàn phép chia thì nến nào
+# cũng rơi xuống một hành động — đó là máy nã lệnh, không phải chiến lược. Đo được khi
+# thiếu luật này: 146/400 sơ đồ có đường tới hành động không qua một cái lọc nào.
+kiem("KHÔNG chia ngay dưới khối Bắt đầu (phải có một cái LỌC ở trên)",
+     not nb.mat_na(nb.Ban())[nb.CHI_SO[_CHIA_MAU]])
+
+_rng6 = random.Random(7)
+_na = 0
+_la1 = 0
+for _ in range(120):
+    _d, _ = sinh_that(_rng6)
+    if _d is None:
+        continue
+    if _co_duong_khong_loc(_d):
+        _na += 1
+    _g = _d[core.TAB_ENTRY]
+    _co = {e["from"] for e in _g["edges"]}
+    _la1 += sum(1 for s in _g["steps"] if s["id"] not in _co) == 1
+kiem("⭐ MỌI đường tới hành động đều qua ít nhất một cái LỌC", not _na,
+     f"— {_na}/120 sơ đồ nã lệnh")
+kiem("⭐ và Entry thôi là một sợi dây — trước khi có phép chia là 65,8% một lá",
+     _la1 < 12, f"— {_la1}/120 sơ đồ chỉ có một lá")
+
+# ---- ngõ cụt: chia LỒNG NHAU vẫn đi tới đích ----
+# Mỗi phép chia đang treo NỢ hai khối chưa đặt xuống. Đặt chỗ theo từng nước thì ba
+# phép chia lồng nhau cùng tranh MỘT quỹ và đều thấy đủ — đo được 60/60 lượt đi kẹt.
+_rng7 = random.Random(99)
+_ket7 = _sau7 = 0
+for _ in range(80):
+    _d7, _c7 = sinh_that(_rng7)
+    if _d7 is None:
+        _ket7 += 1
+        continue
+    _sau7 = max(_sau7, sum(1 for i in _c7 if nb.KHO_NUOC_DI[i][0] in nb._CHIA))
+kiem("chia LỒNG NHAU không đẻ ra ngõ cụt", not _ket7,
+     f"— {_ket7}/80 kẹt · sâu nhất {_sau7} phép chia trong một sơ đồ")
+
+# ---- luật `dk_hop_le` (tìm ra lúc làm phép chia) ----
+# `normalize_action` ép danh sách HỢP LỆ luôn so với một LƯỢNG, và nói rõ vì sao. Người
+# bày phải nói cùng câu — không thì `cong_zone → dk_ds → hop_le → dk_gia` đi lọt sạch
+# mặt nạ rồi bị người soát mắng. Lỗi này CÓ TRƯỚC phép chia.
+_bh = nb.Ban()
+for _n in [("cong_zone",), ("dk_ds", "zone_da_sinh_lenh", "la_dung"), ("hop_le",)]:
+    _bh.di(nb.CHI_SO[_n])
+_mnh = nb.mat_na(_bh)
+kiem("⚠ danh sách HỢP LỆ không nhận `dk_gia` (nó luôn so với một LƯỢNG)",
+     not [i for i, x in enumerate(_mnh) if x and nb.KHO_NUOC_DI[i][0] == "dk_gia"])
+kiem("nhưng vẫn nhận phép đếm bình thường",
+     any(x for i, x in enumerate(_mnh) if nb.KHO_NUOC_DI[i][0] == "dk_so"))
+
 
 print(f"\n{'=' * 68}")
 print(f"  {dung}/{dung + sai} kiểm qua" if not sai else f"  ✘ {sai} bài HỎNG")

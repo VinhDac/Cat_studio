@@ -34,7 +34,17 @@ const SIDES: [string, Position][] = [
 ]
 
 export default function StepNode({ data, selected }: NodeProps) {
-  const card = (data as { card: Card }).card
+  const card = (data as { card?: Card }).card
+  // ⚠ Thiếu THẺ thì hiện một hộp nói ra, KHÔNG được ném. Một khối hỏng đáng ra chỉ làm
+  // hỏng một khối; ném ở đây là React gỡ cả cây và cửa sổ vẽ trắng bóc — mà cái trắng
+  // ấy nuốt luôn mọi dấu vết. Đã cắn: sơ đồ máy vẽ đẩy sang mà thiếu `cards`.
+  if (!card) {
+    return (
+      <div className="buoc buoc-hong" title="Khối này thiếu thẻ hiển thị">
+        <b>khối thiếu thẻ</b><span>{(data as { step?: { id?: string } }).step?.id}</span>
+      </div>
+    )
+  }
   const thuTu = (data as { thuTu?: string }).thuTu
   /* SOI một lượt đã chạy: khối này có nằm trên đường đi không, và nếu là cổng thì
      trượt ở điều kiện nào. `moSoi` = đang soi nhưng khối này không dính gì. */

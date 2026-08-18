@@ -2383,3 +2383,12 @@ select.o { cursor: pointer; }
 .vs-thanh { width: 100%; background: var(--warn); opacity: .7; border-radius: 2px 2px 0 0; }
 /* Thùng ĐẦU = suýt qua → tô xanh: đó là đám nới một tí là lọt. */
 .vs-o:first-child .vs-thanh { background: var(--ok); opacity: .85; }
+
+/* Khối THIẾU THẺ — hiện một hộp nói ra, không làm trắng cả cửa sổ. Xem `StepNode`. */
+.buoc-hong {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  border: 1px dashed var(--warn); border-radius: var(--radius); color: var(--warn);
+  font-size: 12px; min-width: 160px;
+}
+.buoc-hong span { font-size: 10px; opacity: .8; }

@@ -321,16 +321,21 @@ class NenCuaSo:
         return False
 
     def _ban(self, ten, du_lieu):
-        """Đẩy sự kiện sang JS của CHÍNH cửa sổ này. Nuốt lỗi: cửa sổ có thể đã đóng
-        giữa chừng."""
+        """Đẩy sự kiện sang JS của CHÍNH cửa sổ này. Trả câu lỗi, hoặc `None` nếu xong.
+
+        ⚠ **KHÔNG nuốt lỗi nữa.** Bản cũ `except: pass` và `return` lặng khi chưa có
+        cửa sổ — nên một cú đẩy hụt biến mất không dấu vết, và người dùng chỉ thấy
+        *"bấm mà không có gì xảy ra"*. Đúng loại hỏng lặng cả app này cấm: nơi gọi phải
+        NÓI RA được, còn quyết định làm gì với câu lỗi là việc của nó."""
         if not self._window:
-            return
+            return "cửa sổ vẽ chưa sẵn sàng (chưa dựng xong hoặc đã đóng)"
         try:
             self._window.evaluate_js(
                 f"window.__su_kien && window.__su_kien("
                 f"{json.dumps(ten)}, {json.dumps(du_lieu, ensure_ascii=False)})")
-        except Exception:
-            pass
+        except Exception as e:                    # noqa: BLE001 — xem docstring
+            return f"{type(e).__name__}: {e}"[:200]
+        return None
 
     # ------------------------------------------------------- khung cửa sổ
     # Xem `khung_cua_so.py`: kéo/giãn PHẢI do web khởi động, vì WebView2 là cửa sổ con
@@ -731,9 +736,21 @@ class Api(NenCuaSo):
         vẫn dùng, rồi kéo cửa sổ lên.
 
         Bắn TRƯỚC rồi mới kéo: kéo trước thì cửa sổ hiện ra trong một nhịp còn chưa có
-        gì thay đổi, nhìn như bấm hụt (bài học của `test_soi_luot`)."""
-        self._ban("so_do_may", core.normalize_process(doc))
-        self._khung.keo_len_truoc()
+        gì thay đổi, nhìn như bấm hụt (bài học của `test_soi_luot`).
+
+        Trả `(gửi có lỗi gì không, kéo lên trước có được không)` — nơi gọi phải nói ra
+        được cả hai, vì hai chuyện hỏng theo hai kiểu khác nhau: gửi hụt thì sơ đồ không
+        sang, còn kéo hụt thì sơ đồ SANG RỒI mà cửa sổ vẫn nằm dưới."""
+        # ⚠ `_kem_the` chứ KHÔNG phải `normalize_process`. Đây là lỗi đã cắn thật, và
+        # docstring của `_kem_the` đã cảnh báo trước bằng đúng câu chữ: *"lần sau ai thêm
+        # endpoint mới lại quên tiếp"*. Tôi thêm đường RL → cửa sổ vẽ và quên đúng thế.
+        #
+        # Chuẩn hoá KHÔNG sinh ra `cards` — đó là chữ trên hộp, do Python dựng. Thiếu nó
+        # thì `StepNode` đọc `card.lines` và nổ `Cannot read properties of undefined`:
+        # cửa sổ vẽ trắng bóc, còn cửa sổ RL trông như bấm hụt. Sơ đồ người vẽ không dính
+        # vì `cards` được ghi vào file lúc lưu, nên đọc lại là có sẵn.
+        loi = self._ban("so_do_may", _kem_the(doc))
+        return loi, bool(self._khung.keo_len_truoc())
 
     @_bat_loi
     def mo_rl(self):
@@ -794,7 +811,11 @@ class Api(NenCuaSo):
             self._api_tester._khung.keo_len_truoc()
             # Cửa sổ còn sống: đẩy sơ đồ mới xuống, nó TỰ CHẠY LẠI. Bấm ▶ là chạy, không
             # phải mở ra một bảng cài đặt nữa rồi bấm tiếp.
-            self._api_tester._ban("so_do_moi", doc)
+            # ⚠ Qua `_kem_the` dù cửa sổ Tester KHÔNG vẽ canvas nên không cần thẻ.
+            # Luật "một cửa" chỉ đáng tin khi KHÔNG có ngoại lệ nào phải nhớ: hôm nay
+            # Tester không vẽ, mai nó vẽ thì lỗi lại im lặng đúng kiểu cũ. Giá bằng
+            # không, còn cái ngoại lệ thì đắt.
+            self._api_tester._ban("so_do_moi", _kem_the(doc))
             return
 
         import webview
@@ -2806,5 +2827,9 @@ class ApiRL(NenChay):
         doc = l.so_do(int(hang))
         if doc is None:
             return _loi(f"Lượt này không có sơ đồ hạng {hang}.")
-        self._cha._nhan_so_do_may(doc)
-        return _ok({"ten": doc["name"]})
+        loi, len_truoc = self._cha._nhan_so_do_may(doc)
+        if loi:
+            return _loi("Không đẩy được sơ đồ sang cửa sổ vẽ.\n\n" + loi)
+        # ⚠ Kéo hụt KHÔNG phải lỗi — sơ đồ đã sang rồi. Nhưng phải NÓI RA, không thì
+        # người dùng nhìn cửa sổ RL không đổi gì và tưởng cú bấm rơi vào hư không.
+        return _ok({"ten": doc["name"], "len_truoc": len_truoc})
