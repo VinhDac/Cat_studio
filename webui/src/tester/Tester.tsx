@@ -510,7 +510,9 @@ ${r.value.duong_dan}`)
           // ⭐ MỔ XẺ — chỗ MỘT con số của cả sơ đồ tách thành một con số cho MỖI khối.
           // Xem docstring `MoXe.tsx`.
           { khoa: 'mo-xe', nhan: 'Mổ xẻ',
-            ve: () => <MoXe sanSang={!!kq} /> },
+            ve: () => <MoXe sanSang={!!kq}
+                            nap={pyTester.test_phan_bo}
+                            thuBo={pyTester.test_thu_bo} /> },
         ]} />
       )}
     </div>

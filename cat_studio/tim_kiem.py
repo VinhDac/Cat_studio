@@ -29,6 +29,35 @@ from . import cham_diem, nguoi_bay as nb, song_song
 #: đầu train rơi xuống hạng 13 ở nửa sau).
 GIU_DAU_BANG = 20
 
+#: Mép thùng của "THIẾU BAO XA" — xem `cham_diem._rot`. Thùng đầu là *suýt qua*.
+MEP_THIEU = (0.1, 0.25, 0.5, 0.75)
+
+#: MÉP các thùng của ba phân bố hiện trên bàn điều khiển (§18.9c).
+#:
+#: ⭐ Ba phân bố này trả lời ba câu mà một con số trung bình KHÔNG trả lời được:
+#:
+#: * **điểm** — có cái đuôi nào bên phải không, hay cả đám dồn về âm. Đo được: sơ đồ bốc
+#:   bừa thua CÓ HỆ THỐNG (~2% dương đều, trong khi tung đồng xu là 65%), nên hình dạng
+#:   của đống này là thứ đáng nhìn nhất khi hỏi *"không gian này có gì không"*.
+#: * **số lệnh** — cấu trúc của rác. 28/60 sơ đồ không vào lệnh nào; một cái đẻ 11.425.
+#: * **chi phí** — vì sao "còn bao lâu" phải là một KHOẢNG: một sơ đồ có thể chiếm 60%
+#:   cả lô (§18.4d). Trung bình che mất chuyện đó, phân bố thì không.
+#:
+#: Thùng của `lệnh` và `giây` chia theo LOGARIT, cố ý: dải thật trải từ 0 tới hàng chục
+#: nghìn, chia đều thì mọi thứ dồn vào thùng đầu và đồ thị nói không được gì.
+MEP_DIEM = (-0.6, -0.4, -0.25, -0.15, -0.08, -0.03, 0.0, 0.03, 0.08, 0.15, 0.25, 0.4)
+MEP_LENH = (1, 10, 50, 200, 1000, 5000)
+MEP_GIAY = (0.5, 1, 2, 5, 10, 30)
+
+
+def _thung(mep, x):
+    """Chỉ số thùng của `x` — `0` là dưới mép đầu, `len(mep)` là trên mép cuối."""
+    for i, m in enumerate(mep):
+        if x < m:
+            return i
+    return len(mep)
+
+
 #: Trần số nước một lượt đi. Không phải luật — chỉ là cái chốt an toàn: mặt nạ đã chừa
 #: đường về đích (§18.7.4) nên lượt đi luôn kết thúc được, nhưng một vòng lặp không có
 #: trần là một vòng lặp có ngày treo.
@@ -66,7 +95,8 @@ class KetQuaTim:
 
 
 def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
-        dung=None, giu=GIU_DAU_BANG, han_giay=None, phang_toi_da=None, so_nhan=1):
+        dung=None, giu=GIU_DAU_BANG, han_giay=None, phang_toi_da=None, so_nhan=1,
+        so_nhan_dung=None):
     """Dò `so_luot` sơ đồ ngẫu nhiên, chấm, giữ `giu` cái đầu bảng.
 
     `hat`   — hạt giống. Cùng hạt + cùng dữ liệu = cùng kết quả, luôn luôn.
@@ -86,6 +116,12 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
                *"phẳng 3.000 lượt gần nhất — dừng được rồi"*.
     `so_nhan` — mấy TIẾN TRÌNH chấm song song (§18.4c). `1` = chạy thẳng. Không mở
                được bể thì tự lùi về `1`, không nổ.
+    `so_nhan_dung()` — trả về số nhân MUỐN DÙNG lúc này, hỏi lại mỗi lượt.
+
+    ⭐ Đây là cái van CPU chạy được GIỮA CHỪNG, và nó rẻ vì không đụng tới bể: chỉ cần
+    thu hẹp CỬA SỔ CÔNG VIỆC. Ít việc trong bể thì mấy tiến trình dư nằm im, không ăn
+    CPU — khỏi dựng lại bể, khỏi mất việc đang dở. Máy tìm chạy hàng giờ ngay trong app
+    người dùng đang mở, nên "nhường lại máy" phải làm được ngay, không phải đợi lượt sau.
 
     ⭐ **8 nhân cho kết quả Y HỆT 1 nhân.** Sơ đồ vẫn do tiến trình CHA bốc, theo đúng
     thứ tự của một `random.Random(hạt)`; kết quả vẫn gộp vào bảng theo ĐÚNG thứ tự ấy,
@@ -99,6 +135,16 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
     qua, rot = [], []
     tk = {"da_chay": 0, "trung_lap": 0, "ket": 0, "no": 0, "khong_lenh": 0,
           "rot_cua": 0, "na_lenh": 0, "qua_nang": 0, "hat": hat, "so_luot": so_luot,
+          # ⚠ Đếm CỘNG DỒN, khác hẳn `len(qua)` — bảng đầu bảng bị chặn ở `giu` nên nó
+          # bão hoà và không còn nói được "còn tìm được gì nữa không".
+          "qua_cong_don": 0,
+          # Ba phân bố — xem `MEP_DIEM`. Gồm CẢ sơ đồ rớt cửa: hình dạng cả đống mới
+          # nói được không gian này có gì, chỉ nhìn người thắng thì không.
+          "hist_diem": [0] * (len(MEP_DIEM) + 1),
+          "hist_lenh": [0] * (len(MEP_LENH) + 1),
+          "hist_giay": [0] * (len(MEP_GIAY) + 1),
+          # `{tên cửa: {so, nguong, thieu[5], vi_du[3]}}` — xem `cham_diem._rot`.
+          "rot_chi_tiet": {},
           "vi_sao_ngung": "đủ số lượt"}
     da_thay = set()
     t0 = time.perf_counter()
@@ -147,6 +193,8 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
         """Một kết quả vừa về → vào bảng. ⚠ Gọi theo ĐÚNG thứ tự bốc, không phải thứ
         tự trả về — đó là chỗ giữ cho 8 nhân bằng 1 nhân."""
         nonlocal qua
+        if ket.get("giay") is not None:
+            tk["hist_giay"][_thung(MEP_GIAY, ket["giay"])] += 1
         if ket["loai"] == "na_lenh":
             # ⭐ ĐẾM RIÊNG, không gộp vào `no`. Đây không phải bộ chạy từ chối — nó là
             # ta CHỦ ĐỘNG bỏ dở để lấy lại thời gian (§18.4a). Gộp chung thì con số
@@ -166,9 +214,12 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
             return
         d = ket["diem"]
         tk["da_chay"] += 1
+        tk["hist_diem"][_thung(MEP_DIEM, d["diem"])] += 1
+        tk["hist_lenh"][_thung(MEP_LENH, d["so_lenh"])] += 1
         if not ket["co_lenh"]:
             tk["khong_lenh"] += 1
         if d["dat"]:
+            tk["qua_cong_don"] += 1
             # ⚠ DỰNG LIST MỚI, không `qua.sort()` tại chỗ. CPython làm list RỖNG trong
             # lúc sort — luồng giao diện đọc đúng khoảnh khắc đó sẽ thấy danh sách
             # trống, và bảng đầu bảng nhấp nháy rỗng ngẫu nhiên. Gán một list mới thì
@@ -177,6 +228,17 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
         else:
             tk["rot_cua"] += 1
             rot.append(d["ly_do"])
+            # ⭐ Gom theo CỬA, giữ cả MỨC ĐỘ. Bản cũ cắt lấy ba chữ đầu của câu tiếng
+            # Việt nên mất sạch con số — bảng chỉ đếm được, không nói được trượt bao xa.
+            r = d.get("rot")
+            if r:
+                o = tk["rot_chi_tiet"].setdefault(
+                    r["cua"], {"so": 0, "nguong": r["nguong"],
+                               "thieu": [0] * (len(MEP_THIEU) + 1), "vi_du": []})
+                o["so"] += 1
+                o["thieu"][_thung(MEP_THIEU, r["thieu"])] += 1
+                if len(o["vi_du"]) < 3:
+                    o["vi_du"].append(d["ly_do"])
         # Đếm PHẲNG: bao nhiêu lượt liên tiếp mà điểm tốt nhất không nhúc nhích. Đếm cả
         # lượt rớt cửa — chúng cũng là công đã đốt mà không đổi được gì.
         tot = qua[0][2]["diem"] if qua else None
@@ -186,7 +248,7 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
             # Mang theo cả NHÓM ĐẦU BẢNG, không chỉ điểm cao nhất: nhờ vậy bàn điều
             # khiển thấy kết quả lớn dần TRONG LÚC chạy, và mở được sơ đồ ngay — thay
             # vì ngồi nhìn một bảng rỗng suốt tám tiếng rồi mới có gì để xem.
-            tien_do(tk["da_chay"], so_luot, qua)
+            tien_do(tk["da_chay"], so_luot, qua, tk)
 
     nhan = song_song.so_nhan_hop_ly(so_nhan) if so_nhan and so_nhan != 1 else 1
     be = song_song.mo_be(nhan, nen, cd, cua)
@@ -214,10 +276,17 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
         #
         # Rộng thì chỉ tốn bộ nhớ giữ mấy cái tài liệu (vài KB một cái), mà đổi lại
         # nhân nào cũng luôn có việc.
-        cua_so = max(4 * nhan, 16)
         try:
             cho = collections.deque()
             while True:
+                # Hỏi LẠI mỗi lượt — đó là chỗ cái van CPU ăn ngay giữa chừng.
+                dung_may = nhan
+                if so_nhan_dung is not None:
+                    try:
+                        dung_may = max(1, min(int(so_nhan_dung() or nhan), nhan))
+                    except Exception:             # noqa: BLE001
+                        dung_may = nhan
+                cua_so = max(4 * dung_may, 8)
                 while len(cho) < cua_so:
                     x = boc()
                     if x is None:

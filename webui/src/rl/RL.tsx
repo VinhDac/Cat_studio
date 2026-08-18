@@ -3,7 +3,8 @@ import { cho_cau_noi, pyRL } from '../api'
 import { useKhungCuaSo } from '../useKhungCuaSo'
 import TitleBar from '../components/TitleBar'
 import BangDuoi, { type TabDuoi } from '../tester/BangDuoi'
-import DuongDiem from './DuongDiem'
+import MoXe from '../tester/MoXe'
+import BangDieuKhien from './BangDieuKhien'
 import CuaSoCaiDat, { buocCua, coKhoaCua, kyCham, nhanCua, TEN_BUOC, tenKyCua,
                       type DieuKhien } from './CaiDatLuot'
 import { IR, Nhom, Nut, ONhap } from './RibbonRL'
@@ -67,19 +68,24 @@ function nhanKy(tu: string, buoc: string): string {
   return `Q${Math.floor((+m - 1) / 3) + 1}/${nam}`
 }
 
-/** Ô chờ một thứ để nhìn CHƯA DỰNG.
- *
- * ⚠ Nói thẳng nó sẽ trả lời câu gì, đừng để một khung xám trống không. Một chỗ trống
- * có chú thích là lời hứa đọc được; một chỗ trống câm là nút hứa suông. */
-function ChuaCo({ ten, hoi }: { ten: string; hoi: string }) {
-  return (
-    <div className="rl-chua-co">
-      <b>{ten}</b>
-      <span>{hoi}</span>
-      <em>chưa dựng</em>
-    </div>
-  )
+/** Tên cửa cho người đọc. Khoá là tên trong `cham_diem.CUA_MAC_DINH`. */
+const TEN_CUA: Record<string, string> = {
+  tuan_co_lenh: 'kỳ có lệnh',
+  so_lenh_toi_thieu: 'số lệnh tối thiểu',
+  sut_von_toi_da: 'sụt vốn tối đa',
+  te_nhat_toi_da: 'kỳ tệ nhất',
+  dao_dong_toi_da: 'dao động tối đa',
+  lai_toi_thieu: 'lãi tối thiểu',
+  deu_toi_thieu: 'đều qua thời gian',
+  diem_toi_thieu: 'điểm tối thiểu',
 }
+/** Nhãn năm thùng của "thiếu bao xa" — khớp `tim_kiem.MEP_THIEU`. */
+const NHAN_THIEU = ['suýt qua (<10%)', 'thiếu 10–25%', 'thiếu 25–50%',
+                    'thiếu 50–75%', 'thiếu ≥75%']
+
+/** Có dương ở QUÁ NỬA cửa sổ không — cùng luật với cửa `deu_toi_thieu` (§18.5f). */
+const deu = (d: DauBang) =>
+  !!d.so_cua_so && (d.cua_so_duong ?? 0) * 2 > d.so_cua_so
 
 export default function RL() {
   useKhungCuaSo()
@@ -108,6 +114,8 @@ export default function RL() {
 
   /** Mục đang mở của cửa sổ ⚙, `null` là đang đóng. */
   const [moCaiDat, setMoCaiDat] = useState<string | null>(null)
+  /** Hạng sơ đồ đang SOI ở tab Mổ xẻ. `null` là chưa chọn cái nào. */
+  const [soi, setSoi] = useState<number | null>(null)
 
   const nhip = useRef<number | null>(null)
 
@@ -236,6 +244,14 @@ export default function RL() {
     setDat(d => ({ ...d, khoa_da_mo: r.value!.da_mo }))
   }, [ma])
 
+  // ⭐ Hai hàm này gói `(mã, hạng)` lại rồi đưa cho `MoXe` — cùng một component với
+  // cửa sổ Tester, chỉ khác đúng hai hàm gọi. Chép ra bản thứ hai là sớm muộn một bản
+  // quên mất luật "không bao giờ đưa một con số gộp".
+  const napPhanBo = useCallback(
+    () => pyRL.rl_phan_bo(ma || '', soi ?? 1), [ma, soi])
+  const thuBoNhanh = useCallback(
+    (khoi: string) => pyRL.rl_thu_bo(ma || '', soi ?? 1, khoi), [ma, soi])
+
   const moSoDo = useCallback(async (hang: number) => {
     if (!ma) return
     const r = await pyRL.rl_mo_so_do(ma, hang)
@@ -278,7 +294,13 @@ export default function RL() {
                   `cham` vốn đã tính sẵn cả hai. Cặp cột đang DÙNG ĐỂ CHẤM được tô
                   đậm, để không phải nhớ mình đặt kỳ nào ở panel Thưởng. */}
               <thead><tr>
-                <th>#</th><th>điểm</th>
+                <th>#</th>
+                {/* ⭐ `dương n/m` đứng TRƯỚC `điểm`, cố ý. Đo được: 6/8 cái từng nằm ở
+                    bảng này chỉ ăn may một đoạn (§18.5f) — nên `điểm` không được là
+                    con số đầu tiên đập vào mắt. */}
+                <th className="cham">dương</th>
+                <th>hình dạng theo cửa sổ</th>
+                <th>điểm</th>
                 <th className={ky === 'tuan' ? 'cham' : ''}>tb tuần</th>
                 <th className={ky === 'tuan' ? 'cham' : ''}>dđ tuần</th>
                 <th className={ky === 'thang' ? 'cham' : ''}>tb tháng</th>
@@ -292,7 +314,18 @@ export default function RL() {
                   return (
                   <tr key={d.hang}>
                     <td>{d.hang}</td>
-                    <td className="rl-diem">{so(d.diem, 4)}</td>
+                    <td className={'rl-diem' + (deu(d) ? ' tot' : ' xau')}>
+                      {d.so_cua_so ? `${d.cua_so_duong}/${d.so_cua_so}` : '—'}</td>
+                    <td className="rl-trai">
+                      <span className="rl-cuon-dai rl-dai-nho">
+                        {(d.cua_so || []).map((c, i) => (
+                          <span key={i} title={`cửa sổ ${i + 1}: ${so(c, 4)}`}
+                                className={'rl-cuon-o rl-o-nho '
+                                  + (c > 0 ? 'duong' : c < 0 ? 'am' : 'trong')} />
+                        ))}
+                      </span>
+                    </td>
+                    <td>{so(d.diem, 4)}</td>
                     <td className={d.ky === 'thang' ? '' : 'cham'}>
                       {pt(d.tuan.trung_binh, 3)}</td>
                     <td className={d.ky === 'thang' ? '' : 'cham'}>
@@ -314,6 +347,31 @@ export default function RL() {
             </table>
           )}
         </div>
+      ),
+    },
+    {
+      khoa: 'mo-xe', nhan: 'Mổ xẻ',
+      dem: soi ?? undefined,
+      // ⭐ Trước tab này, muốn hiểu một sơ đồ máy vừa đẻ ra thì phải đẩy sang cửa sổ vẽ,
+      // chạy Tester, rồi mới mở được bảng — bốn bước cho câu "cái này sống nhờ đâu".
+      nut: dauBang.length > 0 ? (
+        <div className="rl-chip-hang">
+          {dauBang.slice(0, 8).map(d => (
+            <button key={d.hang}
+                    className={'rl-chip' + (soi === d.hang ? '' : ' tat')}
+                    onClick={() => setSoi(d.hang)}>#{d.hang}</button>
+          ))}
+        </div>
+      ) : undefined,
+      ve: () => (
+        soi === null
+          ? <div className="mx-trong">
+              {dauBang.length === 0
+                ? 'chưa sơ đồ nào qua cửa để soi'
+                : 'chọn một sơ đồ ở góc phải để soi'}
+            </div>
+          : <MoXe sanSang={!!ma} nap={napPhanBo} thuBo={thuBoNhanh}
+                  tieu={`đang soi sơ đồ hạng #${soi} — chạy lại trên ĐOẠN TRAIN`} />
       ),
     },
     {
@@ -422,44 +480,77 @@ export default function RL() {
       ),
     },
     {
-      khoa: 'cai-chung', nhan: 'Cái chung',
-      ve: () => (
-        <div className="rl-tab-noi">
-          <ChuaCo ten="Cái chung giữa nhóm đầu bảng"
-                  hoi={'"8/10 sơ đồ dùng cùng cổng ATR < 1,0 × ATR nền" — thứ sống sót '
-                       + 'qua nhiều đường đi độc lập mới là thứ đáng tin, không phải '
-                       + 'sơ đồ hạng nhất.'} />
-        </div>
-      ),
-    },
-    {
       khoa: 'vi-sao', nhan: 'Vì sao rớt',
       dem: tk ? tk.rot_cua + tk.ket + tk.no + (tk.na_lenh ?? 0) : undefined,
       ve: () => (
         <div className="rl-tab-noi">
-          {!tk ? <div className="rl-trong">chưa chạy lượt nào</div> : (
+          {!tk ? <div className="rl-trong">chưa chạy lượt nào</div> : <>
+            <div className="rl-nho">
+              Cột <b>suýt qua</b> là thứ đáng đọc nhất ở đây: nó trả lời
+              {' '}<i>nới cửa một chút thì có thêm bao nhiêu cái lọt</i> — thay vì phải
+              đoán rồi chạy lại cả lượt.
+            </div>
+            {Object.entries(tk.rot_chi_tiet || {}).length > 0 && (
+              <table className="rl-bang vs-bang">
+                <thead><tr>
+                  <th>rớt ở cửa</th><th>ngưỡng</th><th>số sơ đồ</th>
+                  <th>suýt qua</th><th>trượt xa bao nhiêu</th><th>ví dụ</th>
+                </tr></thead>
+                <tbody>
+                  {Object.entries(tk.rot_chi_tiet || {})
+                    .sort((a, b) => b[1].so - a[1].so)
+                    .map(([k, v]) => (
+                    <tr key={k}>
+                      <td className="rl-trai">{TEN_CUA[k] || k}</td>
+                      <td>{v.nguong}</td>
+                      <td>{v.so.toLocaleString('vi-VN')}</td>
+                      {/* Thùng ĐẦU của `thiếu` = trượt dưới 10% — tức nới một tí là lọt. */}
+                      <td className={v.thieu[0] ? 'tot' : ''}>
+                        {v.thieu[0].toLocaleString('vi-VN')}</td>
+                      <td className="rl-trai">
+                        <span className="vs-dai">
+                          {v.thieu.map((n, i) => (
+                            <span key={i} className="vs-o"
+                                  title={`${NHAN_THIEU[i]} — ${n} sơ đồ`}>
+                              <span className="vs-thanh"
+                                    style={{ height: n
+                                      ? `${Math.max(8, n / Math.max(...v.thieu) * 100)}%`
+                                      : '0' }} />
+                            </span>
+                          ))}
+                        </span>
+                      </td>
+                      <td className="rl-trai rl-nho">{v.vi_du[0] || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="rl-nhom-ten rl-to"><span>CHẾT TRƯỚC CẢ CỬA</span></div>
             <table className="rl-bang rl-bang-trai">
               <tbody>
-                {Object.entries(tk.ly_do_rot).map(([k, v]) => (
-                  <tr key={k}><td>{k}</td><td>{v}</td></tr>
-                ))}
                 {!!tk.khong_lenh && (
-                  <tr><td>không vào lệnh nào (trước cả cửa)</td><td>{tk.khong_lenh}</td></tr>
+                  <tr><td>không vào lệnh nào</td><td>{tk.khong_lenh}</td></tr>
                 )}
                 {!!tk.na_lenh && (
                   <tr><td>nã lệnh — bỏ dở giữa chừng (quá
                     {' '}{Number(dat.lenh_moi_tuan_toi_da ?? 0)} lệnh/tuần)</td>
                     <td>{tk.na_lenh}</td></tr>
                 )}
+                {!!tk.qua_nang && (
+                  <tr><td>ôm lệnh — bỏ dở giữa chừng (quá
+                    {' '}{Number(dat.luot_moi_nen_toi_da ?? 0)} lượt/nến)</td>
+                    <td>{tk.qua_nang}</td></tr>
+                )}
                 {!!tk.trung_lap && <tr><td>trùng sơ đồ đã chấm, bỏ qua</td><td>{tk.trung_lap}</td></tr>}
                 {!!tk.ket && <tr className="xau"><td>lượt đi kẹt</td><td>{tk.ket}</td></tr>}
                 {!!tk.no && <tr className="xau"><td>bộ chạy từ chối</td><td>{tk.no}</td></tr>}
               </tbody>
             </table>
-          )}
-          {tk?.no_vi?.length ? (
-            <div className="rl-nho">ví dụ: {tk.no_vi.slice(0, 2).join(' · ')}</div>
-          ) : null}
+            {tk.no_vi?.length ? (
+              <div className="rl-nho">ví dụ: {tk.no_vi.slice(0, 2).join(' · ')}</div>
+            ) : null}
+          </>}
         </div>
       ),
     },
@@ -522,64 +613,9 @@ export default function RL() {
       {loi && <div className="rl-loi">{loi}</div>}
 
       {/* ------------------------------ DASHBOARD ------------------------------ */}
-      <div className="rl-bang-dieu-khien">
-        <section className="rl-o rl-tien">
-          {!tt ? (
-            <div className="rl-trong">chưa chạy lượt nào — bấm ▶ Chạy</div>
-          ) : (
-            <>
-              <div className="rl-dau">
-                <b>{tt.ten}</b>
-                <span className="rl-phu">
-                  {tt.dang_chay ? (tt.chu || 'đang chạy')
-                    : tt.dung_giua_chung ? 'đã dừng giữa chừng'
-                    /* VÌ SAO NGỪNG — "xong" trống không thì không biết nó chạy đủ
-                       số lượt, hết giờ, hay tự tắt vì phẳng. */
-                    : (tk?.vi_sao_ngung || 'xong')}
-                  {' · '}{khoang(tt.bat_dau, tt.xong_luc)}
-                </span>
-              </div>
-              {tt.loi && <div className="rl-loi">{tt.loi}</div>}
-              <div className="rl-thanh">
-                <div className="rl-thanh-day" style={{
-                  width: `${tt.tong ? (tt.da_chay / tt.tong) * 100 : 0}%` }} />
-              </div>
-              <div className="rl-so-hang">
-                <div><b>{tt.da_chay}</b><em>đã chấm / {tt.tong}</em></div>
-                <div><b>{tt.diem_tot_nhat === null ? '—' : so(tt.diem_tot_nhat, 4)}</b>
-                  <em>điểm tốt nhất</em></div>
-                <div><b>{dauBang.length}</b><em>đang giữ</em></div>
-                {/* CÒN BAO LÂU — đo thật trên lô đang chạy. Không ước bằng số nến:
-                    cùng số nến mà sơ đồ này 3 giây, sơ đồ kia 24 giây (§18.4). */}
-                {dangChay && tt.con_lai != null && (
-                  <div><b>{lau(tt.con_lai)}</b>
-                    <em>còn lại · {so(tt.giay_moi_luot, 1)}s/sơ đồ</em></div>
-                )}
-                {tk && <div><b>
-                  {tk.da_chay ? Math.round(tk.khong_lenh / tk.da_chay * 100) : 0}%
-                </b><em>không vào lệnh</em></div>}
-              </div>
-            </>
-          )}
-        </section>
-
-        <section className="rl-o rl-plot">
-          <div className="rl-plot-dau">
-            Điểm tốt nhất theo số sơ đồ đã chấm
-            <span>còn tìm được gì nữa không — dừng được chưa</span>
-          </div>
-          {tt ? (
-            <DuongDiem duong={tt.duong || []} daCham={tt.da_chay} tong={tt.tong}
-                       dangChay={dangChay} />
-          ) : <div className="rl-plot-trong">chưa chạy lượt nào</div>}
-        </section>
-
-        <section className="rl-o rl-plot">
-          <ChuaCo ten="Chuỗi tuần của sơ đồ đầu bảng"
-                  hoi={'"nó có ĐỀU không". Một dãy cột tuần xanh/đỏ — nhìn phát biết nó '
-                       + 'kiếm đều hay ăn một cú rồi nằm im.'} />
-        </section>
-      </div>
+      <BangDieuKhien tt={tt} nhan={tt?.nhan || nhanCua(dk)} dangChay={dangChay}
+                     tongNhan={boot.so_nhan_may || 1} dauBang={dauBang}
+                     boot={boot} moSoDo={moSoDo} />
 
       <BangDuoi tabs={tabs} />
 

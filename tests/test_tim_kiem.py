@@ -168,7 +168,11 @@ CD = bc.CaiDat(point=1.0, contract_size=1.0, digits=2, spread_diem=0.2,
                lot_max=50.0)
 
 _moc = []
-R = tk.tim(NEN, CD, 15, hat=2026, tien_do=lambda a, b, c: _moc.append((a, b, c)))
+# ⚠ `tien_do(đã chấm, tổng, đầu bảng, THỐNG KÊ)` — tham số thứ tư thêm vào để bàn
+# điều khiển đếm được `qua_cong_don` (§18.9c). Bảng đầu bảng bị chặn ở `giu` nên
+# nó bão hoà, không nói được "còn tìm được gì nữa không".
+R = tk.tim(NEN, CD, 15, hat=2026,
+           tien_do=lambda a, b, c, t: _moc.append((a, b, c, t)))
 _t = R.thong_ke
 kiem("chạy hết số lượt đã xin", _t["da_chay"] + _t["ket"] + _t["trung_lap"] == 15,
      f"— chạy {_t['da_chay']} · kẹt {_t['ket']} · trùng {_t['trung_lap']}")

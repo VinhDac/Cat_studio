@@ -22,6 +22,7 @@ nhân ra kết quả y hệt chạy 1 nhân — có bài kiểm canh (`tests/tes
 """
 import multiprocessing as mp
 import os
+import time
 
 from . import bo_chay, cham_diem
 
@@ -48,17 +49,22 @@ def cham_mot(doc, nen=None, cd=None, cua=None, moc=None, buoc="quy"):
     lần trả là một lần đóng gói. Chỉ trả bảng điểm."""
     if nen is None:
         nen, cd, cua, moc, buoc = _NEN, _CD, _CUA, _MOC, _BUOC
+    # ⚠ Đo Ở ĐÂY, trong tiến trình chấm. Đo ở cha thì cái đo được là thời gian TRÔI của
+    # cả lô chạy chồng nhau, không phải chi phí một sơ đồ — mà chi phí một sơ đồ mới là
+    # thứ dựng nên phân bố có nghĩa (§18.4d: một con chiếm 60% cả lô).
+    t0 = time.perf_counter()
     try:
         # Tắt nhật ký (§18.4b) — máy tìm không bao giờ đọc nó.
         kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False)
     except bo_chay.NaLenh:
-        return {"loai": "na_lenh"}
+        return {"loai": "na_lenh", "giay": time.perf_counter() - t0}
     except bo_chay.QuaNang:
-        return {"loai": "qua_nang"}
+        return {"loai": "qua_nang", "giay": time.perf_counter() - t0}
     except bo_chay.LoiChay as e:
-        return {"loai": "no", "chu": f"{e}"[:120]}
+        return {"loai": "no", "chu": f"{e}"[:120],
+                "giay": time.perf_counter() - t0}
     ra = {"loai": "cham", "diem": cham_diem.cham(kq, cua),
-          "co_lenh": bool(kq.so.lenh)}
+          "co_lenh": bool(kq.so.lenh), "giay": time.perf_counter() - t0}
     if moc:
         # ⭐ Điểm TỪNG CỬA SỔ, cắt từ CÙNG một lượt chạy (§18.3b). Tiến hoá cần nó cho
         # luật đa số — mà gửi `KetQua` về tiến trình cha rồi cắt ở đó thì phải đóng gói

@@ -274,41 +274,87 @@ def cham(kq, cua=None):
     cs = cham_cuon(kq, *_khoang(kq), c["buoc_deu"] or "quy", c)
     ra["cua_so_duong"] = sum(1 for w in cs if w["diem"] > 0)
     ra["so_cua_so"] = len(cs)
+    # ⭐ Giữ luôn ĐIỂM TỪNG CỬA SỔ. Nó vừa được tính xong ở trên rồi vứt đi, mà đây là
+    # thứ duy nhất cho người đọc thấy HÌNH DẠNG theo thời gian — cái mà một con số gộp
+    # không bao giờ nói được. Chỉ điểm, không kèm ngày: mọi sơ đồ trong một lượt tìm
+    # chạy trên cùng một dải nên cửa sổ y hệt nhau, gửi ngày kèm mỗi dòng là gửi thừa.
+    ra["cua_so"] = [round(w["diem"], 4) for w in cs]
     ra["buoc_deu"] = c["buoc_deu"]
 
     # ---- CỬA — dừng ở cửa ĐẦU TIÊN trượt, và nói ra CON SỐ đã trượt.
     # "Loại" trống không thì người dùng phải đi dò; kèm con số thì sửa được ngay.
     ten_ky = "tuần" if ky == TUAN else "tháng"
     nguong = max(c["tuan_co_lenh"] or 0.0, TUAN_CO_LENH_TOI_THIEU)
-    ly_do = None
+    ly_do = rot = None
     if t["ty_le_co_lenh"] < nguong:
         ly_do = (f"{ten_ky} có lệnh {t['co_lenh']}/{t['so_ky']} "
                  f"({t['ty_le_co_lenh'] * 100:.0f}%) — dưới {nguong * 100:.0f}%")
+        rot = _rot("tuan_co_lenh", t["ty_le_co_lenh"], nguong, True)
     elif c["so_lenh_toi_thieu"] and ra["so_lenh"] < c["so_lenh_toi_thieu"]:
         ly_do = (f"chỉ {ra['so_lenh']} lệnh — dưới "
                  f"{int(c['so_lenh_toi_thieu'])}")
+        rot = _rot("so_lenh_toi_thieu", ra["so_lenh"], c["so_lenh_toi_thieu"], True)
     elif c["sut_von_toi_da"] is not None and ra["sut_von_pt"] > c["sut_von_toi_da"]:
         ly_do = f"sụt vốn {ra['sut_von_pt']:.1f}% — quá {c['sut_von_toi_da']:.0f}%"
+        rot = _rot("sut_von_toi_da", ra["sut_von_pt"], c["sut_von_toi_da"], False)
     elif c["te_nhat_toi_da"] is not None \
             and t["te_nhat"] < -abs(c["te_nhat_toi_da"]):
         ly_do = (f"{ten_ky} tệ nhất {t['te_nhat']:.2f}% — quá "
                  f"{abs(c['te_nhat_toi_da']):.1f}%")
+        rot = _rot("te_nhat_toi_da", abs(t["te_nhat"]),
+                   abs(c["te_nhat_toi_da"]), False)
     elif c["dao_dong_toi_da"] is not None and t["dao_dong"] > c["dao_dong_toi_da"]:
         ly_do = (f"dao động {ten_ky} {t['dao_dong']:.2f}% — quá "
                  f"{c['dao_dong_toi_da']:.1f}%")
+        rot = _rot("dao_dong_toi_da", t["dao_dong"], c["dao_dong_toi_da"], False)
     elif c["lai_toi_thieu"] is not None and ra["lai_moi_nam"] < c["lai_toi_thieu"]:
         ly_do = (f"lãi {ra['lai_moi_nam']:.1f}%/năm — dưới "
                  f"{c['lai_toi_thieu']:.0f}%/năm")
+        rot = _rot("lai_toi_thieu", ra["lai_moi_nam"], c["lai_toi_thieu"], True)
     elif c["deu_toi_thieu"] is not None and ra["so_cua_so"] and (
             ra["cua_so_duong"] < c["deu_toi_thieu"] * ra["so_cua_so"]):
         ly_do = (f"chỉ dương {ra['cua_so_duong']}/{ra['so_cua_so']} "
                  f"{_TEN_BUOC.get(c['buoc_deu'], c['buoc_deu'])} — dưới "
                  f"{c['deu_toi_thieu'] * 100:.0f}%")
+        rot = _rot("deu_toi_thieu", ra["cua_so_duong"] / ra["so_cua_so"],
+                   c["deu_toi_thieu"], True)
     elif c["diem_toi_thieu"] is not None and ra["diem"] < c["diem_toi_thieu"]:
         ly_do = f"điểm {ra['diem']:.4f} — dưới {c['diem_toi_thieu']:.4f}"
+        rot = _rot("diem_toi_thieu", ra["diem"], c["diem_toi_thieu"], True)
     ra["dat"] = ly_do is None
     ra["ly_do"] = ly_do
+    #: Lý do rớt ĐỌC ĐƯỢC BẰNG MÁY — `{cửa, giá trị, ngưỡng, thiếu}`. Xem `_rot`.
+    ra["rot"] = rot
     return ra
+
+
+def _rot(cua, gia_tri, nguong, phai_lon):
+    """Lý do rớt ở dạng MÁY ĐỌC ĐƯỢC, kèm `thiếu` — trượt xa hay suýt qua.
+
+    ⚠ Vì sao cần: `ly_do` là một câu tiếng Việt, mà `tim_kiem` gom nó bằng cách cắt lấy
+    ba chữ đầu — nên `"tuần có lệnh 12/53 (23%) — dưới 50%"` co lại thành `"tuần có
+    lệnh"`, mất sạch mức độ. Bảng "vì sao rớt" vì thế chỉ đếm được, không nói được
+    **trượt bao xa** — mà đó mới là thứ trả lời câu thực dụng: *nới cửa một chút thì có
+    thêm bao nhiêu cái lọt*.
+
+    `thiếu` chuẩn hoá về `[0, 1)` cho MỌI cửa, bất kể cửa ấy đòi lớn hơn hay nhỏ hơn:
+
+        0,00   suýt qua — chỉ cần nới một tí
+        0,99   trượt xa lắc
+
+    Nhờ chuẩn hoá mà mọi cửa dùng CHUNG một cái thước "gần/xa", và bảng xếp được chúng
+    cạnh nhau mà không phải biết cửa nào đo bằng %, cửa nào đo bằng số lệnh."""
+    try:
+        g, n = float(gia_tri), float(nguong)
+        if phai_lon:                          # đòi ≥ ngưỡng
+            thieu = 1.0 - g / n if n else 1.0
+        else:                                 # đòi ≤ ngưỡng
+            thieu = 1.0 - n / g if g else 1.0
+    except (TypeError, ValueError, ZeroDivisionError):
+        thieu = 1.0
+    return {"cua": cua, "gia_tri": round(float(gia_tri), 4),
+            "nguong": round(float(nguong), 4),
+            "thieu": round(min(max(thieu, 0.0), 1.0), 4)}
 
 
 def xep_hang(ds, cua=None):

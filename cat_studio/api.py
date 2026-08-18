@@ -2470,6 +2470,11 @@ class ApiRL(NenChay):
     def __init__(self, cha):
         super().__init__()
         self._cha = cha          # `Api` của cửa sổ chính — chỉ ĐỌC
+        #: Lượt chạy NỀN của sơ đồ đang soi: `(mã, hạng, tài liệu, KetQua, CaiDat, mốc)`.
+        #:
+        #: ⭐ Giữ lại để "thử bỏ" chỉ tốn MỘT backtest (bản đã cắt) chứ không phải hai.
+        #: Người dùng bấm thử bỏ năm nhánh liên tiếp thì đó là tiết kiệm năm lượt chạy.
+        self._soi = None
 
     def _dat(self):
         """Cài đặt RL hiện tại, đã trộn mặc định."""
@@ -2507,6 +2512,8 @@ class ApiRL(NenChay):
             "cua": dict(cham_diem.CUA_MAC_DINH),
             "tuan_co_lenh_toi_thieu": cham_diem.TUAN_CO_LENH_TOI_THIEU,
             "so_nuoc_di": len(nguoi_bay.KHO_NUOC_DI),
+            # Máy có mấy nhân — để thanh kéo CPU biết đầu trên của nó ở đâu.
+            "so_nhan_may": os.cpu_count() or 1,
             # --- điều kiện chạy ---
             # Mặc định lấy từ Cài đặt của cửa sổ vẽ, nhưng SỬA ĐƯỢC ngay tại đây: bàn
             # điều khiển mà phải sang cửa sổ khác mới đổi được khoảng thời gian thì nó
@@ -2580,7 +2587,8 @@ class ApiRL(NenChay):
                     han_giay=float(gio) * 3600 if gio else None,
                     phang_toi_da=int(dat["phang_toi_da"])
                     if dat.get("phang_toi_da") else None,
-                    so_nhan=int(dat.get("so_nhan") or 1))
+                    so_nhan=int(dat.get("so_nhan") or 1),
+                    so_nhan_dung=lambda: l.nhan_dung)
         except Exception as e:                    # noqa: BLE001
             # Hỏng lúc CHUẨN BỊ (thiếu nến, chưa đặt khoảng…) cũng phải hiện ra ở đúng
             # chỗ người dùng đang nhìn, chứ không im lặng để thanh tiến trình quay mãi.
@@ -2594,6 +2602,21 @@ class ApiRL(NenChay):
         if l is None:
             return _loi("Không thấy lượt tìm này.")
         return _ok({"cau_hinh": l.cau_hinh, "nhan": l.trang_thai().get("nhan") or ""})
+
+    @_bat_loi
+    def rl_dat_nhan(self, ma, n):
+        """⭐ Đổi số nhân GIỮA LÚC ĐANG CHẠY — ăn ngay, không đợi lượt sau.
+
+        Rẻ vì không đụng tới bể tiến trình: máy tìm chỉ thu hẹp CỬA SỔ CÔNG VIỆC, mấy
+        tiến trình dư nằm im. Không mất việc đang dở, không phải dựng lại gì.
+
+        ⚠ Máy tìm chạy hàng giờ ngay trong app người dùng đang mở. "Nhường lại máy" mà
+        bắt dừng lượt chạy mới làm được thì không ai dùng."""
+        l = luot_tim.lay(str(ma))
+        if l is None:
+            return _loi("Không thấy lượt tìm này.")
+        l.nhan_dung = max(1, int(n)) if n else None
+        return _ok({"nhan_dung": l.nhan_dung})
 
     @_bat_loi
     def rl_dung(self, ma):
@@ -2698,6 +2721,77 @@ class ApiRL(NenChay):
         core.save_settings(self._cha._cai_dat)
         return _ok({"ds": ra, "da_mo": d["khoa_da_mo"], "cuon": cuon, "buoc": buoc,
                     "tu": d["khoa_tu"], "den": d["khoa_den"]})
+
+    # -------------------------------------------------------------- MỔ XẺ
+    def _lay_soi(self, ma, hang):
+        """Lượt chạy nền của sơ đồ hạng `hang`, dựng lại nếu chưa có hoặc đã đổi."""
+        ma, hang = str(ma), int(hang)
+        if self._soi and self._soi[0] == ma and self._soi[1] == hang:
+            return self._soi
+        l = luot_tim.lay(ma)
+        if l is None:
+            raise RuntimeError("Không thấy lượt tìm này.")
+        doc = l.so_do(hang)
+        if doc is None:
+            raise RuntimeError(f"Lượt này không có sơ đồ hạng {hang}.")
+        nen, cd, _ = self._nen_va_cd({})
+        # ⚠ `dem_khoi=True` — nửa CỔNG của phép phân bổ nằm ở bộ đếm ấy (§18.5b). Máy
+        # tìm chạy với bộ đếm TẮT vì nó chấm hàng nghìn sơ đồ; ở đây thì ngược lại,
+        # đúng một sơ đồ người dùng đang nhìn, nên +4,3% là không đáng gì.
+        kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False, dem_khoi=True)
+        t = kq.nen5["t"]
+        moc = (datetime.datetime.fromtimestamp(int(t[0]), datetime.UTC).date(),
+               datetime.datetime.fromtimestamp(int(t[-1]), datetime.UTC).date()
+               + datetime.timedelta(days=1))
+        self._soi = (ma, hang, doc, kq, cd, moc, nen)
+        return self._soi
+
+    @_bat_loi
+    def rl_phan_bo(self, ma, hang):
+        """Tiền ra từ khối nào, cổng chặn cái gì — cho MỘT sơ đồ máy vẽ (§18.5b).
+
+        ⭐ Trước tab này, muốn hiểu một sơ đồ máy vừa đẻ ra thì phải đẩy sang cửa sổ vẽ,
+        chạy Tester, rồi mới mở được bảng — bốn bước cho câu *"cái này sống nhờ đâu"*."""
+        _, _, doc, kq, cd, _, _ = self._lay_soi(ma, hang)
+        return _ok({"ten": doc["name"], **phan_bo.theo_khoi(kq, cd)})
+
+    @_bat_loi
+    def rl_thu_bo(self, ma, hang, khoi, buoc=None):
+        """⭐ Cắt một nhánh, chạy lại, so — THEO TỪNG CỬA SỔ (§18.5c).
+
+        ⚠ Cố ý KHÔNG trả một con số gộp. Đo được: cắt nhánh BÁN của sơ đồ mẫu cho
+        `+0,3872` ở một quý — rất thuyết phục và SAI, vì cả sáu quý chỉ 4/6 là tốt hơn.
+        Một cửa sổ đủ để kết luận sai một cách rất chắc chắn."""
+        _, _, doc, kq0, cd, moc, nen = self._lay_soi(ma, hang)
+        moi = cat_tia.bo_nhanh(doc, str(khoi))
+        if moi is None:
+            return _loi("Cắt nhánh này thì sơ đồ không còn hợp lệ — không thử được.\n\n"
+                        "Thường là vì cắt xong còn một cổng cụt đuôi, hoặc khối ấy vẫn "
+                        "tới được bằng đường khác nên cắt một cạnh không bỏ được nó.")
+        b = str(buoc or self._dat().get("buoc_cuon") or "quy")
+        try:
+            kq = bo_chay.chay(moi, nen, cd, ghi_nhat_ky=False)
+        except bo_chay.LoiChay as e:
+            return _loi(f"Bản đã cắt không chạy được: {e}")
+        cua = luot_tim.lay(str(ma)).cua if luot_tim.lay(str(ma)) else None
+        cs0 = cham_diem.cham_cuon(kq0, *moc, b, cua)
+        cs1 = cham_diem.cham_cuon(kq, *moc, b, cua)
+        d0, d1 = cham_diem.cham(kq0, cua), cham_diem.cham(kq, cua)
+        cua_so, tot = [], 0
+        for x, y in zip(cs0, cs1):
+            ch = round(y["diem"] - x["diem"], 4)
+            tot += ch > 0
+            cua_so.append({"tu": x["tu"], "den": x["den"], "truoc": x["diem"],
+                           "sau": y["diem"], "chenh": ch})
+        return _ok({
+            "khoi": str(khoi), "buoc": b,
+            "truoc": {"diem": d0["diem"], "so_lenh": d0["so_lenh"],
+                      "lai_pt": d0["lai_pt"]},
+            "sau": {"diem": d1["diem"], "so_lenh": d1["so_lenh"],
+                    "lai_pt": d1["lai_pt"]},
+            "cua_so": cua_so, "tot_hon": tot, "so_cua_so": len(cua_so),
+            "con_lenh": bool(d1["so_lenh"]),
+        })
 
     # ------------------------------------------------------------------ MỞ
     @_bat_loi

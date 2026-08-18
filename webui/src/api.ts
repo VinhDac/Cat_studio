@@ -295,6 +295,12 @@ export const pyRL = {
   rl_chay: (dat: DatRL) => goi<{ ma: string }>('rl_chay', dat as unknown as Record<string, unknown>),
   rl_cau_hinh: (ma: string) =>
     goi<{ cau_hinh: Record<string, unknown>; nhan: string }>('rl_cau_hinh', ma),
+  rl_phan_bo: (ma: string, hang: number) =>
+    goi<PhanBo & { ten: string }>('rl_phan_bo', ma, hang),
+  rl_thu_bo: (ma: string, hang: number, khoi: string) =>
+    goi<ThuBo>('rl_thu_bo', ma, hang, khoi),
+  rl_dat_nhan: (ma: string, n: number) =>
+    goi<{ nhan_dung: number | null }>('rl_dat_nhan', ma, n),
   rl_dung: (ma: string) => goi<boolean>('rl_dung', ma),
   rl_xoa: (ma: string) => goi<boolean>('rl_xoa', ma),
   /** Ghi cài đặt RIÊNG của RL (train · KHOÁ · chi phí). */

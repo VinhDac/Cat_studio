@@ -622,6 +622,12 @@ export interface DauBang {
   sut_von_pt: number; lai_pt: number
   /** CẢ HAI kỳ — `ky` nói cái nào đang được dùng để chấm. */
   tuan: BaSo; thang: BaSo; ky: string
+  /** Dương ở mấy cửa sổ cuốn tới — con số đáng đọc hơn `diem` (§18.5f). */
+  cua_so_duong?: number
+  so_cua_so?: number
+  /** Điểm TỪNG cửa sổ. Không kèm ngày: mọi sơ đồ một lượt chạy cùng dải nên cửa sổ
+   *  giống hệt nhau — thứ cần đọc ở dải này là HÌNH DẠNG, không phải mốc lịch. */
+  cua_so?: number[]
   so_nuoc: number; ten: string
 }
 
@@ -634,7 +640,27 @@ export interface ThongKeTim {
   /** Vì sao lượt chạy ngừng: đủ số lượt · hết giờ · phẳng · người dùng dừng. */
   vi_sao_ngung?: string
   ly_do_rot: Record<string, number>
+  /** Rớt ở cửa nào, TRƯỢT BAO XA, kèm ví dụ nguyên văn.
+   *
+   * ⚠ `ly_do_rot` chỉ đếm được vì nó gom câu tiếng Việt bằng cách cắt ba chữ đầu —
+   * `"tuần có lệnh 12/53 (23%) — dưới 50%"` co lại thành `"tuần có lệnh"`. Cái này giữ
+   * cả MỨC ĐỘ, nên trả lời được *nới cửa một chút thì thêm bao nhiêu cái lọt*. */
+  rot_chi_tiet?: Record<string, {
+    so: number
+    nguong: number
+    /** Năm thùng "thiếu bao xa" — thùng ĐẦU là suýt qua (<10%). */
+    thieu: number[]
+    vi_du: string[]
+  }>
   no_vi?: string[]
+  /** Bỏ dở vì ÔM LỆNH (§18.4d) — khác `na_lenh`, cái đó là nã lệnh. */
+  qua_nang?: number
+  /** Ba phân bố cho bàn điều khiển — mép thùng khai ở `BangDieuKhien.tsx`. */
+  hist_diem?: number[]
+  hist_lenh?: number[]
+  hist_giay?: number[]
+  /** Số sơ đồ qua cửa CỘNG DỒN — khác `qua`, cái đó là kích thước bảng đầu bảng. */
+  qua_cong_don?: number
   /** Đã chạy bằng mấy nhân THẬT — có thể nhỏ hơn số xin, nếu không mở được bể. */
   so_nhan?: number
 }
@@ -662,6 +688,19 @@ export interface TrangThaiLuot {
   dau_bang?: DauBang[]
   /** Câu đang làm gì lúc chuẩn bị (tải nến…). */
   chu?: string
+  /** Số sơ đồ qua cửa CỘNG DỒN — khác `dau_bang.length`, cái đó bị chặn ở `giu`. */
+  qua_cong_don?: number
+  /** `[[đã chấm, số qua cửa cộng dồn], …]`, chỉ ghi khi ĐỔI. */
+  duong_qua?: [number, number][]
+  /** Nhịp GẦN ĐÂY (giây/sơ đồ) — cùng `giay_moi_luot` dựng thành một KHOẢNG. */
+  giay_gan_day?: number
+  con_lai_som?: number
+  con_lai_muon?: number
+  /** Đủ mẫu để ước chưa. Dưới 30 lượt thì mọi con số "còn bao lâu" đều là bịa. */
+  du_de_uoc?: boolean
+  /** Số nhân ĐANG dùng — kéo thanh là đổi ngay, không đợi lượt sau. */
+  nhan_dung?: number | null
+  so_nhan?: number
 }
 
 export interface RLBoot {
@@ -672,6 +711,8 @@ export interface RLBoot {
   cua: CuaRL
   tuan_co_lenh_toi_thieu: number
   so_nuoc_di: number
+  /** Máy có mấy nhân — đầu trên của thanh kéo CPU. */
+  so_nhan_may: number
   cai_dat: Record<string, unknown>
   kho_nen: KhoNen
   luot: TrangThaiLuot[]
@@ -728,7 +769,7 @@ export interface DatRL {
   giu?: number
   /** Chạy quá ngần này GIỜ thì thôi — hợp lý hơn đặt số lượt khi chạy qua đêm. */
   gio_toi_da?: number | null
-  /** Phẳng ngần này lượt liền thì tự dừng — bản tự động của thứ `DuongDiem` mách. */
+  /** Phẳng ngần này lượt liền thì tự dừng — bản tự động của thứ `DuongQua` mách. */
   phang_toi_da?: number | null
   /** Mấy TIẾN TRÌNH chấm song song. `1` = chạy thẳng, `0` = tự chọn theo số nhân máy. */
   so_nhan?: number

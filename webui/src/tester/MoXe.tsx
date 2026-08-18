@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { pyTester } from '../api'
-import type { PhanBo, ThuBo } from '../types'
+import type { PhanBo, Reply, ThuBo } from '../types'
 
 /** MỔ XẺ — tiền ra từ khối nào, cổng chặn cái gì, và bỏ một nhánh đi thì sao.
  *
@@ -15,33 +14,46 @@ import type { PhanBo, ThuBo } from '../types'
  * học: cắt nhánh BÁN của sơ đồ mẫu cho `+0,3872` trên quý 2024-Q1 — rất thuyết phục và
  * SAI, vì xét sáu quý thì chỉ 4/6 quý bỏ đi là tốt hơn. Một cửa sổ đủ để kết luận sai.
  * Nên ở đây luôn là **từng quý một, kèm số quý tốt hơn**.
+ *
+ * ⭐ **Cùng một component cho CẢ HAI cửa sổ** — Tester soi sơ đồ người vẽ, RL soi sơ đồ
+ * máy vừa đẻ ra. Chép ra bản thứ hai là sớm muộn một bản quên mất luật *"không bao giờ
+ * đưa một con số gộp"*, mà đó đúng là luật đắt nhất của cái bảng này. Hai bên chỉ khác
+ * ở HAI HÀM GỌI, nên hai hàm ấy truyền vào.
  */
-export default function MoXe({ sanSang }: { sanSang: boolean }) {
+export default function MoXe({ sanSang, nap, thuBo, tieu }: {
+  sanSang: boolean
+  nap: () => Promise<Reply<PhanBo>>
+  thuBo: (khoi: string) => Promise<Reply<ThuBo>>
+  /** Dòng nhỏ trên đầu — RL dùng để nói đang soi sơ đồ hạng mấy. */
+  tieu?: string
+}) {
   const [pb, setPb] = useState<PhanBo | null>(null)
   const [loi, setLoi] = useState('')
   const [dangThu, setDangThu] = useState<string | null>(null)
   const [thu, setThu] = useState<Record<string, ThuBo | { loi: string }>>({})
 
   useEffect(() => {
-    if (!sanSang) return
+    if (!sanSang) { setPb(null); return }
     setThu({})
-    pyTester.test_phan_bo().then(r => {
+    setPb(null)
+    nap().then(r => {
       if (r.ok && r.value) { setPb(r.value); setLoi('') } else setLoi(r.error || '')
     })
-  }, [sanSang])
+  }, [sanSang, nap])
 
-  const thuBo = useCallback(async (khoi: string) => {
+  const bam = useCallback(async (khoi: string) => {
     setDangThu(khoi)
-    const r = await pyTester.test_thu_bo(khoi)
+    const r = await thuBo(khoi)
     setThu(t => ({ ...t, [khoi]: r.ok && r.value ? r.value : { loi: r.error || 'hỏng' } }))
     setDangThu(null)
-  }, [])
+  }, [thuBo])
 
   if (loi) return <div className="mx-trong">{loi}</div>
   if (!pb) return <div className="mx-trong">chưa chạy lần nào</div>
 
   return (
     <div className="mx">
+      {tieu && <div className="mx-tieu">{tieu}</div>}
       <div className="mx-nhac">
         Mỗi dòng là <b>một phần của sơ đồ</b>, không phải cả sơ đồ. Bấm
         {' '}<b>thử bỏ</b> để cắt nhánh ấy đi rồi chạy lại — kết quả hiện
@@ -58,7 +70,7 @@ export default function MoXe({ sanSang }: { sanSang: boolean }) {
           <tbody>
             {pb.tien.map(x => (
               <Hang key={x.khoi} khoi={x.khoi} thu={thu[x.khoi]} dang={dangThu === x.khoi}
-                    onThu={thuBo} cot={9}>
+                    onThu={bam} cot={9}>
                 <td className="mx-trai">{x.nhan}</td>
                 <td>{x.den.toLocaleString('vi-VN')}</td>
                 <td>{x.so_lenh}</td>
@@ -80,7 +92,7 @@ export default function MoXe({ sanSang }: { sanSang: boolean }) {
         <tbody>
           {pb.cong.map(x => (
             <Hang key={x.khoi} khoi={x.khoi} thu={thu[x.khoi]} dang={dangThu === x.khoi}
-                  onThu={thuBo} cot={7}>
+                  onThu={bam} cot={7}>
               <td className="mx-trai">{x.nhan}</td>
               <td>{x.xet.toLocaleString('vi-VN')}</td>
               <td>{x.khop.toLocaleString('vi-VN')}</td>

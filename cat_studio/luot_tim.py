@@ -33,7 +33,8 @@ class LuotTim:
     """Một lượt tìm đang (hoặc đã) chạy. Giao diện chỉ ĐỌC, không bao giờ ghi."""
 
     __slots__ = ("ma", "ten", "_tt", "_kq", "_xin_dung", "_khoa", "_luong", "_duong",
-                 "_dau_bang", "_t0_cham", "cua", "cau_hinh")
+                 "_dau_bang", "_t0_cham", "cua", "cau_hinh", "nhan_dung",
+                 "_moc", "_duong_qua")
 
     def __init__(self, ten):
         self.ma = "L-" + uuid.uuid4().hex[:8]
@@ -54,6 +55,15 @@ class LuotTim:
         #: Và nó là thứ khiến `chạy lại y hệt` thành THẬT: chạy lại từ ảnh chụp này,
         #: không phải từ trạng thái giao diện lúc này — trạng thái ấy đã trôi đi rồi.
         self.cau_hinh = {}
+        #: Số nhân MUỐN DÙNG lúc này — giao diện kéo thanh là đổi ngay ô này, và
+        #: `tim_kiem.tim` hỏi lại mỗi lượt. Xem `tim(..., so_nhan_dung=)`.
+        self.nhan_dung = None
+        #: Mốc `(đã chấm, giây)` lấy thưa — để ước "còn bao lâu" thành một KHOẢNG.
+        #:
+        #: ⭐ Một con số duy nhất là con số giả chính xác: chi phí mỗi sơ đồ chênh nhau
+        #: tới 1.000 lần (0,1 s → 134 s). Hai mốc — nhịp CẢ LƯỢT và nhịp GẦN ĐÂY — cho
+        #: một khoảng, và khoảng ấy tự thu hẹp khi máy chạy lâu hơn.
+        self._moc = []
         self._xin_dung = False
         self._khoa = threading.Lock()
         self._luong = None
@@ -81,6 +91,12 @@ class LuotTim:
         self._t0_cham = None
         # ⚠ `nhan` tính MỘT LẦN lúc bắt đầu, không mỗi nhịp: giao diện hỏi trạng thái
         # 500 ms một lần, mà cấu hình thì đứng yên suốt lượt.
+        #: ĐƯỜNG "QUA CỬA" — `[[đã chấm, số qua cửa cộng dồn], …]`, chỉ ghi khi ĐỔI.
+        #:
+        #: ⭐ Thay cho đường "điểm tốt nhất" của bản cũ. Cùng là hàm bậc thang, nhưng nó
+        #: trả lời đúng câu *"còn tìm được gì nữa không"* mà KHÔNG dựa vào một con số đã
+        #: đo được là nhiễu — 6/8 cái đầu bảng chỉ ăn may một đoạn (§18.5f).
+        self._duong_qua = []
         self._tt = {"ma": self.ma, "ten": ten, "nhan": "", "dang_chay": True,
                     "da_chay": 0,
                     "tong": 0, "diem_tot_nhat": None, "bat_dau": time.time(),
@@ -95,7 +111,9 @@ class LuotTim:
         ⚠ `duong` cũng phải chép: `dict()` chỉ sao chép NÔNG, nên để nguyên là giao
         diện cầm đúng cái list luồng nền đang `append` vào giữa lúc nó đang duyệt."""
         with self._khoa:
-            return {**self._tt, "duong": list(self._duong)}
+            return {**self._tt, "duong": list(self._duong),
+                    "duong_qua": list(self._duong_qua),
+                    "nhan_dung": self.nhan_dung}
 
     def ket_qua(self):
         """`KetQuaTim` khi đã xong, `None` khi còn chạy."""
@@ -113,6 +131,11 @@ class LuotTim:
                  # tháng; `cham` đã tính sẵn cả hai nên giấu một cái đi là phí. Cột
                  # nào dùng để chấm thì bảng tự đánh dấu.
                  "tuan": d["tuan"], "thang": d["thang"], "ky": d["ky"],
+                 # ⭐ Hai con số ĐÁNG ĐỌC hơn cả `diem`: điểm gộp đã đo được là biết
+                 # nói dối (§18.5f), còn "dương n/m" thì không.
+                 "cua_so_duong": d.get("cua_so_duong"),
+                 "so_cua_so": d.get("so_cua_so"),
+                 "cua_so": d.get("cua_so"),
                  "so_nuoc": len(chuoi)}
                 for k, (doc, chuoi, d) in enumerate(self._dau_bang[:so_luong], 1)]
 
@@ -155,7 +178,7 @@ class LuotTim:
         with self._khoa:
             self._tt.update(kw)
 
-    def _nhip(self, da, tong, qua):
+    def _nhip(self, da, tong, qua, tk=None):
         """Một lượt vừa chấm xong. Chạy trên LUỒNG NỀN — chỉ đụng thứ có khoá."""
         tot = qua[0][2]["diem"] if qua else None
         self._dau_bang = qua                  # gán nguyên: list MỚI, xem `tim_kiem`
@@ -164,14 +187,34 @@ class LuotTim:
         with self._khoa:
             if tot is not None and (not self._duong or self._duong[-1][1] != tot):
                 self._duong.append([da, tot])
+            q = (tk or {}).get("qua_cong_don")
+            if q is not None and (not self._duong_qua or self._duong_qua[-1][1] != q):
+                self._duong_qua.append([da, q])
         # CÒN BAO LÂU — đo thật trên chính lô đang chạy. Không ước bằng số nến: đo được
         # cùng số nến mà sơ đồ này 3 giây, sơ đồ kia 24 giây (§18.4), vì chi phí đi theo
         # SỐ LỆNH sơ đồ đẻ ra chứ không theo số nến.
         troi = max(time.time() - self._t0_cham, 1e-6)
         moi = troi / max(da, 1)
+        con = max(tong - da, 0)
+        with self._khoa:
+            if not self._moc or da - self._moc[-1][0] >= max(1, tong // 200):
+                self._moc.append((da, troi))
+            # NHỊP GẦN ĐÂY — lấy trên đoạn 25% cuối, để cái khoảng phản ánh cả việc máy
+            # đang chạy nhanh dần (lô toàn sơ đồ rác) hay chậm dần.
+            k = max(0, len(self._moc) - max(2, len(self._moc) // 4))
+            d0, t0 = self._moc[k]
+            gan = ((troi - t0) / (da - d0)) if da > d0 else moi
+        lo, hi = sorted((moi, gan))
         self._ghi(da_chay=da, tong=tong, diem_tot_nhat=tot,
                   giay_moi_luot=round(moi, 3),
-                  con_lai=round(moi * max(tong - da, 0)))
+                  giay_gan_day=round(gan, 3),
+                  con_lai=round(moi * con),
+                  con_lai_som=round(lo * con), con_lai_muon=round(hi * con),
+                  # ⚠ Dưới ngần này mẫu thì KHÔNG hiện gì — độ chắc của ước lượng tăng
+                  # theo √N, và một con số ở lượt thứ ba là bịa.
+                  du_de_uoc=da >= 30,
+                  qua_cong_don=(tk or {}).get("qua_cong_don", 0),
+                  thong_ke=tk or self._tt.get("thong_ke"))
 
     def _chay(self, nen, cd, so_luot, **kw):
         self.cua = kw.get("cua")

@@ -1931,32 +1931,26 @@ select.o { cursor: pointer; }
 }
 
 /* --- dashboard --- */
+/* ⚠ `grid-template-rows` chứ không `align-content: start`. Bản cũ để `start` nên mọi ô
+   dồn lên đỉnh và BA PHẦN TƯ màn hình bỏ trống — tiết kiệm chỗ ở một bàn điều khiển là
+   tiết kiệm sai thứ. Giờ bốn hàng chia hết chiều cao, và mấy ô có đồ thị được `1fr` để
+   chúng cao lên theo cửa sổ. */
 .rl-bang-dieu-khien {
-  flex: 1; min-height: 0; overflow: auto; padding: 12px 14px;
-  display: grid; gap: 12px;
-  grid-template-columns: minmax(240px, 320px) 1fr 1fr;
-  align-content: start;
+  flex: 1; min-height: 0; overflow: auto; padding: 10px 12px;
+  display: grid; gap: 10px;
+  /* Bốn hàng: cấu hình · ba ô số · (đường + đầu bảng) · ba phân bố.
+     Hai hàng dưới chia đều phần cao còn lại; `minmax` để chúng không bị bóp dẹt khi
+     cửa sổ thấp — lúc ấy cả bảng cuộn, thà cuộn hơn là vẽ một đồ thị cao 20 px. */
+  grid-template-rows: auto auto minmax(190px, 1fr) minmax(170px, 1fr);
 }
 .rl-o {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 12px 14px; min-height: 168px;
+  border-radius: var(--radius); padding: 10px 12px; min-height: 0;
 }
 .rl-plot { display: flex; }
 
 /* Ô chờ một plot chưa dựng. Nói THẲNG nó sẽ trả lời câu gì — một chỗ trống câm là
    nút hứa suông, một chỗ trống có chú thích là lời hứa đọc được. */
-.rl-chua-co {
-  flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px;
-  border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 14px;
-}
-.rl-chua-co b { font-size: 12.5px; }
-.rl-chua-co span { font-size: 11.5px; line-height: 1.55; color: var(--muted); }
-.rl-chua-co em {
-  align-self: flex-start; font-style: normal; font-size: 10px; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--dim);
-  border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
-}
-
 .rl-dau { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .rl-phu { font-weight: 400; color: var(--muted); font-size: 11px; }
 .rl-thanh { height: 4px; background: var(--field); border-radius: 2px; overflow: hidden; }
@@ -2210,6 +2204,9 @@ select.o { cursor: pointer; }
    câu trả lời, không phải nhớ mình vừa bấm dòng nào. */
 .mx { padding: 10px 12px 16px; overflow: auto; height: 100%; }
 .mx-trong { padding: 14px; color: var(--dim); font-size: 12px; }
+.mx-tieu {
+  font-size: 11.5px; color: var(--accent); margin-bottom: 6px; font-weight: 500;
+}
 .mx-nhac {
   padding: 7px 10px; margin-bottom: 10px; border-radius: var(--radius-sm);
   background: var(--field); color: var(--muted); font-size: 11.5px; line-height: 1.55;
@@ -2261,3 +2258,128 @@ select.o { cursor: pointer; }
   background: var(--field); border-radius: var(--radius-sm); font-size: 12px;
 }
 .mx-chet span { font-size: 10.5px; color: var(--dim); }
+
+/* ===================== DASHBOARD cửa sổ RL (§18.9c) =====================
+   Ba ô = ba câu người ta thật sự hỏi khi ngồi nhìn máy chạy: bao giờ xong · có gì
+   sống không · nó ăn bao nhiêu máy. Xem docstring `BangDieuKhien.tsx`. */
+.bdk-cau-hinh {
+  padding: 5px 10px; margin-bottom: 10px; border-radius: var(--radius-sm);
+  background: var(--field); color: var(--muted); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bdk-hang { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.bdk-o { display: flex; flex-direction: column; gap: 3px; min-height: 0; }
+.bdk-ten {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--dim); margin-bottom: 2px;
+}
+.bdk-to { font-size: 24px; font-weight: 600; line-height: 1.15; color: var(--text); }
+.bdk-to em {
+  font-style: normal; font-size: 12px; font-weight: 400; color: var(--dim);
+}
+.bdk-to.bdk-tot { color: var(--ok); }
+.bdk-dong {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  font-size: 11.5px; color: var(--muted);
+}
+.bdk-dong b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.bdk-dong.xau b { color: var(--warn); }
+.bdk-chu { font-size: 11px; color: var(--dim); margin-top: 2px; }
+
+/* Thanh kéo CPU. Kéo là ĂN NGAY — máy tìm chỉ thu hẹp cửa sổ công việc, không dựng lại
+   bể tiến trình. Xem `rl_dat_nhan`. */
+.bdk-keo { width: 100%; margin: 4px 0 6px; accent-color: var(--accent); cursor: pointer; }
+.bdk-keo:disabled { opacity: .4; cursor: default; }
+
+/* --- Hàng ô của bàn điều khiển. Hàng 1 là ba ô số + đồ thị; hai hàng sau là phân bố. --- */
+/* Ba ô SỐ — chia đều CẢ chiều rộng. Bản trước khai 4 cột mà chỉ đặt 3 ô vào, nên
+   ô thứ tư trống và cả hàng chỉ chiếm 60% màn hình. */
+.bdk-hang { display: grid; gap: 10px; min-height: 0;
+            grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Đường "còn tìm được gì" rộng hơn nhóm thẻ đầu bảng — nó là đồ thị, cần chỗ. */
+.bdk-giua { display: grid; gap: 10px; min-height: 0;
+            grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.bdk-hist { display: grid; gap: 10px; min-height: 0;
+            grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bdk-hang > .rl-o, .bdk-giua > .rl-o, .bdk-hist > .rl-o {
+  min-height: 0; overflow: hidden;
+}
+
+/* --- PHÂN BỐ dạng cột. Xem docstring `PhanBoCot.tsx`. --- */
+.pbc { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.pbc-dau { display: flex; flex-direction: column; font-size: 12.5px; font-weight: 600; }
+.pbc-dau span { font-weight: 400; font-size: 11px; color: var(--muted); }
+/* ⚠ ĐƯỜNG ĐÁY thật (`border-bottom`). Không có nó thì mấy cột chỉ 2 px trông như bụi
+   bám lơ lửng, không ra một đồ thị — mà cái đuôi thấp mới là chỗ đáng nhìn. */
+.pbc-cot {
+  flex: 1; min-height: 56px; display: flex; align-items: flex-end; gap: 2px;
+  padding-top: 11px; border-bottom: 1px solid var(--border);
+}
+.pbc-mot {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end; height: 100%; gap: 1px;
+}
+/* Nhãn trục nằm NGOÀI vùng cột và được chừa chỗ hẳn — bản trước để nó trong `.pbc-mot`
+   nên `overflow: hidden` của ô cắt mất sạch. */
+.pbc-truc {
+  display: flex; gap: 2px; padding-top: 3px;
+}
+.pbc-truc > span {
+  flex: 1; min-width: 0; text-align: center; font-size: 8px; color: var(--dim);
+  white-space: nowrap; overflow: hidden;
+}
+/* Cột nào có số thì LUÔN cao ≥2 px — cái đuôi mới là chỗ đáng nhìn, vẽ 0 px là nói
+   "không có gì ở đây" (xem docstring `PhanBoCot.tsx`). */
+.pbc-thanh {
+  width: 100%; background: var(--warn); border-radius: 2px 2px 0 0; min-height: 0;
+  opacity: .75;
+}
+.pbc-thanh.tot { background: var(--ok); }
+.pbc-so {
+  font-size: 8.5px; color: var(--dim); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+/* --- ĐẦU BẢNG gọn, nằm ngay trên bàn điều khiển. Bấm là mở sang cửa sổ vẽ. --- */
+.bdk-dau-bang { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.bdk-hang-db {
+  display: flex; gap: 6px; flex-wrap: wrap; align-content: flex-start;
+  overflow-y: auto; min-height: 0; flex: 1;
+}
+.bdk-db {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: var(--field); border: 1px solid var(--border-soft); color: var(--text);
+  font: inherit; padding: 5px 9px; border-radius: var(--radius-sm); cursor: pointer;
+  min-width: 132px;
+}
+.bdk-db:hover { background: var(--raised-hover); border-color: var(--accent); }
+.bdk-db i { font-style: normal; font-size: 9.5px; color: var(--dim); }
+.bdk-db b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.bdk-db b.tot { color: var(--ok); }
+.bdk-db b.xau { color: var(--warn); }
+.bdk-db span { font-size: 11px; color: var(--muted); }
+.bdk-db span.tot { color: var(--ok); }
+.bdk-db em { font-style: normal; font-size: 10px; color: var(--dim); }
+
+/* Dải cửa sổ THU NHỎ, nhét vừa một ô bảng. Không nhãn ngày: mọi sơ đồ trong một lượt
+   chạy cùng dải nên cửa sổ y hệt nhau — thứ cần đọc ở đây là HÌNH DẠNG, đỏ ở đâu xanh
+   ở đâu. Ngày đầy đủ vẫn còn ở tab Đoạn khoá. */
+.rl-dai-nho { display: inline-flex; gap: 2px; }
+.rl-o-nho {
+  min-width: 9px; width: 9px; height: 15px; padding: 0; border-radius: 2px;
+  display: inline-block;
+}
+.rl-bang td.rl-trai { text-align: left; }
+.rl-bang .rl-diem.tot { color: var(--ok); }
+
+/* --- "Vì sao rớt": cột SUÝT QUA và dải "trượt xa bao nhiêu". Xem `cham_diem._rot`. --- */
+.vs-bang td.tot { color: var(--ok); font-weight: 600; }
+.vs-dai { display: inline-flex; align-items: flex-end; gap: 2px; height: 20px; }
+.vs-o {
+  width: 11px; height: 100%; display: flex; align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+}
+.vs-thanh { width: 100%; background: var(--warn); opacity: .7; border-radius: 2px 2px 0 0; }
+/* Thùng ĐẦU = suýt qua → tô xanh: đó là đám nới một tí là lọt. */
+.vs-o:first-child .vs-thanh { background: var(--ok); opacity: .85; }
