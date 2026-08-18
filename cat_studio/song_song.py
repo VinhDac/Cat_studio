@@ -28,15 +28,16 @@ from . import bo_chay, cham_diem
 #: Nến · điều kiện chạy · cửa — gửi MỘT LẦN lúc mở tiến trình con, không gửi kèm mỗi sơ
 #: đồ. Một năm nến M1 là ~17 MB; đính vào từng tác vụ thì riêng việc đóng gói đã đắt hơn
 #: cả lượt chấm.
-_NEN = _CD = _CUA = None
+_NEN = _CD = _CUA = _MOC = None
+_BUOC = "quy"
 
 
-def _mo_tien_trinh(nen, cd, cua):
-    global _NEN, _CD, _CUA
-    _NEN, _CD, _CUA = nen, cd, cua
+def _mo_tien_trinh(nen, cd, cua, moc=None, buoc="quy"):
+    global _NEN, _CD, _CUA, _MOC, _BUOC
+    _NEN, _CD, _CUA, _MOC, _BUOC = nen, cd, cua, moc, buoc
 
 
-def cham_mot(doc, nen=None, cd=None, cua=None):
+def cham_mot(doc, nen=None, cd=None, cua=None, moc=None, buoc="quy"):
     """Chạy + chấm MỘT sơ đồ → mấy con số JSON thuần.
 
     ⭐ Dùng chung cho CẢ HAI đường: chạy thẳng (1 nhân) và chạy trong tiến trình con.
@@ -46,7 +47,7 @@ def cham_mot(doc, nen=None, cd=None, cua=None):
     ⚠ KHÔNG trả `KetQua`: nó ôm cả sổ lệnh lẫn mọi cột số, mà qua tiến trình thì mỗi
     lần trả là một lần đóng gói. Chỉ trả bảng điểm."""
     if nen is None:
-        nen, cd, cua = _NEN, _CD, _CUA
+        nen, cd, cua, moc, buoc = _NEN, _CD, _CUA, _MOC, _BUOC
     try:
         # Tắt nhật ký (§18.4b) — máy tìm không bao giờ đọc nó.
         kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False)
@@ -56,8 +57,15 @@ def cham_mot(doc, nen=None, cd=None, cua=None):
         return {"loai": "qua_nang"}
     except bo_chay.LoiChay as e:
         return {"loai": "no", "chu": f"{e}"[:120]}
-    return {"loai": "cham", "diem": cham_diem.cham(kq, cua),
-            "co_lenh": bool(kq.so.lenh)}
+    ra = {"loai": "cham", "diem": cham_diem.cham(kq, cua),
+          "co_lenh": bool(kq.so.lenh)}
+    if moc:
+        # ⭐ Điểm TỪNG CỬA SỔ, cắt từ CÙNG một lượt chạy (§18.3b). Tiến hoá cần nó cho
+        # luật đa số — mà gửi `KetQua` về tiến trình cha rồi cắt ở đó thì phải đóng gói
+        # cả sổ lệnh, đắt hơn hẳn việc cắt tại chỗ rồi trả mấy con số.
+        ra["cua_so"] = [w["diem"]
+                        for w in cham_diem.cham_cuon(kq, *moc, buoc, cua)]
+    return ra
 
 
 def so_nhan_hop_ly(xin=0):
@@ -72,7 +80,7 @@ def so_nhan_hop_ly(xin=0):
     return max(1, co - 2)
 
 
-def mo_be(so_nhan, nen, cd, cua):
+def mo_be(so_nhan, nen, cd, cua, moc=None, buoc="quy"):
     """Mở bể tiến trình. Trả `None` nếu không mở được — GỌI PHẢI LÙI VỀ CHẠY MỘT NHÂN.
 
     ⚠ Không nổ, và đó là chủ ý: `spawn` hỏng vì môi trường lạ (bản đóng gói thiếu
@@ -84,6 +92,7 @@ def mo_be(so_nhan, nen, cd, cua):
         # `spawn` tường minh: mặc định của Windows vốn đã thế, nhưng viết ra thì cái
         # ràng buộc "module chính phải nạp lại được" hiện thành chữ.
         ctx = mp.get_context("spawn")
-        return ctx.Pool(so_nhan, initializer=_mo_tien_trinh, initargs=(nen, cd, cua))
+        return ctx.Pool(so_nhan, initializer=_mo_tien_trinh,
+                        initargs=(nen, cd, cua, moc, buoc))
     except Exception:                             # noqa: BLE001 — xem docstring
         return None

@@ -5360,13 +5360,221 @@ nguồn sự thật"*. Cả hai vế nay đã khác:
 **1,43×**, và **vân tay TRÙNG KHÍT** — 445 lệnh · 967 zone · lãi −7,35% · −8,13 R ·
 điểm −0,1038, giống hệt từng con số.
 
-#### ⏸ Còn lại: 8 nhân, rồi mới tới viết lại lõi
+#### 18.4c ✅ SONG SONG — 8,4× tổng cộng, và một bài học về Amdahl
 
-Sau hai đợt trên, thứ tự không đổi:
+`cat_studio/song_song.py`. **Tiến trình, không phải luồng**: `bo_chay` là Python thuần và
+chiếm 98% một lượt chạy, nên tám luồng nhanh bằng đúng một luồng.
+
+⭐ **Tái lập được là ràng buộc cứng**, nên: sơ đồ vẫn do tiến trình CHA bốc theo đúng thứ
+tự `random.Random(hạt)`, kết quả vẫn gộp vào bảng theo ĐÚNG thứ tự ấy — không theo thứ tự
+trả về. `tests/test_song_song.py` canh 8 nhân = 1 nhân tới từng khoá bảng điểm.
+
+⚠ **Song song lúc đầu VÔ DỤNG, và lý do đáng nhớ hơn con số:**
+
+```
+              trước cắt "quá nặng"    sau
+ 1 nhân            212,8 s          100,4 s
+ 4 nhân            147,8 s           35,3 s
+10 nhân            144,8 s           25,2 s
+```
+
+4 nhân và 10 nhân **bằng nhau** ở cột trái. Vì **một sơ đồ ôm 60% công** — 25,8 triệu lượt
+chạy sơ đồ, ~300 lệnh sống cùng lúc. Một sơ đồ thì không chẻ ra cho nhiều nhân được, nên
+thêm nhân không giúp gì. Đó là Amdahl, không phải lỗi cài đặt. **Cắt con quái trước, song
+song mới ăn.**
+
+Bốn cái bẫy của `spawn` trên Windows, cả bốn đều là hỏng lặng:
+
+- **`app_web.py` nạp pythonnet + webview ở mức module.** `spawn` nạp lại module chính
+  trong mỗi con → mỗi con kéo cả .NET vào cho thứ nó không dùng. Đã dời vào `main()`.
+- **Thiếu `multiprocessing.freeze_support()`.** Bản chạy từ mã nguồn không sao, bản ĐÓNG
+  GÓI thì mỗi tiến trình con khởi động lại nguyên cái app — tám cửa sổ mở cùng lúc.
+- **`Pool.imap` nuốt sạch iterable.** Luồng tiếp liệu của nó ăn hết ngay; với `so_luot =
+  100.000` là bốc sạch 100.000 sơ đồ vào bộ nhớ trước khi cái đầu tiên chấm xong, và mọi
+  phép dừng thành vô nghĩa. Phải tự giữ **cửa sổ công việc**.
+- **File test chạy ở mức module = bom phân hạch.** `spawn` nạp lại `__main__`, nên
+  `test_song_song.py` phải có chốt `if __name__ == "__main__"`.
+
+⚠ Và **cửa sổ công việc phải RỘNG** (`4 × nhân`): kết quả bắt buộc gộp theo thứ tự bốc nên
+ta chờ ở ĐẦU hàng, mà chi phí mỗi sơ đồ chênh nhau cả chục lần. Với cửa sổ `2 × nhân`, 4
+nhân chỉ nhanh hơn **1,44×** thay vì gần 4×.
+
+#### 18.4d ✅ TRẦN LƯỢT CHẠY SƠ ĐỒ — thứ `NaLenh` mù
+
+```
+#37   864 lệnh  ·  25.801.659 lượt chạy sơ đồ  ·  134 s  (60% cả lô 60 sơ đồ)
+#1    750 lệnh  ·      642.403 lượt            ·  5,9 s
+```
+
+Cùng cỡ số lệnh, chênh nhau **40 lần** số lượt. Vì #37 **ôm lệnh không đóng**: 25,8M ÷
+86.379 nến ≈ **300 lệnh sống cùng lúc**, mà Manage chạy một lượt cho MỖI lệnh đang sống.
+
+⭐ Nên chi phí thật đi theo **số lượt chạy sơ đồ**, không theo số lệnh. `lượt ÷ nến` đọc ra
+được thành một câu người nói được: *"trung bình bao nhiêu lệnh sống cùng lúc"*.
+
+```
+sơ đồ mẫu người viết              0,35
+sơ đồ máy nặng nhất còn dùng được 7,4
+con quái #37                      299
+trần đặt                          30
+```
+
+⚠ **Chặn bằng con số ĐẾM ĐƯỢC, không bằng THỜI GIAN.** Chặn bằng giây thì máy chậm cắt
+nhiều hơn máy nhanh — cùng hạt giống ra hai kết quả khác nhau, tức mất tính tái lập
+(§18.5), thứ đang là ràng buộc cứng.
+
+#### 18.5b ✅ PHÂN BỔ — một lượt chạy trả về ~10 con số thay vì 1
+
+`cat_studio/phan_bo.py`. Bế tắc lớn nhất của §18.5 là *"~40 nước đi, một con số"*. Phân bổ
+hỏi hai câu khác: **tiền đi ra từ khối nào**, và **cổng nào chặn cái gì**.
+
+```
+Sell Stop dưới đáy vùng   55 lệnh   −531,46 $   −10,28 R
+Buy Stop trên đỉnh vùng   58 lệnh    −67,46 $    −0,03 R
+Xu hướng XUỐNG?           55 xét → 55 khớp (100%)   ← thừa về logic
+```
+
+Cả sơ đồ mẫu lỗ −10,31 R; bảng nói ngay **−10,28 đến từ một nhánh**.
+
+⭐ **Đây là KẾ TOÁN, không phải thống kê** — `Lenh.khoi` là id ĐÚNG cái khối đã đẻ ra lệnh.
+Khác hẳn phép đo đã chết ở §18.5d.
+
+⚠ **`Lenh.sinh_tai` KHÔNG phải id khối** — nó là CHỈ SỐ NẾN, dù chú thích cũ của nó ghi là
+*"id khối Vào lệnh"*. Đã tin theo một lần: bảng tiền ra rỗng trơn trong khi sổ có 113 lệnh.
+`Lenh.khoi` là trường thêm vào cho việc này.
+
+⚠ **"Chắc chắn bỏ được" CHỈ gồm khối CHƯA BAO GIỜ ĐƯỢC ĐẾN.** Hai cái bẫy đã suýt mắc:
+
+- **Cổng luôn khớp KHÔNG hiển nhiên bỏ được** — cổng zone vẫn *nuôi* vùng nén như hiệu ứng
+  phụ kể cả khi khớp. Gỡ ra là zone chết khác đi, tức đổi KẾT QUẢ.
+- **Khối Vào lệnh đẻ 0 lệnh KHÔNG hiển nhiên bỏ được** — chỉ cần dòng chảy ĐẾN nó là
+  `cham_thi_truong` bật và luật lùi (§12.5a) cấm thử nhánh khác.
+
+Bộ đếm mặc định TẮT, tốn **+4,3%** khi bật. Tester bật (chạy đúng một sơ đồ người đang
+nhìn); máy tìm tắt.
+
+#### 18.5c ✅ CẮT TỈA — phép ĐỐI CHỨNG, 0,64 giây một câu trả lời sạch
+
+`cat_studio/cat_tia.py`. Bỏ một nhánh, chạy lại, so.
+
+⭐ **Cắt theo NHÁNH chứ không theo khối.** Gỡ một khối giữa dòng rồi nối cha vào con là một
+phép *đoán* — cổng ấy có thể đang rẽ hai đường. Cắt cả nhánh thì thứ biến mất đúng bằng
+thứ chỉ tới được qua nó, không phải đoán gì.
+
+⚠ **Bất biến, có bài kiểm quét mọi khối:** cắt bất kỳ khối nào cũng chỉ ra `None` hoặc một
+sơ đồ **soát tĩnh sạch** — không có đường thứ ba. Và hai điều đã đoán SAI lúc viết:
+§17 **không** coi cổng cụt đuôi là lỗi, và sơ đồ chỉ còn khối Bắt đầu **vẫn hợp lệ**.
+
+⚠ **MỘT CỬA SỔ ĐỦ ĐỂ KẾT LUẬN SAI, RẤT THUYẾT PHỤC.** Đo trên sơ đồ mẫu:
+
+```
+bỏ nhánh BÁN, quý 2024-Q1 (vàng +8,7%)   →  +0,3872   ← đẹp và SAI
+xét cả sáu quý                            →  tốt hơn ở 4/6
+```
+
+Nên `mo_sach` chỉ giữ một nhát cắt khi nó **tốt hơn ở ĐA SỐ cửa sổ**, không phải khi điểm
+gộp tốt hơn. Mọi nhát cắt đã thử đều vào **biên bản**, kể cả cái bị bỏ — người đọc phải
+soi lại được máy đã thử gì và vì sao quyết như thế.
+
+#### 18.5d ⚠ ĐÃ THỬ VÀ CHẾT: đo lợi thế bằng THỐNG KÊ QUAN SÁT
+
+Ghi lại vì nó tốn hai tiếng và vì nó rất dễ có người làm lại.
+
+Ý tưởng: gom hàng trăm sơ đồ, hỏi *"những sơ đồ CÓ thẻ này thì trung bình hơn hay kém"*.
+Đo trên **500 sơ đồ × 2 hạt giống**:
+
+```
+tương quan hạng giữa hai hạt   −0,172
+cùng dấu lợi thế               38/90  (42% — tung đồng xu)
+chu_ky:10                      ĐẦU bảng ở hạt này, ĐÁY bảng ở hạt kia
+```
+
+**Chết.** Vì 143 sơ đồ mang một thẻ thì khác nhau ở *mọi thứ khác*, và cái khác ấy át hẳn
+tác dụng của một thẻ.
+
+⭐ **Bài học tổng quát: nhiễu phải bị triệt tiêu TRONG TỪNG CẶP, trước khi ai kịp lấy trung
+bình.** Đó là toàn bộ khác biệt giữa phép đo này và `cat_tia` — cùng là "so sánh", nhưng
+một bên so đám mây với đám mây, một bên so vật với vật.
+
+Code đã **xoá** (`kinh_nghiem.py`), giữ lại đúng bài học này. Không giữ code chết.
+
+#### 18.5f ✅ CỬA "ĐỀU QUA THỜI GIAN" — cửa đáng giá nhất thêm vào sau này
+
+`cham_diem.CUA_MAC_DINH["deu_toi_thieu"]`. Phải DƯƠNG ở ít nhất ngần này phần các cửa sổ.
+
+```
+cửa cũ cho qua                    ~8% sơ đồ bốc bừa
++ cửa "đều"                       ~2%
+```
+
+> **6 trong 8** cái từng nằm ở bảng đầu bảng chỉ ăn may một đoạn thị trường.
+
+Chính nó giết con quán quân `+0,9686` mà thật ra chỉ *"học"* được rằng vàng lên 18,9% quý
+đó (§18.6.3).
+
+⚠ **Là CỬA, không phải đổi thước.** Thước vẫn `trung bình ÷ dao động` — §15.1 nguyên vẹn.
+
+⚠ **2% thấp hơn NGẪU NHIÊN rất xa.** Nếu lãi mỗi kỳ là tung đồng xu thì xác suất dương ≥
+nửa số cửa sổ là **~65%**; ta đo được **2%**. Nghĩa là sơ đồ bốc bừa KHÔNG ngẫu nhiên —
+**chúng thua có hệ thống**, vì mỗi lệnh đều trả spread và hoa hồng. Giao dịch bừa thì lỗ
+đều; đó là số học, không phải xui.
+
+⚠ **Số cửa sổ là số NGUYÊN** nên ngưỡng này thô hơn nó trông: với 4 cửa sổ thì `0,5` và
+`0,4` ra CÙNG một luật (≥2/4). Muốn nới thật thì đổi `buoc_deu` cho mịn hơn, đừng vặn con
+số này.
+
+#### 18.5g ✅ KIỂM CÁI THƯỚC — chỉnh vào một đáp án đã biết
+
+Trước khi hỏi *"máy tìm có giỏi không"*, phải hỏi *"cái thước có nói thật không"*. Cách rẻ
+nhất: cho chạy một thứ **biết trước đáp án**.
+
+```
+vàng 2024                     +27,1%      ← đáp án
+mua-và-giữ, thước chấm        +33,61% lãi · điểm +0,1387 · sụt vốn 0,00%
+                              rớt cửa "tuần có lệnh 1/53"
+```
+
+**Thước đúng cả ba việc**: thấy tiền, chấm dương, và loại vì một lý do đọc được thành lời
+(đây đúng là chiến lược một lệnh — thứ §18.2a sinh ra để chặn).
+
+⭐ Nên mọi kết luận đo đạc của §18 vẫn đứng. Và nó khoanh câu hỏi lại cho sắc: **vấn đề
+không nằm ở dụng cụ, nằm ở chỗ không gian hiện tại chưa đẻ ra sơ đồ nào tử tế.**
+
+⚠ Nhưng **KHÔNG biến "thắng mua-và-giữ" thành mục tiêu**. Đích của phase này là **sơ đồ hợp
+lí** — mọi khối có việc, mọi cổng có tác dụng; lãi là **bằng chứng và cái cửa**, không phải
+cái thang để leo. Biến lãi thành đích là quay lại đúng cái bẫy §18.1.
+
+#### ⏸ CẤT LẠI: học (tiến hoá · thống kê · mạng)
+
+Đã viết `tien_hoa.py` (sinh → chấm → mổ → đột biến → lặp) rồi **xoá**. Lý do không phải nó
+sai, mà là **chưa có gì để học**:
+
+```
+sơ đồ người viết cẩn thận nhất   lỗ −7,35% trong năm vàng lên +27%
+mổ nó bằng dụng cụ mới           −0,42 → −0,04.  Vẫn âm.
+sơ đồ bốc bừa                    ~2% dương đều (ngẫu nhiên là 65%)
+```
+
+Máy học bằng cách bắt chước cái tốt. Chưa chứng minh được **có cái tốt nào tồn tại** trong
+không gian hiện tại — mà kho đồ còn nhỏ thì đó là chuyện đương nhiên của phase 0.
+
+Ba con số đã đo, để khi nào quay lại thì khỏi dò lại:
+
+- **Dân số 20 con cần ~1.000 sơ đồ mỗi vòng** (ở tỉ lệ qua cửa 2%). Ba lượt thử với 30 ·
+  80 · 120 sơ đồ đều chỉ ra **1–2 con sống sót** — thiếu công suất từ lúc bấm chạy.
+- **Đột biến = cắt chuỗi nước đi rồi đi nốt.** Đo được: cắt ở 30% · 50% · 80%, **9/9** ra
+  sơ đồ soát tĩnh sạch. Mặt nạ luôn chừa đường về đích nên cắt ở đâu cũng đi tiếp được.
+- **Ba bẫy plateau** và ba chỗ chặn, cả ba đều thành con số hiện trên màn hình: mổ chỉ đi
+  xuống (cần đột biến); đột biến từ top-K co cụm (cần ~30% bốc bừa + bốc ĐỀU trong top-K,
+  vì thứ tự bên trong bảng đã đo là nhiễu +0,54); điểm nhiễu (cần nhóm bốc bừa làm ĐỐI
+  CHỨNG chạy song song mãi).
+
+⭐ Và **nhóm bốc bừa làm hai việc bằng một thứ**: nguồn cái mới, và cái mốc phải thắng.
+
+#### ⏸ Còn lại: viết lại lõi backtest
 
 | | được | giá |
 |---|---|---|
-| **song song 8 tiến trình** | ~8× | không đụng lõi — **và nó chính là nửa ACTOR của RL** |
 | **biên dịch sơ đồ thay vì đi bộ** | ~30× | viết lại lõi |
 
 ⭐ Có một sự thật cấu trúc khiến cái 30× làm được, ghi lại để khỏi phải tìm lại: **điều

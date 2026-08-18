@@ -1,5 +1,5 @@
 {
- "bam": "8a3d55dbd852dc74",
+ "bam": "824b3d1319a6b064",
  "chi_tiet": {
   "kho": {
    "toan_hang": [
@@ -759,6 +759,9 @@
      "lai_pt": -21.36,
      "so_lenh": 232,
      "lai_moi_nam": -21.36,
+     "cua_so_duong": 0,
+     "so_cua_so": 4,
+     "buoc_deu": "quy",
      "dat": true,
      "ly_do": null
     }
@@ -815,6 +818,9 @@
      "lai_pt": 1.25,
      "so_lenh": 284,
      "lai_moi_nam": 1.23,
+     "cua_so_duong": 2,
+     "so_cua_so": 4,
+     "buoc_deu": "quy",
      "dat": true,
      "ly_do": null
     }

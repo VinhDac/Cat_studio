@@ -22,7 +22,7 @@ import collections
 import random
 import time
 
-from . import cham_diem, kinh_nghiem, nguoi_bay as nb, song_song
+from . import cham_diem, nguoi_bay as nb, song_song
 
 #: Giữ lại bao nhiêu sơ đồ đầu bảng. §18.6.5: lấy NHÓM ĐẦU, không lấy quán quân — cái
 #: chung giữa nhiều sơ đồ đáng tin hơn bất kỳ sơ đồ đơn lẻ nào (đo được: quán quân nửa
@@ -59,13 +59,10 @@ def mot_so_do(rng, tran=None, tat=()):
 class KetQuaTim:
     """Kết quả một lượt tìm. `qua` đã xếp hạng, `rot` giữ lại kèm lý do."""
 
-    __slots__ = ("qua", "rot", "thong_ke", "kinh_nghiem")
+    __slots__ = ("qua", "rot", "thong_ke")
 
-    def __init__(self, qua, rot, thong_ke, kn=None):
+    def __init__(self, qua, rot, thong_ke):
         self.qua, self.rot, self.thong_ke = qua, rot, thong_ke
-        #: Thống kê theo THẺ, gom qua mọi sơ đồ đã chấm (§18.5a). Đây là thứ DUY NHẤT
-        #: của một lượt tìm còn dùng được cho lượt sau — bảng xếp hạng thì không.
-        self.kinh_nghiem = kn
 
 
 def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
@@ -107,7 +104,6 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
     t0 = time.perf_counter()
     trang = {"tot_cu": None, "phang": 0}
 
-    kn = kinh_nghiem.KinhNghiem()
     da_boc = [0]
 
     def thoi():
@@ -169,10 +165,6 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
             tk.setdefault("no_vi", []).append(ket["chu"])
             return
         d = ket["diem"]
-        # ⭐ GHI KINH NGHIỆM cho MỌI sơ đồ đã chấm, kể cả cái rớt cửa. Chỉ ghi cái qua
-        # cửa là chỉ nhìn người thắng — mà "thẻ này hay đi kèm sơ đồ tệ" cũng là tin,
-        # và là loại tin rẻ nhất để có.
-        kn.ghi(chuoi, d["diem"], d["dat"])
         tk["da_chay"] += 1
         if not ket["co_lenh"]:
             tk["khong_lenh"] += 1
@@ -254,4 +246,4 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
         k = (r or "").split(" ")[0:3]
         ly_do[" ".join(k)] = ly_do.get(" ".join(k), 0) + 1
     tk["ly_do_rot"] = dict(sorted(ly_do.items(), key=lambda x: -x[1]))
-    return KetQuaTim(qua, rot, tk, kn)
+    return KetQuaTim(qua, rot, tk)

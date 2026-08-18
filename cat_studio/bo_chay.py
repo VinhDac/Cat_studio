@@ -219,12 +219,14 @@ class Ctx:
     thêm một nguồn dữ liệu là sửa đúng một chỗ."""
 
     __slots__ = ("ct", "so", "i", "j", "tab", "lenh", "co_lo_hong", "ts",
-                 "zone_da_xet", "zone_thu", "_dang_hop_le", "ghi_nk")
+                 "zone_da_xet", "zone_thu", "_dang_hop_le", "ghi_nk", "dem")
 
-    def __init__(self, ct, so, ts, ghi_nk=True):
+    def __init__(self, ct, so, ts, ghi_nk=True, dem=None):
         self.ct, self.so, self.ts = ct, so, ts
         #: Có dựng NHẬT KÝ không. Xem `chay(..., ghi_nhat_ky=)`.
         self.ghi_nk = ghi_nk
+        #: Bộ ĐẾM THEO KHỐI, hoặc `None` là không đếm. Xem `chay(..., dem_khoi=)`.
+        self.dem = dem
         self.i = 0            # chỉ số trên trục quyết định (nến M5)
         self.j = 0            # chỉ số trên trục M1
         self.tab = core.TAB_ENTRY
@@ -900,7 +902,7 @@ def _vao_lenh(st, ctx):
             tpg = gia_dat + d if huong == sl.MUA else gia_dat - d
 
     l = so_.mo_lenh(vung.id if vung else None, ctx.i, huong, loai, lot,
-                    gia_dat, slg, tpg, R, ctx.i)
+                    gia_dat, slg, tpg, R, ctx.i, st.get("id"))
     # Lệnh THỊ TRƯỜNG khớp NGAY, không phải chờ giá quay lại chạm `gia_dat`. Thiếu chỗ
     # này thì nó nằm treo như một lệnh chờ và có thể không bao giờ khớp — sai hẳn bản
     # chất, dù sơ đồ mẫu D_02 không dùng tới nên bài kiểm cũ không thấy.
@@ -1142,6 +1144,7 @@ def _chay_so_do(tab, ctx):
     Vì thế `cham_thi_truong` được hỏi ở MỨC ĐANG QUAY VỀ, không hỏi một lần cho cả lượt:
     cùng một cú "hết nhánh ở đây" mang hai nghĩa tuỳ mức cha là VÀ hay HOẶC."""
     ghi = ctx.ghi_nk
+    dem = ctx.dem
     ct = ctx.ct
     L = ct.luong[tab]
     theo_id, ke = L["theo_id"], L["ke"]
@@ -1181,6 +1184,10 @@ def _chay_so_do(tab, ctx):
                     _dat_zone_thu(ctx)
                 khop, vet = _xet_cong(st, ctx)
                 ctx.zone_thu = None
+                if dem is not None:
+                    d = dem.setdefault(s, [0, 0, 0])
+                    d[1] += 1                       # đã XÉT cổng này
+                    d[2] += bool(khop)              # và nó KHỚP
                 if ghi:
                     cong.append({"khoi": s, "ve": vet, "khop": bool(khop)})
                 if st.get("cong_zone"):
@@ -1204,6 +1211,12 @@ def _chay_so_do(tab, ctx):
 
         if ghi:
             duong.append(di)
+        if dem is not None:
+            # ⚠ Đếm ĐẾN chứ không đếm "đẻ ra lệnh". Một khối Vào lệnh ĐƯỢC ĐẾN mà không
+            # đẻ lệnh nào (lot bé hơn `lot_min`, sàn từ chối…) vẫn đặt `cham_thi_truong`
+            # — tức nó vẫn ĐỔI dòng chảy, vẫn cấm lùi thử nhánh khác. "0 lệnh" KHÔNG
+            # đồng nghĩa "bỏ đi thì y hệt"; "chưa bao giờ đến" mới đồng nghĩa.
+            dem.setdefault(di, [0, 0, 0])[0] += 1
         st = theo_id[di]
         t = st.get("type")
         if t == core.VAO_LENH:
@@ -1255,8 +1268,10 @@ class KetQua:
     Trạng thái sổ lệnh tại nến i là một PHÉP LỌC trên `so.lenh`, không phải một ảnh
     chụp — `so_lenh.Lenh` vốn đã mang sẵn `nen_dat` / `nen_khop` / `nen_dong`."""
 
-    def __init__(self, ct, so, nhat_ky, cot, thong_ke):
+    def __init__(self, ct, so, nhat_ky, cot, thong_ke, dem_khoi=None):
         self._ct = ct
+        #: `{id khối: [đến, xét, khớp]}` hoặc `None`. Xem `chay(..., dem_khoi=)`.
+        self.dem_khoi = dem_khoi
         self._sl_theo_lenh = None       # dựng lười, dùng lại cho mọi lệnh
         self.nen1, self.nen5 = ct.nen1, ct.nen5
         self.tf = ct.tf5
@@ -1436,7 +1451,8 @@ class PhienChay:
     trường đã đóng từ hai phút trước.
     """
 
-    def __init__(self, doc, nen1, cd, tien_do=None, ghi_nhat_ky=True):
+    def __init__(self, doc, nen1, cd, tien_do=None, ghi_nhat_ky=True,
+                 dem_khoi=False):
         # ⚠ `cd` BẮT BUỘC. Trước đây là `cd or CaiDat()` — không caller nào dùng nhánh
         # ấy, nhưng nếu lỡ rơi vào thì cả lượt chạy dùng point/spread giả mà không báo.
         doc = core.normalize_process(doc)
@@ -1445,7 +1461,9 @@ class PhienChay:
         self.tien_do = tien_do
         self.ct = ct = ChuongTrinh(doc, nen1, cd)
         self.so = so = sl.SoLenh()
-        self.ctx = Ctx(ct, so, ct.ts, ghi_nhat_ky)
+        #: `{id khối: [đến, xét, khớp]}` — xem `chay(..., dem_khoi=)`.
+        self.dem_khoi = {} if dem_khoi else None
+        self.ctx = Ctx(ct, so, ct.ts, ghi_nhat_ky, self.dem_khoi)
         #: Đếm THẲNG, không suy từ `len(nhat_ky)` — tắt nhật ký thì cái list ấy rỗng,
         #: mà số lượt chạy sơ đồ vẫn là một con số thật và bảng số liệu vẫn hỏi tới.
         self.so_luot = 0
@@ -1617,7 +1635,8 @@ class PhienChay:
         Nhờ vậy `Chart`, `BangSoLieu`, `Journey` chạy ở Live mà không sửa một dòng: hai
         cửa sổ đọc CÙNG một hình dạng dữ liệu, từ cùng một đoạn code."""
         kq = KetQua(self.ct, self.so, self.nhat_ky, self.ct._cot,
-                    {"so_luot": self.so_luot, "nen_mo_ho": self.mo_ho})
+                    {"so_luot": self.so_luot, "nen_mo_ho": self.mo_ho},
+                    self.dem_khoi)
         kq.duong_von = []
         kq.cot_zone = self.cot_zone
         kq.zone_id = self.zone_id
@@ -1642,7 +1661,7 @@ class PhienChay:
         tk, duong_von = _thong_ke(so, self.cd, ct)
         tk["nen_mo_ho"] = self.mo_ho
         tk["so_luot"] = self.so_luot
-        kq = KetQua(ct, so, self.nhat_ky, ct._cot, tk)
+        kq = KetQua(ct, so, self.nhat_ky, ct._cot, tk, self.dem_khoi)
         kq.duong_von = duong_von
         kq.cot_zone = self.cot_zone
         kq.zone_id = self.zone_id
@@ -1650,7 +1669,7 @@ class PhienChay:
         return kq
 
 
-def chay(doc, nen1, cd, tien_do=None, ghi_nhat_ky=True):
+def chay(doc, nen1, cd, tien_do=None, ghi_nhat_ky=True, dem_khoi=False):
     """Chạy trọn một backtest. Trả `KetQua` bất biến.
 
     ⭐ `ghi_nhat_ky=False` cho MÁY TÌM (§18.4b). Nhật ký là thứ cửa sổ Tester đọc để
@@ -1661,8 +1680,15 @@ def chay(doc, nen1, cd, tien_do=None, ghi_nhat_ky=True):
     Chỉ là vòng lặp quanh `PhienChay.mot_nhip` — mọi luật nằm ở đó, xem docstring của
     lớp. Giữ hàm này vì nó là cửa mà cả app lẫn bộ test gọi vào.
 
+    ⭐ `dem_khoi=True` bật BỘ ĐẾM THEO KHỐI (§18.5b) — mỗi khối được ĐẾN bao nhiêu
+    lần, mỗi cổng KHỚP bao nhiêu lần. Đó là nửa còn thiếu của phép phân bổ: nửa kia
+    (tiền theo từng khối Vào lệnh) đọc thẳng từ sổ lệnh, không tốn gì.
+
+    ⚠ Mặc định TẮT. Máy tìm chấm hàng nghìn sơ đồ và không hỏi tới mấy con số này —
+    phân bổ là việc làm trên MỘT sơ đồ mình đang quan tâm, không phải trên mọi lượt bốc.
+
     Ném `NaLenh` nếu `cd.lenh_moi_tuan_toi_da` bị vượt — xem lớp ấy."""
-    phien = PhienChay(doc, nen1, cd, tien_do, ghi_nhat_ky)
+    phien = PhienChay(doc, nen1, cd, tien_do, ghi_nhat_ky, dem_khoi)
     # NGÂN SÁCH CẢ DẢI, tính một lần: `trần/tuần × số tuần của dải nến`.
     #
     # ⚠ Cố ý KHÔNG so với "số tuần đã trôi qua". Luật ấy cắt sớm hơn thật, nhưng nó cắt

@@ -734,6 +734,42 @@ export interface DatRL {
   so_nhan?: number
 }
 
+/** MỔ XẺ — một lượt chạy tách thành một con số cho MỖI khối (§18.5b). */
+export interface PhanBoTien {
+  khoi: string; tab: string; nhan: string
+  den: number; so_lenh: number; da_dong: number
+  tien: number; thang: number; thua: number; tong_R: number
+}
+export interface PhanBoCong {
+  khoi: string; tab: string; nhan: string
+  xet: number; khop: number
+  ty_le: number | null
+  zone: boolean; luon_khop: boolean; luon_chan: boolean
+}
+export interface PhanBo {
+  co_dem: boolean
+  tien: PhanBoTien[]
+  cong: PhanBoCong[]
+  /** Khối dòng chảy CHƯA BAO GIỜ tới — gỡ ra thì kết quả không đổi, khỏi chạy lại. */
+  chac_bo_duoc: { khoi: string; tab: string; nhan: string; vi_sao: string }[]
+}
+
+/** Kết quả CẮT một nhánh rồi chạy lại (§18.5c).
+ *
+ * ⚠ Đọc `cua_so` / `tot_hon`, ĐỪNG đọc mỗi `truoc`/`sau`. Đo được: cắt nhánh BÁN của sơ
+ * đồ mẫu cho `+0,3872` trên một quý — rất thuyết phục và sai, vì cả sáu quý thì chỉ 4/6
+ * quý bỏ đi là tốt hơn. */
+export interface ThuBo {
+  khoi: string; buoc: string
+  truoc: { diem: number; so_lenh: number; lai_pt: number }
+  sau: { diem: number; so_lenh: number; lai_pt: number }
+  cua_so: { tu: string; den: string; truoc: number; sau: number; chenh: number }[]
+  tot_hon: number
+  so_cua_so: number
+  /** Cắt xong còn lệnh nào không. Không còn thì mọi con số là so với ĐỨNG NGOÀI. */
+  con_lenh: boolean
+}
+
 /** Điểm MỘT cửa sổ cuốn tới trong đoạn khoá (§18.3). */
 export interface CuaSoCham {
   tu: string; den: string

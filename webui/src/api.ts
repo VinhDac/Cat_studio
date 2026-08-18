@@ -4,11 +4,39 @@
  * sau này đổi cách vận chuyển (hoặc giả lập khi test) chỉ phải sửa một file.
  */
 import type {
-  BoNen, Bootstrap, Card, ChangRay, KetQuaChay, KetQuaSoat, KhoDanhMuc, Khung, CuaSoNen,
-  LoNhatKy, ProcEdge, ProcessDoc, Reply, Step, Tab, TesterBoot, ThamSo,
-  DoanPhat, MucLichSu, ThongKeChay, TrangThaiChay, XemLichSu,
-  TinKetNoi, VanDeLive, KetQuaHieuChuan, DePhong,
-  RLBoot, DatRL, TrangThaiLuot, KhoNen, KetQuaKhoa,
+  BoNen,
+  Bootstrap,
+  Card,
+  ChangRay,
+  CuaSoNen,
+  DatRL,
+  DePhong,
+  DoanPhat,
+  KetQuaChay,
+  KetQuaHieuChuan,
+  KetQuaKhoa,
+  KetQuaSoat,
+  KhoDanhMuc,
+  KhoNen,
+  Khung,
+  LoNhatKy,
+  MucLichSu,
+  PhanBo,
+  ProcEdge,
+  ProcessDoc,
+  RLBoot,
+  Reply,
+  Step,
+  Tab,
+  TesterBoot,
+  ThamSo,
+  ThongKeChay,
+  ThuBo,
+  TinKetNoi,
+  TrangThaiChay,
+  TrangThaiLuot,
+  VanDeLive,
+  XemLichSu,
 } from './types'
 
 type PyApi = Record<string, (...a: unknown[]) => Promise<unknown>>
@@ -174,6 +202,9 @@ export const pyTester = {
   /** Mốc thời gian (unix, giây) → nến M1 CÓ THẬT gần nhất về phía sau. */
   test_tim_moc: (t: number) => goi<{ j: number; t: number }>('test_tim_moc', t),
   /** Tổng kết cả lượt chạy + đường vốn. Gọi MỘT lần lúc mở tab Thống kê. */
+  test_phan_bo: () => goi<PhanBo>('test_phan_bo'),
+  test_thu_bo: (khoi: string, buoc = 'quy') =>
+    goi<ThuBo>('test_thu_bo', khoi, buoc),
   test_thong_ke: () => goi<ThongKeChay>('test_thong_ke'),
 
   // --- lịch sử các lần chạy ---

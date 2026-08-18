@@ -32,6 +32,7 @@ BAI = [
     ("test_tim_kiem.py", "DÒ NGẪU NHIÊN — đối chứng · bốc hai tầng · tái lập được"),
     ("test_luot_tim.py", "LƯỢT TÌM — sống NGOÀI cửa sổ · dừng được · nổ thì nói to"),
     ("test_song_song.py", "SONG SONG — 8 nhân phải ra ĐÚNG kết quả 1 nhân"),
+    ("test_cat_tia.py", "PHÂN BỔ · CẮT TỈA — tiền theo KHỐI · luật ĐA SỐ cửa sổ"),
     ("test_dat_ten.py", "Số gõ tay hai chỗ → cảnh báo + nút đặt tên"),
     ("test_giao_dien.py", "Biến CSS ma — thứ hỏng LẶNG, build vẫn sạch"),
     ("test_o_so.py", "Ô số — gõ TỪNG PHÍM, số thập phân không được nuốt"),

@@ -93,10 +93,17 @@ class Lenh:
     "lãi 1R" đổi nghĩa giữa chừng, và mốc dời SL về hoà vốn trôi theo thị trường."""
 
     def __init__(self, id, zone_id, sinh_tai, huong, loai, lot,
-                 gia_dat, sl, tp, R, nen):
+                 gia_dat, sl, tp, R, nen, khoi=None):
         self.id = id
         self.zone_id = zone_id          # vùng nén đẻ ra nó — thay cho COMP_CONSUMED
-        self.sinh_tai = sinh_tai        # id khối "Vào lệnh"
+        # ⚠ CHỈ SỐ NẾN TRỤC lúc sinh, KHÔNG phải id khối. Chú thích cũ ghi là *id
+        # khối "Vào lệnh"* và sai — đã tin theo nó một lần rồi, bảng phân bổ tiền ra
+        # rỗng trơn trong khi sổ có 113 lệnh.
+        self.sinh_tai = sinh_tai
+        #: ⭐ Id KHỐI "Vào lệnh" đã đẻ ra lệnh này — nửa còn thiếu của phép phân bổ
+        #: (§18.5b). Không có nó thì không cách nào hỏi *"khối nào đẻ ra tiền"*, mà đó
+        #: là cách duy nhất biến MỘT con số cho cả sơ đồ thành một con số cho MỖI khối.
+        self.khoi = khoi
         self.huong = huong
         self.loai = loai                # market | stop | limit
         self.lot = lot
@@ -149,6 +156,7 @@ class Lenh:
 
     def tom_tat(self):
         return {"id": self.id, "zone_id": self.zone_id, "sinh_tai": self.sinh_tai,
+                "khoi": self.khoi,
                 "huong": self.huong, "loai": self.loai, "lot": self.lot,
                 "gia_dat": self.gia_dat, "gia_khop": self.gia_khop,
                 "sl": self.sl, "tp": self.tp, "R": self.R,
@@ -212,10 +220,11 @@ class SoLenh:
         return zone_id in self._vung_co_lenh
 
     # ---- lệnh ----
-    def mo_lenh(self, zone_id, sinh_tai, huong, loai, lot, gia_dat, sl, tp, R, nen):
+    def mo_lenh(self, zone_id, sinh_tai, huong, loai, lot, gia_dat, sl, tp, R, nen,
+                khoi=None):
         self._dem_lenh += 1
         l = Lenh(f"L-{self._dem_lenh:04d}", zone_id, sinh_tai, huong, loai, lot,
-                 gia_dat, sl, tp, R, nen)
+                 gia_dat, sl, tp, R, nen, khoi)
         self.lenh.append(l)
         self._vung_co_lenh.add(zone_id)      # ⚠ phải đi LIỀN dòng trên
         return l

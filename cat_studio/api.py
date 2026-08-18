@@ -24,12 +24,14 @@ import traceback
 
 from . import core
 from . import kho
+from . import cat_tia
 from . import cham_diem
 from . import gui_lenh
 from . import ket_noi
 from . import khung_cua_so
 from . import luot_tim
 from . import nguoi_bay
+from . import phan_bo
 from . import phien_live
 from . import bo_chay
 from . import lich_su
@@ -1059,6 +1061,10 @@ class ApiTester(NenChay):
         super().__init__()
         self._cha = cha          # `Api` của cửa sổ chính — chỉ ĐỌC
         self._kq = None          # kết quả lần chạy gần nhất (bất biến)
+        #: Sơ đồ ĐÃ CHẠY, giữ riêng. `_cha._doc_tester` có thể đã đổi (người dùng vẽ
+        #: tiếp ở cửa sổ chính) — mà phép mổ phải cắt ĐÚNG cái vừa chạy, không thì bảng
+        #: nói về một sơ đồ còn con số nói về một sơ đồ khác.
+        self._doc_da_chay = None
         self._cd = None
         self._chi_co_viec = True
 
@@ -1126,8 +1132,12 @@ class ApiTester(NenChay):
             self._tt.update({"da": int(i), "tong": int(tong),
                              "chu": f"đang chạy {i:,}/{tong:,} nến".replace(",", ".")})
 
-        kq = bo_chay.chay(doc, nen, cd, tien_do=tien_do)
-        self._kq, self._cd = kq, cd          # gán MỘT lần, sau khi đã tính xong
+        # ⭐ `dem_khoi=True`: Tester chạy ĐÚNG MỘT sơ đồ mà người dùng đang nhìn, nên
+        # +4,3% là không đáng gì — đổi lại tab "Mổ xẻ" có số ngay, khỏi phải chạy lần
+        # hai. Máy tìm thì ngược lại: nó chấm hàng nghìn sơ đồ và không hỏi tới mấy con
+        # số này, nên ở đó bộ đếm vẫn TẮT (§18.5b).
+        kq = bo_chay.chay(doc, nen, cd, tien_do=tien_do, dem_khoi=True)
+        self._kq, self._cd, self._doc_da_chay = kq, cd, doc
         self._chi_co_viec = True
         # Vào lịch sử NGAY, không đợi người dùng bấm gì: lưới an toàn chỉ có tác dụng
         # khi nó tự giăng. Bản tóm tắt dùng ĐÚNG payload của `test_thong_ke` nên mở một
@@ -1630,6 +1640,63 @@ class ApiTester(NenChay):
             "symbol": self._cd.symbol,
             "nhip": dict(kq._ct.nhip),
         }
+
+    # ------------------------------------------------------------------- MỔ XẺ
+    @_bat_loi
+    def test_phan_bo(self):
+        """Tiền ra từ khối nào, cổng chặn cái gì (§18.5b).
+
+        ⭐ Đây là chỗ MỘT con số của cả sơ đồ tách thành một con số cho MỖI khối. Không
+        có nó thì người vẽ chỉ biết *"sơ đồ tôi lỗ 10 R"* mà không biết lỗ ở đâu."""
+        if self._kq is None:
+            return _loi("Chưa chạy lần nào.")
+        return _ok(phan_bo.theo_khoi(self._kq, self._cd))
+
+    @_bat_loi
+    def test_thu_bo(self, khoi, buoc="quy"):
+        """⭐ Cắt một nhánh, chạy lại, so — THEO TỪNG CỬA SỔ (§18.5c).
+
+        ⚠ Cố ý KHÔNG trả về một con số gộp, và đây là chỗ đã đo được cái giá của việc
+        trả một con số: cắt nhánh BÁN của sơ đồ mẫu cho `+0,3872` ở quý 2024-Q1 — một
+        con số rất đẹp và SAI, vì xét sáu quý thì chỉ 4/6 quý bỏ đi là tốt hơn. Một cửa
+        sổ đủ để kết luận sai một cách thuyết phục."""
+        if self._kq is None or self._doc_da_chay is None:
+            return _loi("Chưa chạy lần nào.")
+        moi = cat_tia.bo_nhanh(self._doc_da_chay, str(khoi))
+        if moi is None:
+            return _loi("Cắt nhánh này thì sơ đồ không còn hợp lệ — không thử được.\n\n"
+                        "Thường là vì cắt xong còn một cổng cụt đuôi, hoặc khối ấy vẫn "
+                        "tới được bằng đường khác nên cắt một cạnh không bỏ được nó.")
+        nen, cd, _ = self._nen_va_cd({})
+        t = self._kq.nen5["t"]
+        moc = (datetime.datetime.fromtimestamp(int(t[0]), datetime.UTC).date(),
+               datetime.datetime.fromtimestamp(int(t[-1]), datetime.UTC).date()
+               + datetime.timedelta(days=1))
+        try:
+            kq = bo_chay.chay(moi, nen, cd, ghi_nhat_ky=False)
+        except bo_chay.LoiChay as e:
+            return _loi(f"Bản đã cắt không chạy được: {e}")
+
+        cs0 = cham_diem.cham_cuon(self._kq, *moc, buoc)
+        cs1 = cham_diem.cham_cuon(kq, *moc, buoc)
+        d0, d1 = cham_diem.cham(self._kq), cham_diem.cham(kq)
+        cua_so, tot = [], 0
+        for a, b in zip(cs0, cs1):
+            ch = round(b["diem"] - a["diem"], 4)
+            tot += ch > 0
+            cua_so.append({"tu": a["tu"], "den": a["den"], "truoc": a["diem"],
+                           "sau": b["diem"], "chenh": ch})
+        return _ok({
+            "khoi": str(khoi), "buoc": buoc,
+            "truoc": {"diem": d0["diem"], "so_lenh": d0["so_lenh"],
+                      "lai_pt": d0["lai_pt"]},
+            "sau": {"diem": d1["diem"], "so_lenh": d1["so_lenh"],
+                    "lai_pt": d1["lai_pt"]},
+            "cua_so": cua_so, "tot_hon": tot, "so_cua_so": len(cua_so),
+            # ⚠ Cắt xong không còn lệnh nào thì mọi con số trên là so một chiến lược
+            # với việc ĐỨNG NGOÀI thị trường, không phải so hai chiến lược.
+            "con_lenh": bool(d1["so_lenh"]),
+        })
 
     @_bat_loi
     def test_thong_ke(self):

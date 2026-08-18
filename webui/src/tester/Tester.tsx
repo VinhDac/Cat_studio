@@ -12,6 +12,7 @@ import BangDuoi from './BangDuoi'
 import NutChart from './NutChart'
 import Journey from './Journey'
 import ThongKe from './ThongKe'
+import MoXe from './MoXe'
 import type { DongNk } from './Journey'
 import LichSu from './LichSu'
 
@@ -506,6 +507,10 @@ ${r.value.duong_dan}`)
             </> },
           { khoa: 'thong-ke', nhan: 'Thống kê',
             ve: () => <ThongKe nguon={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }} /> },
+          // ⭐ MỔ XẺ — chỗ MỘT con số của cả sơ đồ tách thành một con số cho MỖI khối.
+          // Xem docstring `MoXe.tsx`.
+          { khoa: 'mo-xe', nhan: 'Mổ xẻ',
+            ve: () => <MoXe sanSang={!!kq} /> },
         ]} />
       )}
     </div>

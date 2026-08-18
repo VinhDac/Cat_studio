@@ -79,6 +79,23 @@ CUA_MAC_DINH = {
     "so_lenh_toi_thieu": None,                # lệnh đã đóng
     "te_nhat_toi_da": None,                   # kỳ tệ nhất lỗ không quá bao nhiêu %
     "dao_dong_toi_da": None,                  # %
+    # ⭐ CỬA "ĐỀU QUA THỜI GIAN" — phải DƯƠNG ở ít nhất ngần này phần các cửa sổ cuốn
+    #: tới. `None` = không lọc. core.md §18.5f.
+    #
+    # ⚠ Đây là cửa QUAN TRỌNG NHẤT thêm vào sau này, và đo được vì sao: cửa cũ cho qua
+    # ~8% sơ đồ bốc bừa, thêm cửa này thì còn ~2%. Tức **6 trong 8** cái từng nằm ở
+    # bảng đầu bảng chỉ ăn may một đoạn thị trường. Chính nó giết con quán quân
+    # `+0,9686` mà thật ra chỉ "học" được rằng vàng lên 18,9% quý đó.
+    #
+    # ⚠ Và nó thấp hơn ngẫu nhiên rất xa: nếu lãi mỗi kỳ là tung đồng xu thì xác suất
+    # dương ≥ nửa số cửa sổ là ~65%, ta đo được 2%. Nghĩa là sơ đồ bốc bừa KHÔNG ngẫu
+    # nhiên — chúng thua có hệ thống, vì mỗi lệnh đều trả spread và hoa hồng.
+    #
+    # ⚠ SỐ CỬA SỔ LÀ SỐ NGUYÊN nên ngưỡng này thô hơn nó trông: với 4 cửa sổ thì 0,5 và
+    # 0,4 ra CÙNG một luật (≥2/4). Muốn nới thật thì đổi `buoc_deu` cho mịn hơn, đừng
+    # vặn con số này.
+    "deu_toi_thieu": None,                    # tỉ lệ cửa sổ phải dương
+    "buoc_deu": "quy",                        # thang | quy | nua_nam
     "diem_toi_thieu": None,
 }
 
@@ -113,6 +130,7 @@ def _moi_ky(t0, t1, ky):
 #: đồng xu. Một tuần lẻ không mang tin. Quý = 13 tuần, gộp 6 quý là 78 tuần, trên
 #: ngưỡng nhiễu 48 tuần.
 BUOC_CUON = {"thang": 1, "quy": 3, "nua_nam": 6}
+_TEN_BUOC = {"thang": "tháng", "quy": "quý", "nua_nam": "nửa năm"}
 
 
 def cua_so_cuon(t0, t1, buoc="quy"):
@@ -250,6 +268,14 @@ def cham(kq, cua=None):
     ra["lai_moi_nam"] = round(
         ra["lai_pt"] / (t["so_ky"] / _KY_MOI_NAM[ky]), 2) if t["so_ky"] else 0.0
 
+    # ---- ĐỀU QUA THỜI GIAN. Tính LUÔN, kể cả khi không lọc: hai con số này đáng hiện
+    # ra cạnh mọi cái điểm. Một con số gộp mà không kèm hình dạng theo thời gian thì
+    # người đọc không có cách nào biết nó là thật hay ăn may một đoạn.
+    cs = cham_cuon(kq, *_khoang(kq), c["buoc_deu"] or "quy", c)
+    ra["cua_so_duong"] = sum(1 for w in cs if w["diem"] > 0)
+    ra["so_cua_so"] = len(cs)
+    ra["buoc_deu"] = c["buoc_deu"]
+
     # ---- CỬA — dừng ở cửa ĐẦU TIÊN trượt, và nói ra CON SỐ đã trượt.
     # "Loại" trống không thì người dùng phải đi dò; kèm con số thì sửa được ngay.
     ten_ky = "tuần" if ky == TUAN else "tháng"
@@ -273,6 +299,11 @@ def cham(kq, cua=None):
     elif c["lai_toi_thieu"] is not None and ra["lai_moi_nam"] < c["lai_toi_thieu"]:
         ly_do = (f"lãi {ra['lai_moi_nam']:.1f}%/năm — dưới "
                  f"{c['lai_toi_thieu']:.0f}%/năm")
+    elif c["deu_toi_thieu"] is not None and ra["so_cua_so"] and (
+            ra["cua_so_duong"] < c["deu_toi_thieu"] * ra["so_cua_so"]):
+        ly_do = (f"chỉ dương {ra['cua_so_duong']}/{ra['so_cua_so']} "
+                 f"{_TEN_BUOC.get(c['buoc_deu'], c['buoc_deu'])} — dưới "
+                 f"{c['deu_toi_thieu'] * 100:.0f}%")
     elif c["diem_toi_thieu"] is not None and ra["diem"] < c["diem_toi_thieu"]:
         ly_do = f"điểm {ra['diem']:.4f} — dưới {c['diem_toi_thieu']:.4f}"
     ra["dat"] = ly_do is None
