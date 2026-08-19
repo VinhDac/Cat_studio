@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useCallback, useState, type ReactNode } from 'react'
 
 /** Bảng dưới cao tối thiểu lúc kéo, và cao khi đã gập (vừa đủ hàng tab). */
@@ -31,6 +32,7 @@ export default function BangDuoi({ tabs, epTab, epLan = 0 }: {
   /** ĐẾM SỐ LẦN ÉP. Tăng lên là ép lại, kể cả khi `epTab` không đổi giá trị. */
   epLan?: number
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [tab, setTab] = useState(tabs[0]?.khoa ?? '')
   const [cao, setCao] = useState(210)
   const [gap, setGap] = useState(false)
@@ -74,7 +76,7 @@ export default function BangDuoi({ tabs, epTab, epLan = 0 }: {
 
   return (
     <div className="nk" style={{ height: gap ? CAO_GAP : cao }}>
-      <div className="thanh-keo" onMouseDown={batDauKeo} title="Kéo để chỉnh chiều cao" />
+      <div className="thanh-keo" onMouseDown={batDauKeo} title={chu("Kéo để chỉnh chiều cao")} />
       <div className="hang-tab" onDoubleClick={() => setGap(v => !v)}>
         {tabs.map(t => (
           <button key={t.khoa} className={'tab' + (tab === t.khoa && !gap ? ' dang' : '')}
@@ -87,7 +89,7 @@ export default function BangDuoi({ tabs, epTab, epLan = 0 }: {
             đang ở tab Vấn đề. */}
         {!gap && dang?.nut}
         <button className="nut-nho nut-gap" onClick={() => setGap(v => !v)}
-                title={gap ? 'Mở bảng' : 'Gập bảng xuống'}>
+                title={gap ? chu('Mở bảng') : chu('Gập bảng xuống')}>
           {gap ? '▲' : '▼'}
         </button>
       </div>

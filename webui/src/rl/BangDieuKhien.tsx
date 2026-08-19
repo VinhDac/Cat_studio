@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useCallback } from 'react'
 import { pyRL } from '../api'
 import DuongQua from './DuongQua'
@@ -45,6 +46,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
   boot: RLBoot
   moSoDo: (hang: number) => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   const datNhan = useCallback((n: number) => {
     if (tt) void pyRL.rl_dat_nhan(tt.ma, n)
   }, [tt])
@@ -52,7 +54,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
   if (!tt) {
     return (
       <div className="rl-bang-dieu-khien">
-        <section className="rl-o rl-trong">chưa chạy lượt nào — bấm ▶ Chạy</section>
+        <section className="rl-o rl-trong">{chu('chưa chạy lượt nào — bấm ▶ Chạy')}</section>
       </div>
     )
   }
@@ -69,19 +71,19 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
       <div className="bdk-hang">
         {/* ---------------------------------------------------------- TIẾN ĐỘ */}
         <section className="rl-o bdk-o">
-          <div className="bdk-ten">TIẾN ĐỘ</div>
+          <div className="bdk-ten">{chu('TIẾN ĐỘ')}</div>
           <div className="bdk-to">
             {tt.da_chay.toLocaleString('vi-VN')}
             <em> / {tt.tong.toLocaleString('vi-VN')}</em>
           </div>
           <div className="rl-thanh"><div className="rl-thanh-day"
                                          style={{ width: `${pt}%` }} /></div>
-          <div className="bdk-dong"><span>đã chạy</span>
+          <div className="bdk-dong"><span>{chu('đã chạy')}</span>
             <b>{lau(giay(tt))}</b></div>
-          <div className="bdk-dong"><span>còn</span><b>{conLai(tt, dangChay)}</b></div>
+          <div className="bdk-dong"><span>{chu('còn')}</span><b>{conLai(tt, dangChay)}</b></div>
           <div className="bdk-chu">
-            {tt.dang_chay ? (tt.chu || 'đang chạy')
-              : tt.dung_giua_chung ? 'đã dừng giữa chừng'
+            {tt.dang_chay ? (tt.chu || chu('đang chạy'))
+              : tt.dung_giua_chung ? chu('đã dừng giữa chừng')
               : (tk?.vi_sao_ngung || 'xong')}
           </div>
           {tt.loi && <div className="rl-loi">{tt.loi}</div>}
@@ -89,7 +91,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
 
         {/* ------------------------------------------------------ TÌM ĐƯỢC GÌ */}
         <section className="rl-o bdk-o">
-          <div className="bdk-ten">TÌM ĐƯỢC GÌ</div>
+          <div className="bdk-ten">{chu('TÌM ĐƯỢC GÌ')}</div>
           {/* ⚠ Con số lớn là SỐ SỐNG, không phải điểm cao nhất. Điểm cao nhất đã đo
               được là chuyện may rủi; "có mấy cái sống" thì không. */}
           <div className="bdk-to bdk-tot">{tt.qua_cong_don ?? 0}
@@ -99,14 +101,20 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
               nhiều → kho đồ đang bày ra sơ đồ câm. */}
           {tk ? (
             <>
-              <Dong ten="rớt cửa" so={tk.rot_cua} />
-              <Dong ten="không vào lệnh" so={tk.khong_lenh} />
-              <Dong ten="nã lệnh" so={tk.na_lenh} />
-              <Dong ten="quá nặng" so={tk.qua_nang} />
-              <Dong ten="trùng, bỏ qua" so={tk.trung_lap} />
-              {!!tk.no && <Dong ten="bộ chạy từ chối" so={tk.no} xau />}
+              <Dong ten={chu("rớt cửa")} so={tk.rot_cua} />
+              {/* ⭐ TÁCH ĐÔI cái cũ. *"Không vào lệnh"* gộp hai bệnh khác hẳn nhau vào
+                  một dòng: sơ đồ CHẾT TỪ LÚC VẼ (một cổng không bao giờ khớp — kho đồ
+                  đang bày ra hằng số thay vì câu hỏi) và sơ đồ CHẠY MÀ KHÔNG ĐẺ LỆNH
+                  (lot bé hơn lot tối thiểu…). Hai dòng bảo sửa hai chỗ. §18.11 */}
+              <Dong ten={chu("chết từ lúc vẽ")} so={tk.chet_tu_dau ?? 0} />
+              <Dong ten={chu("chạy mà không đẻ lệnh")}
+                    so={Math.max(0, tk.khong_lenh - (tk.chet_tu_dau ?? 0))} />
+              <Dong ten={chu("nã lệnh")} so={tk.na_lenh} />
+              <Dong ten={chu("quá nặng")} so={tk.qua_nang} />
+              <Dong ten={chu("trùng, bỏ qua")} so={tk.trung_lap} />
+              {!!tk.no && <Dong ten={chu("bộ chạy từ chối")} so={tk.no} xau />}
             </>
-          ) : <div className="bdk-chu">chưa có số nào</div>}
+          ) : <div className="bdk-chu">{chu('chưa có số nào')}</div>}
         </section>
 
         {/* -------------------------------------------------------------- MÁY */}
@@ -119,12 +127,12 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
           <input className="bdk-keo" type="range" min={1} max={Math.max(1, tongNhan)}
                  value={daDung} disabled={!dangChay}
                  onChange={e => datNhan(+e.target.value)}
-                 title="Kéo để nhường lại máy — ăn ngay, không đợi lượt sau" />
-          <div className="bdk-dong"><span>mỗi sơ đồ</span>
+                 title={chu("Kéo để nhường lại máy — ăn ngay, không đợi lượt sau")} />
+          <div className="bdk-dong"><span>{chu('mỗi sơ đồ')}</span>
             <b>{tt.giay_moi_luot != null ? `${tt.giay_moi_luot.toFixed(1)}s` : '—'}</b></div>
-          <div className="bdk-dong"><span>gần đây</span>
+          <div className="bdk-dong"><span>{chu('gần đây')}</span>
             <b>{tt.giay_gan_day != null ? `${tt.giay_gan_day.toFixed(1)}s` : '—'}</b></div>
-          <div className="bdk-dong"><span>mỗi giờ</span>
+          <div className="bdk-dong"><span>{chu('mỗi giờ')}</span>
             <b>{tt.giay_moi_luot ? Math.round(3600 / tt.giay_moi_luot)
                                      .toLocaleString('vi-VN') : '—'}</b></div>
         </section>
@@ -137,7 +145,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
         <section className="rl-o rl-plot">
           <div className="rl-plot-dau">
             Số sơ đồ QUA CỬA theo số lượt đã chấm
-            <span>còn tìm được gì nữa không — dừng được chưa</span>
+            <span>{chu('còn tìm được gì nữa không — dừng được chưa')}</span>
           </div>
           <DuongQua duong={tt.duong_qua || []} daCham={tt.da_chay} tong={tt.tong}
                     dangChay={dangChay} />
@@ -145,18 +153,18 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
 
         <section className="rl-o bdk-dau-bang">
           <div className="pbc-dau">
-            <b>ĐẦU BẢNG</b>
-            <span>⚠ số TRAIN — và "dương n/m" mới là con số đáng đọc, không phải điểm</span>
+            <b>{chu('ĐẦU BẢNG')}</b>
+            <span>{chu('⚠ số TRAIN — và "dương n/m" mới là con số đáng đọc, không phải điểm')}</span>
           </div>
           {dauBang.length === 0 ? (
             <div className="rl-plot-trong">
-              {dangChay ? 'chưa sơ đồ nào qua cửa' : 'không sơ đồ nào qua cửa'}
+              {dangChay ? chu('chưa sơ đồ nào qua cửa') : chu('không sơ đồ nào qua cửa')}
             </div>
           ) : (
             <div className="bdk-hang-db">
               {dauBang.slice(0, 8).map(d => (
                 <button className="bdk-db" key={d.hang} onClick={() => moSoDo(d.hang)}
-                        title="Mở sang cửa sổ vẽ">
+                        title={chu("Mở sang cửa sổ vẽ")}>
                   <i>#{d.hang}</i>
                   <b className={(d.diem ?? 0) < 0 ? 'xau' : 'tot'}>
                     {d.diem?.toFixed(4)}</b>
@@ -177,13 +185,13 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
         {/* ⚠ Phân bố ĐIỂM là ô đáng nhìn nhất khi hỏi "không gian này có gì không".
             Đo được: sơ đồ bốc bừa thua CÓ HỆ THỐNG, nên nếu cả đống dồn về bên trái
             mốc 0 thì đó không phải xui — đó là spread + hoa hồng. */}
-        <PhanBoCot ten="Phân bố ĐIỂM" phu="cả đống, kể cả cái rớt cửa"
+        <PhanBoCot ten={chu("Phân bố ĐIỂM")} phu={chu("cả đống, kể cả cái rớt cửa")}
                    mep={MEP_DIEM} so={tk?.hist_diem || []} tot={THUNG_0} />
-        <PhanBoCot ten="Phân bố SỐ LỆNH" phu="cấu trúc của rác"
+        <PhanBoCot ten={chu("Phân bố SỐ LỆNH")} phu={chu("cấu trúc của rác")}
                    mep={MEP_LENH} so={tk?.hist_lenh || []} />
         {/* ⭐ Ô này GIẢI THÍCH cái khoảng "còn bao lâu" ở hàng trên: cái đuôi bên phải
             chính là mấy con ngốn cả lô. */}
-        <PhanBoCot ten="CHI PHÍ mỗi sơ đồ" phu="vì sao 'còn bao lâu' là một khoảng"
+        <PhanBoCot ten={chu("CHI PHÍ mỗi sơ đồ")} phu="vì sao 'còn bao lâu' là một khoảng"
                    mep={MEP_GIAY} so={tk?.hist_giay || []} dv="s" />
       </div>
     </div>
@@ -223,7 +231,7 @@ function lau(g: number): string {
  * khoảng (nhịp cả lượt ↔ nhịp gần đây), và khoảng ấy tự thu hẹp khi máy chạy lâu hơn. */
 function conLai(tt: TrangThaiLuot, dangChay: boolean): string {
   if (!dangChay) return '—'
-  if (!tt.du_de_uoc) return 'đang đo…'
+  if (!tt.du_de_uoc) return chu('đang đo…')
   const a = tt.con_lai_som, b = tt.con_lai_muon
   if (a == null || b == null) return tt.con_lai != null ? lau(tt.con_lai) : '—'
   // Chênh dưới 10% thì hai đầu khoảng nói cùng một chuyện — đưa một số cho đỡ rối.

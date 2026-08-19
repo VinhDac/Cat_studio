@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { py } from '../api'
 import type { KhoDanhMuc } from '../types'
@@ -27,11 +28,12 @@ function Muc({ ten, phu, children }: {
 }
 
 export default function KhoDialog({ onDong }: { onDong: () => void }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [d, setD] = useState<KhoDanhMuc | null>(null)
   const [loi, setLoi] = useState('')
 
   useEffect(() => {
-    py.kho_danh_muc().then(r => (r.ok ? setD(r.value!) : setLoi(r.error ?? 'lỗi')))
+    py.kho_danh_muc().then(r => (r.ok ? setD(r.value!) : setLoi(r.error ?? chu('lỗi'))))
   }, [])
 
   /** Gom toán hạng theo NGUỒN rồi tới NHÓM — nhìn ra ngay thứ gì luôn có, thứ gì
@@ -51,15 +53,15 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
   }, [d])
 
   return (
-    <Modal title="Kho — app đang có những gì" width={900} onClose={onDong}
-           footer={<button className="nut chinh" onClick={onDong}>Đóng</button>}>
+    <Modal title={chu("Kho — app đang có những gì")} width={900} onClose={onDong}
+           footer={<button className="nut chinh" onClick={onDong}>{chu('Đóng')}</button>}>
       {loi && <div className="loi-form">✖ {loi}</div>}
-      {!d && !loi && <div className="dong rong">đang đọc…</div>}
+      {!d && !loi && <div className="dong rong">{chu('đang đọc…')}</div>}
 
       {d && (
         <div className="kho">
           <div className="chu-dan">
-            Danh sách này do Python <b>tự gom</b> từ thư mục <code>kho/</code>. Thêm một
+            Danh sách này do Python <b>{chu('tự gom')}</b> từ thư mục <code>kho/</code>. Thêm một
             chiến lược mới = thêm một file vào đó, và mục dưới đây có ngay — không có
             danh sách nào chép tay, nên nó không thể nói khác thực tế.
           </div>
@@ -67,13 +69,13 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
           {theoNguon.map(({ m, nhom, chi_bao, bang }) => (
             <Muc key={m.ma_so}
                  ten={m.ten}
-                 phu={m.nguon ? 'có nguồn' : 'dùng chung'}>
+                 phu={m.nguon ? chu('có nguồn') : chu('dùng chung')}>
               <div className="kho-mota">{m.mo_ta}</div>
               {m.nguon && <div className="kho-nguon">nguồn: <code>{m.nguon}</code></div>}
 
               {chi_bao.length > 0 && (
                 <table className="kho-bang">
-                  <thead><tr><th>Chỉ báo</th><th>Tham số</th><th>Công thức</th></tr></thead>
+                  <thead><tr><th>Chỉ báo</th><th>{chu('Tham số')}</th><th>{chu('Công thức')}</th></tr></thead>
                   <tbody>
                     {chi_bao.map(c => (
                       <tr key={c.key}>
@@ -89,15 +91,15 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
               {nhom.map(([g, ds]) => (
                 <table className="kho-bang" key={g}>
                   <thead><tr>
-                    <th>Toán hạng · {g}</th><th>Tham số</th><th>Dùng ở</th>
+                    <th>Toán hạng · {g}</th><th>{chu('Tham số')}</th><th>{chu('Dùng ở')}</th>
                   </tr></thead>
                   <tbody>
                     {ds.map(t => (
                       <tr key={t.key}>
                         <td title={t.mo_ta}>{t.nhan}
-                          {t.dung_sai && <span className="kho-cheo">đúng/sai</span>}</td>
+                          {t.dung_sai && <span className="kho-cheo">{chu('đúng/sai')}</span>}</td>
                         <td className="mono">{t.tham_so.join(' · ') || '—'}</td>
-                        <td>{t.tabs ? t.tabs.map(x => TEN_TAB[x]).join(', ') : 'cả hai'}</td>
+                        <td>{t.tabs ? t.tabs.map(x => TEN_TAB[x]).join(', ') : chu('cả hai')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -109,7 +111,7 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
                   <div className="kho-dau2">Bảng trạng thái · {b.nhan}</div>
                   <div className="kho-mota">{b.mo_ta}</div>
                   <table className="kho-bang">
-                    <thead><tr><th>Trường</th><th>Kiểu</th><th>Ghi chú</th></tr></thead>
+                    <thead><tr><th>{chu('Trường')}</th><th>{chu('Kiểu')}</th><th>{chu('Ghi chú')}</th></tr></thead>
                     <tbody>
                       {b.truong.map(t => (
                         <tr key={t.ten}>
@@ -127,9 +129,9 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
             </Muc>
           ))}
 
-          <Muc ten="Hành động" phu="Entry chỉ TẠO · Manage chỉ SỬA">
+          <Muc ten={chu("Hành động")} phu={chu("Entry chỉ TẠO · Manage chỉ SỬA")}>
             <table className="kho-bang">
-              <thead><tr><th>Hành động</th><th>Dùng ở sơ đồ</th></tr></thead>
+              <thead><tr><th>{chu('Hành động')}</th><th>{chu('Dùng ở sơ đồ')}</th></tr></thead>
               <tbody>
                 {d.hanh_dong.map(h => (
                   <tr key={h.key}>
@@ -141,7 +143,7 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
             </table>
           </Muc>
 
-          <Muc ten="Từ vựng" phu="phép so · cách tính khoảng cách · chế độ Sửa lệnh">
+          <Muc ten={chu("Từ vựng")} phu={chu("phép so · cách tính khoảng cách · chế độ Sửa lệnh")}>
             <div className="kho-chip">
               {Object.entries(d.phep_so).map(([k, v]) =>
                 <span key={k} className="the">{v}</span>)}
@@ -156,15 +158,15 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
             </div>
           </Muc>
 
-          <Muc ten="Sổ lệnh" phu="id của ta, không mượn ticket MT5">
+          <Muc ten="Sổ lệnh" phu={chu("id của ta, không mượn ticket MT5")}>
             <div className="chu-dan">
               Mỗi lệnh mang một id <code>L-0001</code> và nhớ <code>zone_id</code> đẻ ra
-              nó. Nhờ vậy <b>“vùng này đã sinh lệnh”</b> chỉ là một phép tra bảng, và
+              nó. Nhờ vậy <b>{chu('“vùng này đã sinh lệnh”')}</b> chỉ là một phép tra bảng, và
               không phải đoán như <code>HasOpenPosition()</code> của D_02.
               <code>ticket</code> của MT5 chỉ là một cột phụ, để trống khi backtest.
             </div>
             <table className="kho-bang">
-              <thead><tr><th>Trạng thái lệnh</th><th>Nghĩa</th></tr></thead>
+              <thead><tr><th>{chu('Trạng thái lệnh')}</th><th>{chu('Nghĩa')}</th></tr></thead>
               <tbody>
                 {Object.entries(d.trang_thai_lenh).map(([k, v]) => (
                   <tr key={k}><td className="mono">{k}</td><td>{v}</td></tr>
@@ -177,9 +179,9 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
             </div>
           </Muc>
 
-          <Muc ten="Lưu trữ" phu={d.luu_tru.goc}>
+          <Muc ten={chu("Lưu trữ")} phu={d.luu_tru.goc}>
             <table className="kho-bang">
-              <thead><tr><th>Mục</th><th>Số lượng</th><th>Đường dẫn</th></tr></thead>
+              <thead><tr><th>{chu('Mục')}</th><th>{chu('Số lượng')}</th><th>{chu('Đường dẫn')}</th></tr></thead>
               <tbody>
                 {d.luu_tru.muc.map(m => (
                   <tr key={m.ten}>

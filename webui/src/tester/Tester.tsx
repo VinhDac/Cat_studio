@@ -1,3 +1,4 @@
+import { chu, datNgon, useNgon } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cho_cau_noi, pyTester } from '../api'
 import IconNet from '../components/Icon'
@@ -40,6 +41,7 @@ const LUI = 720    // đệm quá khứ cho NHẬT KÝ — nến thì lấy tr�
  * (nến · chỉ báo · vùng nén · lệnh sống · nhật ký), và lô kế được nạp trước khi dùng hết.
  */
 export default function Tester() {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   useKhungCuaSo(32)
 
   const [doc, setDoc] = useState<ProcessDoc | null>(null)
@@ -80,6 +82,7 @@ export default function Tester() {
         await cho_cau_noi('bootstrap_tester')
         const r = await pyTester.bootstrap_tester()
         if (!r.ok || !r.value) return setLoi(r.error ?? 'không nạp được')
+        datNgon((r.value as { ngon_ngu?: string }).ngon_ngu === 'en' ? 'en' : 'vi')
         if (r.value.accent) {
           document.documentElement.style.setProperty('--accent', r.value.accent)
         }
@@ -419,7 +422,7 @@ export default function Tester() {
         {nut('dau', 'Về SỰ KIỆN trước', () => void luiSuKien(), false, !kq)}
         {nut('undo', 'Lùi 1 nến  (←)', () => void lui(), false, !kq)}
         <button className="tb-nut rong" disabled={!kq} onClick={() => setPhat(v => !v)}
-                title={(phat ? 'Dừng' : 'Phát — nến hình thành từng cây như live')
+                title={(phat ? chu('Dừng') : 'Phát — nến hình thành từng cây như live')
                        + '  (Space)'}>
           {phat ? '❚❚' : '▶'}
         </button>
@@ -509,7 +512,7 @@ ${r.value.duong_dan}`)
             ve: () => <ThongKe nguon={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }} /> },
           // ⭐ MỔ XẺ — chỗ MỘT con số của cả sơ đồ tách thành một con số cho MỖI khối.
           // Xem docstring `MoXe.tsx`.
-          { khoa: 'mo-xe', nhan: 'Mổ xẻ',
+          { khoa: 'mo-xe', nhan: chu('Mổ xẻ'),
             ve: () => <MoXe sanSang={!!kq}
                             nap={pyTester.test_phan_bo}
                             thuBo={pyTester.test_thu_bo} /> },

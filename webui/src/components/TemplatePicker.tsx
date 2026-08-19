@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useState } from 'react'
 import { py } from '../api'
 import Modal from './Modal'
@@ -16,6 +17,7 @@ export default function TemplatePicker({ tieuDe, choPhepXoa = true, onChon, onDo
   /** "📂 Duyệt file khác…" — mở template nằm NGOÀI thư mục templates/. */
   onDuyetFile?: () => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [ds, setDs] = useState<string[]>([])
   const [chon, setChon] = useState<string | null>(null)
   const [dangTai, setDangTai] = useState(true)
@@ -41,14 +43,14 @@ export default function TemplatePicker({ tieuDe, choPhepXoa = true, onChon, onDo
     <Modal title={tieuDe} width={460} onClose={onDong}
            footer={<>
              {choPhepXoa && <button className="nut" disabled={!chon} onClick={xoa}><Icon name="trash" /> Xoá</button>}
-             {onDuyetFile && <button className="nut" onClick={onDuyetFile}>Duyệt file khác…</button>}
+             {onDuyetFile && <button className="nut" onClick={onDuyetFile}>{chu('Duyệt file khác…')}</button>}
              <span className="day" />
-             <button className="nut" onClick={onDong}>Huỷ</button>
+             <button className="nut" onClick={onDong}>{chu('Huỷ')}</button>
              <button className="nut chinh" disabled={!chon}
-                     onClick={() => chon && onChon(chon)}>Mở</button>
+                     onClick={() => chon && onChon(chon)}>{chu('Mở')}</button>
            </>}>
       <div className="danh-sach cao-10">
-        {dangTai && <div className="muc mo">đang đọc…</div>}
+        {dangTai && <div className="muc mo">{chu('đang đọc…')}</div>}
         {!dangTai && ds.length === 0 && (
           <div className="muc mo">
             Chưa có chiến lược nào được lưu — lưu một cái ở menu Lưu ▾ trước đã.

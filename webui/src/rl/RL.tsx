@@ -1,3 +1,4 @@
+import { chu, datNgon, useNgon } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cho_cau_noi, pyRL } from '../api'
 import { useKhungCuaSo } from '../useKhungCuaSo'
@@ -70,24 +71,25 @@ function nhanKy(tu: string, buoc: string): string {
 
 /** Tên cửa cho người đọc. Khoá là tên trong `cham_diem.CUA_MAC_DINH`. */
 const TEN_CUA: Record<string, string> = {
-  tuan_co_lenh: 'kỳ có lệnh',
-  so_lenh_toi_thieu: 'số lệnh tối thiểu',
-  sut_von_toi_da: 'sụt vốn tối đa',
-  te_nhat_toi_da: 'kỳ tệ nhất',
-  dao_dong_toi_da: 'dao động tối đa',
-  lai_toi_thieu: 'lãi tối thiểu',
-  deu_toi_thieu: 'đều qua thời gian',
-  diem_toi_thieu: 'điểm tối thiểu',
+  tuan_co_lenh: chu('kỳ có lệnh'),
+  so_lenh_toi_thieu: chu('số lệnh tối thiểu'),
+  sut_von_toi_da: chu('sụt vốn tối đa'),
+  te_nhat_toi_da: chu('kỳ tệ nhất'),
+  dao_dong_toi_da: chu('dao động tối đa'),
+  lai_toi_thieu: chu('lãi tối thiểu'),
+  deu_toi_thieu: chu('đều qua thời gian'),
+  diem_toi_thieu: chu('điểm tối thiểu'),
 }
 /** Nhãn năm thùng của "thiếu bao xa" — khớp `tim_kiem.MEP_THIEU`. */
-const NHAN_THIEU = ['suýt qua (<10%)', 'thiếu 10–25%', 'thiếu 25–50%',
-                    'thiếu 50–75%', 'thiếu ≥75%']
+const NHAN_THIEU = [chu('suýt qua (<10%)'), chu('thiếu 10–25%'), chu('thiếu 25–50%'),
+                    chu('thiếu 50–75%'), chu('thiếu ≥75%')]
 
 /** Có dương ở QUÁ NỬA cửa sổ không — cùng luật với cửa `deu_toi_thieu` (§18.5f). */
 const deu = (d: DauBang) =>
   !!d.so_cua_so && (d.cua_so_duong ?? 0) * 2 > d.so_cua_so
 
 export default function RL() {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   useKhungCuaSo()
   const [boot, setBoot] = useState<RLBoot | null>(null)
   const [loi, setLoi] = useState('')
@@ -123,7 +125,9 @@ export default function RL() {
     cho_cau_noi('rl_boot')
       .then(() => pyRL.rl_boot())
       .then(r => {
-        if (!r.ok || !r.value) return setLoi(r.error || 'Không nạp được cửa sổ RL.')
+        if (!r.ok || !r.value) return setLoi(r.error || chu('Không nạp được cửa sổ RL.'))
+        // NGÔN NGỮ theo cài đặt chung — cửa sổ RL là ngữ cảnh JS riêng. §18.14
+        datNgon((r.value as { ngon_ngu?: string }).ngon_ngu === 'en' ? 'en' : 'vi')
         setBoot(r.value)
         setTran({ ...r.value.tran })
         setCua({ ...r.value.cua })
@@ -215,7 +219,7 @@ export default function RL() {
       so_nhan: soNhan,
     }
     const r = await pyRL.rl_chay(d)
-    if (!r.ok || !r.value) return setLoi(r.error || 'Không chạy được.')
+    if (!r.ok || !r.value) return setLoi(r.error || chu('Không chạy được.'))
     setMa(r.value.ma)
     setTt(null)
   }, [boot, soLuot, hat, cua, tran, tat, giu, gioToiDa, phangToiDa, soNhan])
@@ -229,7 +233,7 @@ export default function RL() {
     setLoi('')
     setKhoa(null)
     const r = await pyRL.rl_chay({ tu_luot: cu } as unknown as DatRL)
-    if (!r.ok || !r.value) return setLoi(r.error || 'Không chạy lại được.')
+    if (!r.ok || !r.value) return setLoi(r.error || chu('Không chạy lại được.'))
     setMa(r.value.ma)
     setTt(null)
   }, [])
@@ -239,7 +243,7 @@ export default function RL() {
     if (!ma) return
     setLoi('')
     const r = await pyRL.rl_mo_khoa(ma, 5)
-    if (!r.ok || !r.value) return setLoi(r.error || 'Không mở được đoạn khoá.')
+    if (!r.ok || !r.value) return setLoi(r.error || chu('Không mở được đoạn khoá.'))
     setKhoa(r.value)
     setDat(d => ({ ...d, khoa_da_mo: r.value!.da_mo }))
   }, [ma])
@@ -256,18 +260,18 @@ export default function RL() {
     if (!ma) return
     setLoi('')
     const r = await pyRL.rl_mo_so_do(ma, hang)
-    if (!r.ok) return setLoi(r.error || 'Không mở được sơ đồ.')
+    if (!r.ok) return setLoi(r.error || chu('Không mở được sơ đồ.'))
     // ⚠ Sơ đồ ĐÃ sang cửa sổ vẽ, nhưng Windows không cho kéo cửa sổ ấy lên trước.
     // Không nói ra thì màn hình RL không đổi gì và cú bấm trông y như rơi vào hư không
     // — mà thật ra việc đã xong, chỉ là cửa sổ nằm dưới.
     if (r.value && !r.value.len_truoc) {
       setLoi(`Đã đẩy "${r.value.ten}" sang cửa sổ vẽ — nhưng Windows không cho kéo cửa `
-             + 'sổ ấy lên trước. Bấm vào nó trên thanh tác vụ.')
+             + chu('sổ ấy lên trước. Bấm vào nó trên thanh tác vụ.'))
     }
   }, [ma])
 
   if (loi && !boot) return <div className="rl-loi-to">{loi}</div>
-  if (!boot) return <div className="rl-cho">đang mở bàn điều khiển…</div>
+  if (!boot) return <div className="rl-cho">{chu('đang mở bàn điều khiển…')}</div>
 
   // Một bọc cho CẢ cửa sổ cài đặt. Dựng ở đây chứ không trong `CuaSoCaiDat`: trạng
   // thái vẫn thuộc về cửa sổ RL — hộp thoại chỉ là chỗ NHÌN và SỬA, không phải chỗ ở.
@@ -284,17 +288,17 @@ export default function RL() {
   // ------------------------------------------------------------ BẢNG DƯỚI
   const tabs: TabDuoi[] = [
     {
-      khoa: 'dau-bang', nhan: 'Đầu bảng', dem: dauBang.length,
+      khoa: 'dau-bang', nhan: chu('Đầu bảng'), dem: dauBang.length,
       ve: () => (
         <div className="rl-tab-noi">
           <div className="rl-train">
             ⚠ Mọi con số dưới đây là số <b>TRAIN</b> — đo trên chính đoạn dữ liệu máy vừa
-            đào bới. Nó chưa phải kết luận. Và đừng lấy quán quân: <b>cái chung</b> giữa
+            đào bới. Nó chưa phải kết luận. Và đừng lấy quán quân: <b>{chu('cái chung')}</b> giữa
             mấy cái đầu bảng mới đáng tin — nó sống sót qua nhiều đường đi khác nhau.
           </div>
           {dauBang.length === 0 ? (
             <div className="rl-trong">
-              {dangChay ? 'chưa có sơ đồ nào qua cửa' : 'không sơ đồ nào qua cửa'}
+              {dangChay ? chu('chưa có sơ đồ nào qua cửa') : chu('không sơ đồ nào qua cửa')}
             </div>
           ) : (
             <table className="rl-bang">
@@ -306,15 +310,15 @@ export default function RL() {
                 {/* ⭐ `dương n/m` đứng TRƯỚC `điểm`, cố ý. Đo được: 6/8 cái từng nằm ở
                     bảng này chỉ ăn may một đoạn (§18.5f) — nên `điểm` không được là
                     con số đầu tiên đập vào mắt. */}
-                <th className="cham">dương</th>
-                <th>hình dạng theo cửa sổ</th>
-                <th>điểm</th>
-                <th className={ky === 'tuan' ? 'cham' : ''}>tb tuần</th>
-                <th className={ky === 'tuan' ? 'cham' : ''}>dđ tuần</th>
-                <th className={ky === 'thang' ? 'cham' : ''}>tb tháng</th>
-                <th className={ky === 'thang' ? 'cham' : ''}>dđ tháng</th>
+                <th className="cham">{chu('dương')}</th>
+                <th>{chu('hình dạng theo cửa sổ')}</th>
+                <th>{chu('điểm')}</th>
+                <th className={ky === 'tuan' ? 'cham' : ''}>{chu('tb tuần')}</th>
+                <th className={ky === 'tuan' ? 'cham' : ''}>{chu('dđ tuần')}</th>
+                <th className={ky === 'thang' ? 'cham' : ''}>{chu('tb tháng')}</th>
+                <th className={ky === 'thang' ? 'cham' : ''}>{chu('dđ tháng')}</th>
                 <th>{tenKy} có lệnh</th>
-                <th>lệnh</th><th>sụt vốn</th><th>nước đi</th><th />
+                <th>{chu('lệnh')}</th><th>{chu('sụt vốn')}</th><th>{chu('nước đi')}</th><th />
               </tr></thead>
               <tbody>
                 {dauBang.map(d => {
@@ -358,7 +362,7 @@ export default function RL() {
       ),
     },
     {
-      khoa: 'mo-xe', nhan: 'Mổ xẻ',
+      khoa: 'mo-xe', nhan: chu('Mổ xẻ'),
       dem: soi ?? undefined,
       // ⭐ Trước tab này, muốn hiểu một sơ đồ máy vừa đẻ ra thì phải đẩy sang cửa sổ vẽ,
       // chạy Tester, rồi mới mở được bảng — bốn bước cho câu "cái này sống nhờ đâu".
@@ -375,15 +379,15 @@ export default function RL() {
         soi === null
           ? <div className="mx-trong">
               {dauBang.length === 0
-                ? 'chưa sơ đồ nào qua cửa để soi'
-                : 'chọn một sơ đồ ở góc phải để soi'}
+                ? chu('chưa sơ đồ nào qua cửa để soi')
+                : chu('chọn một sơ đồ ở góc phải để soi')}
             </div>
           : <MoXe sanSang={!!ma} nap={napPhanBo} thuBo={thuBoNhanh}
                   tieu={`đang soi sơ đồ hạng #${soi} — chạy lại trên ĐOẠN TRAIN`} />
       ),
     },
     {
-      khoa: 'doan-khoa', nhan: 'Đoạn khoá',
+      khoa: 'doan-khoa', nhan: chu('Đoạn khoá'),
       dem: khoa ? khoa.ds.length : undefined,
       nut: coKhoa && dauBang.length > 0 && !dangChay ? (
         <button className="rl-mo" onClick={moKhoa}>
@@ -394,30 +398,30 @@ export default function RL() {
         <div className="rl-tab-noi">
           {!coKhoa ? (
             <div className="rl-train">
-              ⚠ Chưa đặt <b>đoạn khoá</b>. Mở <b>Dữ liệu</b> và điền hai ô «khoá từ /
+              ⚠ Chưa đặt <b>{chu('đoạn khoá')}</b>. Mở <b>{chu('Dữ liệu')}</b> và điền hai ô «khoá từ /
               đến» — một khoảng KHÔNG nằm trong train. Không có nó thì mọi con số trên
-              màn hình vẫn chỉ là <b>số TRAIN</b>, đo trên chính đoạn máy vừa đào bới.
+              màn hình vẫn chỉ là <b>{chu('số TRAIN')}</b>, đo trên chính đoạn máy vừa đào bới.
             </div>
           ) : !khoa ? (
             <div className="rl-trong">
-              {dauBang.length === 0 ? 'chưa có sơ đồ nào qua cửa để mang sang đoạn khoá'
-                : dangChay ? 'đang chạy — mở khoá sau khi xong'
-                : 'bấm nút góc phải để chạy nhóm đầu bảng trên đoạn khoá'}
+              {dauBang.length === 0 ? chu('chưa có sơ đồ nào qua cửa để mang sang đoạn khoá')
+                : dangChay ? chu('đang chạy — mở khoá sau khi xong')
+                : chu('bấm nút góc phải để chạy nhóm đầu bảng trên đoạn khoá')}
             </div>
           ) : (
             <>
               <div className="rl-train">
                 Đoạn khoá <b>{khoa.tu} → {khoa.den}</b> · đã mở <b>{khoa.da_mo}</b> lần.
-                {' '}Rơi từ train xuống là <b>bình thường</b> — train đã bị đào bới hàng
-                nghìn lượt. Quan trọng là nó còn <b>dương</b> hay không. Rơi qua âm nghĩa
+                {' '}Rơi từ train xuống là <b>{chu('bình thường')}</b> — train đã bị đào bới hàng
+                nghìn lượt. Quan trọng là nó còn <b>{chu('dương')}</b> hay không. Rơi qua âm nghĩa
                 là sơ đồ ấy chỉ tồn tại trong đoạn train.
               </div>
               <table className="rl-bang">
                 <thead><tr>
-                  <th>#</th><th>điểm train</th><th>điểm KHOÁ</th><th>chênh</th>
-                  <th>lãi</th><th>lệnh</th><th>sụt vốn</th>
+                  <th>#</th><th>{chu('điểm train')}</th><th>{chu('điểm KHOÁ')}</th><th>{chu('chênh')}</th>
+                  <th>{chu('lãi')}</th><th>{chu('lệnh')}</th><th>{chu('sụt vốn')}</th>
                   {khoa.cuon && <th>{TEN_BUOC[khoa.buoc]} dương</th>}
-                  <th>đạt cửa?</th>
+                  <th>{chu('đạt cửa?')}</th>
                 </tr></thead>
                 <tbody>
                   {khoa.ds.map(d => (
@@ -454,8 +458,8 @@ export default function RL() {
                   <div className="rl-nhom-ten rl-to">
                     <span>TỪNG CỬA SỔ — bước {TEN_BUOC[khoa.buoc]}</span></div>
                   <p className="rl-nho">
-                    Hàng nào nhiều ô đỏ là hàng ấy <b>không sống qua thời gian</b> — dù
-                    con số gộp có đẹp. Ô mờ là cửa sổ <b>không lệnh nào</b>. Rê chuột
+                    Hàng nào nhiều ô đỏ là hàng ấy <b>{chu('không sống qua thời gian')}</b> — dù
+                    con số gộp có đẹp. Ô mờ là cửa sổ <b>{chu('không lệnh nào')}</b>. Rê chuột
                     lên ô để xem ngày và ba con số.
                   </p>
                   {khoa.ds.filter(d => d.cua_so?.length).map(d => (
@@ -488,21 +492,21 @@ export default function RL() {
       ),
     },
     {
-      khoa: 'vi-sao', nhan: 'Vì sao rớt',
+      khoa: 'vi-sao', nhan: chu('Vì sao rớt'),
       dem: tk ? tk.rot_cua + tk.ket + tk.no + (tk.na_lenh ?? 0) : undefined,
       ve: () => (
         <div className="rl-tab-noi">
-          {!tk ? <div className="rl-trong">chưa chạy lượt nào</div> : <>
+          {!tk ? <div className="rl-trong">{chu('chưa chạy lượt nào')}</div> : <>
             <div className="rl-nho">
-              Cột <b>suýt qua</b> là thứ đáng đọc nhất ở đây: nó trả lời
-              {' '}<i>nới cửa một chút thì có thêm bao nhiêu cái lọt</i> — thay vì phải
+              Cột <b>{chu('suýt qua')}</b> là thứ đáng đọc nhất ở đây: nó trả lời
+              {' '}<i>{chu('nới cửa một chút thì có thêm bao nhiêu cái lọt')}</i> — thay vì phải
               đoán rồi chạy lại cả lượt.
             </div>
             {Object.entries(tk.rot_chi_tiet || {}).length > 0 && (
               <table className="rl-bang vs-bang">
                 <thead><tr>
-                  <th>rớt ở cửa</th><th>ngưỡng</th><th>số sơ đồ</th>
-                  <th>suýt qua</th><th>trượt xa bao nhiêu</th><th>ví dụ</th>
+                  <th>{chu('rớt ở cửa')}</th><th>{chu('ngưỡng')}</th><th>{chu('số sơ đồ')}</th>
+                  <th>{chu('suýt qua')}</th><th>{chu('trượt xa bao nhiêu')}</th><th>{chu('ví dụ')}</th>
                 </tr></thead>
                 <tbody>
                   {Object.entries(tk.rot_chi_tiet || {})
@@ -534,11 +538,16 @@ export default function RL() {
                 </tbody>
               </table>
             )}
-            <div className="rl-nhom-ten rl-to"><span>CHẾT TRƯỚC CẢ CỬA</span></div>
+            <div className="rl-nhom-ten rl-to"><span>{chu('CHẾT TRƯỚC CẢ CỬA')}</span></div>
             <table className="rl-bang rl-bang-trai">
               <tbody>
-                {!!tk.khong_lenh && (
-                  <tr><td>không vào lệnh nào</td><td>{tk.khong_lenh}</td></tr>
+                {!!tk.chet_tu_dau && (
+                  <tr><td>{chu('chết từ lúc vẽ — một cổng KHÔNG BAO GIỜ khớp')}</td>
+                    <td>{tk.chet_tu_dau}</td></tr>
+                )}
+                {!!(tk.khong_lenh - (tk.chet_tu_dau ?? 0)) && (
+                  <tr><td>{chu('chạy mà không đẻ lệnh nào')}</td>
+                    <td>{tk.khong_lenh - (tk.chet_tu_dau ?? 0)}</td></tr>
                 )}
                 {!!tk.na_lenh && (
                   <tr><td>nã lệnh — bỏ dở giữa chừng (quá
@@ -550,23 +559,39 @@ export default function RL() {
                     {' '}{Number(dat.luot_moi_nen_toi_da ?? 0)} lượt/nến)</td>
                     <td>{tk.qua_nang}</td></tr>
                 )}
-                {!!tk.trung_lap && <tr><td>trùng sơ đồ đã chấm, bỏ qua</td><td>{tk.trung_lap}</td></tr>}
-                {!!tk.ket && <tr className="xau"><td>lượt đi kẹt</td><td>{tk.ket}</td></tr>}
-                {!!tk.no && <tr className="xau"><td>bộ chạy từ chối</td><td>{tk.no}</td></tr>}
+                {!!tk.trung_lap && <tr><td>{chu('trùng sơ đồ đã chấm, bỏ qua')}</td><td>{tk.trung_lap}</td></tr>}
+                {!!tk.ket && <tr className="xau"><td>{chu('lượt đi kẹt')}</td><td>{tk.ket}</td></tr>}
+                {!!tk.no && <tr className="xau"><td>{chu('bộ chạy từ chối')}</td><td>{tk.no}</td></tr>}
               </tbody>
             </table>
             {tk.no_vi?.length ? (
               <div className="rl-nho">ví dụ: {tk.no_vi.slice(0, 2).join(' · ')}</div>
             ) : null}
+            {/* ⭐ Bảng ĐÁNG SỬA NHẤT ở tab này. Nó không nói *"bao nhiêu cái chết"* mà
+                nói *"chết vì HỎI CÁI GÌ"* — tức chỉ thẳng vào kho đồ. Một điều kiện gần
+                như không bao giờ đúng thì nó là HẰNG SỐ, không phải câu hỏi, và bày nó
+                ra ngang hàng với câu hỏi thật là chỗ hỏng. §18.11 */}
+            {Object.keys(tk.chan_theo_toan_hang || {}).length > 0 && (<>
+              <div className="rl-nhom-ten rl-to"><span>{chu('CỔNG NÀO GIẾT — theo toán hạng')}</span></div>
+              <table className="rl-bang rl-bang-trai">
+                <tbody>
+                  {Object.entries(tk.chan_theo_toan_hang || {})
+                    .sort((a, b) => b[1] - a[1]).slice(0, 12)
+                    .map(([k, v]) => (
+                      <tr key={k}><td>{k}</td><td>{v}</td></tr>
+                    ))}
+                </tbody>
+              </table>
+            </>)}
           </>}
         </div>
       ),
     },
     {
-      khoa: 'luot', nhan: 'Lượt khác', dem: ds.length,
+      khoa: 'luot', nhan: chu('Lượt khác'), dem: ds.length,
       ve: () => (
         <div className="rl-tab-noi rl-ds">
-          {ds.length === 0 ? <div className="rl-trong">chưa có lượt nào</div> : ds.map(x => (
+          {ds.length === 0 ? <div className="rl-trong">{chu('chưa có lượt nào')}</div> : ds.map(x => (
             <div key={x.ma} className={'rl-luot' + (x.ma === ma ? ' dang' : '')}>
               <button className="rl-luot-chon"
                       onClick={() => { setMa(x.ma); setTt(null) }}>
@@ -575,12 +600,12 @@ export default function RL() {
                     chục dòng "Lượt 14:05" không phân biệt nổi cái nào chạy với gì —
                     và mấy con số bên cạnh hết so được với nhau. */}
                 <i>{x.nhan || '—'}</i>
-                <span>{x.dang_chay ? '● đang chạy' : `${x.da_chay}/${x.tong}`}
+                <span>{x.dang_chay ? chu('● đang chạy') : `${x.da_chay}/${x.tong}`}
                   {' · '}{x.diem_tot_nhat === null ? '—' : so(x.diem_tot_nhat, 3)}</span>
               </button>
               <button className="rl-mo rl-luot-lai" disabled={dangChay}
-                      title="Chạy lại với ĐÚNG cấu hình lượt này, không phải cấu hình đang đặt"
-                      onClick={() => chayLai(x.ma)}>chạy lại y hệt</button>
+                      title={chu("Chạy lại với ĐÚNG cấu hình lượt này, không phải cấu hình đang đặt")}
+                      onClick={() => chayLai(x.ma)}>{chu('chạy lại y hệt')}</button>
             </div>
           ))}
         </div>
@@ -590,31 +615,31 @@ export default function RL() {
 
   return (
     <div className="rl-app">
-      <TitleBar tieuDe="RL — tìm chiến lược" menus={[]} />
+      <TitleBar tieuDe={chu("RL — tìm chiến lược")} menus={[]} />
 
       {/* -------------------------------- RIBBON --------------------------------
           Chỉ thứ BẤM NHIỀU. Mọi đồ đặt-một-lần nằm ở cửa sổ ⚙ (`CaiDatLuot`) — xem
           docstring ở đó cho lý do. */}
       <div className="ribbon">
-        <Nhom ten="Chạy">
-          <Nut ten="Chạy" icon={IR.chay} onClick={chay} tat={dangChay}
+        <Nhom ten={chu("Chạy")}>
+          <Nut ten={chu("Chạy")} icon={IR.chay} onClick={chay} tat={dangChay}
                nhan={`${soLuot.toLocaleString('vi-VN')} sơ đồ`}
-               title="Mở một lượt tìm trên luồng nền" />
-          <Nut ten="Dừng" icon={IR.dung} tat={!dangChay}
+               title={chu("Mở một lượt tìm trên luồng nền")} />
+          <Nut ten={chu("Dừng")} icon={IR.dung} tat={!dangChay}
                onClick={() => ma && pyRL.rl_dung(ma)}
-               title="Chấm nốt sơ đồ đang dở rồi ngừng" />
+               title={chu("Chấm nốt sơ đồ đang dở rồi ngừng")} />
         </Nhom>
 
         {/* Hai núm duy nhất vặn giữa hai lượt — để thẳng ngoài này, khỏi mở cửa sổ. */}
-        <Nhom ten="Lượt này">
-          <ONhap nhan="số sơ đồ" gt={soLuot} dat={setSoLuot} rong={72} />
-          <ONhap nhan="hạt giống" gt={hat} dat={setHat} rong={62} />
+        <Nhom ten={chu("Lượt này")}>
+          <ONhap nhan={chu("số sơ đồ")} gt={soLuot} dat={setSoLuot} rong={72} />
+          <ONhap nhan={chu("hạt giống")} gt={hat} dat={setHat} rong={62} />
         </Nhom>
 
-        <Nhom ten="Luật chơi · dữ liệu">
-          <Nut ten="Cài đặt" icon={IR.cai_dat} onClick={() => setMoCaiDat('kho')}
+        <Nhom ten={chu("Luật chơi · dữ liệu")}>
+          <Nut ten={chu("Cài đặt")} icon={IR.cai_dat} onClick={() => setMoCaiDat('kho')}
                nhan={nhanCua(dk)}
-               title="Kho đồ · thang số · trần · thưởng·phạt · dữ liệu · ngân sách · ghi chú" />
+               title={chu("Kho đồ · thang số · trần · thưởng·phạt · dữ liệu · ngân sách · ghi chú")} />
         </Nhom>
       </div>
 

@@ -134,6 +134,11 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
     rng = random.Random(hat)
     qua, rot = [], []
     tk = {"da_chay": 0, "trung_lap": 0, "ket": 0, "no": 0, "khong_lenh": 0,
+          # ⭐ CHẾT TỪ LÚC VẼ — câm vì một cổng KHÔNG BAO GIỜ khớp, chứ không phải chạy
+          # rồi không ăn. Tách khỏi `khong_lenh` vì hai thứ này bảo ta sửa hai chỗ khác
+          # nhau: cái này là kho đồ bày ra hằng số thay vì câu hỏi (§18.11), cái kia là
+          # lệnh có sinh mà sàn không nhận. Đo được 56,7% số sơ đồ câm nằm ở vế này.
+          "chet_tu_dau": 0, "chan_theo_toan_hang": {},
           "rot_cua": 0, "na_lenh": 0, "qua_nang": 0, "hat": hat, "so_luot": so_luot,
           # ⚠ Đếm CỘNG DỒN, khác hẳn `len(qua)` — bảng đầu bảng bị chặn ở `giu` nên nó
           # bão hoà và không còn nói được "còn tìm được gì nữa không".
@@ -218,6 +223,10 @@ def tim(nen, cd, so_luot, hat=0, cua=None, tran=None, tat=(), tien_do=None,
         tk["hist_lenh"][_thung(MEP_LENH, d["so_lenh"])] += 1
         if not ket["co_lenh"]:
             tk["khong_lenh"] += 1
+            if ket.get("chan"):
+                tk["chet_tu_dau"] += 1
+                c = tk["chan_theo_toan_hang"]
+                c[ket["chan"]] = c.get(ket["chan"], 0) + 1
         if d["dat"]:
             tk["qua_cong_don"] += 1
             # ⚠ DỰNG LIST MỚI, không `qua.sort()` tại chỗ. CPython làm list RỖNG trong

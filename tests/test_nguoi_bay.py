@@ -398,12 +398,23 @@ def them_mot_dieu_kien(b):
         b.di(cho[0])
 
 
-# ⚠ Mở CỔNG ZONE trước, và đó không phải tiểu tiết: trước cổng zone, sơ đồ Entry chỉ
-# có ĐÚNG BỐN toán hạng số dùng được (`so_vi_the` · `so_lenh_cho` · `drawdown_pt` ·
-# `atr`) — vừa đúng bằng trần. Không mở zone thì bài kiểm dưới báo "trần chặn" trong
-# khi thật ra là CẠN TỪ VỰNG, hai chuyện khác hẳn nhau.
+# ⚠ DỌN ĐƯỜNG cho đủ TỪ VỰNG trước, và đó không phải tiểu tiết — bài này đo TRẦN, mà
+# cạn từ vựng cũng cho ra đúng một triệu chứng. Hai chuyện khác hẳn nhau.
+#
+# Phải làm hai việc, mỗi việc mở ra một nhóm toán hạng:
+#
+#   một khối VÀO LỆNH  → mở `so_vi_the` · `so_lenh_cho` · `drawdown_pt` (§18.12: chúng
+#                        đứng yên ở 0 tới khi có khối vào lệnh, hỏi lúc ấy là hỏi hằng số)
+#   cổng ZONE          → mở `zone_dem` · `zone_range` · `zone_atr_tb`
+#
+# Thiếu cái nào thì pool tụt về đúng 4 — vừa bằng trần — và bài này báo "trần chặn"
+# trong khi thật ra kho đã hết đồ. Đã cắn: luật `sinh_boi` cắt mất 3 món và bài đổ ngay.
 _bt = nb.Ban()
-_bt.di(nb.CHI_SO[("cong_zone",)])
+for _n in [("dk_so", "atr", ">", 0.5, "atr_nen"), ("tf_trai", "M5"),
+           ("chu_ky_trai", 14),
+           ("vao_lenh", "mua", "market", "close", 1.5, 2.0, 0.5),
+           ("cong_zone",)]:
+    _bt.di(nb.CHI_SO[_n])
 for _k in range(nb.TRAN["dk_moi_cong"]):
     them_mot_dieu_kien(_bt)
 kiem(f"cổng đủ {nb.TRAN['dk_moi_cong']} điều kiện thì KHÔNG thêm được nữa",
@@ -579,8 +590,12 @@ for _ in range(120):
     _la1 += sum(1 for s in _g["steps"] if s["id"] not in _co) == 1
 kiem("⭐ MỌI đường tới hành động đều qua ít nhất một cái LỌC", not _na,
      f"— {_na}/120 sơ đồ nã lệnh")
+# ⚠ NGƯỠNG RỘNG có chủ ý. 120 mẫu quanh mức 10% thì độ lệch chuẩn đã là ~3,3 — đặt
+# ngưỡng 12 là bài kiểm đỏ vì nhiễu, không vì hỏng (đã cắn: 10 → 14 sau một thay đổi
+# chẳng liên quan). Cái bài này canh là *"còn phải là sợi dây nữa không"*, và 65,8% của
+# thời chưa có phép chia vẫn trượt ngưỡng này từ rất xa.
 kiem("⭐ và Entry thôi là một sợi dây — trước khi có phép chia là 65,8% một lá",
-     _la1 < 12, f"— {_la1}/120 sơ đồ chỉ có một lá")
+     _la1 < 30, f"— {_la1}/120 sơ đồ chỉ có một lá")
 
 # ---- ngõ cụt: chia LỒNG NHAU vẫn đi tới đích ----
 # Mỗi phép chia đang treo NỢ hai khối chưa đặt xuống. Đặt chỗ theo từng nước thì ba

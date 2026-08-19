@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { Card, SoiKhoi, StepKind } from '../types'
 import IconNet, { ICON_HANH_DONG } from './Icon'
@@ -34,14 +35,15 @@ const SIDES: [string, Position][] = [
 ]
 
 export default function StepNode({ data, selected }: NodeProps) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const card = (data as { card?: Card }).card
   // ⚠ Thiếu THẺ thì hiện một hộp nói ra, KHÔNG được ném. Một khối hỏng đáng ra chỉ làm
   // hỏng một khối; ném ở đây là React gỡ cả cây và cửa sổ vẽ trắng bóc — mà cái trắng
   // ấy nuốt luôn mọi dấu vết. Đã cắn: sơ đồ máy vẽ đẩy sang mà thiếu `cards`.
   if (!card) {
     return (
-      <div className="buoc buoc-hong" title="Khối này thiếu thẻ hiển thị">
-        <b>khối thiếu thẻ</b><span>{(data as { step?: { id?: string } }).step?.id}</span>
+      <div className="buoc buoc-hong" title={chu("Khối này thiếu thẻ hiển thị")}>
+        <b>{chu('khối thiếu thẻ')}</b><span>{(data as { step?: { id?: string } }).step?.id}</span>
       </div>
     )
   }
@@ -97,7 +99,7 @@ export default function StepNode({ data, selected }: NodeProps) {
                ? (card.ghim
                  ? `Bước ${thuTu} — SỐ ĐÃ GHIM: mọi đường nối quay về đây vẫn giữ đúng số này`
                  : `Bước ${thuTu} — số = đi được bao xa, chữ = đi nhánh nào`)
-               : 'Không có đường nối dẫn tới — sẽ không chạy'}>
+               : chu('Không có đường nối dẫn tới — sẽ không chạy')}>
           {thuTu ?? '–'}
           {card.ghim && <span className="dau-ghim" aria-hidden>⟲</span>}
         </div>
@@ -128,7 +130,7 @@ export default function StepNode({ data, selected }: NodeProps) {
                     nhau bằng VÀ, phải ghi ra để không ai đoán là HOẶC. Ở khối vào/sửa
                     lệnh, mỗi dòng là một TRƯỜNG (lot, đệm, SL, TP) — dán "và" vào là
                     nói sai. */}
-                <span className="danh">{laVa && i > 0 ? 'và' : ''}</span>
+                <span className="danh">{laVa && i > 0 ? chu('và') : ''}</span>
                 <span>{d.text}</span>
               </div>
             ))}
@@ -143,7 +145,7 @@ export default function StepNode({ data, selected }: NodeProps) {
         {card.badges.length > 0 && (
           <div className="chan">
             {card.badges.map((b, i) => <span key={i} className="the">{b}</span>)}
-            {card.ghim && <span className="the the-ghim">⟲ đã ghim số</span>}
+            {card.ghim && <span className="the the-ghim">{chu('⟲ đã ghim số')}</span>}
           </div>
         )}
       </div>

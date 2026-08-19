@@ -1,3 +1,4 @@
+import { chu } from '../i18n'
 import { memo } from 'react'
 
 export interface BangCat {
@@ -46,7 +47,7 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
 
   const so = (v: unknown) => {
     if (v === null || v === undefined) return '—'
-    if (typeof v === 'boolean') return v ? 'đúng' : 'sai'
+    if (typeof v === 'boolean') return v ? chu('đúng') : 'sai'
     if (typeof v === 'string') return v
     if (typeof v !== 'number') return '—'
     return Number.isInteger(v) ? String(v) : v.toFixed(Math.max(2, digits))
@@ -94,7 +95,7 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
                 </span>
               </div>
               <div className="d2">
-                <span><i>{l.da_khop ? 'vào' : 'đặt'}</i>{gia(l.da_khop ? l.gia_vao : l.gia_dat)}</span>
+                <span><i>{l.da_khop ? 'vào' : chu('đặt')}</i>{gia(l.da_khop ? l.gia_vao : l.gia_dat)}</span>
                 <span><i>SL</i>{gia(l.sl)}
                   {/* Chấm hoà vốn nằm cạnh SL chứ không cạnh id: nó nói về SL. */}
                   {l.sl_hoa_von && <b className="cham" title="SL đã ở hoà vốn" />}

@@ -37,12 +37,19 @@ BAI = [
     ("test_dat_ten.py", "Số gõ tay hai chỗ → cảnh báo + nút đặt tên"),
     ("test_giao_dien.py", "Biến CSS ma — thứ hỏng LẶNG, build vẫn sạch"),
     ("test_o_so.py", "Ô số — gõ TỪNG PHÍM, số thập phân không được nuốt"),
+    ("test_ngon_ngu.py", "Ngôn ngữ — từ điển không được nói dối"),
 ]
 
 hong = []
 for ten, mo_ta in BAI:
     print(f"\n{'=' * 68}\n▶ {ten}  —  {mo_ta}\n{'=' * 68}")
-    r = subprocess.run([sys.executable, os.path.join(HERE, ten)])
+    # ⭐ ÉP TIẾNG VIỆT cho mọi bài kiểm. Nhiều bài đối chiếu CHỮ trên hộp khối, mà chữ
+    # ấy do Python sinh theo cài đặt `ngon_ngu` NGƯỜI DÙNG đã lưu trên đĩa (§18.14).
+    # Không ép thì kết quả bộ kiểm phụ thuộc vào việc người dùng đang để app ở ngôn ngữ
+    # nào — đã cắn: bật tiếng Anh xong chạy `chay_tat_ca` là 6 phép đỏ, mà mã nguồn
+    # không hề sai. Bộ kiểm phải nói cùng một câu trên mọi máy.
+    moi = dict(os.environ, CAT_NGON_NGU="vi")
+    r = subprocess.run([sys.executable, os.path.join(HERE, ten)], env=moi)
     if r.returncode:
         hong.append(ten)
 

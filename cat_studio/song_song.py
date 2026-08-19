@@ -24,7 +24,7 @@ import multiprocessing as mp
 import os
 import time
 
-from . import bo_chay, cham_diem
+from . import bo_chay, cham_diem, phan_bo
 
 #: Nến · điều kiện chạy · cửa — gửi MỘT LẦN lúc mở tiến trình con, không gửi kèm mỗi sơ
 #: đồ. Một năm nến M1 là ~17 MB; đính vào từng tác vụ thì riêng việc đóng gói đã đắt hơn
@@ -55,7 +55,10 @@ def cham_mot(doc, nen=None, cd=None, cua=None, moc=None, buoc="quy"):
     t0 = time.perf_counter()
     try:
         # Tắt nhật ký (§18.4b) — máy tìm không bao giờ đọc nó.
-        kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False)
+        # `dem_khoi=True` — +4,3% cho MỌI sơ đồ, đổi lấy câu trả lời *"chết vì cổng
+        # nào"* cho 56,7% số sơ đồ câm. Bật luôn chứ không chạy lần hai khi thấy câm:
+        # một đường chạy thì không bao giờ có chuyện hai đường ra hai kết quả.
+        kq = bo_chay.chay(doc, nen, cd, ghi_nhat_ky=False, dem_khoi=True)
     except bo_chay.NaLenh:
         return {"loai": "na_lenh", "giay": time.perf_counter() - t0}
     except bo_chay.QuaNang:
@@ -65,6 +68,10 @@ def cham_mot(doc, nen=None, cd=None, cua=None, moc=None, buoc="quy"):
                 "giay": time.perf_counter() - t0}
     ra = {"loai": "cham", "diem": cham_diem.cham(kq, cua),
           "co_lenh": bool(kq.so.lenh), "giay": time.perf_counter() - t0}
+    if not kq.so.lenh:
+        # ⭐ CÂM thì nói VÌ SAO. *"Không vào lệnh"* là triệu chứng; *"cổng hỏi `atr`
+        # không bao giờ khớp"* là thứ sửa được. §18.11.
+        ra["chan"] = phan_bo.chan_som_nhat(doc, kq)
     if moc:
         # ⭐ Điểm TỪNG CỬA SỔ, cắt từ CÙNG một lượt chạy (§18.3b). Tiến hoá cần nó cho
         # luật đa số — mà gửi `KetQua` về tiến trình cha rồi cắt ở đó thì phải đóng gói

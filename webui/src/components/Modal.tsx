@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, type ReactNode } from 'react'
 
 /** Vỏ hộp thoại dùng chung.
@@ -27,6 +28,7 @@ export default function Modal({ title, width = 560, onClose, footer, children, k
    *  trên window từ lúc mở, nên nó luôn chạy TRƯỚC mọi listener đăng ký sau. */
   khoaEsc?: boolean
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       if (khoaEsc) return
@@ -42,7 +44,7 @@ export default function Modal({ title, width = 560, onClose, footer, children, k
       <div className="hop-thoai" style={{ width }} onMouseDown={e => e.stopPropagation()}>
         <div className="ht-dau">
           <span>{title}</span>
-          <button className="ht-dong" onClick={onClose} title="Đóng (Esc)">✕</button>
+          <button className="ht-dong" onClick={onClose} title={chu("Đóng (Esc)")}>✕</button>
         </div>
         <div className="ht-than">{children}</div>
         <div className="ht-chan">{footer}</div>

@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pyTester } from '../api'
 import type { MucLichSu } from '../types'
@@ -21,6 +22,7 @@ export default function LichSu({ dangXem, onXem, onMoLai }: {
   onXem: (ma: string) => void
   onMoLai: (ma: string) => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [mo, setMo] = useState(false)
   const [ds, setDs] = useState<MucLichSu[]>([])
   const [dangSua, setDangSua] = useState<string | null>(null)
@@ -95,7 +97,7 @@ export default function LichSu({ dangXem, onXem, onMoLai }: {
                      if (e.key === 'Enter') void luu(m.ma)
                      if (e.key === 'Escape') { setDangSua(null); setTen('') }
                    }} />
-            <button className="nut chinh" onClick={() => void luu(m.ma)}>Lưu</button>
+            <button className="nut chinh" onClick={() => void luu(m.ma)}>{chu('Lưu')}</button>
             {/* Xoá trắng tên = trả mục về dạng mềm, tức cho phép nó bị cuốn chiếu lại. */}
             <button className="nut-nho" onClick={() => { setDangSua(null); setTen('') }}>
               Thôi

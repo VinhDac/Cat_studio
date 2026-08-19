@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { pyTester } from '../api'
 import type { ThongKeChay, XemLichSu } from '../types'
@@ -21,6 +22,7 @@ export default function ThongKe({ nguon, thoiXem }: {
   nguon: XemLichSu | null
   thoiXem: () => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [hienTai, setHienTai] = useState<ThongKeChay | null>(null)
   const [loi, setLoi] = useState('')
 
@@ -71,7 +73,7 @@ export default function ThongKe({ nguon, thoiXem }: {
       </div>
 
       <div className="tk-so">
-        <Nhom ten="Vốn" hang={[
+        <Nhom ten={chu("Vốn")} hang={[
           ['vốn đầu', tien(t.von_dau)],
           ['vốn cuối', tien(t.von_cuoi)],
           ['lãi ròng', `${dau(t.lai_tien)}${tien(t.lai_tien)}`, lop(t.lai_tien)],
@@ -98,7 +100,7 @@ export default function ThongKe({ nguon, thoiXem }: {
           ['hệ số lãi', t.he_so_lai == null ? '—' : t.he_so_lai.toFixed(2),
            t.he_so_lai != null && t.he_so_lai >= 1 ? 'lai' : 'lo'],
         ]} />
-        <Nhom ten="Rủi ro" hang={[
+        <Nhom ten={chu("Rủi ro")} hang={[
           ['sụt giảm lớn nhất', `${t.drawdown_pt.toFixed(2)} %`, 'lo'],
           ['', `${tien(t.drawdown_tien)} $`, 'lo'],
           ['chạm đáy lúc', t.drawdown_luc ? gio(t.drawdown_luc) : '—'],

@@ -22,7 +22,7 @@ import threading
 import time
 import traceback
 
-from . import core
+from . import core, ngon_ngu
 from . import kho
 from . import cat_tia
 from . import cham_diem
@@ -388,6 +388,10 @@ class Api(NenCuaSo):
         self._api_rl = None
         self._doc_tester = None
         self._cai_dat = core.load_settings()
+        # ⭐ NGÔN NGỮ ngay lúc nạp cài đặt, TRƯỚC khi cửa sổ nào mở ra. Đặt muộn hơn thì
+        # sơ đồ đầu tiên đã dựng thẻ bằng tiếng Việt rồi — mà thẻ chỉ dựng lại khi doc
+        # đi qua `_kem_the` lần nữa. §18.14
+        ngon_ngu.dat(self._cai_dat.get("ngon_ngu"))
         self._khoa = threading.Lock()
 
     # ------------------------------------------------------------------ cơ bản
@@ -883,6 +887,12 @@ class Api(NenCuaSo):
             cd["symbol"] = str(s["symbol"]).strip().upper()
         if (s or {}).get("accent"):
             cd["accent"] = str(s["accent"])
+        if (s or {}).get("ngon_ngu") in ("vi", "en"):
+            cd["ngon_ngu"] = str(s["ngon_ngu"])
+            # ⭐ ĂN NGAY, không đợi mở lại app. Chữ trên hộp khối do Python sinh
+            # (§12.9), nên đổi cài đặt mà không đặt luôn ở đây thì ribbon nói tiếng Anh
+            # còn hộp khối vẫn tiếng Việt cho tới lần khởi động sau. §18.14
+            ngon_ngu.dat(cd["ngon_ngu"])
         self._cai_dat = core.save_settings(cd)
         return _ok(self._cai_dat)
 
@@ -1099,6 +1109,9 @@ class ApiTester(NenChay):
         return _ok({
             "phien_ban": core.PHIEN_BAN,
             "accent": (self._cha._cai_dat or {}).get("accent"),
+            # NGÔN NGỮ đi CÙNG accent ở mọi cửa boot — mỗi cửa sổ là một ngữ cảnh JS
+            # riêng, nên chỗ nào áp màu thì chỗ ấy phải áp ngôn ngữ. §18.14
+            "ngon_ngu": (self._cha._cai_dat or {}).get("ngon_ngu") or "vi",
             "doc": self._cha._doc_tester,
             # Điều kiện chạy do CỬA SỔ CHÍNH giữ (File → Cài đặt → Strategy Test).
             # Tester chỉ đọc rồi chạy — nó không có ô nhập nào.
@@ -1347,11 +1360,14 @@ class ApiTester(NenChay):
             # thoại / nhật ký / kho), đơn vị thuộc CHỖ DÙNG. Và vẫn đúng BA cột (§12.9c).
             if o.get("don_vi"):
                 phu = (phu + " " if phu else "") + f"[{core.DON_VI_NGAN[o['don_vi']]}]"
+            # NHÃN theo ngôn ngữ đang dùng (§18.14) — nhóm lẫn tên toán hạng. Gom vẫn
+            # gom theo KHOÁ tiếng Việt gốc: gom theo nhãn đã dịch thì đổi ngôn ngữ là
+            # thứ tự nhóm nhảy lung tung, mà thứ tự ấy có nghĩa (nó là thứ tự kho).
             if o["nhom"] not in nhom_dau:
-                nhom_dau[o["nhom"]] = {"nhom": o["nhom"], "dong": []}
+                nhom_dau[o["nhom"]] = {"nhom": core.nhan_nhom(o["ten"]), "dong": []}
                 bang.append(nhom_dau[o["nhom"]])
             nhom_dau[o["nhom"]]["dong"].append(
-                {"ten": o["nhan"], "phu": phu, "gia_tri": ds})
+                {"ten": core.nhan_toan_hang(o["ten"]), "phu": phu, "gia_tri": ds})
 
         # Lệnh SỐNG tại từng khung + lệnh đã đóng còn nằm trong tầm nhìn (để vẽ).
         song, tk = [], []
@@ -1919,6 +1935,9 @@ class ApiLive(ApiTester):
         return _ok({
             "phien_ban": core.PHIEN_BAN,
             "accent": (self._cha._cai_dat or {}).get("accent"),
+            # NGÔN NGỮ đi CÙNG accent ở mọi cửa boot — mỗi cửa sổ là một ngữ cảnh JS
+            # riêng, nên chỗ nào áp màu thì chỗ ấy phải áp ngôn ngữ. §18.14
+            "ngon_ngu": (self._cha._cai_dat or {}).get("ngon_ngu") or "vi",
             "san_sang": self.doc is not None,
             # Khung hình SỐ 0 của cuộn phim — giao diện ghim nó lên đầu nhật ký.
             "bat_dau_luc": (self.phien.t_bat_dau if self.phien else None),
@@ -2527,6 +2546,9 @@ class ApiRL(NenChay):
         return _ok({
             "phien_ban": core.PHIEN_BAN,
             "accent": (self._cha._cai_dat or {}).get("accent"),
+            # NGÔN NGỮ đi CÙNG accent ở mọi cửa boot — mỗi cửa sổ là một ngữ cảnh JS
+            # riêng, nên chỗ nào áp màu thì chỗ ấy phải áp ngôn ngữ. §18.14
+            "ngon_ngu": (self._cha._cai_dat or {}).get("ngon_ngu") or "vi",
             # --- tầng CHỌN (§18.6.1) ---
             "chon": _chon_rl(),
             "tran": dict(nguoi_bay.TRAN),

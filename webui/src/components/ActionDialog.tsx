@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { py } from '../api'
 import type { Bootstrap, Tab, ThamSo, ToanHang } from '../types'
@@ -72,7 +73,7 @@ function OSo({ v, dat, thamSo, donVi, lop, title, nguyen, tat }: {
 Bấm ✕ để quay lại gõ một con số.`
               : `Không còn tham số nào tên "${v}" trong bảng — bấm ✕ để gõ lại một số.`}>
         <span className="chip-ten">{v}</span>
-        <button className="chip-x" title="Bỏ tên, quay lại gõ số"
+        <button className="chip-x" title={chu("Bỏ tên, quay lại gõ số")}
                 onClick={() => dat(ts ? Number(ts.gia_tri) : 0)}>✕</button>
       </span>
     )
@@ -106,7 +107,7 @@ Bấm ✕ để quay lại gõ một con số.`
           luật "chỉ bày ra thứ dùng được", áp cho chính cái nút chọn. */}
       {hop.length > 0 && (
         <select className="chon-ts" value=""
-                title="Dùng một tham số đã có thay cho con số này"
+                title={chu("Dùng một tham số đã có thay cho con số này")}
                 onChange={e => e.target.value && dat(e.target.value)}>
           <option value="">▾</option>
           {hop.map(t => (
@@ -173,7 +174,7 @@ function OToanHang({ o, boot, tab, dat, hep, thamSo, coZone, boDungSai }: {
                 }
                 dat(g)
               }}>
-        <option value="">— chọn —</option>
+        <option value="">{chu('— chọn —')}</option>
         {nhom.map(([g, ds]) => (
           <optgroup key={g} label={g}>
             {ds.map(t => <option key={t.key} value={t.key}>{t.nhan}</option>)}
@@ -208,14 +209,14 @@ function OToanHang({ o, boot, tab, dat, hep, thamSo, coZone, boDungSai }: {
             .forEach(x => { if (x !== el) (x as HTMLDetailsElement).open = false })
         }}>
           <summary className="ctl-banh-rang"
-                   title={'Cài đặt cho ' + (dinh?.nhan ?? 'toán hạng này')}>
+                   title={'Cài đặt cho ' + (dinh?.nhan ?? chu('toán hạng này'))}>
             ⚙
           </summary>
           <div className="menu-th-noi">
             <div className="menu-th-dau">{dinh?.nhan}</div>
             {ts.includes('tf') && (
               <label className="menu-th-dong">
-                <span>Khung thời gian</span>
+                <span>{chu('Khung thời gian')}</span>
                 <select className="o nho" value={o?.tf ?? ''}
                         onChange={e => sua('tf', e.target.value)}>
                   {boot.timeframes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -224,16 +225,16 @@ function OToanHang({ o, boot, tab, dat, hep, thamSo, coZone, boDungSai }: {
             )}
             {ts.includes('period') && (
               <label className="menu-th-dong">
-                <span>Chu kỳ (nến)</span>
+                <span>{chu('Chu kỳ (nến)')}</span>
                 <OSo v={o?.period} thamSo={thamSo} nguyen
                      donVi={boot.don_vi_o.chu_ky}
-                     title="Chu kỳ chỉ báo, tính bằng số nến."
+                     title={chu("Chu kỳ chỉ báo, tính bằng số nến.")}
                      dat={x => sua('period', x)} />
               </label>
             )}
             {ts.includes('method') && (
               <label className="menu-th-dong">
-                <span>Kiểu trung bình</span>
+                <span>{chu('Kiểu trung bình')}</span>
                 <select className="o nho" value={o?.method ?? 'SMA'}
                         onChange={e => sua('method', e.target.value)}>
                   {Object.entries(boot.ma_methods).map(([k, v]) =>
@@ -243,7 +244,7 @@ function OToanHang({ o, boot, tab, dat, hep, thamSo, coZone, boDungSai }: {
             )}
             {ts.includes('ten_co') && (
               <label className="menu-th-dong">
-                <span>Tên cờ</span>
+                <span>{chu('Tên cờ')}</span>
                 <input className="o nho" value={o?.ten_co ?? ''}
                        onChange={e => sua('ten_co', e.target.value)} />
               </label>
@@ -288,7 +289,7 @@ function OKhoang({ k, boot, dat, nhan, goiY, thamSo, oDau, coZone }: {
               một con số vô nghĩa nằm đó. */}
           <OSo v={k.value} thamSo={thamSo} donVi={k.tinh} tat={k.tinh === 'bien_zone'}
                title={k.tinh === 'bien_zone'
-                 ? 'Mép zone đối diện là một MỐC — không nhân với con số nào'
+                 ? chu('Mép zone đối diện là một MỐC — không nhân với con số nào')
                  : undefined}
                dat={x => dat({ ...k, value: x })} />
           {/* Chọn tham số rồi thì KHOÁ đơn vị: tham số đã khai đơn vị của nó, và một
@@ -305,7 +306,7 @@ function OKhoang({ k, boot, dat, nhan, goiY, thamSo, oDau, coZone }: {
               {ds.map(kk => <option key={kk} value={kk}>{boot.don_vi[kk]}</option>)}
             </select>
           )}
-          <button className="nut nho" onClick={() => dat(undefined)} title="Bỏ">✕</button>
+          <button className="nut nho" onClick={() => dat(undefined)} title={chu("Bỏ")}>✕</button>
         </>
       ) : (
         <button className="nut nho" onClick={() => dat({ tinh: 'atr', value: 1 })}>
@@ -411,8 +412,8 @@ function DongDieuKien({ c, boot, tab, thamSo, dat, xoa, so, coZone, haiBen }: {
             <OSo v={phai.value} thamSo={thamSo} lop="rong" donVi={donViO}
                  tat={phai.tinh === 'bien_zone'}
                  title={phai.tinh === 'bien_zone'
-                   ? 'Mép zone đối diện là một MỐC, không nhân với con số nào'
-                   : 'Gõ một con số. Số này lặp ở nhiều chỗ thì bảng Vấn đề sẽ mời đặt tên cho nó.'}
+                   ? chu('Mép zone đối diện là một MỐC, không nhân với con số nào')
+                   : chu('Gõ một con số. Số này lặp ở nhiều chỗ thì bảng Vấn đề sẽ mời đặt tên cho nó.')}
                  dat={x => dat({ ...c, phai: { ...phai, value: x } })} />
           )}
         </div>
@@ -441,7 +442,7 @@ function DongDieuKien({ c, boot, tab, thamSo, dat, xoa, so, coZone, haiBen }: {
         </span>
       ) : coDonVi ? (
         <select className="o nho don-vi" value={String(phai.tinh ?? 'gia')}
-                title="Quy đổi vế trái trước khi so — cùng một con số mang cùng ý nghĩa trên mọi symbol"
+                title={chu("Quy đổi vế trái trước khi so — cùng một con số mang cùng ý nghĩa trên mọi symbol")}
                 onChange={e => {
                   const p2 = { ...phai } as HD
                   if (e.target.value === 'gia') delete p2.tinh
@@ -453,16 +454,16 @@ function DongDieuKien({ c, boot, tab, thamSo, dat, xoa, so, coZone, haiBen }: {
       ) : (
         <span className="o nho don-vi tat"
               title={khongVePhai
-                ? 'Đúng/sai không có vế phải — mệnh đề đã trọn'
+                ? chu('Đúng/sai không có vế phải — mệnh đề đã trọn')
                 : laDaiLuong
-                  ? 'Hai vế cùng một đại lượng thì đơn vị triệt tiêu'
-                  : 'Đại lượng này không quy đổi được — nó đã có sẵn một đơn vị tự nhiên'}>
+                  ? chu('Hai vế cùng một đại lượng thì đơn vị triệt tiêu')
+                  : chu('Đại lượng này không quy đổi được — nó đã có sẵn một đơn vị tự nhiên')}>
           {khongVePhai ? ''
             : (boot.nhan_don_vi[boot.toan_hang_don_vi[ten] ?? ''] ?? '—')}
         </span>
       )}
 
-      <button className="nut nho xoa-dk" onClick={xoa} title="Xoá điều kiện này">✕</button>
+      <button className="nut nho xoa-dk" onClick={xoa} title={chu("Xoá điều kiện này")}>✕</button>
     </div>
   )
 }
@@ -481,6 +482,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
   onLuu: (a: HD) => void
   onDong: () => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   /** Loại hành động dùng được ở tab này. Entry chỉ TẠO, Manage chỉ SỬA. */
   const loaiChoPhep = boot.action_types.filter(t => boot.action_tabs[t]?.includes(tab))
   const [a, setA] = useState<HD>(() => JSON.parse(JSON.stringify(action)))
@@ -574,21 +576,21 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
            onClose={onDong}
            footer={
              <>
-               <div className="xem-truoc" title="Đúng câu mà lõi hiểu về hành động này">
+               <div className="xem-truoc" title={chu("Đúng câu mà lõi hiểu về hành động này")}>
                  {xem || '…'}
                </div>
-               <button className="nut" onClick={onDong}>Huỷ</button>
-               <button className="nut chinh" onClick={() => void luuRoiDong()}>Lưu</button>
+               <button className="nut" onClick={onDong}>{chu('Huỷ')}</button>
+               <button className="nut chinh" onClick={() => void luuRoiDong()}>{chu('Lưu')}</button>
              </>
            }>
 
       <div className="hang">
-        <span className="nhan-o">Loại</span>
+        <span className="nhan-o">{chu('Loại')}</span>
         <select className="o" value={a.type} onChange={e => doiLoai(e.target.value)}>
           {loaiChoPhep.map(t =>
             <option key={t} value={t}>{boot.action_labels[t]}</option>)}
         </select>
-        <span className="nhan-o phu">Tên</span>
+        <span className="nhan-o phu">{chu('Tên')}</span>
         <input className="o" value={a.name ?? ''} placeholder="(để trống = dùng tên loại)"
                onChange={e => dat('name', e.target.value)} />
         {/* CƠ CHẾ SO SÁNH — MỘT lựa chọn cho CẢ KHỐI, nằm ngay cạnh tên.
@@ -599,11 +601,11 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
         {a.type === 'check_cond' && (
           <label className="tick-cochet"
                  title={[
-                   'Bật: mọi dòng so HAI ĐẠI LƯỢNG (Giá đóng cửa > MA)'
+                   chu('Bật: mọi dòng so HAI ĐẠI LƯỢNG (Giá đóng cửa > MA)')
                    + ' — không có ô số, không có đơn vị.',
-                   'Tắt: mọi dòng so với một GIÁ TRỊ bạn đặt (số · tham số · đúng/sai).',
+                   chu('Tắt: mọi dòng so với một GIÁ TRỊ bạn đặt (số · tham số · đúng/sai).'),
                    '',
-                   'Muốn cả hai kiểu trong một cổng thì nối HAI cổng — nối tiếp là VÀ.',
+                   chu('Muốn cả hai kiểu trong một cổng thì nối HAI cổng — nối tiếp là VÀ.'),
                  ].join('\n')}>
             <input type="checkbox" checked={!!a.so_dai_luong}
                    onChange={e => doiCoChe(e.target.checked)} />
@@ -618,7 +620,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
           <div className="chu-dan">
             Mọi dòng phải cùng đúng thì mới khớp (<b>VÀ</b>). Muốn <b>HOẶC</b> thì tách
             ra thành hai nhánh riêng trên sơ đồ — nhìn sơ đồ là thấy được, còn chữ
-            "hoặc" giấu trong hộp thoại thì không.
+            chu("hoặc") giấu trong hộp thoại thì không.
           </div>
           {conds.map((c, i) => (
             <DongDieuKien key={i} c={c} boot={boot} tab={tab} thamSo={thamSo} so={i + 1}
@@ -628,7 +630,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
                           xoa={() => dat('conditions', conds.filter((_, k) => k !== i))} />
           ))}
           {!conds.length && (
-            <div className="dong rong">chưa có điều kiện nào — hành động này sẽ luôn khớp</div>
+            <div className="dong rong">{chu('chưa có điều kiện nào — hành động này sẽ luôn khớp')}</div>
           )}
           <button className="nut" onClick={() => dat('conditions', [...conds, dongMoi()])}>
             + Thêm điều kiện
@@ -642,7 +644,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
             <label className="tick tick-zone">
               <input type="checkbox" checked={!!a.cong_zone}
                      onChange={e => dat('cong_zone', e.target.checked || undefined)} />
-              <b>Cổng ZONE</b>
+              <b>{chu('Cổng ZONE')}</b>
               <span className="goi-y">
                 cổng này là ĐIỀU KIỆN ĐẾM — qua thì zone lớn thêm một nến, trượt thì
                 zone chết. Các khối hỏi về zone phải nối SAU nó.
@@ -657,12 +659,12 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
           {tab === 'entry' && a.cong_zone && (
             <div className="khoi-hop-le">
               <div className="chu-dan">
-                <b>Zone thế nào là HỢP LỆ</b> — viết một lần ở đây, rồi mọi cổng khác
-                (kể cả bên Manage) chỉ việc hỏi <b>Zone hợp lệ</b>. Trượt phần này thì
-                zone <b>vẫn sống</b> và đếm tiếp, chỉ là chưa dùng được.
+                <b>{chu('Zone thế nào là HỢP LỆ')}</b> — viết một lần ở đây, rồi mọi cổng khác
+                (kể cả bên Manage) chỉ việc hỏi <b>{chu('Zone hợp lệ')}</b>. Trượt phần này thì
+                zone <b>{chu('vẫn sống')}</b> và đếm tiếp, chỉ là chưa dùng được.
                 <br />
-                Ranh giới với phần trên: trượt nghĩa là <b>"nén hỏng rồi"</b> thì để ở
-                phần đếm (zone chết); trượt nghĩa là <b>"chưa tới lúc"</b> thì để ở đây.
+                Ranh giới với phần trên: trượt nghĩa là <b>{chu('"nén hỏng rồi"')}</b> thì để ở
+                phần đếm (zone chết); trượt nghĩa là <b>{chu('"chưa tới lúc"')}</b> thì để ở đây.
               </div>
               {hopLe.map((c, i) => (
                 <DongDieuKien key={i} c={c} boot={boot} tab={tab} thamSo={thamSo}
@@ -674,7 +676,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
               ))}
               {!hopLe.length && (
                 <div className="dong rong">
-                  chưa khai — hỏi "Zone hợp lệ" ở nơi khác sẽ báo lỗi
+                  chưa khai — hỏi chu("Zone hợp lệ") ở nơi khác sẽ báo lỗi
                 </div>
               )}
               <button className="nut"
@@ -690,14 +692,14 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
       {a.type === 'vao_lenh' && (
         <div className="khoi-form">
           <div className="hang">
-            <span className="nhan-o">Hướng</span>
+            <span className="nhan-o">{chu('Hướng')}</span>
             {Object.entries(boot.huong).map(([k, v]) => (
               <label key={k} className="tick">
                 <input type="radio" name="huong" checked={a.huong === k}
                        onChange={() => dat('huong', k)} />{v}
               </label>
             ))}
-            <span className="nhan-o phu">Loại lệnh</span>
+            <span className="nhan-o phu">{chu('Loại lệnh')}</span>
             <select className="o" value={a.loai ?? 'stop'}
                     onChange={e => dat('loai', e.target.value)}>
               {Object.entries(boot.loai_lenh).map(([k, v]) =>
@@ -707,16 +709,16 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
                 Lot là con số TUYỆT ĐỐI: 0,01 lot trên $10.000 khác hẳn trên $100.000,
                 nên đổi tài khoản là tiền và sụt vốn đổi nghĩa. Khối lượng nay do bộ
                 chạy suy ra từ rủi ro và khoảng cách SL. */}
-            <span className="nhan-o phu">Rủi ro</span>
+            <span className="nhan-o phu">{chu('Rủi ro')}</span>
             <OSo v={a.rui_ro} thamSo={thamSo} donVi={boot.don_vi_o.rui_ro}
                  dat={x => dat('rui_ro', x)}
-                 title="Phần trăm VỐN mạo hiểm cho mỗi lệnh. Khối lượng suy ra từ đây và khoảng cách SL." />
+                 title={chu("Phần trăm VỐN mạo hiểm cho mỗi lệnh. Khối lượng suy ra từ đây và khoảng cách SL.")} />
           </div>
 
           <div className="chu-dan">
-            Khối lượng <b>không phải một ô nhập</b> nữa — bộ chạy tính
+            Khối lượng <b>{chu('không phải một ô nhập')}</b> nữa — bộ chạy tính
             <code> lot = vốn × rủi ro% ÷ (khoảng cách SL × contract size)</code>.
-            Nhờ đó mọi lệnh mạo hiểm <b>một R bằng nhau</b>, và đường tiền nói cùng một
+            Nhờ đó mọi lệnh mạo hiểm <b>{chu('một R bằng nhau')}</b>, và đường tiền nói cùng một
             chuyện với tổng R.
           </div>
 
@@ -732,7 +734,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
               bày". */}
           {a.loai !== 'market' && (
             <div className="hang">
-              <span className="nhan-o">Đặt tại</span>
+              <span className="nhan-o">{chu('Đặt tại')}</span>
               <select className="o" value={a.entry?.moc ?? ''}
                       onChange={e => dat('entry', { moc: e.target.value })}>
                 {Object.entries(boot.moc_entry).map(([k, v]) =>
@@ -740,26 +742,26 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
               </select>
               <span className="goi-y">
                 {boot.moc_can_zone.includes(a.entry?.moc ?? '')
-                  ? 'cần một cổng ZONE ở phía trên — entry = mốc này ± đệm'
-                  : 'entry = mốc này ± đệm'}
+                  ? chu('cần một cổng ZONE ở phía trên — entry = mốc này ± đệm')
+                  : chu('entry = mốc này ± đệm')}
               </span>
             </div>
           )}
 
           {/* ĐỆM là TUỲ CHỌN. Bỏ trống thì lệnh nằm đúng mốc — hợp lệ, chỉ dễ dính
               một nhịp phá giả hơn. */}
-          <OKhoang nhan="Đệm (tuỳ chọn)" k={a.dem} boot={boot} dat={v => dat('dem', v)}
+          <OKhoang nhan={chu("Đệm (tuỳ chọn)")} k={a.dem} boot={boot} dat={v => dat('dem', v)}
                    thamSo={thamSo} oDau="dem" coZone={coZone}
-                   goiY="đẩy giá đặt ra ngoài mốc — lá chắn chống phá giả" />
+                   goiY={chu("đẩy giá đặt ra ngoài mốc — lá chắn chống phá giả")} />
           <OKhoang nhan="Stop Loss" k={a.sl} boot={boot} dat={v => dat('sl', v)}
                    thamSo={thamSo} oDau="sl" coZone={coZone}
-                   goiY="khoảng cách này chính là 1R" />
+                   goiY={chu("khoảng cách này chính là 1R")} />
           <OKhoang nhan="Take Profit" k={a.tp} boot={boot} dat={v => dat('tp', v)}
                    thamSo={thamSo} oDau="tp" coZone={coZone}
-                   goiY="thường đặt theo bội của R" />
+                   goiY={chu("thường đặt theo bội của R")} />
 
           <div className="chu-dan">
-            SL/TP đặt ở đây là <b>ban đầu</b>. Khối <b>Sửa lệnh</b> phía sau chỉ để
+            SL/TP đặt ở đây là <b>{chu('ban đầu')}</b>. Khối <b>{chu('Sửa lệnh')}</b> phía sau chỉ để
             DỜI chúng — không có SL ngay từ lúc vào là để ngỏ cả tài khoản.
           </div>
         </div>
@@ -769,7 +771,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
       {a.type === 'sua_lenh' && (
         <div className="khoi-form">
           <div className="hang">
-            <span className="nhan-o">Chế độ</span>
+            <span className="nhan-o">{chu('Chế độ')}</span>
             <select className="o" value={a.che_do ?? 'doi_sl'}
                     onChange={e => dat('che_do', e.target.value)}>
               {Object.entries(boot.sua_che_do).map(([k, v]) =>
@@ -785,30 +787,30 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
               giá hiện tại, đúng hành vi cũ, nên file cũ mở ra không đổi gì. */}
           {boot.sua_can_gia.includes(a.che_do) && (
             <div className="hang">
-              <span className="nhan-o">Đo từ</span>
+              <span className="nhan-o">{chu('Đo từ')}</span>
               <select className="o" value={a.moc ?? ''}
                       onChange={e => dat('moc', e.target.value || undefined)}>
-                <option value="">Giá hiện tại</option>
+                <option value="">{chu('Giá hiện tại')}</option>
                 {Object.entries(boot.moc_entry).map(([k, v]) =>
                   <option key={k} value={k}>{v}</option>)}
               </select>
               <span className="goi-y">
                 {boot.moc_can_zone.includes(a.moc ?? '')
-                  ? 'cần một cổng ZONE ở phía trên'
-                  : 'mốc mới = chỗ này ± khoảng cách dưới'}
+                  ? chu('cần một cổng ZONE ở phía trên')
+                  : chu('mốc mới = chỗ này ± khoảng cách dưới')}
               </span>
             </div>
           )}
 
           {boot.sua_can_gia.includes(a.che_do) && (
-            <OKhoang nhan="Khoảng cách mới" k={a.khoang} boot={boot}
+            <OKhoang nhan={chu("Khoảng cách mới")} k={a.khoang} boot={boot}
                      thamSo={thamSo} oDau="sua" coZone={coZone}
                      dat={v => dat('khoang', v)} />
           )}
 
           {a.che_do === 'doi_sl' && (
             <div className="chu-dan">
-              <b>SL chỉ được SIẾT, không được nới.</b> Mốc mới xa hơn SL đang có thì bộ
+              <b>{chu('SL chỉ được SIẾT, không được nới.')}</b> Mốc mới xa hơn SL đang có thì bộ
               chạy bỏ qua, không sửa gì. Nới SL sau khi vào lệnh là phá luôn định nghĩa
               1R mà mọi con số đang đo bằng nó. TP thì tự do — dời TP xa ra không tăng
               rủi ro.
@@ -817,8 +819,8 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
 
           {a.che_do === 'hoa_von' && (
             <div className="chu-dan">
-              Không có tham số: chế độ này chỉ đặt <b>SL = giá vào</b>. Mốc kích hoạt
-              (lãi đủ mấy R) và câu hỏi <b>"đã dời chưa"</b> thuộc về <b>cổng phía
+              Không có tham số: chế độ này chỉ đặt <b>{chu('SL = giá vào')}</b>. Mốc kích hoạt
+              (lãi đủ mấy R) và câu hỏi <b>{chu('"đã dời chưa"')}</b> thuộc về <b>cổng phía
               trước</b> — chỗ nhìn thấy được. D_02 giấu cả ba trong <code>ManageBreakEven</code>.
             </div>
           )}
@@ -826,7 +828,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
           {a.che_do === 'ket_thuc' && (
             <div className="chu-dan">
               Không có tham số. Manage chạy <b>một lượt cho MỖI lệnh đang sống</b>, nên
-              "lệnh này" là duy nhất và bộ chạy tự biết nó đã khớp hay chưa:
+              chu("lệnh này") là duy nhất và bộ chạy tự biết nó đã khớp hay chưa:
               <b> khớp rồi thì đóng, chưa khớp thì huỷ</b>. Trước đây là hai chế độ
               riêng — chọn nhầm thì hành động im lặng không làm gì.
             </div>

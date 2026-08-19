@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 /** ĐƯỜNG "QUA CỬA" — bao nhiêu sơ đồ đã SỐNG, theo số lượt đã chấm.
  *
  *     core.md §18.6.3, §18.9c
@@ -34,11 +35,12 @@ export default function DuongQua({ duong, daCham, tong, dangChay }: {
   tong: number
   dangChay: boolean
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   if (!duong.length) {
     return (
       <div className="rl-plot-trong">
-        {dangChay ? 'chưa sơ đồ nào qua cửa — đường sẽ hiện khi có cái đầu tiên'
-                  : 'không sơ đồ nào qua cửa'}
+        {dangChay ? chu('chưa sơ đồ nào qua cửa — đường sẽ hiện khi có cái đầu tiên')
+                  : chu('không sơ đồ nào qua cửa')}
       </div>
     )
   }
@@ -78,7 +80,7 @@ export default function DuongQua({ duong, daCham, tong, dangChay }: {
         {phang > 0
           ? <>phẳng <b>{phang.toLocaleString('vi-VN')}</b> lượt gần nhất
               {phang > xMax * 0.35 && <span className="rl-mach"> — dừng được rồi</span>}</>
-          : <>vừa có thêm một cái qua cửa</>}
+          : <>{chu('vừa có thêm một cái qua cửa')}</>}
       </div>
     </div>
   )

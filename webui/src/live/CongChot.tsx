@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useState } from 'react'
 import { pyLive } from '../api'
 import Modal from '../components/Modal'
@@ -15,6 +16,7 @@ export default function CongChot({ boot, xong }: {
   boot: { goi_y: string; ds_luu: string[]; symbol_mac_dinh: string }
   xong: (ten: string, symbol: string) => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   // '' = dùng sơ đồ đang mở ở cửa sổ vẽ. Ưu tiên nó nếu có: người bấm Ctrl+L gần như
   // luôn muốn chạy đúng cái vừa vẽ xong.
   const [chon, setChon] = useState(boot.goi_y ? '' : (boot.ds_luu[0] ?? ''))
@@ -45,7 +47,7 @@ export default function CongChot({ boot, xong }: {
     const r = await pyLive.live_kiem_ket_noi(s)
     setDangKiem(false)
     setKn(r.ok && r.value ? r.value : {
-      noi_duoc: false, chu: r.error ?? 'không gọi được sang Python',
+      noi_duoc: false, chu: r.error ?? chu('không gọi được sang Python'),
       terminal: '', tai_khoan: '', co_symbol: false, goi_y: [],
     })
   }
@@ -65,7 +67,7 @@ export default function CongChot({ boot, xong }: {
                        onClick={async () => {
                          setLoi('')
                          const r = await pyLive.live_chon(chon, symbol.trim().toUpperCase())
-                         if (!r.ok) return setLoi(r.error ?? 'không chạy được')
+                         if (!r.ok) return setLoi(r.error ?? chu('không chạy được'))
                          xong(r.value!.ten, r.value!.symbol)
                        }}>● Bắt đầu</button>
              </>
@@ -83,7 +85,7 @@ export default function CongChot({ boot, xong }: {
         <input className="o" value={symbol} spellCheck={false}
                onChange={e => setSymbol(e.target.value.toUpperCase())} />
         <button className="nut" disabled={dangKiem} onClick={() => void kiem(symbol)}>
-          {dangKiem ? 'đang nối…' : 'Kiểm tra'}
+          {dangKiem ? chu('đang nối…') : 'Kiểm tra'}
         </button>
       </label>
 

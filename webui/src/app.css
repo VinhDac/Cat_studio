@@ -477,6 +477,12 @@ input, textarea { user-select: text; }
   cursor: pointer; padding: 4px 8px; border-radius: 4px; font: 12px var(--font);
 }
 .nut-nho:hover { background: var(--raised); color: var(--text); }
+/* Nút NHỎ đang được chọn — dùng ở ô chọn Ngôn ngữ. Không tô thì bảng chọn có hai nút
+   giống hệt nhau và không ai biết đang ở ngôn ngữ nào. */
+.nut-nho.dang-chon {
+  background: var(--accent-soft); color: var(--text);
+  border-color: var(--accent);
+}
 
 .noi-dung-tab { flex: 1; overflow: auto; padding: 6px 0; }
 .dong-van-de {

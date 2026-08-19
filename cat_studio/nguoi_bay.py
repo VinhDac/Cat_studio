@@ -104,6 +104,36 @@ PHEP_CHIA = ((">", "<="), (">=", "<"))
 #: Vế thuận → vế ngược. Cùng nguồn với `PHEP_CHIA`, không khai bản thứ hai.
 PHEP_NGUOC = dict(PHEP_CHIA)
 
+#: `key → (chùm, cực trị)`. Hỏi kho, không khai bản thứ hai.
+_CHUM = {t["key"]: (t.get("chum"), t.get("cuc")) for t in kho.TOAN_HANG}
+#: Toán hạng nào chỉ CÓ SỐ sau khi đã có khối Vào lệnh.
+SINH_BOI_LENH = frozenset(t["key"] for t in kho.TOAN_HANG
+                          if t.get("sinh_boi") == "vao_lenh")
+
+
+def quan_he_co_dinh(a, b):
+    """Quan hệ giữa hai mức giá này đã CỐ ĐỊNH chưa — tức hỏi nó là hỏi hằng số?
+
+    ⭐ Suy từ đúng hai trường kho khai (`chum`, `cuc`), không có bảng liệt kê nào ở đây.
+    Thêm một mức giá mới vào kho là luật tự phủ tới nó.
+
+        cùng chùm + ít nhất một bên là CỰC TRỊ  →  cố định
+        `Giá cao nhất ≥ Giá đóng cửa`               đúng theo định nghĩa cây nến
+        `Zone đỉnh ≥ Zone đáy`                      đúng theo định nghĩa vùng
+
+    ⚠ `open` với `close` đều KHÔNG phải cực trị nên KHÔNG cố định — `open < close` là
+    *"nến xanh"*, một câu hỏi thật. Đây là phép thử của cả cách khai: khai đúng thì luật
+    tự chừa nó ra.
+
+    ⚠ CÙNG MỘT LÚC mới cố định. Hai cây nến khác khung giờ là hai cây khác nhau — bộ
+    chạy đọc nến ĐÃ ĐÓNG của từng khung, không cái nào bọc cái nào. Nên với chùm có
+    khung giờ, luật này chỉ áp khi hai vế cùng khung; chùm không có khung giờ (`zone`)
+    thì không tách được, và nước đi ấy bị gạch thẳng khỏi kho."""
+    ca, xa = _CHUM.get(a, (None, None))
+    cb, xb = _CHUM.get(b, (None, None))
+    return bool(ca) and ca == cb and bool(xa or xb)
+
+
 #: Toán hạng nào có ô `period` — hỏi kho, không khai tay.
 CO_CHU_KY = tuple(t["key"] for t in kho.TOAN_HANG if "period" in (t.get("tham_so") or ()))
 #: Toán hạng nào có ô `tf`.
@@ -167,6 +197,11 @@ def _thang_ten(key):
 #   ("cong_moi",) ("cong_zone",) ("hop_le",) ("mo_nhanh",) ("dong_nhanh",) ("het",)
 
 
+def _CO_TF_CHUM(a, b):
+    """Hai vế này có TÁCH RA hai lúc khác nhau được không (cả hai đều có khung giờ)."""
+    return a in CO_TF and b in CO_TF
+
+
 def _kho_dieu_kien():
     ra = []
     gia = [t for t in kho.TOAN_HANG if t.get("loai") == "muc_gia"]
@@ -178,8 +213,13 @@ def _kho_dieu_kien():
         if t.get("loai") == "muc_gia":
             # So hai MỨC GIÁ với nhau. Không so với số: `close < 2000` là một con số
             # tuyệt đối, đúng thứ §15 dựng lên để cấm.
+            # ⚠ GẠCH THẲNG KHỎI KHO, không che bằng mặt nạ: cặp cố định mà KHÔNG có
+            # khung giờ thì không đời nào tách ra thành câu hỏi được, nên nó không phải
+            # một nước đi đang tạm không dùng — nó không phải nước đi.
             ra += [("dk_gia", k, p, u["key"]) for p in PHEP_SO_HOC
-                   for u in gia if u["key"] != k]
+                   for u in gia
+                   if u["key"] != k and not (not _CO_TF_CHUM(k, u["key"])
+                                             and quan_he_co_dinh(k, u["key"]))]
             continue
         thang = _thang_cho(t)
         if not thang:
@@ -209,7 +249,9 @@ def _kho_chia():
             continue
         if t.get("loai") == "muc_gia":
             ra += [("chia_gia", k, p, u["key"]) for p, _ in PHEP_CHIA
-                   for u in gia if u["key"] != k]
+                   for u in gia
+                   if u["key"] != k and not (not _CO_TF_CHUM(k, u["key"])
+                                             and quan_he_co_dinh(k, u["key"]))]
             continue
         thang = _thang_cho(t)
         if not thang:
@@ -558,6 +600,33 @@ def _dieu_kien(n):
     return {"trai": _o(k), "phep": p, "phai": phai}
 
 
+def cap_chia(sa, sb):
+    """Hai khối này có phải HAI VẾ của một phép chia không → `(thuận, ngược)` hoặc None.
+
+    ⭐ ĐỊNH NGHĨA DUY NHẤT của *"phép chia"* khi nhìn vào một sơ đồ ĐÃ VẼ XONG. Chiều
+    ngược (`_Doc.la_chia`) và cái đọc sơ đồ ra lời (`dien_giai`) đều hỏi ở đây. Hai bản
+    định nghĩa thì sớm muộn một bản nhận rộng hơn bản kia — rồi sơ đồ hiện ra một đằng
+    mà dựng lại một nẻo, đúng loại lệch im lặng khó tìm nhất.
+
+    ⚠ CHẶT TAY: đúng thứ nước `chia` đẻ ra, không hơn. Cổng trần, đúng một điều kiện,
+    cùng toán hạng, cùng lượng, và vế THUẬN đứng trước. Nhận rộng hơn là đọc một ngã rẽ
+    bình thường thành phép chia."""
+    for x in (sa, sb):
+        if (not isinstance(x, dict) or x.get("type") != core.CHECK_COND
+                or x.get("cong_zone") or x.get("dk_hop_le")
+                or len(x.get("conditions") or ()) != 1):
+            return None
+    if bool(sa.get("so_dai_luong")) != bool(sb.get("so_dai_luong")):
+        return None
+    ca, cb = sa["conditions"][0], sb["conditions"][0]
+    if ca.get("trai") != cb.get("trai") or ca.get("phai") != cb.get("phai"):
+        return None
+    pa, pb = ca.get("phep"), cb.get("phep")
+    if pa in core.PHEP_KHONG_VE_PHAI:
+        return (ca, cb) if (pa, pb) == ("la_dung", "la_sai") else None
+    return (ca, cb) if (pa, pb) in PHEP_CHIA else None
+
+
 def _cap_dk(n):
     """Nước `chia_*` → `(điều kiện vế THUẬN, điều kiện vế NGƯỢC)`.
 
@@ -774,6 +843,25 @@ class _BoiCanh:
             for s in _duong_len(b) if s.get("type") == core.VAO_LENH}
 
 
+def _chua_co_so(k, c):
+    """Toán hạng này còn ĐỨNG YÊN Ở 0 — hỏi nó lúc này là hỏi một hằng số.
+
+    ⭐ `sinh_boi: "vao_lenh"` trong kho: `so_vi_the`, `so_lenh_cho`, `drawdown_pt`,
+    `zone_da_sinh_lenh` chỉ khác 0 sau khi đã có khối Vào lệnh. Sơ đồ Entry chưa có
+    khối nào như thế thì mọi phép so với chúng đều là hằng số — kể cả `< 30` (luôn
+    đúng), không riêng `> 0`.
+
+    Và tệ hơn hằng số: nếu chính cái cổng ấy chặn đường xuống khối Vào lệnh thì đó là
+    VÒNG TRÒN — muốn có số phải vào lệnh, muốn vào lệnh phải qua cổng ấy. Đo được 14/68
+    sơ đồ câm chết đúng ở đây (21%).
+
+    ⚠ HƠI CHẶT hơn mức cần: một nhánh SONG SONG có thể đã đẻ lệnh từ nến trước, nên về
+    lý thì cổng ấy vẫn tới được. Chấp nhận, vì cùng cái sơ đồ ấy vẫn dựng được bằng cách
+    đi nhánh có lệnh TRƯỚC — thứ mất đi là một thứ tự đi, không phải một sơ đồ. Đổi lại
+    là một luật đọc được trong một dòng."""
+    return (k in SINH_BOI_LENH and c.tab == core.TAB_ENTRY and not c.co_vao_lenh)
+
+
 def _duoc(n, c):
     b, loai = c.b, n[0]
 
@@ -803,6 +891,8 @@ def _duoc(n, c):
         k = n[1]
         if c.tab not in _TAB_CUA[k]:
             return False               # toán hạng của Manage, đặt ở Entry là vô nghĩa
+        if _chua_co_so(k, c):
+            return False
         if k in kho.CAN_ZONE and not b.co_zone:
             return False               # §12.6c: toán hạng zone chỉ SAU cổng zone
         # ⚠ `zone_hop_le` có HAI luật riêng, cả hai đều do `_soat_cong_zone` canh:
@@ -851,6 +941,8 @@ def _duoc(n, c):
         k = n[1]
         if c.tab not in _TAB_CUA[k] or (k in kho.CAN_ZONE and not b.co_zone):
             return False
+        if _chua_co_so(k, c):
+            return False
         # Hai vế nằm trên cổng MỚI, dưới cổng hiện tại — nên không có vòng tròn như khi
         # chính cổng zone tự hỏi `zone_hop_le`. Chỉ cần phần HỢP LỆ đã được khai.
         if k == "zone_hop_le" and not b.co_hop_le:
@@ -872,6 +964,15 @@ def _duoc(n, c):
         khoa = "tf" if loai.startswith("tf") else "period"
         if khoa in o:
             return False               # đặt rồi
+        if khoa == "tf":
+            # ⭐ Cùng chùm + có cực trị + CÙNG KHUNG GIỜ = hỏi một hằng số
+            # (`Giá cao nhất(M5) > Giá thấp nhất(M5)` luôn đúng). Khác khung giờ thì là
+            # hai cây nến khác nhau, hỏi được. Nên luật rơi vào ĐÚNG nước đặt khung giờ,
+            # chứ không vào nước dựng điều kiện.
+            kia = b.dk.get("phai" if ben == "trai" else "trai")
+            if (isinstance(kia, dict) and kia.get("tf") == n[1]
+                    and quan_he_co_dinh(o["ten"], kia.get("ten"))):
+                return False
         return o["ten"] in (CO_TF if khoa == "tf" else CO_CHU_KY)
 
     if loai == "vao_lenh":
@@ -1079,21 +1180,14 @@ class _Doc:
         if len(ke) != 2:
             return None
         sa, sb = theo_id[ke[0]], theo_id[ke[1]]
-        for x in (sa, sb):
-            if (x.get("type") != core.CHECK_COND or x.get("cong_zone")
-                    or x.get("dk_hop_le") or len(x.get("conditions") or ()) != 1):
-                return None
-        if bool(sa.get("so_dai_luong")) != bool(sb.get("so_dai_luong")):
+        cap = cap_chia(sa, sb)
+        if cap is None:
             return None
-        ca, cb = sa["conditions"][0], sb["conditions"][0]
-        if ca.get("trai") != cb.get("trai"):
-            return None
-        pa, pb = ca.get("phep"), cb.get("phep")
+        ca, cb = cap
+        pa = ca.get("phep")
         ten = (ca.get("trai") or {}).get("ten")
         if pa in core.PHEP_KHONG_VE_PHAI:
-            n = ("chia_ds", ten) if (pa, pb) == ("la_dung", "la_sai") else None
-        elif (pa, pb) not in PHEP_CHIA or ca.get("phai") != cb.get("phai"):
-            n = None
+            n = ("chia_ds", ten)
         elif sa.get("so_dai_luong"):
             n = ("chia_gia", ten, pa, (ca.get("phai") or {}).get("ten"))
         else:

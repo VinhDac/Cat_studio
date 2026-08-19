@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 /** PHÂN BỐ dạng cột — thứ một con số trung bình không bao giờ nói được.
  *
  *     core.md §18.9c
@@ -29,12 +30,13 @@ export default function PhanBoCot({ ten, phu, mep, so, dv, tot }: {
   /** Từ thùng này trở lên thì tô màu "tốt" — dùng cho mốc 0 của phân bố điểm. */
   tot?: number
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   const tong = so.reduce((a, b) => a + b, 0)
   if (!tong) {
     return (
       <section className="rl-o pbc">
         <div className="pbc-dau"><b>{ten}</b>{phu && <span>{phu}</span>}</div>
-        <div className="rl-plot-trong">chưa có số nào</div>
+        <div className="rl-plot-trong">{chu('chưa có số nào')}</div>
       </section>
     )
   }

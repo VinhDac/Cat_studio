@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import type { PhanBo, Reply, ThuBo } from '../types'
 
@@ -27,6 +28,7 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
   /** Dòng nhỏ trên đầu — RL dùng để nói đang soi sơ đồ hạng mấy. */
   tieu?: string
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [pb, setPb] = useState<PhanBo | null>(null)
   const [loi, setLoi] = useState('')
   const [dangThu, setDangThu] = useState<string | null>(null)
@@ -64,7 +66,7 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
       {pb.tien.length === 0 ? <div className="mx-trong">sơ đồ không có khối Vào lệnh nào</div> : (
         <table className="mx-bang">
           <thead><tr>
-            <th>khối</th><th>đến</th><th>lệnh</th><th>đã đóng</th>
+            <th>{chu('khối')}</th><th>đến</th><th>{chu('lệnh')}</th><th>đã đóng</th>
             <th>tiền $</th><th>R</th><th>thắng/thua</th><th />
           </tr></thead>
           <tbody>

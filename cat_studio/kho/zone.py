@@ -62,10 +62,16 @@ TOAN_HANG = [
     {"key": "zone_dem", "nhan": "Zone — số nến", "nhom": "Zone", "loai": "dem",
      "don_vi": "nen", "tham_so": [],
      "mo_ta": "Vùng hiện hành đã nuốt bao nhiêu nến."},
+    # ⭐ CHÙM `zone` — `đỉnh ≥ đáy` là đúng theo ĐỊNH NGHĨA của vùng, không phải một câu
+    # hỏi về thị trường. Và khác chùm `nen`, hai món này KHÔNG có khung giờ, nên không
+    # có cách nào tách chúng ra thành hai câu khác nhau: nước so chúng với nhau bị gạch
+    # thẳng khỏi kho, không phải che bằng mặt nạ. core.md §18.12
     {"key": "zone_HH", "nhan": "Zone — đỉnh (HH)", "nhom": "Zone", "loai": "muc_gia",
-     "tham_so": [], "mo_ta": "Lệnh chờ MUA thường neo vào đây."},
+     "tham_so": [], "chum": "zone", "cuc": "max",
+     "mo_ta": "Lệnh chờ MUA thường neo vào đây."},
     {"key": "zone_LL", "nhan": "Zone — đáy (LL)", "nhom": "Zone", "loai": "muc_gia",
-     "tham_so": [], "mo_ta": "Lệnh chờ BÁN thường neo vào đây."},
+     "tham_so": [], "chum": "zone", "cuc": "min",
+     "mo_ta": "Lệnh chờ BÁN thường neo vào đây."},
     # BỀ RỘNG — quy đổi được. `zone_range ≤ 4 [× ATR]` thay cho `zone_range_atr ≤ 4`.
     {"key": "zone_range", "nhan": "Zone — bề rộng", "nhom": "Zone",
      "loai": "khoang_cach", "tham_so": [],
@@ -93,7 +99,7 @@ TOAN_HANG = [
               "zone hiện hành chính là zone sắp vào lệnh, chẳng mới gì cả — một cái "
               "nhãn phải đúng khi đứng một mình."},
     {"key": "zone_da_sinh_lenh", "nhan": "Zone này đã sinh lệnh", "nhom": "Zone",
-     "loai": "dung_sai", "tham_so": [], "dung_sai": True,
+     "loai": "dung_sai", "tham_so": [], "sinh_boi": "vao_lenh", "dung_sai": True,
      "mo_ta": "Là phép tra sổ lệnh xem có lệnh nào mang `zone_id` của zone hiện hành "
               "không — không phải cờ ẩn. Tính cả lệnh đã đóng: một vùng một lệnh."},
 ]

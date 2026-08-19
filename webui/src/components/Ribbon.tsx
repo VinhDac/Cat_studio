@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Tab } from '../types'
 import Icon from './Icon'
@@ -148,8 +149,8 @@ export interface RibbonProps {
 
 const TEN_TAB: Record<Tab, string> = { entry: 'Entry', manage: 'Manage' }
 const CHU_THICH_TAB: Record<Tab, string> = {
-  entry: 'Sơ đồ ĐI SĂN — chạy một lượt mỗi nến. Chỉ nó được TẠO lệnh.',
-  manage: 'Sơ đồ QUẢN LÝ — chạy một lượt cho MỖI lệnh đang sống. Chỉ nó được SỬA lệnh.',
+  entry: chu('Sơ đồ ĐI SĂN — chạy một lượt mỗi nến. Chỉ nó được TẠO lệnh.'),
+  manage: chu('Sơ đồ QUẢN LÝ — chạy một lượt cho MỖI lệnh đang sống. Chỉ nó được SỬA lệnh.'),
 }
 
 /** Pill chuyển sơ đồ — nằm NGAY DƯỚI dải ribbon, sát mép trái.
@@ -166,7 +167,7 @@ export function PillTab({ tab, datTab, tabCoLoi }: {
         <button key={t} className={'pill' + (tab === t ? ' dang' : '')}
                 title={CHU_THICH_TAB[t]} onClick={() => datTab(t)}>
           {TEN_TAB[t]}
-          {tabCoLoi[t] && <span className="cham-loi" title="Sơ đồ này đang có lỗi" />}
+          {tabCoLoi[t] && <span className="cham-loi" title={chu("Sơ đồ này đang có lỗi")} />}
         </button>
       ))}
     </div>
@@ -174,60 +175,61 @@ export function PillTab({ tab, datTab, tabCoLoi }: {
 }
 
 export default function Ribbon(p: RibbonProps) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   return (
     <div className="ribbon">
       {/* Nút nào hiện là do TAB quyết: Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh.
           Làm mờ thì người dùng vẫn phải đoán vì sao; ẩn hẳn thì bảng chọn luôn đúng
           với việc đang làm. */}
-      <Nhom ten="Thêm khối">
-        <Nut ten="Kiểm tra ĐK" icon={I.branch} onClick={p.themKiemTra}
+      <Nhom ten={chu("Thêm khối")}>
+        <Nut ten={chu("Kiểm tra ĐK")} icon={I.branch} onClick={p.themKiemTra}
              title={'Thêm cổng "Kiểm tra điều kiện" — nối nhiều cổng vào cùng một khối '
                     + 'để chia nhánh. Khớp thì đi nhánh đó, không khớp thì thử nhánh dưới.'} />
         {p.tab === 'entry' && (
-          <Nut ten="Vào lệnh" icon={I.vao} onClick={p.themVaoLenh}
-               title="Mở vị thế mới: Mua/Bán, loại lệnh, khối lượng, SL và TP ban đầu" />
+          <Nut ten={chu("Vào lệnh")} icon={I.vao} onClick={p.themVaoLenh}
+               title={chu("Mở vị thế mới: Mua/Bán, loại lệnh, khối lượng, SL và TP ban đầu")} />
         )}
         {p.tab === 'manage' && (
-          <Nut ten="Sửa lệnh" icon={I.sua} onClick={p.themSuaLenh}
-               title="Tác động lên lệnh ĐÃ CÓ — bốn chế độ: dời SL · dời TP · SL về hoà vốn · kết thúc lệnh này" />
+          <Nut ten={chu("Sửa lệnh")} icon={I.sua} onClick={p.themSuaLenh}
+               title={chu("Tác động lên lệnh ĐÃ CÓ — bốn chế độ: dời SL · dời TP · SL về hoà vốn · kết thúc lệnh này")} />
         )}
       </Nhom>
 
-      <Nhom ten="Sửa">
-        <Nut ten="Sửa" icon={I.edit} onClick={p.sua} tat={!p.coChon}
-             title="Mở hộp thoại sửa khối đang chọn (hoặc double-click vào khối)" />
-        <Nut ten="Nhân bản" icon={I.copy} onClick={p.nhanBan} tat={!p.coChon}
-             title="Nhân bản khối đang chọn (Ctrl+D)" />
-        <Nut ten="Xoá" icon={I.del} onClick={p.xoa} tat={!p.coChon}
-             title="Xoá khối đang chọn (Delete)" />
+      <Nhom ten={chu("Sửa")}>
+        <Nut ten={chu("Sửa")} icon={I.edit} onClick={p.sua} tat={!p.coChon}
+             title={chu("Mở hộp thoại sửa khối đang chọn (hoặc double-click vào khối)")} />
+        <Nut ten={chu("Nhân bản")} icon={I.copy} onClick={p.nhanBan} tat={!p.coChon}
+             title={chu("Nhân bản khối đang chọn (Ctrl+D)")} />
+        <Nut ten={chu("Xoá")} icon={I.del} onClick={p.xoa} tat={!p.coChon}
+             title={chu("Xoá khối đang chọn (Delete)")} />
       </Nhom>
 
-      <Nhom ten="Luồng">
-        <Nut ten="Đặt số ①" icon={I.motSo} onClick={p.datBatDau} tat={!p.coChon}
-             title="Biến khối đang chọn thành khối ① — khối chạy đầu tiên" />
-        <Nut ten={p.chonDaGhim ? 'Bỏ ghim' : 'Ghim số'} icon={I.ghim}
+      <Nhom ten={chu("Luồng")}>
+        <Nut ten={chu("Đặt số ①")} icon={I.motSo} onClick={p.datBatDau} tat={!p.coChon}
+             title={chu("Biến khối đang chọn thành khối ① — khối chạy đầu tiên")} />
+        <Nut ten={p.chonDaGhim ? chu('Bỏ ghim') : chu('Ghim số')} icon={I.ghim}
              onClick={p.doiGhim} tat={!p.coChon}
              title={'Ghim số của khối đang chọn: mọi đường nối quay ngược về nó vẫn giữ '
                     + 'đúng số cũ, và không còn cảnh báo vòng lặp'} />
-        <Nut ten="Vừa khung" icon={I.fit} onClick={p.vuaKhung}
-             title="Thu cả sơ đồ vào vừa màn hình" />
+        <Nut ten={chu("Vừa khung")} icon={I.fit} onClick={p.vuaKhung}
+             title={chu("Thu cả sơ đồ vào vừa màn hình")} />
       </Nhom>
 
-      <Nhom ten="Hoàn tác">
-        <Nut ten="Hoàn tác" icon={I.undo} onClick={p.hoanTac} tat={!p.coTheHoanTac} title="Ctrl+Z" />
-        <Nut ten="Làm lại" icon={I.redo} onClick={p.lamLai} tat={!p.coTheLamLai} title="Ctrl+Y" />
+      <Nhom ten={chu("Hoàn tác")}>
+        <Nut ten={chu("Hoàn tác")} icon={I.undo} onClick={p.hoanTac} tat={!p.coTheHoanTac} title="Ctrl+Z" />
+        <Nut ten={chu("Làm lại")} icon={I.redo} onClick={p.lamLai} tat={!p.coTheLamLai} title="Ctrl+Y" />
       </Nhom>
 
       <Nhom ten="Template">
-        <NutMenu ten="Lưu" icon={I.save} muc={p.mucLuu} />
-        <NutMenu ten="Mở" icon={I.open} muc={p.mucMo} />
+        <NutMenu ten={chu("Lưu")} icon={I.save} muc={p.mucLuu} />
+        <NutMenu ten={chu("Mở")} icon={I.open} muc={p.mucMo} />
       </Nhom>
 
       {/* NHÓM RIÊNG, không nằm trong cụm chạy. Ba nút ở cụm kia đều CHẠY SƠ ĐỒ ĐANG VẼ;
           RL thì không — nó tự sinh ra sơ đồ. Xếp chung là mời người ta hiểu nhầm rằng
           bấm nó sẽ đem sơ đồ trên màn hình đi đâu đó. */}
       <Nhom ten="RL">
-        <Nut ten="Tìm" icon={I.rl} onClick={p.rl}
+        <Nut ten={chu("Tìm")} icon={I.rl} onClick={p.rl}
              title={'Mở cửa sổ RL — máy tự tìm chiến lược trong đúng kho đồ và luật '
                     + 'chơi này. Kết quả là một sơ đồ đọc được, mở ra sửa tay được.'} />
       </Nhom>
@@ -236,20 +238,20 @@ export default function Ribbon(p: RibbonProps) {
           dưới cho ngang hàng với nhãn nhóm. Xếp chồng nên KHÔNG tốn thêm bề ngang. */}
       <div className="cum-chay">
         <input className="o o-ten-process" value={p.ten} spellCheck={false}
-               placeholder="Tên chiến lược"
-               title="Tên chiến lược — cũng hiện trên thanh tiêu đề"
+               placeholder={chu("Tên chiến lược")}
+               title={chu("Tên chiến lược — cũng hiện trên thanh tiêu đề")}
                onChange={e => p.datTen(e.target.value)} />
         <div className="hang-chay">
           <input className="o nho o-symbol" value={p.symbol} spellCheck={false}
-                 title="Mã giao dịch" placeholder="XAUUSD"
+                 title={chu("Mã giao dịch")} placeholder="XAUUSD"
                  onChange={e => p.datSymbol(e.target.value.toUpperCase())} />
           {/* LIVE đứng TRÁI và màu đỏ. Đỏ không phải để đẹp: hai nút cạnh nhau, một
               cái tiêu vài giây CPU, một cái tiêu tiền thật — chúng không được trông
               giống nhau. Trái/phải cũng cố ý: tay quen bấm cái bên phải. */}
           <button className="nut do" onClick={p.live}
-                  title="Mở cửa sổ Live — chạy trên kết nối thật (Ctrl+L)">● Live</button>
+                  title={chu("Mở cửa sổ Live — chạy trên kết nối thật (Ctrl+L)")}>● Live</button>
           <button className="nut chinh" onClick={p.chay}
-                  title="Mở Strategy Tester để chạy thử sơ đồ này (Ctrl+R)">▶ Test</button>
+                  title={chu("Mở Strategy Tester để chạy thử sơ đồ này (Ctrl+R)")}>▶ Test</button>
         </div>
       </div>
     </div>

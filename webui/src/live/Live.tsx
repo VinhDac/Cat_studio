@@ -1,3 +1,4 @@
+import { chu, datNgon, useNgon } from '../i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cho_cau_noi, pyLive } from '../api'
 import { useKhungCuaSo } from '../useKhungCuaSo'
@@ -83,6 +84,7 @@ type Boot = { san_sang: boolean; ten: string; symbol: string; bat_dau_luc: numbe
               digits: number }
 
 export default function Live() {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   /* ⚠ KÉO + GIÃN CỬA SỔ. Thiếu đúng dòng này là cửa sổ Live không kéo được, không giãn
    * được, không bấm đúp phóng to được, không Aero Snap — vì `frameless=True` đã xoá
    * viền hệ thống mà không có ai dựng lại. Ba nút thu nhỏ/phóng to/đóng vẫn chạy nên
@@ -223,7 +225,10 @@ export default function Live() {
     ;(async () => {
       await cho_cau_noi('live_boot')
       const b = await pyLive.live_boot()
-      if (b.ok && b.value) setBoot(b.value as Boot)
+      if (b.ok && b.value) {
+        datNgon((b.value as { ngon_ngu?: string }).ngon_ngu === 'en' ? 'en' : 'vi')
+        setBoot(b.value as Boot)
+      }
 
       // Python đẩy sang khi vòi cấp nến nạp xong / có nến mới đóng.
       window.__su_kien = (ten, d) => {
@@ -420,7 +425,7 @@ export default function Live() {
           ve: () => (
             <div className="nk-cuon">
               {vanDeDu.length === 0
-                ? <div className="cd-rong">Không có vấn đề nào.</div>
+                ? <div className="cd-rong">{chu('Không có vấn đề nào.')}</div>
                 : vanDeDu.map((v, k) => (
                   <div key={k} className={'lv-vd ' + v.severity}>
                     <span className="lv-vd-muc">
@@ -472,7 +477,7 @@ export default function Live() {
             </div>
               {hang('Số tài khoản', tin?.tai_khoan ? String(tin.tai_khoan) : '—')}
               {hang('Sàn · server', tin ? `${tin['sàn'] || '—'} · ${tin.server || '—'}` : '—')}
-              {hang('Loại', tin?.la_that == null ? '—' : that ? 'THẬT' : 'Demo',
+              {hang(chu('Loại'), tin?.la_that == null ? '—' : that ? 'THẬT' : 'Demo',
                     tin?.la_that == null ? null : !that)}
             </div>
 
@@ -670,7 +675,7 @@ export default function Live() {
           ve: () => (
             <div className="nk-cuon">
               {dong.length === 0
-                ? <div className="cd-rong">Chưa có gì.</div>
+                ? <div className="cd-rong">{chu('Chưa có gì.')}</div>
                 : dong.map((d, k) => <div key={k} className="lv-may">{d}</div>)}
             </div>
           ) },

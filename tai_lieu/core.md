@@ -6285,6 +6285,511 @@ nhảy lên 100% rồi bò lại từ 0, và dòng chữ nói dối suốt lư�
 6 sơ đồ · 3 không vào lệnh nào · 4 rớt cửa (*"tuần có lệnh"*) · **2 qua** · sơ đồ đầu bảng
 đẩy sang cửa sổ vẽ và **soát tĩnh 0 vấn đề**.
 
+
+### 18.10 ✅ PHÉP CHIA — nước đi thiếu suốt cả phase 0
+
+**Triệu chứng.** Chạy 200 sơ đồ, mở cái đầu bảng ra xem thì nó là một **sợi dây thẳng**.
+Đo trên 400 sơ đồ máy vẽ:
+
+```
+Entry chỉ có MỘT đường                    263/400 = 65,8%
+không rẽ nhánh lần nào (cả hai tab)       183/400 = 45,8%
+`nếu A … ngược lại …` thật                  6/600 =  1,0%
+```
+
+**Chẩn đoán.** Máy có khái niệm **điều kiện**, không có khái niệm **tình huống**.
+
+```
+thêm điều kiện   A và B và C          VỨT phần không khớp → vùng HẸP DẦN
+chia tình huống  X > v   |   X ≤ v    không vứt gì        → hai vế cộng lại = tất cả
+```
+
+`A và B và C` chính là *"phần lịch sử còn sót lại sau khi vứt"* — đó là **định nghĩa**
+của overfit, không phải hậu quả của nó. Nối bốn cổng thì số lệnh rụng bốn lần, mà điểm
+của một sơ đồ ít lệnh là may rủi. Chia bốn lần thì tổng số lệnh **không đổi**, chỉ chi
+tiết hơn — đúng câu người dùng nói từ đầu: *chia nhánh là đơn giản hoá, không phải phức
+tạp hoá*.
+
+⚠ Và 1,0% **không phải xui, mà là cấu tạo**: để bốc trúng một `ngược lại`, máy phải tình
+cờ chọn lại đúng toán hạng cũ *và* đúng phép ngược. Chạy 200 hay 200.000 thì tỉ lệ vẫn
+1%. Đây là lý do *"chạy nhiều hơn"* không bao giờ chữa được nó.
+
+**Bộ chạy KHÔNG phải sửa gì.** `bo_chay._chay_so_do` đã phân biệt sắc hai loại ngã rẽ từ
+trước: đầu nhánh toàn cổng là **HOẶC** (thử lần lượt, chạm thị trường rồi thì không lùi),
+đầu nhánh toàn hành động là **VÀ** (làm hết). Tức `nếu A → mua; ngược lại → bán` đã chạy
+đúng sẵn. Chỗ hỏng nằm gọn ở **người bày**.
+
+#### Thiết kế
+
+Ba nước mới, cùng nguồn với `dk_*` (cùng kho toán hạng, cùng thang, cùng luật đơn vị):
+
+```
+("chia_so",  key, phep, gia_tri, don_vi|None)
+("chia_gia", key, phep, key2)
+("chia_ds",  key)
+```
+
+Kho **1.863 → 2.115** nước.
+
+- **Chỉ MỘT phép mỗi cặp** (`PHEP_CHIA = ((">", "<="), (">=", "<"))`). Bày cả `>` lẫn `<=`
+  cho cùng một chỗ cắt là hai nước đi ra cùng một sơ đồ — đúng thứ `_kho_hanh_dong` đã
+  dẹp một lần ở mốc neo lệnh thị trường.
+- **Không có `==`**: một vế của phép chia ấy gần như rỗng, tức cái lọc đội lốt phép chia.
+- **NIÊM PHONG.** Sau khi chia, `cong = None` nên không nước `dk_*` nào chui thêm vào
+  được. Thêm một điều kiện vào một vế là hai vế thôi phủ kín, và **cái lọt ra giữa đúng
+  bằng thứ phép chia sinh ra để xoá**.
+- **Bổ nghĩa điền MỘT lần cho cả hai vế** (`Ban.dk_doi`). Hai vế cùng toán hạng thì khung
+  giờ và chu kỳ bắt buộc giống nhau; lệch một cái là thôi phủ kín.
+- **Vế NGƯỢC dựng sẵn nhưng treo sau** — `dong_nhanh` mới treo nó lên. Nhờ vậy thứ tự
+  khối trong file đúng bằng lối duyệt sâu, tức `chia` và cặp `mo_nhanh` viết tay ra
+  **cùng một sơ đồ, giống tới từng toạ độ**.
+
+#### Ba chỗ suýt hỏng, chỉ đo mới thấy
+
+**a) Chia lồng nhau → 60/60 lượt đi kẹt cứng.** Mỗi phép chia treo **nợ hai khối** chưa
+đặt xuống (vế ngược + một hành động cho nó). Đặt chỗ theo từng nước — mỗi `chia` tự hỏi
+*"còn 4 chỗ không"* — thì ba phép chia lồng nhau cùng tranh **một** quỹ và đều thấy đủ.
+
+⭐ Cách sửa tổng quát: **trừ nợ ra khỏi quỹ ngay từ đầu**, `con -= 2 × số phép chia đang
+treo`. Mọi phép đếm phía dưới (`het_khoi`, `het_cho_cong`, `het_cho_chia`) tự đúng, và
+`dong_nhanh` không cần luật riêng — đóng nhánh chỉ **trả lại** chỗ, không bao giờ tiêu
+thêm.
+
+**b) Máy nã lệnh — 146/400.** Hai vế **phủ kín** nên luôn có đúng một vế khớp. Một cái
+cây toàn phép chia thì nến nào cũng rơi xuống một hành động — đó là máy nã lệnh, không
+phải chiến lược. Một chiến lược phải còn quyền **KHÔNG LÀM GÌ**, và thứ cho nó quyền ấy
+là **cái LỌC**.
+
+⭐ Chỗ rẻ nhất bảo đảm điều đó: **cấm chia ngay dưới khối Bắt đầu**. Thế là luôn có ít
+nhất một cổng lọc ở trên mọi thứ. Sau khi cấm: **0/120**. (`mo_nhanh` vốn đã cấm `dau`,
+nên đây cũng là chỗ nhất quán.)
+
+**c) Một lỗ CÓ TỪ TRƯỚC, chia chỉ làm nó lộ ra.** Chuỗi
+`cong_zone → dk_ds → hop_le → dk_gia` đi lọt sạch mặt nạ rồi bị người soát mắng:
+
+```
+[2] Điều kiện 1 — "Zone này đã sinh lệnh" là một toán hạng ĐÚNG/SAI,
+    không so được với một đại lượng khác.
+```
+
+`dk_gia` bật cờ `so_dai_luong`, mà cờ ấy là của **cả KHỐI**, nên nó ép luôn điều kiện
+ĐÚNG/SAI bên `conditions` thành *"so với một đại lượng"*. `normalize_action` đã ghi rõ
+luật (*danh sách HỢP LỆ luôn so với một LƯỢNG*) nhưng **mặt nạ chưa nói câu đó**. Sửa
+đúng một dòng: `dk_gia` không dùng được khi đang điền `dk_hop_le`.
+
+⚠ Bài học lặp lại: chia không gây ra lỗi này, nó chỉ **đổi phân bố bốc**. Một nước đi mới
+là một phép khuấy — nó lôi lên mặt những chuỗi trước đây hiếm tới mức chưa ai gặp.
+
+#### Kết quả
+
+```
+                                 trước        sau
+đi thẳng, không rẽ lần nào       45,8%        0,2%
+Entry chỉ có MỘT đường           65,8%        1,5%
+`nếu A … ngược lại …` thật        1,0%       97,2%
+đường tới hành động không qua lọc    —      0/120
+khối trung bình mỗi sơ đồ          17,4       20,5
+```
+
+Chiều ngược cũng khép: một sơ đồ có phép chia đọc ra **một nước `chia`**, không phải hai
+`mo_nhanh`. Hai lối viết ra cùng một sơ đồ nên phải chọn một làm chính tắc — không thì
+một sơ đồ có hai chuỗi, và *"chuỗi là thứ đem đi so, đem đi lưu"* mất nghĩa.
+`nguoi_bay.cap_chia` là **định nghĩa duy nhất** của phép chia khi nhìn vào sơ đồ đã vẽ;
+chiều ngược và `dien_giai` đều hỏi ở đó.
+
+`tests/test_nguoi_bay.py` mục 6 — **69/69**.
+
+#### ⚠ Và nó KHÔNG mua được cái gì
+
+Đo trên đoạn giữ lại (train 2021→2024, test 2024→2026): 80 sơ đồ, điểm tốt nhất trên
+train **−0,0045** (vẫn âm), tỉ lệ qua cửa ~10% (trước ~8%), và **43/80 không vào lệnh
+nào**. Lập luận *"chia giữ nguyên số lệnh"* **không hiện ra ở mức cả sơ đồ**, vì cái lọc
+ở TRÊN vẫn chặn tất.
+
+Phép chia sửa **cái máy vẽ**, không sửa **cái máy chọn**. Đừng lẫn hai chuyện.
+
+---
+
+### 18.11 ✅ LUẬT "KHÔNG CÓ PHẦN THỪA"
+
+**Từ đâu ra.** Cái thước rơi vào trạng thái **không đọc được**: đoạn giữ lại trả `0/8`
+cho nhóm đầu bảng và `0/8` cho nhóm bốc bừa. Hai nhóm chết như nhau thì con số ấy không
+phân biệt được *"không gian rỗng"* với *"thước hỏng"* — bốn giả thuyết, một quan sát.
+Sửa tiếp theo cảm giác từ đây là bắt đầu vòng luẩn quẩn.
+
+⭐ Lối ra: **một sơ đồ LÀ logic, và logic thì đọc được bằng mắt** — không cần thước,
+không cần cửa, không cần backtest. `cat_studio/dien_giai.py` bày sơ đồ ra thành lời. Đọc
+**hai** cái là ra ngay bốn thứ hỏng, thứ mà `0/8` không nói được câu nào.
+
+#### Bốn triệu chứng, một cái bệnh
+
+```
+1. cổng KHÔNG BAO GIỜ khớp   → mọi thứ dưới nó CHẾT
+3. cổng LUÔN LUÔN khớp        → chính cổng ấy CHẾT
+```
+
+Cùng một câu, và đó là luật:
+
+> **Mọi khối phải đổi được HÀNH VI. Khối không đổi được gì thì không thuộc sơ đồ.**
+
+Ca số 1 giải thích luôn `43/80 không vào lệnh nào`: sơ đồ máy vẽ để
+`Số vị thế đang mở = 2` **đứng đầu Entry**, mà muốn có 2 vị thế thì phải vào lệnh trước,
+mà mọi khối vào lệnh đều nằm DƯỚI cái cổng ấy. Vòng tròn — chết từ lúc vẽ, không phải
+xui khi chạy.
+
+#### ⚠ RANH GIỚI — người bày cấm cái VÔ NGHĨA, cái thước chê cái DỞ
+
+Hai thứ khác cũng đọc thấy nhưng **KHÔNG** thuộc luật này:
+
+```
+năm lá đều BÁN      không SAI, chỉ YẾU   → việc của cái thước
+Entry nhịp MN1      không SAI, chỉ THÔ   → việc của cái thước
+```
+
+Kéo chúng vào người bày là bắt đầu **vặn người bày theo khẩu vị**, và lúc đó không còn
+đối chứng nào cả (§15.1 — cái thước không được là tham số; ở đây là mặt kia của cùng
+đồng xu: **người bày không được là khẩu vị**).
+
+#### HAI PHÉP CẮT, tuyệt đối không lẫn
+
+Đây là chỗ dễ hỏng nhất, nên tách rõ ngay từ đầu:
+
+```
+TỈA phần CHẾT    giữ nguyên hành vi  → MIỄN PHÍ, làm luôn, không phải đo
+CẮT phần SỐNG    đổi hành vi         → là một PHÉP THỬ, phải đo theo luật ĐA SỐ cửa sổ
+```
+
+Cái thứ hai đã có từ §18.5c (`cat_tia.thu`). Cái thứ nhất là phần còn thiếu.
+
+#### Máy đã có sẵn — phải NỐI, không phải dựng mới
+
+`phan_bo.theo_khoi` (§18.5b) đã trả về đúng ba thứ cần, và đang chỉ dùng cho một tab xem
+chơi:
+
+```
+den == 0        khối chưa bao giờ được ĐẾN
+luon_khop       cổng xét n lần, khớp n lần   → cổng không hỏi gì cả
+luon_chan       cổng xét n lần, khớp 0 lần   → mọi thứ dưới nó chết
+```
+
+`cat_tia.bo_nhanh` đã cắt được theo nhánh. Việc là **nối chúng vào đường chính**, không
+phải dựng máy mới.
+
+#### ⭐ Nó TỰ KIỂM được — vân tay
+
+Tỉa phần chết giữ nguyên hành vi **theo định nghĩa**, nên:
+
+> tỉa xong chạy lại → **vân tay phải TRÙNG KHÍT**
+
+Lệch một chút nghĩa là thứ vừa cắt **không hề chết**. Bài kiểm bắt ngay, không cần ai
+đọc, không cần ai tin. Đây là loại bất biến đáng giá nhất: nó không kiểm một ca, nó kiểm
+cả phép biến đổi.
+
+#### Hệ quả kèm theo, miễn phí
+
+Hai sơ đồ chỉ khác nhau ở **phần chết** thì sau khi tỉa là **MỘT**. Phép đếm `trung_lap`
+đang so chuỗi nước đi nên nó vốn nói dối chỗ này — tỉa xong thì thôi.
+
+#### ⛔ ĐÃ DUYỆT RỒI BỎ: tỉa TỰ ĐỘNG trong máy tìm
+
+Luật trên đúng. **Chỗ đặt nó thì sai**, và suýt nữa thì cài.
+
+Bộ đếm nói *"khối này chưa bao giờ được đến"* — nhưng đó là **chưa bao giờ được đến TRÊN
+TRAIN**. Tỉa theo đó rồi đem sang đoạn giữ lại là **nhét dữ liệu train vào hình dạng sơ
+đồ**: overfit ngay ở cấu trúc, đúng thứ cả mục §18.11 sinh ra để chống. Và nó âm thầm,
+vì điểm train không đổi một li — bằng chứng "vân tay trùng khít" *vẫn đúng* mà kết luận
+vẫn hỏng.
+
+⚠ Ranh giới rút ra, dùng cho mọi thứ sau này:
+
+```
+đo để BÁO             luôn được
+đo để ĐỔI HÌNH sơ đồ  chỉ được khi người dùng bảo, và phải nói rõ đo trên dải nào
+```
+
+`cat_tia.thu` / `mo_sach` (§18.5c) vẫn đúng vì chúng là **thao tác người dùng gọi**, trên
+**một** sơ đồ, có đo. Chạy ngầm cho mọi sơ đồ trong máy tìm là chuyện khác hẳn.
+
+#### ⭐ ĐO PHÂN BỐ RỒI MỚI RA LUẬT — và luật đầu tiên của tôi SAI
+
+Đọc **một** sơ đồ thấy `Số vị thế đang mở = 2` đứng đầu Entry (vòng tròn nhân quả: muốn
+có 2 vị thế phải vào lệnh trước, mà mọi khối vào lệnh đều nằm dưới cổng ấy), tôi định ra
+luật *"cổng không được hỏi về thứ chỉ chính nó tạo ra"*. Đo 120 sơ đồ trên 6 tháng dữ
+liệu thật:
+
+```
+cổng LUÔN CHẶN      68   56,7%     ← sơ đồ chết vì một cổng không bao giờ khớp
+nã lệnh             33   27,5%
+CÓ LỆNH             16   13,3%
+quá nặng             3    2,5%
+
+48/68 chết ở cổng ĐẦU TIÊN (sâu 1)
+thủ phạm: atr 11 · zone_da_sinh_lenh 8 · zone_range 6 · mức giá 13 · so_vi_the CHỈ 4
+```
+
+`so_vi_the` là **6%**, không phải nguyên nhân. Luật kia đáng lẽ đã được cài để chữa 6%.
+Lặp lại y hệt §18.4a — hứa 24×, giao 1,3×, vì ước bằng ca xấu nhất.
+
+**Cái thật sự đang xảy ra:** cổng đầu tiên là một điều kiện bốc bừa, và **phần lớn điều
+kiện bốc bừa là HẰNG SỐ chứ không phải câu hỏi**. `atr > 2 × ATR nền` gần như không bao
+giờ đúng; `Giá cao nhất(M15) > Giá thấp nhất(D1)` gần như luôn đúng. Thang `nguong` dùng
+chung cho mọi toán hạng, nên hai nấc ngoài cùng gần như luôn suy biến. Máy không phân
+biệt được **câu hỏi** với **hằng số** — cùng cái bệnh của §18.10, chỉ ở tầng khác.
+
+#### Hướng tiếp — CHƯA CÀI
+
+Đo **tần suất đúng của từng ĐIỀU KIỆN** trên dữ liệu, một lần, độc lập với mọi sơ đồ.
+Điều kiện gần như luôn đúng hoặc gần như không bao giờ đúng thì **không phải câu hỏi**,
+đừng bày ra.
+
+Vì sao cái này KHÔNG dính lỗi vừa bỏ ở trên:
+
+- nó là tính chất của **KHO ĐỒ**, không phải của một sơ đồ — không có hình dạng nào bị
+  dữ liệu nắn;
+- nó **không đụng tới lãi/lỗ**, chỉ đếm đúng/sai, nên không có thông tin về điểm rò sang;
+- nó đi qua đúng cơ chế `mat_na(..., tat)` đã có (§18.6.1) — kho vẫn nguyên, chỉ che.
+
+⚠ Và nó vẫn phải qua đúng cái ranh giới của §18.11: ngưỡng *"gần như"* là bao nhiêu phải
+là **một câu phát biểu được**, không phải một núm để vặn cho ra kết quả đẹp.
+
+
+
+### 18.12 ✅ LUẬT CỦA TỪNG MÓN ĐỒ — kho biết KIỂU, chưa biết QUAN HỆ
+
+**Chỗ bỏ quên.** 22 toán hạng, và kho khai: `key · nhãn · nhóm · loại · tham_số · đơn_vị
+· tabs`. Năm chữ `loại` gánh cả 22 món. Nên:
+
+```
+`atr` và `zone_range` dùng CHUNG thang `0,25 … 2,0`   — hai đại lượng khác hẳn nhau
+`high` và `low` cùng là `muc_gia` nên kho bảo "so được"
+`zone_LL < zone_HH` — đúng theo ĐỊNH NGHĨA, mà kho không biết
+```
+
+Kho biết **KIỂU**, không biết **QUAN HỆ**. Mọi thứ phía sau — người soát, người bày, hộp
+thoại Kho — đều suy từ kho, nên đây là chỗ sửa một lần ăn khắp nơi.
+
+#### ⚠ RANH GIỚI — khai SỰ THẬT, không khai KHẨU VỊ
+
+```
+"atr là tỉ số quanh 1"        SỰ THẬT về món đồ  → khai
+"chỉ 0,8–1,2 mới đáng hỏi"    KHẨU VỊ của tôi    → cấm
+```
+
+Khai sự thật rồi **SUY** ra nước đi. Khai khẩu vị thì người bày thành cái núm, và hết
+đối chứng (§15.1 là mặt kia của cùng đồng xu: cái thước không được là tham số).
+
+⭐ Và có một **phép thử** cho cách khai: `open` với `close` đều không phải cực trị, nên
+`open < close` (*"nến xanh"*) phải SỐNG SÓT qua mọi luật. Khai đúng thì nó tự chừa ra;
+khai theo cảm giác thì nó bị cắt nhầm.
+
+#### Hai trường mới, và luật suy ra từ chúng
+
+**`chum` + `cuc`** — mấy mức giá cùng đọc ra từ một cái, và món nào là cực trị của chùm.
+
+> cùng chùm + ít nhất một bên là cực trị → **quan hệ CỐ ĐỊNH** → hỏi nó là hỏi hằng số
+
+```
+high  ↔ low     cùng chùm `nen`,  max ↔ min    → cố định
+high  ↔ close   cùng chùm `nen`,  max ↔ —      → cố định
+open  ↔ close   cùng chùm, KHÔNG cực trị nào   → CÂU HỎI THẬT, giữ nguyên
+zone_HH ↔ zone_LL                              → cố định
+ma    ↔ high    `ma` KHÔNG thuộc chùm nến      → giữ (MA có thể nằm trên đỉnh cây)
+```
+
+⚠ **Cùng một lúc mới cố định.** Hai cây nến khác khung giờ là hai cây khác nhau — bộ
+chạy đọc nến ĐÃ ĐÓNG của từng khung, không cái nào bọc cái nào. Nên luật rơi vào đúng
+nước **đặt khung giờ**, không rơi vào nước dựng điều kiện. Chỉ chùm `zone` (không có
+khung giờ, không tách được) mới bị **gạch thẳng khỏi kho**: 2.115 → 2.099.
+
+**`sinh_boi: "vao_lenh"`** — món này chỉ có số khác 0 sau khi đã có khối Vào lệnh:
+`so_vi_the` · `so_lenh_cho` · `drawdown_pt` · `zone_da_sinh_lenh`.
+
+Chưa vào lệnh lần nào thì cả bốn đứng yên ở 0, nên **mọi** phép so với chúng là hằng số —
+không riêng `> 0`, mà cả `< 30` (luôn đúng). Và nếu chính cổng ấy chặn đường xuống khối
+Vào lệnh thì đó là **vòng tròn**: muốn có số phải vào lệnh, muốn vào lệnh phải qua cổng.
+
+⚠ Luật cài đặt hơi CHẶT hơn mức cần (chặn khi Entry chưa có khối Vào lệnh nào, dù một
+nhánh song song có thể đã đẻ lệnh từ nến trước). Chấp nhận: cùng sơ đồ ấy vẫn dựng được
+bằng cách đi nhánh có lệnh TRƯỚC — thứ mất đi là một **thứ tự đi**, không phải một sơ đồ.
+
+#### Đo được — và nó đúng đúng cái nó nhắm
+
+Cùng hạt giống, cùng dải, 120 sơ đồ trên 6 tháng dữ liệu thật:
+
+```
+                       trước      sau
+cổng LUÔN CHẶN         56,7%     46,7%
+nã lệnh                27,5%     34,2%
+CÓ LỆNH                13,3%     15,8%
+số lệnh (trung vị)       180       471
+```
+
+⭐ Trong bảng thủ phạm, ba món `zone_da_sinh_lenh` (8) · `so_vi_the` (4) · `so_lenh_cho`
+(2) **biến sạch** — đúng 14 ca như dự đoán, không thừa không thiếu. Lần đầu một dự đoán
+khớp số đo trong cả phase này.
+
+#### ⚠ Còn lại là bài toán THANG, và nó KHÔNG khai được
+
+`atr` nhảy **11 → 22**, giờ chiếm 39% số cổng chết. Không phải nó tệ đi — mấy món kia
+biến mất nên nó chiếm phần lớn hơn. Nguyên nhân là **thang**:
+
+```
+atr < 0,25 × ATR nền   gần như LUÔN SAI
+atr < 2,00 × ATR nền   gần như LUÔN ĐÚNG
+```
+
+Hai nấc ngoài của `nguong` suy biến với mọi đại lượng đã chuẩn hoá quanh 1. Nhưng
+*"quanh 1, trải rộng bao nhiêu"* là một **sự thật thống kê**, không phải sự thật định
+nghĩa — khai tay là khai khẩu vị, đúng thứ ranh giới trên cấm.
+
+**Hướng, chưa cài:** đo phân bố của từng toán hạng trên dữ liệu một lần, lấy **phân vị**
+làm nấc thang. Mỗi nấc khi ấy cắt dữ liệu ra hai phần không rỗng **theo cấu tạo**. Nó
+không đụng lãi/lỗ nên không rò thông tin về điểm, và nó làm §15 (chuẩn hoá để con số
+mang cùng nghĩa sang thị trường khác) đúng hơn chứ không kém.
+
+⚠ Một nghi can nữa chưa loại: `atr_zone` không có zone hiện hành thì trả **NaN**, mà NaN
+làm cổng TRƯỢT. Cổng dùng đơn vị ấy trong sơ đồ có zone hiếm khi thành hình sẽ chết vì
+zone, không phải vì thang. Phải tách hai nguyên nhân trước khi động vào thang.
+
+
+
+### 18.13 ✅ ATR NỀN chia theo khung của CHÍNH toán hạng
+
+**Triệu chứng.** `atr` chiếm 22/56 số cổng chết. Định ra một thang mới cho nó — nhưng đo
+phân vị trước thì thang hoá ra **vô tội**:
+
+```
+atr(tf) / ATR nền     thang `nguong` phủ:  0,25 … 2,0
+
+atr(M5 )   0,44 … 1,68      ← thang vừa khít
+atr(M15)   0,84 … 2,83
+atr(H1 )   2,52 … 5,66      ← MỌI nấc đều dưới đáy
+atr(H4 )   4,54 … 11,81
+```
+
+**Gốc.** `atr_nen` chia cho ATR của khung **TRỤC**, không phải khung của chính toán hạng.
+Nên `atr(H4) / ATR nền(M5) ≈ 7`, mà `√48 = 6,93`: con số ấy **là tỉ lệ khung giờ**, không
+phải trạng thái thị trường. `atr(H4) < 2 × ATR nền` không phải câu hỏi — nó là *"một cây
+H4 có hẹp hơn hai cây M5 không"*, và câu trả lời luôn là không.
+
+Lại đúng câu của §18.10 và §18.12, lần này ở tầng **cái thước**: hằng số đội lốt câu hỏi.
+
+**Sửa.** Cả `_quy_doi` (theo nến) lẫn `quy_doi_cot` (theo cột) đọc mẫu số trên khung của
+`o["tf"]`. `_dung_cot` xin sẵn mẫu số cho **mọi khung sơ đồ có nhắc tới**, vô điều kiện —
+cùng lý lẽ với bản cũ: đi quét đủ sáu chỗ có thể hỏi mẫu số để tiết kiệm vài cột là đổi
+một khoản rẻ lấy một chỗ chắc chắn có ngày bỏ sót.
+
+Sau khi sửa, **một cái thang phục vụ được cả bốn khung** — không phải đổi nấc nào:
+
+```
+atr(M5 )  0,44 … 1,68      atr(H1 )  0,54 … 1,62
+atr(M15)  0,50 … 1,64      atr(H4 )  0,63 … 1,36
+```
+
+#### ⚠ VÀ NÓ KHÔNG MUA ĐƯỢC GÌ
+
+Cùng hạt giống, cùng 120 sơ đồ y hệt (kho không đổi lượt ấy, nên là so sánh sạch):
+
+```
+                trước fix   sau fix
+cổng LUÔN CHẶN    46,7%      50,0%
+CÓ LỆNH           15,8%      15,8%
+```
+
+Dự đoán giảm, thực tế **tăng**. Và tôi nghĩ hiểu vì sao: trước fix,
+`atr(H4) > 2 × ATR nền(M5)` — tỉ số ~7 — **luôn ĐÚNG**, tức cổng ấy không chặn ai, nó
+chỉ giả vờ hỏi rồi cho đi hết. Sau fix mọi cổng atr **thật sự** lọc, mà lọc thật thì chặn
+thật. Con số xấu đi là dấu hiệu cổng bắt đầu làm việc — nhưng **năng suất đứng yên**, và
+đó là sự thật phải ghi.
+
+#### Còn lại: hai vế cùng nguồn
+
+```
+atr(M5 , p=5 )   0,44 … 1,68     ← rộng, hỏi được
+atr(H1 , p=50)   0,88 … 1,12     ← chặt cứng
+```
+
+Chu kỳ càng dài, tỉ số càng dính vào 1: `atr(50)` và `ATR nền` đều là trung bình trượt
+của **cùng một chuỗi**, hai bản làm mượt của cùng một thứ thì không thể bất đồng.
+
+⚠ Chưa sửa, và **cố ý dừng**: ngưỡng *"chu kỳ ngắn hơn bao nhiêu thì mới là câu hỏi"* là
+một con số phải bịa (`nền/2`? `/3`?). Không sự thật nào chọn hộ — đúng thứ ranh giới
+§18.12 cấm.
+
+---
+
+### 18.14 ✅ NGÔN NGỮ GIAO DIỆN — tiếng Việt / tiếng Anh
+
+**Cài đặt → Ngôn ngữ.** Bấm là đổi ngay, y như màu nhấn; bấm Huỷ thì trả về ngôn ngữ đã
+lưu (cờ `daLuu`, không so lại với `boot` — `lamMoiBoot()` bất đồng bộ nên so là so với
+một cuộc đua).
+
+#### ⭐ KHOÁ CHÍNH LÀ CÂU TIẾNG VIỆT
+
+`chu('Chạy')`, không phải `t('ribbon.run')`. Đổi lấy ba thứ:
+
+```
+không phải bịa khoá   600 câu là 600 lần đặt tên, và đặt tên sai thì sửa gấp đôi
+dịch được TỪNG PHẦN   câu chưa dịch hiện tiếng Việt — không vỡ, không ô trống
+đọc mã vẫn hiểu       `chu('Chưa chạy lượt nào')` nói ngay nó vẽ ra cái gì
+```
+
+⚠ Tên hàm là `chu` chứ không `t`: `t` đã là biến cục bộ ở vài chỗ. Trình biên dịch bắt
+được ngay, nhưng **né một cái tên rẻ hơn nhiều so với đi đổi biến của mã đang dùng**.
+
+#### ⚠ PYTHON PHẢI BIẾT NGÔN NGỮ — hệ quả của §12.9
+
+§12.9 chốt từ lâu: chữ trên hộp khối do **Python sinh**, giao diện không tự ghép câu.
+Luật ấy vẫn đúng, nên muốn hộp khối nói tiếng Anh thì Python phải dịch. Vì thế có
+`cat_studio/ngon_ngu.py` — **cùng luật khoá**, và **một** nguồn sự thật là cài đặt
+`ngon_ngu`. Hai nguồn thì sớm muộn ribbon tiếng Anh còn hộp khối tiếng Việt.
+
+⚠ Nhãn toán hạng dịch **lúc đọc** (`core.nhan_toan_hang`), không lúc dựng bảng:
+`TOAN_HANG_LABELS` dựng một lần lúc import, dịch ở đó thì bảng đóng băng theo ngôn ngữ
+lúc mở app và đổi cài đặt không ăn cho tới lần mở sau.
+
+⚠ Bốn cửa sổ là **bốn ngữ cảnh JS riêng**. Chỗ nào áp màu nhấn thì chỗ ấy phải áp ngôn
+ngữ — `test_ngon_ngu` đếm hai thứ đó và bắt chúng bằng nhau.
+
+#### Bài kiểm — vì cơ chế này nuốt lỗi
+
+Dự phòng *"không có khoá thì trả nguyên câu"* giữ app không vỡ, và **chính nó nuốt lỗi**:
+sửa một dấu phẩy tiếng Việt mà quên từ điển thì câu ấy lặng lẽ rơi về tiếng Việt.
+`tests/test_ngon_ngu.py` canh: khoá mồ côi · câu bọc rồi mà chưa dịch · bản dịch rỗng
+hoặc chép nguyên · cài đặt có mặt ở mọi cửa boot.
+
+Nó bắt được **hai lỗi của chính nó** ngay lượt đầu:
+
+1. phép so `_ac == _nn` với **cả hai đều bằng 0** vì mẫu tìm sai một dấu — **qua giả**,
+   tệ hơn hỏng. Đã thêm một phép đếm chặn trước.
+2. chỉ đọc mảnh từ điển đầu tiên → báo 196 câu "thiếu bản dịch" trong khi chúng có đủ.
+
+#### ⭐ VÀ MỘT LỖ AUDIT THẬT: bộ kiểm phụ thuộc cài đặt NGƯỜI DÙNG
+
+Bật tiếng Anh rồi chạy `chay_tat_ca` → **6 phép đỏ**, mã nguồn không hề sai. Vì
+`test_so_do_mau` đối chiếu CHỮ trên hộp, mà chữ ấy đi theo `ngon_ngu` đã lưu trên đĩa.
+
+Một bộ kiểm phụ thuộc trạng thái người dùng thì **không còn là bộ kiểm**. Sửa:
+`CAT_NGON_NGU=vi` khoá cứng, `dat()` không phá được khoá, và `chay_tat_ca` đặt biến ấy
+cho mọi bài. Chính `test_ngon_ngu` canh cái khoá.
+
+#### Đã dịch tới đâu
+
+```
+604 khoá · 376 chỗ bọc     ribbon · thanh tiêu đề · Cài đặt · toàn cửa sổ RL
+                           hộp thoại khối · Kho · Tham số · Tester · Live
+Python                     nhãn 22 toán hạng · loại khối · phép so · đơn vị
+                           hướng · loại lệnh · chế độ Sửa lệnh · chữ trên hộp
+```
+
+⚠ **Chưa dịch, và biết rõ vì sao**: mấy dòng giải thích dài trong `CaiDatLuot.tsx` bị JSX
+cắt thành MẢNH (`…, không chấm nốt — vì chi phí một lượt chấm đi theo <b>…`). Dịch từng
+mảnh là dịch nửa câu, ghép lại theo trật tự tiếng Anh thì sai ngữ pháp. Chúng rơi về
+tiếng Việt — đúng hành vi đã thiết kế. Muốn dịch thì phải **gộp lại thành câu trọn trong
+mã trước**, không phải nhồi thêm khoá vào từ điển. Câu người soát mắng (§17) cũng vậy:
+chúng ghép từ mảnh và mang số liệu, phải làm riêng một đợt.
+
+
 ---
 
 ## 13. Việc còn treo

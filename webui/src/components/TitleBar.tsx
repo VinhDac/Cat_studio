@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { py } from '../api'
 import ContextMenu, { type MucPhai } from './ContextMenu'
@@ -22,6 +23,7 @@ export default function TitleBar({ tieuDe, menus, them }: {
    *  Windows coi dải đó là caption và cú bấm hoá ra kéo cửa sổ. */
   them?: React.ReactNode
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   const [mo, setMo] = useState<{ i: number; x: number; y: number } | null>(null)
   const [phongTo, setPhongTo] = useState(false)
   const thanh = useRef<HTMLDivElement>(null)
@@ -85,11 +87,11 @@ export default function TitleBar({ tieuDe, menus, them }: {
         {/* Khoảng giữa để trống CỐ Ý: đó chính là vùng kéo cửa sổ. */}
         <div className="ten-cua-so">{tieuDe}</div>
         <div className="nut-cua-so" data-khong-keo>
-          <button className="nut-cs" title="Thu nhỏ"
+          <button className="nut-cs" title={chu("Thu nhỏ")}
                   onClick={() => py.cua_so_thu_nho()}>
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" /></svg>
           </button>
-          <button className="nut-cs" title={phongTo ? 'Khôi phục' : 'Phóng to'}
+          <button className="nut-cs" title={phongTo ? chu('Khôi phục') : chu('Phóng to')}
                   onClick={() => py.cua_so_phong_to().then(r => setPhongTo(!!r.value))}>
             {phongTo ? (
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor">
@@ -101,7 +103,7 @@ export default function TitleBar({ tieuDe, menus, them }: {
               </svg>
             )}
           </button>
-          <button className="nut-cs dong" title="Đóng"
+          <button className="nut-cs dong" title={chu("Đóng")}
                   onClick={() => py.cua_so_dong()}>
             <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor">
               <path d="M0 0l10 10M10 0L0 10" />

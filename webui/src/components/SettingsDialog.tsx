@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { chu, datNgon, useNgon, type Ngon } from '../i18n'
+import { useEffect, useRef, useState } from 'react'
 import { py } from '../api'
 import type { BoNen, Bootstrap } from '../types'
 import Modal from './Modal'
@@ -17,10 +18,23 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
   lamMoiBoot: () => Promise<void>
   onDong: () => void
 }) {
+  // ⚠ Đổi ngay lúc bấm thì HUỶ phải trả lại. Không có dòng này thì bấm Huỷ xong app
+  // vẫn ở ngôn ngữ mới — đúng loại "nút Huỷ không huỷ" khó chịu nhất.
+  //
+  // Cờ `daLuu` chứ không so lại với `boot`: lưu xong `lamMoiBoot()` mới chạy, và nó
+  // bất đồng bộ — dựa vào `boot` là dựa vào một cuộc đua.
+  const daLuu = useRef(false)
+  const ngonDauTien = useRef<Ngon>(
+    (boot.settings as Record<string, any>).ngon_ngu === 'en' ? 'en' : 'vi')
+  useEffect(() => () => {
+    if (!daLuu.current) datNgon(ngonDauTien.current)
+  }, [])
+  useNgon()   // đổi ngôn ngữ → vẽ lại cả cây (xem `i18n.ts`)
   const s = boot.settings as Record<string, any>
   const t = (s.test ?? {}) as Record<string, any>
   const [symbol, setSymbol] = useState(String(s.symbol ?? 'XAUUSD'))
   const [accent, setAccent] = useState(String(s.accent ?? '#ffa657'))
+  const [ngon, setNgonCuc] = useState<Ngon>(s.ngon_ngu === 'en' ? 'en' : 'vi')
 
   const [tSymbol, setTSymbol] = useState(String(t.symbol ?? 'XAUUSD'))
   const [tu, setTu] = useState(String(t.tu ?? ''))
@@ -56,7 +70,7 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
     setDangKiem(false)
     // Cả lỗi cầu nối cũng phải hiện ra ở đây: im lặng là đúng thứ nút này sinh ra để chữa.
     setKetNoi(r.ok && r.value ? r.value : {
-      noi_duoc: false, chu: r.error ?? 'không gọi được sang Python',
+      noi_duoc: false, chu: r.error ?? chu('không gọi được sang Python'),
       terminal: '', tai_khoan: '', co_symbol: false, goi_y: [],
     })
   }
@@ -70,19 +84,20 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
     // ⚠ PHẢI xem kết quả. Trước đây bỏ qua rồi `onDong()` vô điều kiện, nên đĩa đầy hay
     // mất quyền ghi thì hộp thoại vẫn đóng như đã lưu xong — im lặng, không dấu vết.
     for (const r of [
-      await py.save_settings({ symbol, accent }),
+      await py.save_settings({ symbol, accent, ngon_ngu: ngon }),
       await py.save_test_settings({
         symbol: tSymbol, tu, den, spread_diem: spread, truot_diem: truot,
         deposit, commission: phi, delay_ms: delay,
         lot_min: lotMin, lot_buoc: lotBuoc, lot_max: lotMax, stops_level: stops,
       }),
     ]) {
-      if (!r.ok) return setLoiLuu(r.error ?? 'không lưu được cài đặt')
+      if (!r.ok) return setLoiLuu(r.error ?? chu('không lưu được cài đặt'))
     }
     // ⚠ NẠP LẠI `boot` rồi mới đóng. `boot` vốn chỉ nạp MỘT LẦN lúc mở app, mà hộp thoại
     // này lấy giá trị ban đầu từ đó — nên lưu xong, mở lại là thấy y nguyên số CŨ, và
     // người dùng kết luận "bấm lưu không lưu được" (thật ra đĩa đã ghi đúng). `bootstrap`
     // chỉ 1 ms / 7 KB nên nạp lại là rẻ nhất, và nó đồng bộ luôn cả danh sách nguồn nến.
+    daLuu.current = true
     await lamMoiBoot()
     onDong()
   }
@@ -103,22 +118,38 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
   }
 
   return (
-    <Modal title="Cài đặt" width={620} onClose={onDong}
+    <Modal title={chu("Cài đặt")} width={620} onClose={onDong}
            footer={
              <>
                {loiLuu && <span className="loi-ghi">{loiLuu}</span>}
-               <button className="nut" onClick={onDong}>Huỷ</button>
-               <button className="nut chinh" onClick={luu}>Lưu</button>
+               <button className="nut" onClick={onDong}>{chu('Huỷ')}</button>
+               <button className="nut chinh" onClick={luu}>{chu('Lưu')}</button>
              </>
            }>
       <label className="hang">
-        <span className="nhan-o">Mã mặc định</span>
+        <span className="nhan-o">{chu('Mã mặc định')}</span>
         <input className="o" value={symbol} spellCheck={false}
                onChange={e => setSymbol(e.target.value.toUpperCase())} />
       </label>
 
+      {/* ⭐ ĐỔI NGAY LÚC BẤM, y như màu nhấn — không đợi Lưu. Chọn ngôn ngữ mà không
+          thấy nó đọc ra sao thì chọn bằng gì. Bấm Huỷ thì trả về giá trị đã lưu. */}
       <label className="hang">
-        <span className="nhan-o">Màu nhấn</span>
+        <span className="nhan-o">{chu('Ngôn ngữ')}</span>
+        <div className="cum-mau">
+          {([['vi', chu('Tiếng Việt')], ['en', chu('Tiếng Anh')]] as [Ngon, string][])
+            .map(([ma, ten]) => (
+            <button key={ma} className={'nut-nho' + (ngon === ma ? ' dang-chon' : '')}
+                    onClick={() => { setNgonCuc(ma); datNgon(ma) }}>{chu(ten)}</button>
+          ))}
+        </div>
+      </label>
+      <div className="chu-dan">
+        {chu('Chữ trên hộp khối do Python sinh — đổi ngôn ngữ ăn ngay, không phải mở lại app.')}
+      </div>
+
+      <label className="hang">
+        <span className="nhan-o">{chu('Màu nhấn')}</span>
         <div className="cum-mau">
           {Object.entries(boot.accent_presets).map(([ten, mau]) => (
             <button key={ten} title={ten}
@@ -141,16 +172,16 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       )}
 
       <div className="cd-nguon-bang">
-        <div className="cd-nguon-dau">Nguồn dữ liệu — nến M1</div>
+        <div className="cd-nguon-dau">{chu('Nguồn dữ liệu — nến M1')}</div>
         {nguon.length === 0
-          ? <div className="cd-rong">chưa tải bộ nến nào</div>
+          ? <div className="cd-rong">{chu('chưa tải bộ nến nào')}</div>
           : nguon.map(n => (
             <div key={n.symbol} className="cd-dong">
               <b>{n.symbol}</b>
               <span className="mono">{n.tu_chu} → {n.den_chu}</span>
               <span className="mono">{n.so_nen.toLocaleString('vi')} nến</span>
               <b className="mono">{n.mb} MB</b>
-              <button className="nut nho" onClick={() => xoa(n.symbol)}>Xoá</button>
+              <button className="nut nho" onClick={() => xoa(n.symbol)}>{chu('Xoá')}</button>
             </div>
           ))}
       </div>
@@ -158,16 +189,16 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       <div className="hang cd-hang">
         <label>Symbol<input className="o nho" value={tSymbol} spellCheck={false}
                onChange={e => setTSymbol(e.target.value.toUpperCase())} /></label>
-        <label>Từ<input className="o nho" value={tu} placeholder="2025-01-01"
+        <label>{chu('Từ')}<input className="o nho" value={tu} placeholder="2025-01-01"
                onChange={e => setTu(e.target.value)} /></label>
-        <label>Đến<input className="o nho" value={den} placeholder="2026-01-01"
+        <label>{chu('Đến')}<input className="o nho" value={den} placeholder="2026-01-01"
                onChange={e => setDen(e.target.value)} /></label>
         {/* Nút này trả lời câu "sao máy mới không tự tải được?" NGAY TẠI ĐÂY, chứ không
             để người dùng bấm ▶ rồi gặp một lỗi nói về khoảng thời gian. */}
         <button className="nut" onClick={kiemKetNoi} disabled={dangKiem}>
-          {dangKiem ? 'đang nối…' : 'Kiểm tra kết nối MT5'}
+          {dangKiem ? chu('đang nối…') : chu('Kiểm tra kết nối MT5')}
         </button>
-        <span className="cd-tu-tai">thiếu nến thì ▶ Chạy tự tải</span>
+        <span className="cd-tu-tai">{chu('thiếu nến thì ▶ Chạy tự tải')}</span>
       </div>
 
       {ketNoi && (
@@ -195,19 +226,19 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
         {/* ⚠ Mặc định 0 = TỰ LẤY SỐ ĐO ĐƯỢC từ kho nến. Số cũ là 20 và nó là con số
             nguy hiểm nhất trong app: đo trên sơ đồ mẫu 2025, spread 20 cho +12,78 R
             còn spread thật (97) cho +6,66 R — gần gấp đôi. Xem core.md §16.2. */}
-        <label title="Nến là giá Bid; Ask = Bid + spread. 0 = dùng số đo được từ kho nến.">
+        <label title={chu("Nến là giá Bid; Ask = Bid + spread. 0 = dùng số đo được từ kho nến.")}>
           Spread<input className="o nho" type="number" value={spread}
                  onChange={e => setSpread(+e.target.value)} />points
           {!spread && <span className="goi-y">
-            {bo?.spread_tb ? `= ${bo.spread_tb} (đo được)` : 'chưa đo được'}</span>}
+            {bo?.spread_tb ? `= ${bo.spread_tb} (đo được)` : chu('chưa đo được')}</span>}
         </label>
-        <label title="LUÔN theo chiều bất lợi — lệnh Stop ngoài đời khớp bằng hoặc xấu hơn giá kích hoạt. 0 = không mô hình hoá.">
+        <label title={chu("LUÔN theo chiều bất lợi — lệnh Stop ngoài đời khớp bằng hoặc xấu hơn giá kích hoạt. 0 = không mô hình hoá.")}>
           Trượt giá<input className="o nho" type="number" value={truot}
                  onChange={e => setTruot(+e.target.value)} />points
         </label>
-        <label>Vốn<input className="o nho" type="number" value={deposit}
+        <label>{chu('Vốn')}<input className="o nho" type="number" value={deposit}
                onChange={e => setDeposit(+e.target.value)} />USD</label>
-        <label title="Tính round-turn — trừ một lần khi lệnh đóng">
+        <label title={chu("Tính round-turn — trừ một lần khi lệnh đóng")}>
           Phí<input className="o nho" type="number" value={phi}
               onChange={e => setPhi(+e.target.value)} />USD/lot
         </label>
@@ -216,31 +247,31 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       {/* ⭐ LUẬT SÀN — backtest phải chơi theo đúng luật live đã đo (core.md §16.1).
           Thiếu chúng thì backtest chơi trò DỄ HƠN live: đo được trên chiến lược thật,
           862 lot với SL cách 0,0004 $ — hai thứ sàn từ chối thẳng. */}
-      <div className="cd-muc">Luật sàn</div>
+      <div className="cd-muc">{chu('Luật sàn')}</div>
       <div className="chu-dan">
         {doDuoc
-          ? <>Đang dùng <b>số ĐO ĐƯỢC</b> từ <b>{doDuoc.nguon}</b> ({doDuoc.do_luc}).
+          ? <>Đang dùng <b>{chu('số ĐO ĐƯỢC')}</b> từ <b>{doDuoc.nguon}</b> ({doDuoc.do_luc}).
               Mấy ô dưới là dự phòng, hồ sơ hiệu chuẩn thắng — đo được luôn đúng hơn gõ tay.</>
-          : <>Chưa hiệu chuẩn <b>{tSymbol}</b> lần nào, nên đang dùng <b>số gõ tay</b> dưới
+          : <>Chưa hiệu chuẩn <b>{tSymbol}</b> lần nào, nên đang dùng <b>{chu('số gõ tay')}</b> dưới
               đây. Nối sàn rồi chạy hiệu chuẩn thì app tự lấy số thật.</>}
       </div>
       <div className="hang cd-hang">
-        <label title="Sàn không nhận lệnh nhỏ hơn mức này">
+        <label title={chu("Sàn không nhận lệnh nhỏ hơn mức này")}>
           Lot nhỏ nhất<input className="o nho" type="number" step="0.01" value={lotMin}
                  disabled={!!doDuoc}
                  onChange={e => setLotMin(+e.target.value)} />
         </label>
-        <label title="Khối lượng làm tròn XUỐNG theo bước này">
+        <label title={chu("Khối lượng làm tròn XUỐNG theo bước này")}>
           Bước<input className="o nho" type="number" step="0.01" value={lotBuoc}
                  disabled={!!doDuoc}
                  onChange={e => setLotBuoc(+e.target.value)} />
         </label>
-        <label title="Sàn không nhận lệnh lớn hơn mức này">
+        <label title={chu("Sàn không nhận lệnh lớn hơn mức này")}>
           Lot lớn nhất<input className="o nho" type="number" value={lotMax}
                  disabled={!!doDuoc}
                  onChange={e => setLotMax(+e.target.value)} />
         </label>
-        <label title="Khoảng cách tối thiểu từ giá lệnh tới SL/TP. 0 = không chặn.">
+        <label title={chu("Khoảng cách tối thiểu từ giá lệnh tới SL/TP. 0 = không chặn.")}>
           SL tối thiểu<input className="o nho" type="number" value={stops}
                  disabled={!!doDuoc}
                  onChange={e => setStops(+e.target.value)} />points
@@ -248,7 +279,7 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       </div>
 
       <div className="hang cd-hang">
-        <label title="Nhịp PHÁT LẠI — không phải tốc độ mô phỏng">
+        <label title={chu("Nhịp PHÁT LẠI — không phải tốc độ mô phỏng")}>
           Delay<input className="o nho" type="number" value={delay}
                 onChange={e => setDelay(+e.target.value)} />ms
         </label>

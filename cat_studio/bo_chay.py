@@ -417,17 +417,27 @@ class ChuongTrinh:
                 for moc in ((st.get("entry") or {}).get("moc"), st.get("moc")):
                     if moc in self.COT_GIA:
                         self._xin_cot({"ten": moc, "tf": self.tf5}, tab, st)
-        # Máy vùng cần `atr` trên khung quyết định dù sơ đồ có hỏi hay không: zone cộng
-        # dồn nó để tính `zone_atr_tb`, và đơn vị `× ATR` chia cho nó.
-        self._xin_cot({"ten": "atr", "tf": self.tf5,
-                       "period": self.ts["chu_ky_atr"]}, None, None)
-        # ATR NỀN — mẫu số của đơn vị `× ATR nền`. Xin VÔ ĐIỀU KIỆN, cùng lý do với dòng
-        # trên: nó có thể được hỏi từ điều kiện, từ `dk_hop_le`, từ SL, TP, đệm, hay từ ô
-        # khoảng của khối Sửa lệnh. Đi quét đủ sáu chỗ đó để tiết kiệm MỘT cột là đổi một
-        # khoản rẻ lấy một chỗ chắc chắn có ngày bỏ sót — mà bỏ sót thì `_quy_doi` ném
-        # "chưa được tính trước" giữa lúc backtest.
-        self._xin_cot({"ten": "atr", "tf": self.tf5,
-                       "period": core.CHU_KY_ATR_NEN}, None, None)
+        # ⭐ MẪU SỐ CỦA HAI ĐƠN VỊ ATR — xin trên MỌI KHUNG GIỜ sơ đồ có nhắc tới,
+        # không chỉ khung trục. core.md §18.13.
+        #
+        # `× ATR nền` phải chia cho ATR của CHÍNH khung toán hạng đang đọc. Chia cho
+        # khung trục thì `atr(H4) / ATR nền(M5) ≈ 7`, mà `√48 = 6,93` — con số ấy LÀ tỉ
+        # lệ khung giờ, không phải trạng thái thị trường. Đo được: `atr(M5)` trải
+        # 0,44–1,68 (thang 0,25–2,0 vừa khít) còn `atr(H4)` trải 4,54–11,81, tức MỌI nấc
+        # của thang đều nằm dưới đáy. Cổng ấy không phải câu hỏi, nó là hằng số.
+        #
+        # ⚠ Xin VÔ ĐIỀU KIỆN cho mọi khung, cùng lý lẽ với bản cũ: mẫu số có thể bị hỏi
+        # từ điều kiện, từ `dk_hop_le`, từ SL, TP, đệm, hay từ ô khoảng của khối Sửa
+        # lệnh. Đi quét đủ sáu chỗ để tiết kiệm vài cột là đổi một khoản rẻ lấy một chỗ
+        # chắc chắn có ngày bỏ sót — mà bỏ sót thì `_quy_doi` ném "chưa được tính trước"
+        # giữa lúc backtest. Một sơ đồ chỉ nhắc vài khung, nên "mọi khung" là vài cột.
+        for _tf in sorted(self._khung_da_dung()):
+            # Zone cộng dồn ATR khung TRỤC để tính `zone_atr_tb`, nên khung trục luôn
+            # phải có mặt dù sơ đồ không hỏi — `_khung_da_dung` đã kèm sẵn.
+            self._xin_cot({"ten": "atr", "tf": _tf,
+                           "period": self.ts["chu_ky_atr"]}, None, None)
+            self._xin_cot({"ten": "atr", "tf": _tf,
+                           "period": core.CHU_KY_ATR_NEN}, None, None)
         # ĐỊNH NGHĨA "hợp lệ" — lấy từ cổng zone của ENTRY, đúng một cái (soát tĩnh đã
         # bắt ca nhiều hơn một). Giữ ở đây chứ không đi tìm lại mỗi lần `zone_hop_le`
         # được hỏi: nó bị hỏi trong vòng lặp nến, mà đi lại danh sách khối mỗi lần là
@@ -436,6 +446,19 @@ class ChuongTrinh:
             (st.get("dk_hop_le") for st in
              (self.doc.get(core.TAB_ENTRY) or {}).get("steps") or []
              if st.get("cong_zone") and st.get("dk_hop_le")), None)
+
+    def _khung_da_dung(self):
+        """Mọi khung giờ sơ đồ có nhắc tới, LUÔN kèm khung trục.
+
+        Dùng để xin sẵn mẫu số ATR trên từng khung — xem `_dung_cot`."""
+        ra = {self.tf5}
+        for tab in core.TABS:
+            for st in (self.doc.get(tab) or {}).get("steps") or []:
+                for c in (st.get("conditions") or []) + (st.get("dk_hop_le") or []):
+                    for o in (c.get("trai"), c.get("phai")):
+                        if isinstance(o, dict) and o.get("tf"):
+                            ra.add(o["tf"])
+        return ra
 
     #: Chu kỳ mặc định khi ô để trống. Trùng mặc định của hộp thoại hành động.
     CHU_KY_MAC_DINH = 14
@@ -655,8 +678,13 @@ def _so_sanh(trai, phep, phai):
 def _quy_doi(x, don_vi, o, ctx):
     """Đổi giá trị vế trái sang ĐƠN VỊ được chọn — ba cái thước, ba mẫu số:
 
-      × ATR       =  x / atr(chu_ky_atr)      ATR nến vừa đóng, khung QUYẾT ĐỊNH
+      × ATR       =  x / atr(chu_ky_atr)      ATR nến vừa đóng
       × ATR nền   =  x / atr(CHU_KY_ATR_NEN)  ATR dài hạn của CHÍNH thị trường đó
+
+    ⭐ CẢ HAI MẪU SỐ ĐỌC TRÊN KHUNG CỦA CHÍNH TOÁN HẠNG (§18.13), không phải khung trục.
+    Chia cho khung trục thì `atr(H4) / ATR nền(M5) ≈ 7` mà `√48 = 6,93`: con số ấy LÀ tỉ
+    lệ khung giờ, không phải trạng thái thị trường — một hằng số đội lốt câu hỏi. Đo
+    được: `atr(M5)` trải 0,44–1,68, `atr(H4)` trải 4,54–11,81, mà thang chỉ tới 2,0.
       × ATR zone  =  x / zone_atr_tb          ATR trung bình cả zone — thước của RỦI RO
 
     ⚠ `bps` (x / close × 10⁴) ĐÃ BỎ — core.md §15.7. Nó chia cho MỨC GIÁ, mà thứ trôi
@@ -668,13 +696,14 @@ def _quy_doi(x, don_vi, o, ctx):
     biết gì — đúng loại lỗi im lặng cả kiến trúc này dựng lên để tránh."""
     if don_vi in (None, "", "gia") or isinstance(x, bool) or x != x:
         return x
+    tf = (o or {}).get("tf") or None           # None = khung trục (toán hạng zone…)
     if don_vi == "atr":
-        a = ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])
+        a = ctx.chi_bao("atr", tf=tf, period=ctx.ts["chu_ky_atr"])
         return x / a if a == a and a else NAN
     if don_vi == "atr_nen":
         # Chu kỳ CỐ ĐỊNH, không đọc bảng tham số — cái thước không được là tham số
-        # (core.md §15.1). Cột này `_dung_cot` xin sẵn vô điều kiện.
-        a = ctx.chi_bao("atr", period=core.CHU_KY_ATR_NEN)
+        # (core.md §15.1). KHUNG GIỜ thì theo toán hạng, xem đầu hàm.
+        a = ctx.chi_bao("atr", tf=tf, period=core.CHU_KY_ATR_NEN)
         return x / a if a == a and a else NAN
     if don_vi == "atr_zone":
         v = ctx.so.zone_hien_hanh()
@@ -703,15 +732,16 @@ def quy_doi_cot(kq, o, cot, don_vi):
     if don_vi in (None, "", "gia") or cot is None:
         return cot
     ct = kq._ct
+    # ⚠ KHUNG GIỜ CỦA CHÍNH TOÁN HẠNG (§18.13) — phải khớp khít `_quy_doi` ngay trên,
+    # không thì bảng số liệu hiện một số còn nhật ký hiện số khác đúng lúc đang debug.
+    tf = (o or {}).get("tf") or ct.tf5
     if don_vi == "atr":
-        # ATR khung QUYẾT ĐỊNH, chu kỳ `chu_ky_atr` — khoá này khớp khít
-        # `ctx.chi_bao("atr", period=ctx.ts["chu_ky_atr"])` mà `_quy_doi` gọi.
-        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": ct.tf5,
+        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": tf,
                                        "period": ct.ts["chu_ky_atr"]})), 1.0
     elif don_vi == "atr_nen":
-        # Chu kỳ CỐ ĐỊNH — khoá phải khớp khít `ctx.chi_bao("atr", period=…)` ở
-        # `_quy_doi`, nếu không bảng số liệu để trống cả hàng mà không có gì báo.
-        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": ct.tf5,
+        # Chu kỳ CỐ ĐỊNH — khoá phải khớp khít `ctx.chi_bao("atr", …)` ở `_quy_doi`,
+        # nếu không bảng số liệu để trống cả hàng mà không có gì báo.
+        mau, he = ct._cot.get(ct.khoa({"ten": "atr", "tf": tf,
                                        "period": core.CHU_KY_ATR_NEN})), 1.0
     elif don_vi == "atr_zone":
         mau, he = kq.cot_zone.get("zone_atr_tb"), 1.0

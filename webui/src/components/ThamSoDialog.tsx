@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useState } from 'react'
 import { chotSo, locSo } from '../so'
 import type { Bootstrap, ThamSo } from '../types'
@@ -21,6 +22,7 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
   onLuu: (ds: ThamSo[]) => void
   onDong: () => void
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [ds, setDs] = useState<ThamSo[]>(() => JSON.parse(JSON.stringify(dsGoc)))
   /** Bản nháp đang gõ, theo chỉ số dòng — xem chú thích ở ô giá trị. */
   const [nhap, datNhap] = useState<Record<number, string>>({})
@@ -32,31 +34,31 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
     ds.some((t, j) => j !== i && t.ten.trim() === ds[i].ten.trim())
 
   return (
-    <Modal title="Tham số của chiến lược" width={820} onClose={onDong}
+    <Modal title={chu("Tham số của chiến lược")} width={820} onClose={onDong}
            footer={
              <>
                <div className="xem-truoc">
                  {ds.length} tham số · sửa ở đây là mọi khối dùng nó đổi theo
                </div>
-               <button className="nut" onClick={onDong}>Huỷ</button>
+               <button className="nut" onClick={onDong}>{chu('Huỷ')}</button>
                {/* Ô trùng tên đã tô đỏ từ trước, nhưng vẫn LƯU được — mà lưu là mất
                    thật: `normalize_tham_so` giữ dòng ĐẦU và vứt phần sau, trong khi bộ
                    chạy lại đọc dòng CUỐI. Chặn ngay ở nút thì không ai đi tới chỗ đó. */}
                <button className="nut chinh"
                        disabled={ds.some((_, i) => trung(i))}
                        title={ds.some((_, i) => trung(i))
-                         ? 'Còn tham số trùng tên — sửa cho mỗi tên chỉ xuất hiện một lần'
+                         ? chu('Còn tham số trùng tên — sửa cho mỗi tên chỉ xuất hiện một lần')
                          : undefined}
-                       onClick={() => onLuu(ds)}>Lưu</button>
+                       onClick={() => onLuu(ds)}>{chu('Lưu')}</button>
              </>
            }>
       <div className="chu-dan">
-        Mỗi con số liên quan tới giá phải mang <b>một đơn vị bất biến</b> — bps của giá,
-        số nến, bội ATR, bội R. <b>Không pip, không đô.</b> Nhờ vậy cùng một bộ số mang
+        Mỗi con số liên quan tới giá phải mang <b>{chu('một đơn vị bất biến')}</b> — bps của giá,
+        số nến, bội ATR, bội R. <b>{chu('Không pip, không đô.')}</b> Nhờ vậy cùng một bộ số mang
         cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
         <br />
-        <b>Đơn vị quyết định tham số này dùng được ở đâu:</b> ô số chỉ mời những tham
-        số mang <b>đúng</b> đơn vị của nó — nên <code>chu_ky_atr</code> (nến) không bao
+        <b>{chu('Đơn vị quyết định tham số này dùng được ở đâu:')}</b> ô số chỉ mời những tham
+        số mang <b>{chu('đúng')}</b> đơn vị của nó — nên <code>chu_ky_atr</code> (nến) không bao
         giờ hiện ra ở ô Stop Loss. Một cái tên chỉ mang một nghĩa; cần hai nghĩa thì đặt
         hai tham số.
       </div>
@@ -64,8 +66,8 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
       <table className="bang-tham-so">
         <thead>
           <tr>
-            <th>Tên (khối gọi bằng tên này)</th><th>Nhãn</th>
-            <th>Giá trị</th><th>Đơn vị</th><th>Ghi chú</th><th />
+            <th>{chu('Tên (khối gọi bằng tên này)')}</th><th>{chu('Nhãn')}</th>
+            <th>{chu('Giá trị')}</th><th>{chu('Đơn vị')}</th><th>{chu('Ghi chú')}</th><th />
           </tr>
         </thead>
         <tbody>
@@ -74,7 +76,7 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
               <td>
                 <input className={'o mono' + (trung(i) ? ' loi' : '')}
                        value={t.ten} spellCheck={false}
-                       title={trung(i) ? 'Trùng tên với một tham số khác'
+                       title={trung(i) ? chu('Trùng tên với một tham số khác')
                          : dangDung.has(t.ten) ? '' : 'Chưa khối nào dùng tham số này'}
                        onChange={e => sua(i, 'ten', e.target.value)} />
               </td>
@@ -109,14 +111,14 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
                 <select className={'o nho' + (t.don_vi ? '' : ' loi')}
                         value={t.don_vi}
                         title={t.don_vi ? undefined
-                          : 'Chưa có đơn vị thì tham số này không hiện ra ở ô nào cả'}
+                          : chu('Chưa có đơn vị thì tham số này không hiện ra ở ô nào cả')}
                         onChange={e => sua(i, 'don_vi', e.target.value)}>
-                  <option value="">— chọn —</option>
-                  <optgroup label="Quy đổi">
+                  <option value="">{chu('— chọn —')}</option>
+                  <optgroup label={chu("Quy đổi")}>
                     {Object.entries(boot.don_vi).map(([k, v]) =>
                       <option key={k} value={k}>{v}</option>)}
                   </optgroup>
-                  <optgroup label="Đếm">
+                  <optgroup label={chu("Đếm")}>
                     {Object.entries(boot.don_vi_dem).map(([k, v]) =>
                       <option key={k} value={k}>{v}</option>)}
                   </optgroup>
@@ -125,7 +127,7 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
               <td><input className="o" value={t.ghi_chu}
                          onChange={e => sua(i, 'ghi_chu', e.target.value)} /></td>
               <td>
-                <button className="nut nho" title="Xoá tham số"
+                <button className="nut nho" title={chu("Xoá tham số")}
                         onClick={() => setDs(x => x.filter((_, j) => j !== i))}>✕</button>
               </td>
             </tr>

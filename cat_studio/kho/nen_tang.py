@@ -43,24 +43,49 @@ BANG_TRANG_THAI = []
 #: hiểu "thiếu shift" ĐÚNG BẰNG shift 1 (`i -= max(0, shift-1)`), nên hành vi không đổi
 #: một chút nào. Muốn so `close[1] > close[5]` thì thêm lại sau — thêm một trường dễ hơn
 #: nhiều so với gỡ một trường người ta đã học.
+#: ⭐ HAI TRƯỜNG KHAI SỰ THẬT, KHÔNG KHAI KHẨU VỊ — core.md §18.12
+#:
+#: `chum` — mấy mức giá cùng ĐỌC RA TỪ MỘT CÁI. Bốn giá OHLC cùng một cây nến là một
+#:          chùm; đỉnh/đáy của zone là một chùm khác.
+#: `cuc`  — món này có phải CỰC TRỊ của chùm ấy không (`max` / `min`).
+#:
+#: Vì sao đủ để suy ra luật: trong CÙNG một chùm, cực trị có quan hệ CỐ ĐỊNH với mọi
+#: thành viên khác — `Giá cao nhất ≥ Giá đóng cửa` là đúng theo định nghĩa của cây nến,
+#: không phải một câu hỏi về thị trường. Hỏi nó là hỏi một HẰNG SỐ.
+#:
+#: ⚠ `open` và `close` đều KHÔNG phải cực trị, nên `open < close` (*"nến xanh"*) vẫn là
+#: một câu hỏi thật — luật này không được chạm vào nó. Đó là phép thử của cả cách khai:
+#: khai đúng thì nó tự chừa ra, khai theo cảm giác thì nó cắt nhầm.
+#:
+#: ⚠ `ma` KHÔNG thuộc chùm nến. Trung bình của n cây đóng cửa có thể nằm TRÊN đỉnh cây
+#: hiện tại trong một nhịp giảm — không có quan hệ cố định nào cả.
 TOAN_HANG = [
     # ---- Giá ---- (MỨC giá: so với một mức khác, không quy đổi)
     {"key": "close", "nhan": "Giá đóng cửa", "nhom": "Giá", "loai": "muc_gia",
-     "tham_so": ["tf"],
+     "tham_so": ["tf"], "chum": "nen",
      "mo_ta": "Luôn đọc nến ĐÃ ĐÓNG — nến đang chạy thì tín hiệu sẽ vẽ lại."},
     {"key": "open", "nhan": "Giá mở cửa", "nhom": "Giá", "loai": "muc_gia",
-     "tham_so": ["tf"]},
+     "tham_so": ["tf"], "chum": "nen"},
     {"key": "high", "nhan": "Giá cao nhất", "nhom": "Giá", "loai": "muc_gia",
-     "tham_so": ["tf"]},
+     "tham_so": ["tf"], "chum": "nen", "cuc": "max"},
     {"key": "low", "nhan": "Giá thấp nhất", "nhom": "Giá", "loai": "muc_gia",
-     "tham_so": ["tf"]},
+     "tham_so": ["tf"], "chum": "nen", "cuc": "min"},
 
     # ---- Sổ lệnh ---- (cái gì đang TỒN TẠI)
+    # ⭐ `sinh_boi` — món này CHỈ CÓ SỐ KHÁC 0 sau khi có khối Vào lệnh. core.md §18.12
+    #
+    # Chưa vào lệnh lần nào thì cả ba đứng yên ở 0, nên MỌI phép so với chúng ở phía
+    # trên mọi khối Vào lệnh đều là hằng số — không riêng gì `> 0`, mà cả `< 30` (luôn
+    # đúng). Và nếu chính cái cổng ấy chặn đường xuống khối Vào lệnh thì đó là VÒNG
+    # TRÒN: muốn có số thì phải vào lệnh, muốn vào lệnh thì phải qua cổng ấy.
+    #
+    # Đo được: 14/68 sơ đồ câm chết đúng vì chuyện này (`so_vi_the` 4 · `so_lenh_cho` 2
+    # · `zone_da_sinh_lenh` 8) — 21%.
     {"key": "so_vi_the", "nhan": "Số vị thế đang mở", "nhom": "Sổ lệnh",
-     "loai": "dem", "don_vi": "lenh", "tham_so": [],
+     "loai": "dem", "don_vi": "lenh", "tham_so": [], "sinh_boi": "vao_lenh",
      "mo_ta": "= CountOpenPositions() của D_02."},
     {"key": "so_lenh_cho", "nhan": "Số lệnh chờ", "nhom": "Sổ lệnh", "loai": "dem",
-     "don_vi": "lenh", "tham_so": [],
+     "don_vi": "lenh", "tham_so": [], "sinh_boi": "vao_lenh",
      "mo_ta": "D_02 chỉ cho ĐÚNG MỘT lệnh chờ sống một lúc (`if(m_has_pending) return`)."},
     # CẦU DAO RỦI RO. Bộ chạy đã nuôi sẵn con số này từ lâu (`PhienChay.ghi_tien` →
     # `ct.drawdown_pt`) nhưng chưa ai khai nó vào kho, nên nó là mã chết: máy tính ra
@@ -70,7 +95,7 @@ TOAN_HANG = [
     # nến M1, biến một cầu dao đáng ra ổn định thành thứ giật liên tục và bật/tắt lung
     # tung trong cùng một cú giá.
     {"key": "drawdown_pt", "nhan": "Sụt vốn hiện tại", "nhom": "Sổ lệnh", "loai": "dem",
-     "don_vi": "pt_von", "tham_so": [],
+     "don_vi": "pt_von", "tham_so": [], "sinh_boi": "vao_lenh",
      "mo_ta": "Vốn đang thấp hơn đỉnh vốn bao nhiêu phần trăm. Dùng làm cầu dao: "
               "\"sụt quá 5 % thì ngừng vào lệnh\". Tính trên vốn ĐÃ CHỐT (lệnh đã "
               "đóng), không tính lãi nổi."},

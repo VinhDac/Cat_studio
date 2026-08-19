@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useMemo, useState } from 'react'
 import Modal from '../components/Modal'
 import type { KhoNen, NhomChon, RLBoot } from '../types'
@@ -224,7 +225,7 @@ function TrangThuongPhat({ d }: { d: DieuKhien }) {
             phương) — đã thử rồi bỏ. Đo trên sơ đồ mẫu: trung bình <i>−0,161%</i> ·
             dao động <i>1,115%</i> ⇒ cân bằng cho <i>−0,1446</i> còn nấc ấy cho
             <i> −0,1296</i>, tức nó chấm <b>CAO HƠN</b>. Vì trung bình ÂM thì càng
-            chia càng gần 0. Muốn siết chặt hơn thì dùng cửa <b>dao động tối đa</b> ở
+            chia càng gần 0. Muốn siết chặt hơn thì dùng cửa <b>{chu('dao động tối đa')}</b> ở
             phần PHẠT — nó phát biểu được, và không đụng vào thước.
           </p>
           <p className="rl-nho">
@@ -266,12 +267,12 @@ function TrangThuongPhat({ d }: { d: DieuKhien }) {
             phát biểu được, còn một hệ số phạt thì phải dò mới biết nặng hay nhẹ — mà
             dò cái nút chấm điểm là dò trên chính thứ dùng để chấm.
           </p>
-          {([['so_lenh_toi_thieu', 'số lệnh tối thiểu', 'lệnh'],
-             ['sut_von_toi_da', 'sụt vốn tối đa', '%'],
+          {([['so_lenh_toi_thieu', chu('số lệnh tối thiểu'), chu('lệnh')],
+             ['sut_von_toi_da', chu('sụt vốn tối đa'), '%'],
              ['te_nhat_toi_da', `${tenKy} tệ nhất không quá`, '%'],
              ['dao_dong_toi_da', `dao động ${tenKy} tối đa`, '%'],
-             ['lai_toi_thieu', 'lãi tối thiểu', '%/năm'],
-             ['diem_toi_thieu', 'điểm tối thiểu', '']] as const).map(([k, nhan, dv]) => (
+             ['lai_toi_thieu', chu('lãi tối thiểu'), '%/năm'],
+             ['diem_toi_thieu', chu('điểm tối thiểu'), '']] as const).map(([k, nhan, dv]) => (
             <label className="rl-hang" key={k}>
               <span>{nhan}</span>
               <input type="number" step="any" placeholder="không lọc"
@@ -313,7 +314,7 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
           )}
 
           <div className="rl-nhom-ten"><span>TRAIN — máy đào thoải mái</span></div>
-          <label className="rl-hang"><span>từ</span>
+          <label className="rl-hang"><span>{chu('từ')}</span>
             <input value={String(dat.tu ?? '')} placeholder="2021-07-01"
                    onChange={e => datD('tu', e.target.value)} /></label>
           <label className="rl-hang"><span>đến</span>
@@ -321,7 +322,7 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
                    onChange={e => datD('den', e.target.value)} /></label>
 
           <div className="rl-nhom-ten"><span>KHOÁ — mở đúng một lần</span></div>
-          <label className="rl-hang"><span>từ</span>
+          <label className="rl-hang"><span>{chu('từ')}</span>
             <input value={String(dat.khoa_tu ?? '')} placeholder="2025-01-01"
                    onChange={e => datD('khoa_tu', e.target.value)} /></label>
           <label className="rl-hang"><span>đến</span>
@@ -375,8 +376,8 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
 
           <div className="rl-nhom-ten"><span>Chi phí</span></div>
           {([['deposit', 'vốn', '$'], ['commission', 'hoa hồng', '$/lot'],
-             ['spread_diem', 'spread', 'điểm'],
-             ['truot_diem', 'trượt giá', 'điểm']] as const).map(([k, nhan, dv]) => (
+             ['spread_diem', 'spread', chu('điểm')],
+             ['truot_diem', 'trượt giá', chu('điểm')]] as const).map(([k, nhan, dv]) => (
             <label className="rl-hang" key={k}>
               <span>{nhan}</span>
               <input type="number" step="any" value={String(dat[k] ?? '')}
@@ -411,7 +412,7 @@ function TrangNganSach({ d }: { d: DieuKhien }) {
                    onChange={e => setGiu(+e.target.value)} />
           </label>
           <label className="rl-hang">
-            <span>hạt giống</span>
+            <span>{chu('hạt giống')}</span>
             <input type="number" value={hat} onChange={e => setHat(+e.target.value)} />
           </label>
           <p className="rl-nho">
@@ -552,12 +553,12 @@ const MUC: Array<{ khoa: string; nhan: string; nhom: string
               + `·${d.tran.khoi_entry}·${d.tran.khoi_manage}` },
   { khoa: 'cua', nhan: 'Thưởng · Phạt', nhom: 'Luật chơi', ve: TrangThuongPhat,
     tom: d => nhanCua(d) },
-  { khoa: 'du_lieu', nhan: 'Dữ liệu', nhom: 'Chạy trên gì', ve: TrangDuLieu,
+  { khoa: 'du_lieu', nhan: chu('Dữ liệu'), nhom: 'Chạy trên gì', ve: TrangDuLieu,
     tom: d => `${d.dat.symbol || '—'}${coKhoaCua(d.dat) ? ' · có khoá' : ''}` },
   { khoa: 'ngan', nhan: 'Ngân sách', nhom: 'Chạy trên gì', ve: TrangNganSach,
     tom: d => (d.gioToiDa ? `${d.gioToiDa}h` : d.soLuot.toLocaleString('vi-VN'))
               + ` · ${d.soNhan || 'tự'} nhân` },
-  { khoa: 'ghi_chu', nhan: 'Ghi chú', nhom: 'Chạy trên gì', ve: TrangGhiChu,
+  { khoa: 'ghi_chu', nhan: chu('Ghi chú'), nhom: 'Chạy trên gì', ve: TrangGhiChu,
     tom: d => (String(d.dat.ghi_chu ?? '').trim() ? 'có' : '—') },
 ]
 
@@ -581,6 +582,7 @@ export function nhanCua(d: DieuKhien): string {
 export default function CuaSoCaiDat({ d, onClose, mucDau }: {
   d: DieuKhien; onClose: () => void; mucDau?: string
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const [muc, setMuc] = useState(mucDau || MUC[0].khoa)
   const m = MUC.find(x => x.khoa === muc) || MUC[0]
   const nhom = [...new Set(MUC.map(x => x.nhom))]

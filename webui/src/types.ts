@@ -634,6 +634,15 @@ export interface DauBang {
 export interface ThongKeTim {
   da_chay: number; trung_lap: number; ket: number; no: number
   khong_lenh: number; rot_cua: number; qua: number
+  /** CHẾT TỪ LÚC VẼ — câm vì một cổng KHÔNG BAO GIỜ khớp, không phải chạy rồi không ăn.
+   *
+   * ⚠ Đây là TẬP CON của `khong_lenh`, nên bảng phải trừ ra, đừng cộng thêm — không thì
+   * tổng lớn hơn số sơ đồ đã chấm và người đọc mất lòng tin vào cả bảng.
+   *
+   * Đo được (120 sơ đồ, 6 tháng dữ liệu thật): 56,7% sơ đồ câm nằm ở đây, và 48/68 chết
+   * ngay ở cổng ĐẦU TIÊN. `chan_theo_toan_hang` chỉ đúng cái toán hạng gây ra. */
+  chet_tu_dau?: number
+  chan_theo_toan_hang?: Record<string, number>
   /** Bỏ dở giữa chừng vì vượt trần nhịp vào lệnh (§18.4a). Không phải lỗi. */
   na_lenh?: number
   hat: number; so_luot: number

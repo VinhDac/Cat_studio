@@ -40,6 +40,13 @@ _KHOANG_MAC_DINH = _khoang_mac_dinh()
 CAI_DAT_MAC_DINH = {
     "symbol": "XAUUSD",
     "accent": "#ffa657",
+    # ⭐ NGÔN NGỮ GIAO DIỆN — `vi` | `en`. core.md §18.14.
+    #
+    # Nằm ở đây, KHÔNG nằm trong localStorage của trình duyệt, và đó là chủ ý: chữ trên
+    # hộp khối do PYTHON sinh (`core.action_display` — §12.9 cấm giao diện tự ghép câu),
+    # nên Python phải biết ngôn ngữ. Hai nguồn thì sớm muộn ribbon tiếng Anh còn hộp
+    # khối tiếng Việt, và không ai biết bên nào mới đúng.
+    "ngon_ngu": "vi",
     "ui": {"panel_cao": 176, "panel_gap": False},
     # Điều kiện chạy Strategy Test. Ở ĐÂY chứ không ở cửa sổ tester: bấm ▶ là phải CHẠY
     # NGAY, không phải mở ra một bảng nữa rồi mới bấm tiếp. Cài đặt là thứ đặt một lần

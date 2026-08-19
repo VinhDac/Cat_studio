@@ -1,3 +1,4 @@
+import { chu, datNgon, useNgon } from './i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, Background, BackgroundVariant, ConnectionMode,
@@ -107,7 +108,7 @@ function Ung() {
   /** Tab đang mở. `nodes`/`edges` LUÔN là đồ thị của tab này; tab kia nằm ở `kho`. */
   const [tab, setTab] = useState<Tab>('entry')
   const kho = useRef<Record<Tab, DoThi>>({ entry: RONG, manage: RONG })
-  const [ten, setTen] = useState('Chiến lược 1')
+  const [ten, setTen] = useState(chu('Chiến lược 1'))
   /** Tên template mà tài liệu đang mở NẰM DƯỚI. `null` = chưa lưu bao giờ. Xem `nap`. */
   const [tenTrenDia, setTenTrenDia] = useState<string | null>(null)
   const [symbol, setSymbol] = useState('XAUUSD')
@@ -119,7 +120,7 @@ function Ung() {
   const [tabDuoi, setTabDuoi] = useState<'van-de' | 'nhat-ky'>('van-de')
   const [nhatKy, setNhatKy] = useState<{ gio: string; msg: string; tag?: string | null }[]>([])
   const [sanSang, setSanSang] = useState(false)
-  const [trangThai, setTrangThai] = useState('đang khởi động…')
+  const [trangThai, setTrangThai] = useState(chu('đang khởi động…'))
   const [boot, setBoot] = useState<Bootstrap | null>(null)
   const [dangSua, setDangSua] = useState<string | null>(null)
   /** {id khối -> nhãn}. CHUỖI chứ không phải số — có rẽ nhánh rồi thì "4A.2B" mới nói
@@ -208,7 +209,7 @@ function Ung() {
     toi.current.push(anhHienTai())
     apDung(a)
     setCoLui(lui.current.length > 0); setCoToi(true)
-    setTrangThai('đã hoàn tác')
+    setTrangThai(chu('đã hoàn tác'))
   }, [anhHienTai, apDung])
 
   const lamLai = useCallback(() => {
@@ -217,7 +218,7 @@ function Ung() {
     lui.current.push(anhHienTai())
     apDung(a)
     setCoToi(toi.current.length > 0); setCoLui(true)
-    setTrangThai('đã làm lại')
+    setTrangThai(chu('đã làm lại'))
   }, [anhHienTai, apDung])
 
   /* ---------------- SOI MỘT LƯỢT trên sơ đồ ----------------
@@ -284,6 +285,9 @@ function Ung() {
         setBoot(b.value!)
         const s = (b.value!.settings ?? {}) as Record<string, any>
         if (s.accent) doiMauNgay(String(s.accent))
+        // NGÔN NGỮ đi cùng màu nhấn ở MỌI cửa sổ — mỗi cửa sổ là một ngữ cảnh JS
+        // riêng, nên chỗ nào áp màu thì chỗ ấy phải áp ngôn ngữ. §18.14
+        datNgon(s.ngon_ngu === 'en' ? 'en' : 'vi')
         const ui = (s.ui ?? {}) as Record<string, any>
         if (ui.panel_cao) setPanelCao(Math.max(CAO_TOI_THIEU, Math.min(600, Number(ui.panel_cao))))
         if (ui.panel_gap) setPanelGap(true)
@@ -297,9 +301,9 @@ function Ung() {
         // Cũng KHÔNG mở sơ đồ mẫu: mẫu chỉ để xem thử. Muốn cái cũ thì menu "Mở ▾" —
         // đó là một câu người dùng nói ra, không phải thứ app đoán hộ.
         const r = await py.new_process()
-        if (r.ok && r.value) nap(r.value, 'sơ đồ mới', null)
+        if (r.ok && r.value) nap(r.value, chu('sơ đồ mới'), null)
         setSanSang(true)
-        setTrangThai('sẵn sàng')
+        setTrangThai(chu('sẵn sàng'))
       } catch (e) {
         setTrangThai('không kết nối được Python: ' + String(e))
       }
@@ -496,7 +500,7 @@ function Ung() {
     const n = dangChon[0]
     if (!n) return
     const cu = (n.data as { card: Card }).card.title
-    const moi = window.prompt('Tên khối:', cu)
+    const moi = window.prompt(chu('Tên khối:'), cu)
     if (moi == null) return
     chup()
     setNodes(ds => ds.map(k => {
@@ -694,17 +698,17 @@ function Ung() {
     const n = await thaCum(buoc, canh, undefined, tsMoi)
     if (!n) return
 
-    const chu = [`đã thêm ${n} khối từ "${ten}"`]
-    if (bo_start) chu.push('bỏ khối Bắt đầu của nguồn')
+    const cau = [`đã thêm ${n} khối từ "${ten}"`]
+    if (bo_start) cau.push(chu('bỏ khối Bắt đầu của nguồn'))
     if (them.length) {
-      chu.push(`thêm ${them.length} tham số (`
+      cau.push(`thêm ${them.length} tham số (`
                + them.map(t => `${t.ten} = ${t.gia_tri}`).join(' · ') + ')')
     }
     if (giu.length) {
-      chu.push('giữ nguyên ' + giu.map(t =>
+      cau.push('giữ nguyên ' + giu.map(t =>
         `${t.ten} = ${co.get(t.ten)!.gia_tri} (nguồn ghi ${t.gia_tri})`).join(' · '))
     }
-    ghi(chu.join(' · '))
+    ghi(cau.join(' · '))
   }, [tab, thamSo, thaCum, ghi])
 
   /* ------------------------------ tài liệu -------------------------------- */
@@ -712,14 +716,14 @@ function Ung() {
     const r = await py.new_process()
     if (!r.ok || !r.value) { ghi('không tạo được sơ đồ mới: ' + r.error, 'err'); return }
     chup()
-    nap(r.value, 'sơ đồ mới — chỉ có khối Bắt đầu', null)
+    nap(r.value, chu('sơ đồ mới — chỉ có khối Bắt đầu'), null)
   }, [chup, nap, ghi])
 
   const moMau = useCallback(async () => {
     const r = await py.demo_process()
     if (!r.ok || !r.value) { ghi('không mở được sơ đồ mẫu: ' + r.error, 'err'); return }
     chup()
-    nap(r.value, 'mở sơ đồ mẫu Compress', null)
+    nap(r.value, chu('mở sơ đồ mẫu Compress'), null)
   }, [chup, nap, ghi, fitView])
 
   /** Ghi thật xuống kho template. Trả `true` nếu xong. */
@@ -727,7 +731,7 @@ function Ung() {
     const r = await py.save_process({ ...layDoc(), name: t })
     if (!r.ok) { ghi('lưu hỏng: ' + r.error, 'err'); return false }
     setTen(t); setTenTrenDia(t)
-    ghi(`đã lưu "${t}"`, 'ok'); setTrangThai('đã lưu')
+    ghi(`đã lưu "${t}"`, 'ok'); setTrangThai(chu('đã lưu'))
     return true
   }, [layDoc, ghi])
 
@@ -736,7 +740,7 @@ function Ung() {
    *  Sau đó bản đang mở CHUYỂN sang sống dưới tên mới, đúng như Word: bạn đang sửa tiếp
    *  bản sao, không phải bản gốc. Bản gốc nằm nguyên chỗ cũ. */
   const luuThanh = useCallback(async () => {
-    const t = window.prompt('Lưu chiến lược thành tên:', ten)?.trim()
+    const t = window.prompt(chu('Lưu chiến lược thành tên:'), ten)?.trim()
     if (!t) return
     // ⚠ Gõ trúng tên đã có thì PHẢI hỏi. `save_process` ghi đè không nói một lời, mà đây
     // là cửa duy nhất người dùng tự tay gõ ra một cái tên — gõ trùng là chuyện thường.
@@ -770,7 +774,7 @@ function Ung() {
     const r = await py.open_process_file()
     if (!r.ok) { if (r.error) ghi('mở hỏng: ' + r.error, 'err'); return }
     chup()
-    nap(r.value!, 'mở từ file ngoài', null)
+    nap(r.value!, chu('mở từ file ngoài'), null)
   }, [chup, nap, ghi, fitView])
 
   const luuRaFile = useCallback(async () => {
@@ -801,7 +805,7 @@ function Ung() {
     // đề báo sau.
     const dich = nodes.find(n => n.id === c.target)
     if (dich && (dich.data as { step: Step }).step.kind === 'start') {
-      ghi('khối Bắt đầu không nhận đường nối đi vào — nó là điểm neo đánh số', 'warn')
+      ghi(chu('khối Bắt đầu không nhận đường nối đi vào — nó là điểm neo đánh số'), 'warn')
       return
     }
     chup()
@@ -814,7 +818,7 @@ function Ung() {
   const xoaDay = useCallback((idDay: string) => {
     chup()
     setEdges(e => e.filter(k => k.id !== idDay))
-    ghi('đã huỷ 1 kết nối (Ctrl+Z để lấy lại)')
+    ghi(chu('đã huỷ 1 kết nối (Ctrl+Z để lấy lại)'))
   }, [chup, setEdges, ghi])
 
   const huyNoi = useCallback((ev: React.MouseEvent, d: Edge) => {
@@ -839,12 +843,12 @@ function Ung() {
     const r = await py.mo_tester(layDoc())
     if (!r.ok) {
       const ds = ((r as any).loi as Problem[] | undefined)?.map(p => '✖ ' + p.message).join('\n\n')
-      window.alert((r.error ?? 'không chạy được') + (ds ? '\n\n' + ds : ''))
+      window.alert((r.error ?? chu('không chạy được')) + (ds ? '\n\n' + ds : ''))
       setTabDuoi('van-de')
       return
     }
-    ghi('▶ mở Strategy Tester', 'ok')
-    setTrangThai('đã mở Strategy Tester')
+    ghi(chu('▶ mở Strategy Tester'), 'ok')
+    setTrangThai(chu('đã mở Strategy Tester'))
   }, [layDoc, ghi])
 
   /* -------------------------------- ● Live --------------------------------
@@ -856,9 +860,9 @@ function Ung() {
     // Mở THẲNG cửa sổ Live. Cổng chốt (chọn chiến lược · symbol · kiểm kết nối) nằm
     // trong chính cửa sổ đó — cửa sổ vẽ không gánh hộp thoại nào cả.
     const r = await py.mo_live(layDoc())
-    if (!r.ok) { window.alert(r.error ?? 'không mở được Live'); return }
-    ghi('● mở cửa sổ Live', 'ok')
-    setTrangThai('đã mở Live')
+    if (!r.ok) { window.alert(r.error ?? chu('không mở được Live')); return }
+    ghi(chu('● mở cửa sổ Live'), 'ok')
+    setTrangThai(chu('đã mở Live'))
   }, [layDoc, ghi])
 
   /* --------------------------------- ✦ RL ---------------------------------
@@ -867,9 +871,9 @@ function Ung() {
    * (core.md §18.6). Nút này chỉ mở cửa. */
   const moRL = useCallback(async () => {
     const r = await py.mo_rl()
-    if (!r.ok) { window.alert(r.error ?? 'không mở được RL'); return }
-    ghi('✦ mở cửa sổ RL', 'ok')
-    setTrangThai('đã mở RL')
+    if (!r.ok) { window.alert(r.error ?? chu('không mở được RL')); return }
+    ghi(chu('✦ mở cửa sổ RL'), 'ok')
+    setTrangThai(chu('đã mở RL'))
   }, [ghi])
 
   /** Vẽ lại thẻ CẢ HAI sơ đồ theo bảng tham số `ds`. Tách ra vì hai chỗ cần: sửa bảng
@@ -948,7 +952,7 @@ function Ung() {
                       don_vi: dt.don_vi, ghi_chu: '' }]
     setThamSo(ds)
     await veLaiThe(ds, doi)
-    ghi(`${dungLai ? 'dùng lại' : 'đặt'} tên "${ten}" = ${dt.gia_tri}`
+    ghi(`${dungLai ? chu('dùng lại') : chu('đặt')} tên "${ten}" = ${dt.gia_tri}`
         + ` cho ${dt.cho.length} chỗ`, 'ok')
   }, [chup, tab, nodes, setNodes, thamSo, veLaiThe, ghi])
 
@@ -995,8 +999,8 @@ function Ung() {
     const taiDay = menuPhai.noi
     const soChep = boNhoKhoi.steps.length
     const mucDan: MucPhai = {
-      ten: soChep ? `Dán (${soChep} khối)` : 'Dán', icon: 'paste',
-      tat: !soChep, viSao: 'chưa chép khối nào',
+      ten: soChep ? `Dán (${soChep} khối)` : chu('Dán'), icon: 'paste',
+      tat: !soChep, viSao: chu('chưa chép khối nào'),
       onClick: () => danKhoi(taiDay),
     }
 
@@ -1005,20 +1009,20 @@ function Ung() {
     if (menuPhai.loai === 'nhip') return mucNhip(menuPhai.id!)
 
     if (menuPhai.loai === 'day') {
-      return [{ ten: 'Xoá kết nối', icon: 'unlink', onClick: () => xoaDay(menuPhai.id!) }]
+      return [{ ten: chu('Xoá kết nối'), icon: 'unlink', onClick: () => xoaDay(menuPhai.id!) }]
     }
 
     if (menuPhai.loai === 'nen') {
       return [
         mucDan,
         { ngan: true },
-        { ten: 'Thêm Kiểm tra điều kiện', icon: 'check-cond',
+        { ten: chu('Thêm Kiểm tra điều kiện'), icon: 'check-cond',
           onClick: () => themKhoi('action', 'check_cond', taiDay) },
         // Entry chỉ TẠO lệnh, Manage chỉ SỬA lệnh — menu phải nói đúng như ribbon.
         ...(tab === 'entry'
-          ? [{ ten: 'Thêm Vào lệnh', icon: 'vao-lenh',
+          ? [{ ten: chu('Thêm Vào lệnh'), icon: 'vao-lenh',
                onClick: () => themKhoi('action', 'vao_lenh', taiDay) }]
-          : [{ ten: 'Thêm Sửa lệnh', icon: 'sua-lenh',
+          : [{ ten: chu('Thêm Sửa lệnh'), icon: 'sua-lenh',
                onClick: () => themKhoi('action', 'sua_lenh', taiDay) }]),
       ]
     }
@@ -1051,34 +1055,34 @@ function Ung() {
     const coDay = edges.some(e => ids.includes(e.source) || ids.includes(e.target))
 
     return [
-      { ten: 'Sửa', icon: 'edit', tat: nhieu || laStart,
-        viSao: laStart ? 'khối Bắt đầu không có gì để sửa' : 'chỉ sửa được một khối một lúc',
+      { ten: chu('Sửa'), icon: 'edit', tat: nhieu || laStart,
+        viSao: laStart ? chu('khối Bắt đầu không có gì để sửa') : chu('chỉ sửa được một khối một lúc'),
         onClick: () => setDangSua(idNguon) },
-      { ten: 'Đổi tên…', icon: 'edit', tat: nhieu, viSao: 'chỉ đổi tên một khối một lúc',
+      { ten: chu('Đổi tên…'), icon: 'edit', tat: nhieu, viSao: chu('chỉ đổi tên một khối một lúc'),
         onClick: doiTen },
       // Chỉ hiện ở khối Bắt đầu: nhịp là của SƠ ĐỒ, mà khối Bắt đầu là điểm neo của nó.
       ...(laStart && !nhieu
-          ? [{ ten: 'Nhịp chạy', icon: 'motSo', con: mucNhip(idNguon) } as MucPhai]
+          ? [{ ten: chu('Nhịp chạy'), icon: 'motSo', con: mucNhip(idNguon) } as MucPhai]
           : []),
       { ngan: true },
-      { ten: daGhimHet ? 'Bỏ ghim số' : 'Ghim số ⟲', icon: daGhimHet ? 'bo-ghim' : 'ghim',
-        tat: laStart, viSao: 'khối Bắt đầu luôn là số 1, không cần ghim',
+      { ten: daGhimHet ? chu('Bỏ ghim số') : chu('Ghim số ⟲'), icon: daGhimHet ? 'bo-ghim' : 'ghim',
+        tat: laStart, viSao: chu('khối Bắt đầu luôn là số 1, không cần ghim'),
         onClick: doiGhim },
-      { ten: 'Nối tới', icon: 'branch',
+      { ten: chu('Nối tới'), icon: 'branch',
         tat: nhieu || !ungVien.length,
-        viSao: nhieu ? 'chỉ nối được từ một khối' : 'đã nối tới mọi khối còn lại rồi',
+        viSao: nhieu ? chu('chỉ nối được từ một khối') : chu('đã nối tới mọi khối còn lại rồi'),
         con: ungVien },
-      { ten: 'Ngắt hết kết nối', icon: 'unlink', tat: !coDay,
-        viSao: 'khối này chưa có dây nào', onClick: () => ngatKetNoi(ids) },
+      { ten: chu('Ngắt hết kết nối'), icon: 'unlink', tat: !coDay,
+        viSao: chu('khối này chưa có dây nào'), onClick: () => ngatKetNoi(ids) },
       { ngan: true },
-      { ten: nhieu ? `Chép (${ids.length} khối)` : 'Chép', icon: 'copy', onClick: chepKhoi },
+      { ten: nhieu ? `Chép (${ids.length} khối)` : chu('Chép'), icon: 'copy', onClick: chepKhoi },
       mucDan,
-      { ten: nhieu ? `Nhân bản (${ids.length} khối)` : 'Nhân bản', icon: 'plus',
-        tat: laStart && !nhieu, viSao: 'chỉ được một khối Bắt đầu', onClick: nhanBan },
+      { ten: nhieu ? `Nhân bản (${ids.length} khối)` : chu('Nhân bản'), icon: 'plus',
+        tat: laStart && !nhieu, viSao: chu('chỉ được một khối Bắt đầu'), onClick: nhanBan },
       { ngan: true },
-      { ten: nhieu ? `Xoá (${ids.length} khối)` : 'Xoá', icon: 'trash',
+      { ten: nhieu ? `Xoá (${ids.length} khối)` : chu('Xoá'), icon: 'trash',
         tat: laStart && !nhieu,
-        viSao: 'khối Bắt đầu là điểm neo đánh số — không xoá được', onClick: xoa },
+        viSao: chu('khối Bắt đầu là điểm neo đánh số — không xoá được'), onClick: xoa },
     ]
   }, [menuPhai, nodes, edges, dangChon, thuTu, tab, danKhoi, xoaDay, themKhoi, doiTen,
       doiGhim, mucNhip, chepKhoi, nhanBan, noi, ngatKetNoi, xoa])
@@ -1176,83 +1180,83 @@ function Ung() {
       : e)), [edges, quayLai])
 
   const mucLuu: MucMenu[] = [
-    { nhan: 'Lưu', chay: luu },
-    { nhan: 'Lưu thành…', chay: luuThanh },
-    { nhan: 'Lưu ra file khác…', chay: luuRaFile },
+    { nhan: chu('Lưu'), chay: luu },
+    { nhan: chu('Lưu thành…'), chay: luuThanh },
+    { nhan: chu('Lưu ra file khác…'), chay: luuRaFile },
   ]
   const mucMo: MucMenu[] = [
-    { nhan: 'Mở chiến lược (thay toàn bộ)',
-      chay: () => setMoPicker({ tieuDe: 'Mở chiến lược',
+    { nhan: chu('Mở chiến lược (thay toàn bộ)'),
+      chay: () => setMoPicker({ tieuDe: chu('Mở chiến lược'),
                                 xong: t => { setMoPicker(null); moChienLuoc(t) } }) },
-    { nhan: 'Mở từ file khác…', chay: moFile },
+    { nhan: chu('Mở từ file khác…'), chay: moFile },
     // Chữ "Thêm khối" để phân biệt hẳn với "thay toàn bộ" ngay bên trên — hai thứ này
     // mà lẫn nhau thì một cú bấm nhầm xoá sạch sơ đồ đang làm dở.
-    { nhan: 'Thêm khối từ chiến lược khác…',
-      chay: () => setMoPicker({ tieuDe: 'Thêm khối từ chiến lược',
+    { nhan: chu('Thêm khối từ chiến lược khác…'),
+      chay: () => setMoPicker({ tieuDe: chu('Thêm khối từ chiến lược'),
                                 xong: t => { setMoPicker(null); void themKhoiTu(t) } }) },
-    { nhan: 'Sơ đồ mẫu Compress (xem thử)', chay: moMau },
+    { nhan: chu('Sơ đồ mẫu Compress (xem thử)'), chay: moMau },
   ]
 
   /* 4 menu trên thanh tiêu đề. Cố ý KHÔNG tạo hành động mới nào — tất cả trỏ về đúng
      những hàm ribbon đang gọi, nên hai nơi không thể lệch nhau. */
   const menuTieuDe: NhomMenu[] = useMemo(() => [
     { ten: 'File', muc: [
-      { ten: 'Sơ đồ mới', icon: 'plus', onClick: soDoMoi },
-      { ten: 'Mở chiến lược…', icon: 'folder', onClick: () => setMoPicker({
-          tieuDe: 'Mở chiến lược',
+      { ten: chu('Sơ đồ mới'), icon: 'plus', onClick: soDoMoi },
+      { ten: chu('Mở chiến lược…'), icon: 'folder', onClick: () => setMoPicker({
+          tieuDe: chu('Mở chiến lược'),
           xong: t => { setMoPicker(null); moChienLuoc(t) } }) },
-      { ten: 'Mở từ file…', onClick: moFile },
-      { ten: 'Thêm khối từ chiến lược khác…', icon: 'paste',
-        onClick: () => setMoPicker({ tieuDe: 'Thêm khối từ chiến lược',
+      { ten: chu('Mở từ file…'), onClick: moFile },
+      { ten: chu('Thêm khối từ chiến lược khác…'), icon: 'paste',
+        onClick: () => setMoPicker({ tieuDe: chu('Thêm khối từ chiến lược'),
                                      xong: t => { setMoPicker(null); void themKhoiTu(t) } }) },
-      { ten: 'Sơ đồ mẫu Compress (xem thử)', onClick: moMau },
+      { ten: chu('Sơ đồ mẫu Compress (xem thử)'), onClick: moMau },
       { ngan: true },
       // Trỏ thẳng về `chay` — đúng hàm mà nút ▶ trên ribbon gọi, nên hai lối vào không
       // thể lệch nhau (cùng luật với 4 menu còn lại).
-      { ten: 'Mở Strategy Tester', icon: 'chay', phim: 'Ctrl+R', onClick: chay },
-      { ten: 'Mở Live…', icon: 'chay', phim: 'Ctrl+L',
+      { ten: chu('Mở Strategy Tester'), icon: 'chay', phim: 'Ctrl+R', onClick: chay },
+      { ten: chu('Mở Live…'), icon: 'chay', phim: 'Ctrl+L',
         onClick: moLive },
       { ngan: true },
-      { ten: 'Lưu', icon: 'save', phim: 'Ctrl+S', onClick: luu },
-      { ten: 'Lưu thành…', icon: 'save', phim: 'Ctrl+Shift+S', onClick: luuThanh },
-      { ten: 'Lưu ra file khác…', onClick: luuRaFile },
+      { ten: chu('Lưu'), icon: 'save', phim: 'Ctrl+S', onClick: luu },
+      { ten: chu('Lưu thành…'), icon: 'save', phim: 'Ctrl+Shift+S', onClick: luuThanh },
+      { ten: chu('Lưu ra file khác…'), onClick: luuRaFile },
       { ngan: true },
-      { ten: 'Tham số chiến lược…', icon: 'edit', onClick: () => setMoThamSo(true) },
-      { ten: 'Kho — app đang có những gì…', icon: 'folder',
+      { ten: chu('Tham số chiến lược…'), icon: 'edit', onClick: () => setMoThamSo(true) },
+      { ten: chu('Kho — app đang có những gì…'), icon: 'folder',
         onClick: () => setMoKho(true) },
       { ngan: true },
-      { ten: 'Cài đặt…', icon: 'gear', onClick: () => setMoCaiDat(true) },
-      { ten: 'Thoát', onClick: () => py.cua_so_dong() },
+      { ten: chu('Cài đặt…'), icon: 'gear', onClick: () => setMoCaiDat(true) },
+      { ten: chu('Thoát'), onClick: () => py.cua_so_dong() },
     ] },
-    { ten: 'Sửa', muc: [
-      { ten: 'Hoàn tác', icon: 'undo', tat: !coLui, viSao: 'chưa có gì để hoàn tác',
+    { ten: chu('Sửa'), muc: [
+      { ten: chu('Hoàn tác'), icon: 'undo', tat: !coLui, viSao: chu('chưa có gì để hoàn tác'),
         onClick: hoanTac },
-      { ten: 'Làm lại', icon: 'redo', tat: !coToi, viSao: 'chưa hoàn tác gì', onClick: lamLai },
+      { ten: chu('Làm lại'), icon: 'redo', tat: !coToi, viSao: chu('chưa hoàn tác gì'), onClick: lamLai },
       { ngan: true },
-      { ten: 'Chép', icon: 'copy', tat: !dangChon.length, viSao: 'chưa chọn khối nào',
+      { ten: chu('Chép'), icon: 'copy', tat: !dangChon.length, viSao: chu('chưa chọn khối nào'),
         onClick: chepKhoi },
-      { ten: 'Dán', icon: 'paste', onClick: () => danKhoi() },
-      { ten: 'Nhân bản', icon: 'plus', tat: !dangChon.length, viSao: 'chưa chọn khối nào',
+      { ten: chu('Dán'), icon: 'paste', onClick: () => danKhoi() },
+      { ten: chu('Nhân bản'), icon: 'plus', tat: !dangChon.length, viSao: chu('chưa chọn khối nào'),
         onClick: nhanBan },
-      { ten: 'Ghim số ⟲', icon: 'ghim', tat: !dangChon.length,
-        viSao: 'chưa chọn khối nào', onClick: doiGhim },
-      { ten: 'Xoá', icon: 'trash', tat: !dangChon.length, viSao: 'chưa chọn khối nào',
+      { ten: chu('Ghim số ⟲'), icon: 'ghim', tat: !dangChon.length,
+        viSao: chu('chưa chọn khối nào'), onClick: doiGhim },
+      { ten: chu('Xoá'), icon: 'trash', tat: !dangChon.length, viSao: chu('chưa chọn khối nào'),
         onClick: xoa },
     ] },
     { ten: 'Xem', muc: [
-      { ten: 'Phóng to', onClick: () => zoomIn({ duration: 150 }) },
-      { ten: 'Thu nhỏ', onClick: () => zoomOut({ duration: 150 }) },
-      { ten: 'Vừa khung', icon: 'fit', onClick: () => fitView({ padding: 0.2, duration: 300, maxZoom: 1 }) },
+      { ten: chu('Phóng to'), onClick: () => zoomIn({ duration: 150 }) },
+      { ten: chu('Thu nhỏ'), onClick: () => zoomOut({ duration: 150 }) },
+      { ten: chu('Vừa khung'), icon: 'fit', onClick: () => fitView({ padding: 0.2, duration: 300, maxZoom: 1 }) },
       { ngan: true },
-      { ten: panelGap ? 'Hiện bảng dưới' : 'Ẩn bảng dưới', onClick: () => setPanelGap(v => !v) },
+      { ten: panelGap ? chu('Hiện bảng dưới') : chu('Ẩn bảng dưới'), onClick: () => setPanelGap(v => !v) },
     ] },
-    { ten: 'Trợ giúp', muc: [
-      { ten: 'Số = đi được bao xa · Chữ = đi nhánh nào', tat: true,
-        viSao: 'luật đánh số của sơ đồ' },
-      { ten: 'Ghim số ⟲ = cho phép nối ngược về mà vẫn giữ đúng số', tat: true,
-        viSao: 'chuột phải vào khối để ghim' },
+    { ten: chu('Trợ giúp'), muc: [
+      { ten: chu('Số = đi được bao xa · Chữ = đi nhánh nào'), tat: true,
+        viSao: chu('luật đánh số của sơ đồ') },
+      { ten: chu('Ghim số ⟲ = cho phép nối ngược về mà vẫn giữ đúng số'), tat: true,
+        viSao: chu('chuột phải vào khối để ghim') },
       { ten: `Cat Studio ${boot?.phien_ban ?? ''}`.trim(), tat: true,
-        viSao: 'chỉ để xem phiên bản' },
+        viSao: chu('chỉ để xem phiên bản') },
     ] },
   ], [soDoMoi, moFile, moMau, luu, luuThanh, luuRaFile, moChienLuoc, hoanTac, lamLai, coLui, coToi,
       chepKhoi, danKhoi, nhanBan, doiGhim, xoa, dangChon, zoomIn, zoomOut, fitView,
@@ -1300,14 +1304,14 @@ function Ung() {
             nhìn thấy được chứ không chỉ phím Esc. */}
         {soiHopLe && (
           <div className="soi-dai">
-            <span className="soi-nhan">Soi lượt</span>
+            <span className="soi-nhan">{chu('Soi lượt')}</span>
             <span className="soi-chu">{soiHopLe.chu}</span>
             {soiLech && (
-              <span className="soi-canh" title="Có khối trong lượt này không còn trên sơ đồ">
+              <span className="soi-canh" title={chu("Có khối trong lượt này không còn trên sơ đồ")}>
                 sơ đồ đã đổi từ lúc chạy
               </span>
             )}
-            <button className="soi-tat" title="Thôi soi (Esc)"
+            <button className="soi-tat" title={chu("Thôi soi (Esc)")}
                     onClick={() => setSoi(null)}>✕</button>
           </div>
         )}
@@ -1354,12 +1358,12 @@ function Ung() {
             chữ ở đó là chữ đè lên hộp. Chỉ hiện khi chưa nối dây nào. */}
         {edges.length === 0 && nodes.length <= 1 && sanSang && (
           <div className="trong-rong duoi">
-            <div className="to">Bắt đầu từ khối ①</div>
+            <div className="to">{chu('Bắt đầu từ khối ①')}</div>
             <div>
-              Bấm <b>Kiểm tra ĐK</b> ở thanh trên để thêm một nhánh điều kiện, rồi kéo
+              Bấm <b>{chu('Kiểm tra ĐK')}</b> ở thanh trên để thêm một nhánh điều kiện, rồi kéo
               từ cổng bên cạnh hộp <b>Bắt đầu</b> để nối.
-              <br />Nhiều cổng cùng nối từ một khối = <b>rẽ nhánh</b>, thử lần lượt từ
-              trên xuống. Chuột phải vào khối → <b>Ghim số ⟲</b> để cho phép nối ngược
+              <br />Nhiều cổng cùng nối từ một khối = <b>{chu('rẽ nhánh')}</b>, thử lần lượt từ
+              trên xuống. Chuột phải vào khối → <b>{chu('Ghim số ⟲')}</b> để cho phép nối ngược
               về nó mà số vẫn giữ nguyên.
             </div>
           </div>
@@ -1368,7 +1372,7 @@ function Ung() {
 
       <div className={'bang-duoi' + (panelGap ? ' thu-gon' : '')}
            style={{ height: panelGap ? CAO_GAP : panelCao }}>
-        <div className="thanh-keo" onMouseDown={batDauKeoPanel} title="Kéo để chỉnh chiều cao" />
+        <div className="thanh-keo" onMouseDown={batDauKeoPanel} title={chu("Kéo để chỉnh chiều cao")} />
         <div className="hang-tab" onDoubleClick={() => setPanelGap(v => !v)}>
           <button className={'tab' + (tabDuoi === 'van-de' ? ' dang' : '')}
                   onClick={() => { setTabDuoi('van-de'); setPanelGap(false) }}>
@@ -1380,20 +1384,20 @@ function Ung() {
           </button>
           <span className="day" />
           {tabDuoi === 'nhat-ky' && !panelGap &&
-            <button className="nut-nho" onClick={() => setNhatKy([])}>Xoá nhật ký</button>}
+            <button className="nut-nho" onClick={() => setNhatKy([])}>{chu('Xoá nhật ký')}</button>}
           <button className="nut-nho nut-gap" onClick={() => setPanelGap(v => !v)}
-                  title={panelGap ? 'Mở bảng' : 'Gập bảng xuống'}>
+                  title={panelGap ? chu('Mở bảng') : chu('Gập bảng xuống')}>
             {panelGap ? '▲' : '▼'}
           </button>
         </div>
         {!panelGap && <div className="noi-dung-tab">
           {tabDuoi === 'van-de' ? (
             vanDe.length === 0
-              ? <div className="trong">Không có vấn đề nào.</div>
+              ? <div className="trong">{chu('Không có vấn đề nào.')}</div>
               : vanDe.map((v, i) => (
                 <div key={i}
                      className={'dong-van-de ' + (v.severity === 'error' ? 'loi' : 'canh-bao')}
-                     title="Bấm để nhảy tới khối bị lỗi"
+                     title={chu("Bấm để nhảy tới khối bị lỗi")}
                      onClick={() => {
                        // Lỗi có thể ở tab kia — nhảy tab trước rồi mới chọn khối.
                        if (v.tab !== tab) doiTab(v.tab)
@@ -1427,7 +1431,7 @@ function Ung() {
               ))
           ) : (
             nhatKy.length === 0
-              ? <div className="trong">Chưa có gì.</div>
+              ? <div className="trong">{chu('Chưa có gì.')}</div>
               : <div className="nhat-ky">
                   {nhatKy.map((l, i) => (
                     <div key={i} className={'dong-log' + (l.tag ? ' t-' + l.tag : '')}>
@@ -1441,7 +1445,7 @@ function Ung() {
       </div>
 
       <div className="thanh-trang-thai">
-        <button className="nut-tt" onClick={() => setMoCaiDat(true)} title="Cài đặt">
+        <button className="nut-tt" onClick={() => setMoCaiDat(true)} title={chu("Cài đặt")}>
           <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor"
                strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="8" r="4.9" strokeWidth="1.3" />
@@ -1457,21 +1461,21 @@ function Ung() {
         {soLoi > 0 && <span style={{ color: 'var(--err)' }}>{soLoi} lỗi</span>}
         {soCanhBao > 0 && <span style={{ color: 'var(--warn)' }}>{soCanhBao} cảnh báo</span>}
         {quayLai.size > 0 && (
-          <span style={{ color: 'var(--ghim)' }} title="Đường nối quay về khối đã ghim số">
+          <span style={{ color: 'var(--ghim)' }} title={chu("Đường nối quay về khối đã ghim số")}>
             ⟲ {quayLai.size} vòng lặp đã ghim
           </span>
         )}
         {vongHo > 0 && (
-          <span style={{ color: 'var(--warn)' }} title="Ghim khối đích lại để xác nhận là cố ý">
+          <span style={{ color: 'var(--warn)' }} title={chu("Ghim khối đích lại để xác nhận là cố ý")}>
             {vongHo} vòng chưa ghim
           </span>
         )}
         <span className="day" />
         <span>{trangThai}</span>
         <div className="cum-zoom">
-          <button className="nut-zoom" onClick={() => zoomOut()} title="Thu nhỏ">−</button>
-          <button className="nut-zoom" onClick={() => zoomIn()} title="Phóng to">+</button>
-          <button className="nut-zoom" title="Vừa khung"
+          <button className="nut-zoom" onClick={() => zoomOut()} title={chu("Thu nhỏ")}>−</button>
+          <button className="nut-zoom" onClick={() => zoomIn()} title={chu("Phóng to")}>+</button>
+          <button className="nut-zoom" title={chu("Vừa khung")}
                   onClick={() => fitView({ padding: 0.2, duration: 300, maxZoom: 1 })}>
             <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1522,5 +1526,6 @@ function Ung() {
 }
 
 export default function App() {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   return <ReactFlowProvider><Ung /></ReactFlowProvider>
 }

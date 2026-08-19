@@ -40,6 +40,54 @@ from . import bo_chay, core
 _LOAI_TIEN = (core.VAO_LENH,)
 
 
+def chan_som_nhat(doc, kq):
+    """Cổng LUÔN CHẶN **nông nhất** ở Entry → tên toán hạng, hoặc `None`.
+
+    ⭐ Nông nhất mới là THỦ PHẠM; mấy cổng chặn sâu hơn chỉ là hệ quả — chúng chặn vì
+    chẳng bao giờ được xét tới. Trả về đúng một cái tên chứ không cả danh sách: đây là
+    thứ đi lên bảng thống kê của hàng nghìn lượt chạy, và một danh sách thì không gom
+    lại thành con số đếm được.
+
+    ⚠ Chỉ có nghĩa khi `kq` chạy với `dem_khoi=True`.
+
+    Đo được (120 sơ đồ máy vẽ, 6 tháng dữ liệu thật): **56,7%** sơ đồ câm là vì đúng
+    chuyện này, và **48/68** trong số đó chết ngay ở cổng ĐẦU TIÊN. Trước khi có phép
+    đếm này, cả đám ấy chỉ hiện lên bảng dưới một dòng chữ *"không vào lệnh"* — một
+    triệu chứng, không nói được phải sửa gì."""
+    dem = kq.dem_khoi or {}
+    if not dem:
+        return None
+    g = doc.get(core.TAB_ENTRY) or {}
+    st = {s["id"]: s for s in (g.get("steps") or [])}
+    con = {}
+    for e in (g.get("edges") or []):
+        con.setdefault(e["from"], []).append(e["to"])
+    bd = next((s["id"] for s in (g.get("steps") or []) if core.is_start_step(s)), None)
+    if bd is None:
+        return None
+    sau, q = {bd: 0}, [bd]
+    while q:
+        x = q.pop(0)
+        for y in con.get(x, ()):
+            if y not in sau:
+                sau[y] = sau[x] + 1
+                q.append(y)
+    tot = None
+    for i, s in st.items():
+        if s.get("type") != core.CHECK_COND:
+            continue
+        d = dem.get(i)
+        if not d or not d[1] or d[2]:          # chưa xét lần nào, hoặc CÓ khớp
+            continue
+        if tot is None or sau.get(i, 99) < sau.get(tot, 99):
+            tot = i
+    if tot is None:
+        return None
+    return " VÀ ".join(
+        (c.get("trai") or {}).get("ten") or "?"
+        for c in (st[tot].get("conditions") or ())) or "?"
+
+
 def theo_khoi(kq, cd=None):
     """Bảng phân bổ của MỘT lượt chạy.
 

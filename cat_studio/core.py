@@ -11,6 +11,7 @@ import json
 import uuid
 
 from . import kho
+from .ngon_ngu import bang as _bang, chu as _chu
 from . import luu_tru
 
 PHIEN_BAN = "0.2"
@@ -143,6 +144,20 @@ TOAN_HANG_KEYS = kho.TOAN_HANG_KEYS
 NHOM_LENH_NAY = kho.NHOM_LENH_NAY
 TOAN_HANG_LABELS = {t["key"]: t["nhan"] for t in TOAN_HANG}
 TOAN_HANG_NHOM = {t["key"]: t["nhom"] for t in TOAN_HANG}
+
+
+def nhan_toan_hang(ten):
+    """Nhãn người đọc của một toán hạng, THEO NGÔN NGỮ ĐANG DÙNG (§18.14).
+
+    ⚠ Dịch LÚC ĐỌC chứ không lúc dựng bảng: `TOAN_HANG_LABELS` dựng một lần lúc import,
+    mà ngôn ngữ đổi giữa chừng — dịch lúc dựng thì bảng đóng băng theo ngôn ngữ lúc mở
+    app, và đổi cài đặt không ăn cho tới lần mở sau."""
+    return _chu(TOAN_HANG_LABELS.get(ten, ten or "?"))
+
+
+def nhan_nhom(ten):
+    """Nhóm của toán hạng, theo ngôn ngữ đang dùng."""
+    return _chu(TOAN_HANG_NHOM.get(ten, ten))
 TOAN_HANG_THAMSO = {t["key"]: t["tham_so"] for t in TOAN_HANG}
 
 # KÝ HIỆU, không phải chữ. Một cổng của Compress mang 4–5 điều kiện; viết "lớn hơn
@@ -617,8 +632,8 @@ def step_title(step):
     if ten:
         return ten
     if is_start_step(step):
-        return "Bắt đầu"
-    return ACTION_LABELS.get(step.get("type"), "Hành động")
+        return _chu("Bắt đầu")
+    return _chu(ACTION_LABELS.get(step.get("type"), "Hành động"))
 
 
 # ---------------------------------------------------------------------------
@@ -687,7 +702,7 @@ def toan_hang_display(o, tham_so=None):
     if not isinstance(o, dict):
         return str(o)
     ten = o.get("ten") or ""
-    nhan = TOAN_HANG_LABELS.get(ten, ten or "?")
+    nhan = nhan_toan_hang(ten)
     phan = []
     for k in TOAN_HANG_THAMSO.get(ten, []):
         v = o.get(k)
@@ -725,7 +740,8 @@ def ve_phai_display(c, tham_so=None):
     if isinstance(p, dict):
         s_ = _so_hoac_ten(p.get("value"), tham_so)
         dv = p.get("tinh")
-        return f"{s_} {DON_VI[dv]}" if dv and dv in DON_VI and dv != "gia" else s_
+        return (f"{s_} {_chu(DON_VI[dv])}"
+                if dv and dv in DON_VI and dv != "gia" else s_)
     return _so_hoac_ten(p, tham_so)
 
 
@@ -738,9 +754,9 @@ def cond_display(c, tham_so=None):
     phep = (c or {}).get("phep")
     # Toán hạng đúng/sai không có vế phải — `là ĐÚNG` / `là SAI` đã là cả mệnh đề.
     if phep in PHEP_KHONG_VE_PHAI:
-        return f"{toan_hang_display(trai, tham_so)} {PHEP_SO.get(phep, '?')}"
+        return f"{toan_hang_display(trai, tham_so)} {_chu(PHEP_SO.get(phep, '?'))}"
     return (f"{toan_hang_display(trai, tham_so)} "
-            f"{PHEP_SO.get(phep, '?')} "
+            f"{_chu(PHEP_SO.get(phep, '?'))} "
             f"{ve_phai_display(c, tham_so)}")
 
 
@@ -752,20 +768,22 @@ def action_display(a, tham_so=None):
     if t == CHECK_COND:
         ds = a.get("conditions") or []
         if not ds:
-            return dau + "Kiểm tra điều kiện — CHƯA có điều kiện nào"
+            return dau + _chu("Kiểm tra điều kiện — CHƯA có điều kiện nào")
         if len(ds) == 1:
             return dau + cond_display(ds[0], tham_so)
-        return dau + " VÀ ".join(cond_display(c, tham_so) for c in ds)
+        return dau + f" {_chu('VÀ')} ".join(cond_display(c, tham_so) for c in ds)
 
     if t == VAO_LENH:
-        p = [f"Vào lệnh {HUONG.get(a.get('huong'), '?')} "
-             f"{LOAI_LENH.get(a.get('loai'), '?')}",
-             f"rủi ro {_so_hoac_ten(a.get('rui_ro'), tham_so)} % vốn"]
+        p = [f"{_chu('Vào lệnh')} {_chu(HUONG.get(a.get('huong'), '?'))} "
+             f"{_chu(LOAI_LENH.get(a.get('loai'), '?'))}",
+             f"{_chu('rủi ro')} {_so_hoac_ten(a.get('rui_ro'), tham_so)}"
+             f" {_chu('% vốn')}"]
         # Lệnh chờ LUÔN neo vào mép vùng nén thuận chiều (đỉnh cho Mua, đáy cho Bán) —
         # đó là chỗ duy nhất Compress EA đặt lệnh, nên không có tham số "neo vào đâu".
         # `dem` chỉ là khoảng đẩy ra NGOÀI mép đó.
         if a.get("loai") in ("stop", "limit") and a.get("dem"):
-            p.append(f"đệm {khoang_display(a['dem'], tham_so)} ngoài mép vùng")
+            p.append(f"{_chu('đệm')} {khoang_display(a['dem'], tham_so)}"
+                     f" {_chu('ngoài mép vùng')}")
         if a.get("sl"):
             p.append(f"SL {khoang_display(a['sl'], tham_so)}")
         if a.get("tp"):
@@ -774,12 +792,12 @@ def action_display(a, tham_so=None):
 
     if t == SUA_LENH:
         cd = a.get("che_do")
-        s = SUA_CHE_DO.get(cd, "?")
+        s = _chu(SUA_CHE_DO.get(cd, "?"))
         if cd in SUA_CAN_GIA and a.get("khoang"):
             s += f" {khoang_display(a['khoang'], tham_so)}"
         return dau + s
 
-    return dau + ACTION_LABELS.get(t, str(t))
+    return dau + _chu(ACTION_LABELS.get(t, str(t)))
 
 
 def dong_khoi(a, tham_so=None, tab=None):
@@ -792,43 +810,46 @@ def dong_khoi(a, tham_so=None, tab=None):
     if is_start_step(a):
         # Nhịp do PYTHON sinh ra từ khoá `nhip`, không phải chữ gõ tay trong `name`.
         # Bản cũ ghi thẳng "Mỗi nến M5" vào tên khối, nên đổi nhịp thì khối vẫn ghi M5.
-        ds = [f"Mỗi nến {a.get('nhip') or NHIP_MAC_DINH[TAB_ENTRY]}"]
+        ds = [f"{_chu('Mỗi nến')} {a.get('nhip') or NHIP_MAC_DINH[TAB_ENTRY]}"]
         if tab == TAB_MANAGE:
             # Không phải chuyện đặt tên: Manage chạy MỘT LƯỢT CHO MỖI lệnh đang sống.
             # Đó là cấu trúc, nên phải hiện ra dù người dùng đặt tên khối là gì.
-            ds.append("một lượt cho MỖI lệnh đang sống")
+            ds.append(_chu("một lượt cho MỖI lệnh đang sống"))
         return ds
 
     t = (a or {}).get("type")
 
     if t == CHECK_COND:
-        ds = [cond_display(c, tham_so) for c in a.get("conditions") or []]             or ["chưa có điều kiện nào — luôn khớp"]
+        ds = [cond_display(c, tham_so) for c in a.get("conditions") or []]             or [_chu("chưa có điều kiện nào — luôn khớp")]
         # CỔNG ZONE phải nhìn thấy được trên hộp. Nó không chỉ hỏi — nó ĐỊNH NGHĨA
         # zone cho mọi khối phía sau, và đó là chuyện lớn nhất một cổng có thể làm.
         if a.get("cong_zone"):
-            ds.insert(0, "⬗ CỔNG ZONE · ĐẾM — qua thì zone lớn, trượt thì zone chết")
+            ds.insert(0, _chu("⬗ CỔNG ZONE · ĐẾM — qua thì zone lớn, "
+                              "trượt thì zone chết"))
             # ĐỊNH NGHĨA "hợp lệ" nằm ngay dưới phần đếm, trong CÙNG một khối. Hai danh
             # sách, hai việc, và ranh giới là "trượt vế này nghĩa là gì": nén HỎNG thì ở
             # trên (zone chết), CHƯA TỚI LÚC thì ở dưới (zone sống, chờ tiếp).
             if a.get("dk_hop_le"):
-                ds.append("⬗ HỢP LỆ khi — zone vẫn sống dù chưa đạt")
+                ds.append(_chu("⬗ HỢP LỆ khi — zone vẫn sống dù chưa đạt"))
                 ds += [cond_display(c, tham_so) for c in a["dk_hop_le"]]
         return ds
 
     def khoang(k):
         return (f"{_so_hoac_ten(k.get('value'), tham_so)} "
-                f"{DON_VI_NGAN.get(k.get('tinh'), '?')}")
+                f"{_chu(DON_VI_NGAN.get(k.get('tinh'), '?'))}")
 
     if t == VAO_LENH:
-        ds = [f"{HUONG.get(a.get('huong'), '?')} · {LOAI_LENH.get(a.get('loai'), '?')}"
-              f" · rủi ro {_so_hoac_ten(a.get('rui_ro'), tham_so, hien_ten=False)} %"]
+        ds = [f"{_chu(HUONG.get(a.get('huong'), '?'))} · "
+              f"{_chu(LOAI_LENH.get(a.get('loai'), '?'))}"
+              f" · {_chu('rủi ro')} "
+              f"{_so_hoac_ten(a.get('rui_ro'), tham_so, hien_ten=False)} %"]
         # MỐC NEO đứng TRƯỚC đệm — nó mới là thứ quyết định lệnh nằm ở đâu. Bản cũ
         # chỉ hiện đệm, nên tấm khiên mỏng hoá thành nhân vật chính.
         moc = (a.get("entry") or {}).get("moc")
         if moc:
-            ds.append(f"tại {MOC_ENTRY.get(moc, moc)}")
+            ds.append(f"{_chu('tại')} {_chu(MOC_ENTRY.get(moc, moc))}")
         if a.get("dem"):
-            ds.append(f"đệm {khoang(a['dem'])}")
+            ds.append(f"{_chu('đệm')} {khoang(a['dem'])}")
         for k, nhan in (("sl", "SL"), ("tp", "TP")):
             if a.get(k):
                 ds.append(f"{nhan} {khoang(a[k])}")
@@ -836,11 +857,11 @@ def dong_khoi(a, tham_so=None, tab=None):
 
     if t == SUA_LENH:
         cd = a.get("che_do")
-        s_ = SUA_CHE_DO.get(cd, "?")
+        s_ = _chu(SUA_CHE_DO.get(cd, "?"))
         if cd in SUA_CAN_GIA and a.get("moc"):
             # Mốc đứng TRƯỚC khoảng, cùng lý lẽ với khối Vào lệnh: mốc quyết định SL
             # nằm ở đâu, khoảng chỉ nhích ra khỏi mốc đó.
-            s_ += f" tại {MOC_ENTRY.get(a['moc'], a['moc'])}"
+            s_ += f" {_chu('tại')} {_chu(MOC_ENTRY.get(a['moc'], a['moc']))}"
         if cd in SUA_CAN_GIA and a.get("khoang"):
             s_ += f" {khoang(a['khoang'])}"
         return [s_]
