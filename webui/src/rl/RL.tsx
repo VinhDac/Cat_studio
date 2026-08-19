@@ -398,7 +398,7 @@ export default function RL() {
         <div className="rl-tab-noi">
           {!coKhoa ? (
             <div className="rl-train">
-              ⚠ Chưa đặt <b>{chu('đoạn khoá')}</b>. Mở <b>{chu('Dữ liệu')}</b> và điền hai ô «khoá từ /
+              ⚠ Chưa đặt <b>{chu('đoạn khoá')}</b>{chu('. Mở')} <b>{chu('Dữ liệu')}</b> và điền hai ô «khoá từ /
               đến» — một khoảng KHÔNG nằm trong train. Không có nó thì mọi con số trên
               màn hình vẫn chỉ là <b>{chu('số TRAIN')}</b>, đo trên chính đoạn máy vừa đào bới.
             </div>
@@ -411,7 +411,7 @@ export default function RL() {
           ) : (
             <>
               <div className="rl-train">
-                Đoạn khoá <b>{khoa.tu} → {khoa.den}</b> · đã mở <b>{khoa.da_mo}</b> lần.
+                {chu('Đoạn khoá')} <b>{khoa.tu} → {khoa.den}</b> {chu('· đã mở')} <b>{khoa.da_mo}</b> lần.
                 {' '}Rơi từ train xuống là <b>{chu('bình thường')}</b> — train đã bị đào bới hàng
                 nghìn lượt. Quan trọng là nó còn <b>{chu('dương')}</b> hay không. Rơi qua âm nghĩa
                 là sơ đồ ấy chỉ tồn tại trong đoạn train.

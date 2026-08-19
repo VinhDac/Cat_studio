@@ -9,6 +9,7 @@
  */
 import { EN2 } from './i18n_en2'
 import { EN3 } from './i18n_en3'
+import { EN4 } from './i18n_en4'
 
 /** ⚠ MỘT bảng duy nhất, gom từ nhiều MẢNH. Tách file chỉ vì độ dài — chia thành hai
  *  bảng để hai chỗ tra thì "tra bảng nào trước" thành một câu hỏi không có đáp án đúng. */
@@ -243,4 +244,4 @@ const MANH: Record<string, string> = {
     'that window is already open. Click it on the taskbar.',
 }
 
-export const EN: Record<string, string> = { ...MANH, ...EN2, ...EN3 }
+export const EN: Record<string, string> = { ...MANH, ...EN2, ...EN3, ...EN4 }

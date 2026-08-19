@@ -183,7 +183,7 @@ export default function Ribbon(p: RibbonProps) {
           với việc đang làm. */}
       <Nhom ten={chu("Thêm khối")}>
         <Nut ten={chu("Kiểm tra ĐK")} icon={I.branch} onClick={p.themKiemTra}
-             title={'Thêm cổng "Kiểm tra điều kiện" — nối nhiều cổng vào cùng một khối '
+             title={(chu('Thêm cổng "Kiểm tra điều kiện" — nối nhiều cổng vào cùng một khối') + ' ')
                     + 'để chia nhánh. Khớp thì đi nhánh đó, không khớp thì thử nhánh dưới.'} />
         {p.tab === 'entry' && (
           <Nut ten={chu("Vào lệnh")} icon={I.vao} onClick={p.themVaoLenh}
@@ -209,7 +209,7 @@ export default function Ribbon(p: RibbonProps) {
              title={chu("Biến khối đang chọn thành khối ① — khối chạy đầu tiên")} />
         <Nut ten={p.chonDaGhim ? chu('Bỏ ghim') : chu('Ghim số')} icon={I.ghim}
              onClick={p.doiGhim} tat={!p.coChon}
-             title={'Ghim số của khối đang chọn: mọi đường nối quay ngược về nó vẫn giữ '
+             title={(chu('Ghim số của khối đang chọn: mọi đường nối quay ngược về nó vẫn giữ') + ' ')
                     + 'đúng số cũ, và không còn cảnh báo vòng lặp'} />
         <Nut ten={chu("Vừa khung")} icon={I.fit} onClick={p.vuaKhung}
              title={chu("Thu cả sơ đồ vào vừa màn hình")} />
@@ -230,7 +230,7 @@ export default function Ribbon(p: RibbonProps) {
           bấm nó sẽ đem sơ đồ trên màn hình đi đâu đó. */}
       <Nhom ten="RL">
         <Nut ten={chu("Tìm")} icon={I.rl} onClick={p.rl}
-             title={'Mở cửa sổ RL — máy tự tìm chiến lược trong đúng kho đồ và luật '
+             title={(chu('Mở cửa sổ RL — máy tự tìm chiến lược trong đúng kho đồ và luật') + ' ')
                     + 'chơi này. Kết quả là một sơ đồ đọc được, mở ra sửa tay được.'} />
       </Nhom>
 

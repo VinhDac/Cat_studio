@@ -209,7 +209,7 @@ function OToanHang({ o, boot, tab, dat, hep, thamSo, coZone, boDungSai }: {
             .forEach(x => { if (x !== el) (x as HTMLDetailsElement).open = false })
         }}>
           <summary className="ctl-banh-rang"
-                   title={'Cài đặt cho ' + (dinh?.nhan ?? chu('toán hạng này'))}>
+                   title={(chu('Cài đặt cho') + ' ') + (dinh?.nhan ?? chu('toán hạng này'))}>
             ⚙
           </summary>
           <div className="menu-th-noi">
@@ -602,7 +602,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
           <label className="tick-cochet"
                  title={[
                    chu('Bật: mọi dòng so HAI ĐẠI LƯỢNG (Giá đóng cửa > MA)')
-                   + ' — không có ô số, không có đơn vị.',
+                   + (' ' + chu('— không có ô số, không có đơn vị.')),
                    chu('Tắt: mọi dòng so với một GIÁ TRỊ bạn đặt (số · tham số · đúng/sai).'),
                    '',
                    chu('Muốn cả hai kiểu trong một cổng thì nối HAI cổng — nối tiếp là VÀ.'),
@@ -618,7 +618,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
       {a.type === 'check_cond' && (
         <div className="khoi-form">
           <div className="chu-dan">
-            Mọi dòng phải cùng đúng thì mới khớp (<b>VÀ</b>). Muốn <b>HOẶC</b> thì tách
+            Mọi dòng phải cùng đúng thì mới khớp (<b>{chu('VÀ')}</b>). Muốn <b>HOẶC</b> thì tách
             ra thành hai nhánh riêng trên sơ đồ — nhìn sơ đồ là thấy được, còn chữ
             chu("hoặc") giấu trong hộp thoại thì không.
           </div>
@@ -717,7 +717,7 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
 
           <div className="chu-dan">
             Khối lượng <b>{chu('không phải một ô nhập')}</b> nữa — bộ chạy tính
-            <code> lot = vốn × rủi ro% ÷ (khoảng cách SL × contract size)</code>.
+            <code> {chu('lot = vốn × rủi ro% ÷ (khoảng cách SL × contract size)')}</code>.
             Nhờ đó mọi lệnh mạo hiểm <b>{chu('một R bằng nhau')}</b>, và đường tiền nói cùng một
             chuyện với tổng R.
           </div>
@@ -820,16 +820,16 @@ export default function ActionDialog({ action, boot, tab, thamSo, coZone,
           {a.che_do === 'hoa_von' && (
             <div className="chu-dan">
               Không có tham số: chế độ này chỉ đặt <b>{chu('SL = giá vào')}</b>. Mốc kích hoạt
-              (lãi đủ mấy R) và câu hỏi <b>{chu('"đã dời chưa"')}</b> thuộc về <b>cổng phía
+              (lãi đủ mấy R) và câu hỏi <b>{chu('"đã dời chưa"')}</b> {chu('thuộc về')} <b>cổng phía
               trước</b> — chỗ nhìn thấy được. D_02 giấu cả ba trong <code>ManageBreakEven</code>.
             </div>
           )}
 
           {a.che_do === 'ket_thuc' && (
             <div className="chu-dan">
-              Không có tham số. Manage chạy <b>một lượt cho MỖI lệnh đang sống</b>, nên
+              Không có tham số. Manage chạy <b>{chu('một lượt cho MỖI lệnh đang sống')}</b>, nên
               chu("lệnh này") là duy nhất và bộ chạy tự biết nó đã khớp hay chưa:
-              <b> khớp rồi thì đóng, chưa khớp thì huỷ</b>. Trước đây là hai chế độ
+              <b> {chu('khớp rồi thì đóng, chưa khớp thì huỷ')}</b>. Trước đây là hai chế độ
               riêng — chọn nhầm thì hành động im lặng không làm gì.
             </div>
           )}

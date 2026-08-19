@@ -42,7 +42,7 @@ export default function TemplatePicker({ tieuDe, choPhepXoa = true, onChon, onDo
   return (
     <Modal title={tieuDe} width={460} onClose={onDong}
            footer={<>
-             {choPhepXoa && <button className="nut" disabled={!chon} onClick={xoa}><Icon name="trash" /> Xoá</button>}
+             {choPhepXoa && <button className="nut" disabled={!chon} onClick={xoa}><Icon name="trash" /> {chu('Xoá')}</button>}
              {onDuyetFile && <button className="nut" onClick={onDuyetFile}>{chu('Duyệt file khác…')}</button>}
              <span className="day" />
              <button className="nut" onClick={onDong}>{chu('Huỷ')}</button>

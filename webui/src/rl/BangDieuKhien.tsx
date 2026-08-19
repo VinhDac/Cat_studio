@@ -95,7 +95,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
           {/* ⚠ Con số lớn là SỐ SỐNG, không phải điểm cao nhất. Điểm cao nhất đã đo
               được là chuyện may rủi; "có mấy cái sống" thì không. */}
           <div className="bdk-to bdk-tot">{tt.qua_cong_don ?? 0}
-            <em> qua cửa</em></div>
+            <em> {chu('qua cửa')}</em></div>
           {/* Vì sao đám kia CHẾT — xếp theo số lượng, vì đó là thứ mách nên chỉnh gì:
               rớt "đều" nhiều → không gian nghèo; nã lệnh nhiều → siết trần; không lệnh
               nhiều → kho đồ đang bày ra sơ đồ câm. */}
@@ -119,7 +119,7 @@ export default function BangDieuKhien({ tt, nhan, dangChay, tongNhan, dauBang,
 
         {/* -------------------------------------------------------------- MÁY */}
         <section className="rl-o bdk-o">
-          <div className="bdk-ten">MÁY</div>
+          <div className="bdk-ten">{chu('MÁY')}</div>
           <div className="bdk-to">{daDung}<em> / {tongNhan} nhân</em></div>
           {/* ⭐ Kéo là ĂN NGAY. Máy tìm chạy hàng giờ trong chính app đang mở, nên
               "nhường lại máy" mà bắt dừng lượt chạy mới làm được thì không ai dùng.

@@ -58,7 +58,7 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
         cùng một ý nghĩa trên vàng, forex, crypto và chỉ số.
         <br />
         <b>{chu('Đơn vị quyết định tham số này dùng được ở đâu:')}</b> ô số chỉ mời những tham
-        số mang <b>{chu('đúng')}</b> đơn vị của nó — nên <code>chu_ky_atr</code> (nến) không bao
+        số mang <b>{chu('đúng')}</b> {chu('đơn vị của nó — nên')} <code>chu_ky_atr</code> (nến) không bao
         giờ hiện ra ở ô Stop Loss. Một cái tên chỉ mang một nghĩa; cần hai nghĩa thì đặt
         hai tham số.
       </div>
@@ -144,7 +144,7 @@ export default function ThamSoDialog({ dsGoc, boot, dangDung, onLuu, onDong }: {
       <div className="hang nut-hang">
         <button className="nut" onClick={() => setDs(x => [...x, {
           ten: `tham_so_${x.length + 1}`, nhan: '', gia_tri: 1, don_vi: '', ghi_chu: '',
-        }])}><Icon name="plus" /> Thêm tham số</button>
+        }])}><Icon name="plus" /> {chu('Thêm tham số')}</button>
       </div>
     </Modal>
   )

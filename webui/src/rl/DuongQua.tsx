@@ -78,8 +78,8 @@ export default function DuongQua({ duong, daCham, tong, dangChay }: {
       </svg>
       <div className="rl-plot-chu">
         {phang > 0
-          ? <>phẳng <b>{phang.toLocaleString('vi-VN')}</b> lượt gần nhất
-              {phang > xMax * 0.35 && <span className="rl-mach"> — dừng được rồi</span>}</>
+          ? <>{chu('phẳng')} <b>{phang.toLocaleString('vi-VN')}</b> lượt gần nhất
+              {phang > xMax * 0.35 && <span className="rl-mach"> {chu('— dừng được rồi')}</span>}</>
           : <>{chu('vừa có thêm một cái qua cửa')}</>}
       </div>
     </div>

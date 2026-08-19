@@ -2324,6 +2324,15 @@ def validate_process(doc):
 
     # Đặt CUỐI: đây là lời khuyên, không phải lỗi. Lỗi thật phải nằm trên đầu bảng.
     ra += _soat_so_lap(doc)
+    # ⭐ MỘT CỬA cho cả 235 câu người soát mắng (§18.14). Dịch ở đây chứ không đi bọc
+    # `chu()` quanh từng câu: 235 chỗ sửa là 235 dịp bỏ sót, và câu nào cũng đi qua đây.
+    #
+    # ⚠ Câu có nội suy (`f'Tham số "{ten}" bị khai {n} lần…'`) thì tới đây đã thành một
+    # chuỗi DUY NHẤT mang số liệu, tra từ điển không khớp — nó ở lại tiếng Việt. Muốn
+    # dịch nhóm ấy phải đổi chúng thành KHUÔN có chỗ trống rồi `.format()`, và đó là
+    # một đợt riêng, không nhét vào đây được.
+    for v in ra:
+        v["message"] = _chu(v["message"])
     return ra
 
 

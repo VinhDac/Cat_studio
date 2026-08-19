@@ -72,8 +72,14 @@ def bang(d):
     return {k: chu(v) for k, v in d.items()}
 
 
+from .ngon_ngu_kho import KHO
+
 #: TỪ ĐIỂN — khoá là câu tiếng Việt nguyên văn trong mã.
-EN = {
+#:
+#: ⚠ MỘT bảng, gom từ nhiều MẢNH (`ngon_ngu_*.py`). Tách file chỉ vì độ dài — chia
+#: thành hai bảng để hai chỗ tra thì *"tra bảng nào trước"* thành một câu hỏi không có
+#: đáp án đúng.
+_GOC = {
     # ---------------------------------------------------------- loại khối
     "Kiểm tra điều kiện": "Check condition",
     "Vào lệnh": "Open order",
@@ -157,3 +163,5 @@ EN = {
         "⬗ VALID when — the zone stays alive even before it qualifies",
     "tại": "at",
 }
+
+EN = {**_GOC, **KHO}

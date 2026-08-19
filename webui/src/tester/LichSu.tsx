@@ -81,13 +81,13 @@ export default function LichSu({ dangXem, onXem, onMoLai }: {
           {m.nguon.symbol} · {m.cai_dat.tu} → {m.cai_dat.den}
         </div>
         <div className="ls-nut" onClick={e => e.stopPropagation()}>
-          <button title="Mở lại — chạy lại sơ đồ và cài đặt đã cất"
+          <button title={chu("Mở lại — chạy lại sơ đồ và cài đặt đã cất")}
                   onClick={() => { onMoLai(m.ma); setMo(false) }}>▶</button>
-          <button title={m.ten ? 'Đổi tên' : 'Lưu lại — đặt tên thì không bị cuốn chiếu'}
+          <button title={m.ten ? chu('Đổi tên') : chu('Lưu lại — đặt tên thì không bị cuốn chiếu')}
                   onClick={() => { setDangSua(m.ma); setTen(m.ten || tenGoiY(m)) }}>
             {m.ten ? '✎' : '⭳'}
           </button>
-          <button title="Xoá khỏi lịch sử" onClick={() => void xoa(m.ma)}>✕</button>
+          <button title={chu("Xoá khỏi lịch sử")} onClick={() => void xoa(m.ma)}>✕</button>
         </div>
         {dangSua === m.ma && (
           <div className="ls-sua" onClick={e => e.stopPropagation()}>
@@ -112,18 +112,18 @@ export default function LichSu({ dangXem, onXem, onMoLai }: {
     <div className="ls" ref={boc} data-khong-keo>
       <button className={'ls-nut-mo' + (mo ? ' dang' : '') + (dangXem ? ' khac' : '')}
               onClick={() => setMo(v => !v)}
-              title="Lịch sử các lần chạy">
+              title={chu("Lịch sử các lần chạy")}>
         ⏱ Lịch sử
       </button>
       {mo && (
         <div className="ls-bang">
-          {ds.length === 0 && <div className="ls-rong">chưa có lần chạy nào được ghi</div>}
+          {ds.length === 0 && <div className="ls-rong">{chu('chưa có lần chạy nào được ghi')}</div>}
           {daLuu.length > 0 && <>
-            <div className="ls-muc">Đã lưu</div>
+            <div className="ls-muc">{chu('Đã lưu')}</div>
             {daLuu.map(hang)}
           </>}
           {mem.length > 0 && <>
-            <div className="ls-muc">Gần đây <span>tự lưu · cuốn chiếu 20 mục</span></div>
+            <div className="ls-muc">{chu('Gần đây')} <span>{chu('tự lưu · cuốn chiếu 20 mục')}</span></div>
             {mem.map(hang)}
           </>}
         </div>

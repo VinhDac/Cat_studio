@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import {
   BarSeries, CandlestickSeries, LineSeries, LineStyle, LineType, createChart,
@@ -37,13 +38,13 @@ import type { ChangRay, LenhVe } from '../types'
 const HOA = 0.005
 
 const VIEC_CHU: Record<string, string> = {
-  lenh_dat: 'đặt lệnh', lenh_sua: 'sửa', lenh_dong: 'đóng tay', lenh_huy: 'huỷ',
+  lenh_dat: chu('đặt lệnh'), lenh_sua: chu('sửa'), lenh_dong: chu('đóng tay'), lenh_huy: chu('huỷ'),
 }
 const MOC_CHU: Record<string, string> = {
-  khop: 'khớp', sl: 'chạm SL', tp: 'chạm TP', het_du_lieu: 'hết dữ liệu',
+  khop: chu('khớp'), sl: chu('chạm SL'), tp: chu('chạm TP'), het_du_lieu: chu('hết dữ liệu'),
   // Lệnh chờ còn treo lúc hết dữ liệu — khác hẳn "khối Huỷ chờ đã huỷ nó", mà bộ chạy
   // lại dùng chung một chuỗi `ly_do_dong` cho cả hai. Nói rõ ra để không lẫn.
-  huy: 'còn treo lúc hết dữ liệu', dong: 'đóng',
+  huy: chu('còn treo lúc hết dữ liệu'), dong: chu('đóng'),
 }
 
 export interface NenM1 { t: number; o: number; h: number; l: number; c: number }
@@ -222,6 +223,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
    *  Live mà giữ 60.000 nến là tải cả lịch sử về chỉ để hiện một màn hình. */
   tranNen?: number
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const boc = useRef<HTMLDivElement>(null)
   const chart = useRef<IChartApi | null>(null)
   // Kiểu series đổi theo , nên giữ ở dạng chung — mọi thứ ta gọi trên nó
@@ -629,7 +631,7 @@ export default function Chart({ tfPhut, digits, lenh, tBayGio, batDau, them, dat
                bottom: hien.y > (boc.current?.clientHeight ?? 400) / 2
                  ? (boc.current?.clientHeight ?? 400) - hien.y + 14 : undefined,
              }}>
-          <b>{hien.l.id}</b> {hien.l.huong === 'mua' ? '▲ Mua' : '▼ Bán'} {hien.l.lot}
+          <b>{hien.l.id}</b> {hien.l.huong === 'mua' ? '▲ Mua' : chu('▼ Bán')} {hien.l.lot}
           <div>đặt {hien.l.gia_dat?.toFixed(digits)} · {gio(hien.l.t_dat)}</div>
           {hien.l.t_khop != null && hien.l.t_khop <= tBayGio && (
             <div>vào {hien.l.gia_khop?.toFixed(digits)} · {gio(hien.l.t_khop)}</div>

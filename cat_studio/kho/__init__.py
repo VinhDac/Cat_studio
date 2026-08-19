@@ -21,6 +21,7 @@ cổng người dùng vẽ). Còn giữ một module mang tên một chiến lư
 người đọc tưởng phải "chọn engine". Bảng số của D_02 đi theo sơ đồ mẫu. Xem core.md
 §15.3 · §15.4.
 """
+from .. import ngon_ngu
 from . import chi_bao, nen_tang, zone
 
 # Thứ tự CÓ Ý NGHĨA: dropdown toán hạng xổ ra theo đúng thứ tự này.
@@ -99,19 +100,35 @@ def tabs_cho_phep(key):
     return (THEO_KEY.get(key) or {}).get("tabs")
 
 
+#: Trường nào của một mục kho là CHỮ NGƯỜI ĐỌC. Mọi trường khác là khoá máy dùng —
+#: dịch nhầm một khoá là hộp thoại tra không ra gì. core.md §18.14
+_TRUONG_CHU = ("nhan", "mo_ta", "nhom", "ten", "cong_thuc", "ghi_chu", "don_vi_hien")
+
+
+def _dich(x):
+    """Bản DỊCH của một mục kho — chỉ đụng mấy trường chữ, giữ nguyên phần còn lại.
+
+    ⚠ Dịch LÚC ĐỌC, không lúc dựng danh sách: `TOAN_HANG` dựng một lần lúc import, mà
+    ngôn ngữ đổi giữa chừng. Dịch lúc dựng thì kho đóng băng theo ngôn ngữ lúc mở app."""
+    return {k: (ngon_ngu.chu(v) if k in _TRUONG_CHU and isinstance(v, str) else v)
+            for k, v in x.items()}
+
+
 def danh_muc():
-    """Toàn bộ kho, đã chia mục — hộp thoại "Kho" vẽ thẳng từ cái này."""
+    """Toàn bộ kho, đã chia mục — hộp thoại "Kho" vẽ thẳng từ cái này.
+
+    Chữ đã theo NGÔN NGỮ đang dùng (§18.14)."""
     return {
         "module": [{
             "ma_so": m.MA_SO,
-            "ten": m.TEN,
-            "mo_ta": m.MO_TA,
+            "ten": ngon_ngu.chu(m.TEN),
+            "mo_ta": ngon_ngu.chu(m.MO_TA),
             "nguon": getattr(m, "NGUON", ""),
             "so_chi_bao": len(getattr(m, "CHI_BAO", [])),
             "so_toan_hang": len(getattr(m, "TOAN_HANG", [])),
             "so_bang": len(getattr(m, "BANG_TRANG_THAI", [])),
         } for m in MODULE],
-        "chi_bao": CHI_BAO,
-        "toan_hang": TOAN_HANG,
-        "bang_trang_thai": BANG_TRANG_THAI,
+        "chi_bao": [_dich(x) for x in CHI_BAO],
+        "toan_hang": [_dich(x) for x in TOAN_HANG],
+        "bang_trang_thai": [_dich(x) for x in BANG_TRANG_THAI],
     }

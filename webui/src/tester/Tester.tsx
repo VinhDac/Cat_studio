@@ -81,7 +81,7 @@ export default function Tester() {
       try {
         await cho_cau_noi('bootstrap_tester')
         const r = await pyTester.bootstrap_tester()
-        if (!r.ok || !r.value) return setLoi(r.error ?? 'không nạp được')
+        if (!r.ok || !r.value) return setLoi(r.error ?? chu('không nạp được'))
         datNgon((r.value as { ngon_ngu?: string }).ngon_ngu === 'en' ? 'en' : 'vi')
         if (r.value.accent) {
           document.documentElement.style.setProperty('--accent', r.value.accent)
@@ -102,15 +102,15 @@ export default function Tester() {
      được với treo, nên phải THẤY nó đang chạy tới đâu. */
   const chay = async (ma?: string) => {
     setLoi(''); setPhat(false); setKq(null); setXemLS(null)
-    setTt({ dang_chay: true, da: 0, tong: 0, chu: 'đang nạp nến…', xong: null, loi: null })
+    setTt({ dang_chay: true, da: 0, tong: 0, chu: chu('đang nạp nến…'), xong: null, loi: null })
     // `ma` = MỞ LẠI một mục lịch sử: Python lấy sơ đồ và cài đặt từ chính mục đó, không
     // phải từ cửa sổ chính — nếu không thì "mở lại" ra một lần chạy khác hẳn.
     const r = ma ? await pyTester.test_lich_su_chay(ma) : await pyTester.test_chay({})
-    if (!r.ok) { setTt(null); return setLoi(r.error ?? 'chạy hỏng') }
+    if (!r.ok) { setTt(null); return setLoi(r.error ?? chu('chạy hỏng')) }
     for (;;) {
       await new Promise(k => setTimeout(k, 200))
       const s = await pyTester.test_trang_thai()
-      if (!s.ok || !s.value) { setTt(null); return setLoi(s.error ?? 'mất kết nối') }
+      if (!s.ok || !s.value) { setTt(null); return setLoi(s.error ?? chu('mất kết nối')) }
       setTt(s.value)
       if (s.value.dang_chay) continue
       if (s.value.loi) { setTt(null); return setLoi(s.value.loi) }
@@ -411,25 +411,25 @@ export default function Tester() {
         {/* `() => chay()` chứ KHÔNG phải `chay`: truyền thẳng thì React đưa cả đối tượng
             sự kiện vào tham số `ma`, và nút này hoá ra đi mở lại một mục lịch sử. */}
         <button className="nut chinh" onClick={() => void chay()}
-                disabled={!!tt?.dang_chay}>↻ Chạy lại</button>
+                disabled={!!tt?.dang_chay}>{chu('↻ Chạy lại')}</button>
         {/* Đứng cạnh "Chạy lại" chứ không nhét vào cụm phát lại: hai nút này nói về CẢ
             LƯỢT CHẠY (đưa về đầu · đưa về cuối), còn năm nút kia đi từng bước quanh chỗ
             đang đứng. Trộn vào nhau thì cụm phát lại có hai nút nhảy cóc nằm lẫn giữa
             các nút đi bộ. */}
         <button className="nut" onClick={() => void veCuoi()}
-                disabled={!kq} title="Nhảy tới cuối lượt chạy">⇥ Về cuối</button>
+                disabled={!kq} title={chu("Nhảy tới cuối lượt chạy")}>{chu('⇥ Về cuối')}</button>
         <span className="tb-ngan" />
-        {nut('dau', 'Về SỰ KIỆN trước', () => void luiSuKien(), false, !kq)}
-        {nut('undo', 'Lùi 1 nến  (←)', () => void lui(), false, !kq)}
+        {nut('dau', chu('Về SỰ KIỆN trước'), () => void luiSuKien(), false, !kq)}
+        {nut('undo', chu('Lùi 1 nến  (←)'), () => void lui(), false, !kq)}
         <button className="tb-nut rong" disabled={!kq} onClick={() => setPhat(v => !v)}
-                title={(phat ? chu('Dừng') : 'Phát — nến hình thành từng cây như live')
+                title={(phat ? chu('Dừng') : chu('Phát — nến hình thành từng cây như live'))
                        + '  (Space)'}>
           {phat ? '❚❚' : '▶'}
         </button>
-        {nut('redo', 'Tới 1 nến  (→)', tien, false, !kq)}
-        {nut('cuoi', 'Tới SỰ KIỆN kế tiếp', () => void toiSuKien(), false, !kq)}
+        {nut('redo', chu('Tới 1 nến  (→)'), tien, false, !kq)}
+        {nut('cuoi', chu('Tới SỰ KIỆN kế tiếp'), () => void toiSuKien(), false, !kq)}
         <select className="o nho" value={toc} onChange={e => setToc(+e.target.value)}
-                title="Tốc độ phát">
+                title={chu("Tốc độ phát")}>
           {TOC.map(x => <option key={x} value={x}>{x}×</option>)}
         </select>
         <span className="tb-ngan" />
@@ -445,7 +445,7 @@ export default function Tester() {
             không gõ nổi. Bấm vào ô thì nó nạp mốc hiện tại — vẫn "đi tiếp từ chỗ đang
             đứng" mà không phải ô điều khiển chung. */}
         <input type="datetime-local" className="o tb-moc" step={60} disabled={!kq}
-               title="Nhảy tới mốc thời gian"
+               title={chu("Nhảy tới mốc thời gian")}
                min={kq ? chuoiMoc(kq.t_dau) : undefined}
                max={kq ? chuoiMoc(kq.t_cuoi) : undefined}
                value={moc}
@@ -457,7 +457,7 @@ export default function Tester() {
                onKeyDown={e => { if (e.key === 'Enter') toiMoc(e.currentTarget.value, true) }} />
         <span className="tb-day" />
         {lo.current && <span className="tb-gio">{gio(nenTai(lo.current, j - lo.current.j0).t)}</span>}
-        {nut('copy', 'Bảng số liệu', () => setHienBang(v => !v), hienBang)}
+        {nut('copy', chu('Bảng số liệu'), () => setHienBang(v => !v), hienBang)}
       </div>
 
       {tt?.dang_chay && (
@@ -487,7 +487,7 @@ export default function Tester() {
           công cụ: tay đang ở đâu thì nút ở đó. */}
       {kq && (
         <BangDuoi epTab={xemLS ? 'thong-ke' : undefined} epLan={lanXem} tabs={[
-          { khoa: 'nhat-ky', nhan: 'Nhật ký', dem: dong.length,
+          { khoa: 'nhat-ky', nhan: chu('Nhật ký'), dem: dong.length,
             ve: () => <Journey dong={dong} jBayGio={j} nhay={async i => {
                                  setPhat(false)
                                  const r = await pyTester.test_luot(i)
@@ -506,9 +506,9 @@ export default function Tester() {
                         if (r.ok && r.value) alert(`Đã ghi:
 ${r.value.duong_dan}`)
                       }}
-                      title="Ghi TOÀN BỘ nhật ký ra .jsonl">Ghi ra file</button>
+                      title={chu("Ghi TOÀN BỘ nhật ký ra .jsonl")}>Ghi ra file</button>
             </> },
-          { khoa: 'thong-ke', nhan: 'Thống kê',
+          { khoa: 'thong-ke', nhan: chu('Thống kê'),
             ve: () => <ThongKe nguon={xemLS} thoiXem={() => { setXemLS(null); setMaLS(null) }} /> },
           // ⭐ MỔ XẺ — chỗ MỘT con số của cả sơ đồ tách thành một con số cho MỖI khối.
           // Xem docstring `MoXe.tsx`.

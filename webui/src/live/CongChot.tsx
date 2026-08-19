@@ -58,7 +58,7 @@ export default function CongChot({ boot, xong }: {
   return (
     /* ✕ ĐÓNG HẲN CỬA SỔ, không phải đóng hộp thoại. Bỏ qua cổng chốt thì còn lại một
        cửa sổ Live rỗng không biết mình đang chạy gì — tệ hơn hẳn so với đóng luôn. */
-    <Modal title="Chạy Live — chốt trước khi bắt đầu" width={540} khoaNen khoaEsc
+    <Modal title={chu("Chạy Live — chốt trước khi bắt đầu")} width={540} khoaNen khoaEsc
            onClose={() => void pyLive.cua_so_dong()}
            footer={
              <>
@@ -69,11 +69,11 @@ export default function CongChot({ boot, xong }: {
                          const r = await pyLive.live_chon(chon, symbol.trim().toUpperCase())
                          if (!r.ok) return setLoi(r.error ?? chu('không chạy được'))
                          xong(r.value!.ten, r.value!.symbol)
-                       }}>● Bắt đầu</button>
+                       }}>{chu('● Bắt đầu')}</button>
              </>
            }>
       <label className="hang">
-        <span className="nhan-o">Chiến lược</span>
+        <span className="nhan-o">{chu('Chiến lược')}</span>
         <select className="o" value={chon} onChange={e => setChon(e.target.value)}>
           {boot.goi_y && <option value="">{boot.goi_y} — đang mở ở cửa sổ vẽ</option>}
           {boot.ds_luu.map(t => <option key={t} value={t}>{t}</option>)}
@@ -85,7 +85,7 @@ export default function CongChot({ boot, xong }: {
         <input className="o" value={symbol} spellCheck={false}
                onChange={e => setSymbol(e.target.value.toUpperCase())} />
         <button className="nut" disabled={dangKiem} onClick={() => void kiem(symbol)}>
-          {dangKiem ? chu('đang nối…') : 'Kiểm tra'}
+          {dangKiem ? chu('đang nối…') : chu('Kiểm tra')}
         </button>
       </label>
 
@@ -94,7 +94,7 @@ export default function CongChot({ boot, xong }: {
           Một "Chiến lược 1" mới tinh qua được cái trước nhưng trượt cái sau. */}
       {soDo && soDo.loi.length > 0 && (
         <div className="cd-ket-noi hong">
-          <div>⚠ Sơ đồ chưa chạy Live được:</div>
+          <div>{chu('⚠ Sơ đồ chưa chạy Live được:')}</div>
           {soDo.loi.map((m, k) => <div key={k} className="phu">· {m}</div>)}
         </div>
       )}
@@ -118,7 +118,7 @@ export default function CongChot({ boot, xong }: {
       )}
 
       <div className="chu-dan">
-        Chạy <b>chế độ QUAN SÁT</b> — nối, đo, soi vấn đề, <b>không đặt lệnh nào</b>.
+        {chu('Chạy')} <b>{chu('chế độ QUAN SÁT')}</b> — nối, đo, soi vấn đề, <b>{chu('không đặt lệnh nào')}</b>.
         Sơ đồ còn lỗi thì Python chặn ở đây, không cho qua.
       </div>
     </Modal>

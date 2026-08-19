@@ -43,7 +43,7 @@ export interface BangCat {
 /** ⚠ BỌC `memo` ở cuối file — `k` chỉ đổi mỗi lần làm mới (một phút một lần ở Live),
  *  còn cửa sổ thì vẽ lại mỗi giây. */
 function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
-  if (!k) return <div className="bang-trong">chưa chạy</div>
+  if (!k) return <div className="bang-trong">{chu('chưa chạy')}</div>
 
   const so = (v: unknown) => {
     if (v === null || v === undefined) return '—'
@@ -79,7 +79,7 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
           Lệnh đang sống <span className="dem">{k.lenh.length}</span>
         </div>
         {k.lenh.length === 0
-          ? <div className="bang-rong">không có lệnh nào</div>
+          ? <div className="bang-rong">{chu('không có lệnh nào')}</div>
           : k.lenh.map(l => (
             <div className={'the-lenh' + (l.da_khop ? '' : ' cho')} key={l.id}>
               <div className="d1">
@@ -88,7 +88,7 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
                 </span>
                 <span className="ma">{l.id}</span>
                 <span className="tt">
-                  {l.da_khop ? 'đã khớp' : `chờ ${l.loai === 'limit' ? 'Limit' : 'Stop'}`}
+                  {l.da_khop ? chu('đã khớp') : `chờ ${l.loai === 'limit' ? 'Limit' : 'Stop'}`}
                 </span>
                 <span className={'r ' + ((l.lai_R ?? 0) >= 0 ? 'lai' : 'lo')}>
                   {l.lai_R == null ? '' : `${l.lai_R.toFixed(2)} R`}
@@ -98,7 +98,7 @@ function BangSoLieu({ k, digits }: { k: BangCat | null; digits: number }) {
                 <span><i>{l.da_khop ? 'vào' : chu('đặt')}</i>{gia(l.da_khop ? l.gia_vao : l.gia_dat)}</span>
                 <span><i>SL</i>{gia(l.sl)}
                   {/* Chấm hoà vốn nằm cạnh SL chứ không cạnh id: nó nói về SL. */}
-                  {l.sl_hoa_von && <b className="cham" title="SL đã ở hoà vốn" />}
+                  {l.sl_hoa_von && <b className="cham" title={chu("SL đã ở hoà vốn")} />}
                 </span>
                 <span><i>TP</i>{gia(l.tp)}</span>
               </div>

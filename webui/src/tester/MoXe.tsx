@@ -46,28 +46,28 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
   const bam = useCallback(async (khoi: string) => {
     setDangThu(khoi)
     const r = await thuBo(khoi)
-    setThu(t => ({ ...t, [khoi]: r.ok && r.value ? r.value : { loi: r.error || 'hỏng' } }))
+    setThu(t => ({ ...t, [khoi]: r.ok && r.value ? r.value : { loi: r.error || chu('hỏng') } }))
     setDangThu(null)
   }, [thuBo])
 
   if (loi) return <div className="mx-trong">{loi}</div>
-  if (!pb) return <div className="mx-trong">chưa chạy lần nào</div>
+  if (!pb) return <div className="mx-trong">{chu('chưa chạy lần nào')}</div>
 
   return (
     <div className="mx">
       {tieu && <div className="mx-tieu">{tieu}</div>}
       <div className="mx-nhac">
-        Mỗi dòng là <b>một phần của sơ đồ</b>, không phải cả sơ đồ. Bấm
-        {' '}<b>thử bỏ</b> để cắt nhánh ấy đi rồi chạy lại — kết quả hiện
-        {' '}<b>theo từng quý</b>, cố ý không gộp thành một số.
+        Mỗi dòng là <b>{chu('một phần của sơ đồ')}</b>, không phải cả sơ đồ. Bấm
+        {' '}<b>{chu('thử bỏ')}</b> để cắt nhánh ấy đi rồi chạy lại — kết quả hiện
+        {' '}<b>{chu('theo từng quý')}</b>, cố ý không gộp thành một số.
       </div>
 
-      <div className="mx-ten">TIỀN RA TỪ ĐÂU</div>
-      {pb.tien.length === 0 ? <div className="mx-trong">sơ đồ không có khối Vào lệnh nào</div> : (
+      <div className="mx-ten">{chu('TIỀN RA TỪ ĐÂU')}</div>
+      {pb.tien.length === 0 ? <div className="mx-trong">{chu('sơ đồ không có khối Vào lệnh nào')}</div> : (
         <table className="mx-bang">
           <thead><tr>
-            <th>{chu('khối')}</th><th>đến</th><th>{chu('lệnh')}</th><th>đã đóng</th>
-            <th>tiền $</th><th>R</th><th>thắng/thua</th><th />
+            <th>{chu('khối')}</th><th>{chu('đến')}</th><th>{chu('lệnh')}</th><th>{chu('đã đóng')}</th>
+            <th>{chu('tiền $')}</th><th>R</th><th>{chu('thắng/thua')}</th><th />
           </tr></thead>
           <tbody>
             {pb.tien.map(x => (
@@ -86,10 +86,10 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
         </table>
       )}
 
-      <div className="mx-ten">CỔNG CHẶN CÁI GÌ</div>
+      <div className="mx-ten">{chu('CỔNG CHẶN CÁI GÌ')}</div>
       <table className="mx-bang">
         <thead><tr>
-          <th>cổng</th><th>xét</th><th>khớp</th><th>tỉ lệ</th><th>ghi chú</th><th />
+          <th>{chu('cổng')}</th><th>{chu('xét')}</th><th>{chu('khớp')}</th><th>{chu('tỉ lệ')}</th><th>{chu('ghi chú')}</th><th />
         </tr></thead>
         <tbody>
           {pb.cong.map(x => (
@@ -103,8 +103,8 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
                 {!x.xet ? 'chưa bao giờ được xét'
                   : x.luon_chan ? 'LUÔN CHẶN — mọi khối dưới là trang trí'
                   : x.luon_khop ? (x.zone
-                      ? 'luôn khớp, nhưng là cổng ZONE — nó vẫn nuôi vùng nén, KHÔNG bỏ được'
-                      : 'luôn khớp — có thể thừa')
+                      ? chu('luôn khớp, nhưng là cổng ZONE — nó vẫn nuôi vùng nén, KHÔNG bỏ được')
+                      : chu('luôn khớp — có thể thừa'))
                   : ''}
               </td>
             </Hang>
@@ -114,9 +114,9 @@ export default function MoXe({ sanSang, nap, thuBo, tieu }: {
 
       {pb.chac_bo_duoc.length > 0 && (
         <>
-          <div className="mx-ten">CHẮC CHẮN BỎ ĐƯỢC</div>
+          <div className="mx-ten">{chu('CHẮC CHẮN BỎ ĐƯỢC')}</div>
           <div className="mx-nhac">
-            Dòng chảy <b>chưa bao giờ tới</b> mấy khối này, nên gỡ ra là kết quả không
+            Dòng chảy <b>{chu('chưa bao giờ tới')}</b> mấy khối này, nên gỡ ra là kết quả không
             đổi một xu — không cần chạy lại để biết.
           </div>
           {pb.chac_bo_duoc.map(x => (
@@ -143,8 +143,8 @@ function Hang({ khoi, thu, dang, onThu, cot, children }: {
         {children}
         <td>
           <button className="nut-nho" disabled={dang} onClick={() => onThu(khoi)}
-                  title="Cắt nhánh này rồi chạy lại, so theo từng quý">
-            {dang ? 'đang chạy…' : 'thử bỏ'}
+                  title={chu("Cắt nhánh này rồi chạy lại, so theo từng quý")}>
+            {dang ? chu('đang chạy…') : chu('thử bỏ')}
           </button>
         </td>
       </tr>
@@ -179,7 +179,7 @@ function KetQuaBo({ t }: { t: ThuBo }) {
       </div>
       <div className="mx-nho">
         cả dải: điểm {t.truoc.diem} → {t.sau.diem} · lệnh {t.truoc.so_lenh} → {t.sau.so_lenh}
-        {' · '}⚠ con số gộp này <b>không</b> dùng để quyết — xem hàng quý ở trên.
+        {' · '}⚠ con số gộp này <b>{chu('không')}</b> dùng để quyết — xem hàng quý ở trên.
       </div>
     </div>
   )

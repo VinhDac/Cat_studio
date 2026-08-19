@@ -250,9 +250,9 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
       <div className="cd-muc">{chu('Luật sàn')}</div>
       <div className="chu-dan">
         {doDuoc
-          ? <>Đang dùng <b>{chu('số ĐO ĐƯỢC')}</b> từ <b>{doDuoc.nguon}</b> ({doDuoc.do_luc}).
+          ? <>{chu('Đang dùng')} <b>{chu('số ĐO ĐƯỢC')}</b> {chu('từ')} <b>{doDuoc.nguon}</b> ({doDuoc.do_luc}).
               Mấy ô dưới là dự phòng, hồ sơ hiệu chuẩn thắng — đo được luôn đúng hơn gõ tay.</>
-          : <>Chưa hiệu chuẩn <b>{tSymbol}</b> lần nào, nên đang dùng <b>{chu('số gõ tay')}</b> dưới
+          : <>{chu('Chưa hiệu chuẩn')} <b>{tSymbol}</b> {chu('lần nào, nên đang dùng')} <b>{chu('số gõ tay')}</b> dưới
               đây. Nối sàn rồi chạy hiệu chuẩn thì app tự lấy số thật.</>}
       </div>
       <div className="hang cd-hang">
@@ -293,7 +293,7 @@ export default function SettingsDialog({ boot, doiMauNgay, lamMoiBoot, onDong }:
           {tSymbol}: 1 point = {bo.point} · spread {spread} points ={' '}
           <b>{(spread * bo.point).toFixed(3)} USD</b>
           {bo.spread_tb != null && (
-            <> · trung vị đo được trên dữ liệu đã tải: <b>{bo.spread_tb} points</b></>
+            <> {chu('· trung vị đo được trên dữ liệu đã tải:')} <b>{bo.spread_tb} points</b></>
           )}
         </div>
       )}

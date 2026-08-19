@@ -32,14 +32,14 @@ export default function ThongKe({ nguon, thoiXem }: {
     void pyTester.test_thong_ke().then(r => {
       if (!song) return
       if (r.ok && r.value) setHienTai(r.value)
-      else setLoi(r.error || 'không đọc được thống kê')
+      else setLoi(r.error || chu('không đọc được thống kê'))
     })
     return () => { song = false }
   }, [nguon])
 
   const d = nguon ? nguon.tom_tat : hienTai
   if (loi) return <div className="tk-trong">{loi}</div>
-  if (!d) return <div className="tk-trong">đang tính…</div>
+  if (!d) return <div className="tk-trong">{chu('đang tính…')}</div>
 
   const t = d.tk
   const tien = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2,
@@ -56,9 +56,9 @@ export default function ThongKe({ nguon, thoiXem }: {
           Đang xem lần chạy cũ
           <b>{nguon.ten || gio(nguon.t)}</b>
           {nguon.chay_lai_duoc
-            ? <span className="tk-phu">bấm ▶ trong Lịch sử để mở lại xem phát lại</span>
+            ? <span className="tk-phu">{chu('bấm ▶ trong Lịch sử để mở lại xem phát lại')}</span>
             : <span className="tk-canh">⚠ {nguon.vi_sao} — không mở lại phát lại được</span>}
-          <button className="nut-nho" onClick={thoiXem}>Về lần chạy hiện tại</button>
+          <button className="nut-nho" onClick={thoiXem}>{chu('Về lần chạy hiện tại')}</button>
         </div>
       )}
       <div className="tk-khoang">
@@ -74,45 +74,45 @@ export default function ThongKe({ nguon, thoiXem }: {
 
       <div className="tk-so">
         <Nhom ten={chu("Vốn")} hang={[
-          ['vốn đầu', tien(t.von_dau)],
-          ['vốn cuối', tien(t.von_cuoi)],
-          ['lãi ròng', `${dau(t.lai_tien)}${tien(t.lai_tien)}`, lop(t.lai_tien)],
+          [chu('vốn đầu'), tien(t.von_dau)],
+          [chu('vốn cuối'), tien(t.von_cuoi)],
+          [chu('lãi ròng'), `${dau(t.lai_tien)}${tien(t.lai_tien)}`, lop(t.lai_tien)],
           ['', `${dau(t.lai_pt)}${t.lai_pt.toFixed(2)} %`, lop(t.lai_pt)],
-          ['tổng R', `${dau(t.tong_R)}${t.tong_R.toFixed(2)}`, lop(t.tong_R)],
+          [chu('tổng R'), `${dau(t.tong_R)}${t.tong_R.toFixed(2)}`, lop(t.tong_R)],
         ]} />
-        <Nhom ten="Lệnh" hang={[
-          ['đã đặt', String(t.so_lenh)],
-          ['đã khớp', String(t.so_dong)],
-          ['đã huỷ', String(t.so_huy)],
-          ['lượt chạy', t.so_luot.toLocaleString('en-US')],
+        <Nhom ten={chu("Lệnh")} hang={[
+          [chu('đã đặt'), String(t.so_lenh)],
+          [chu('đã khớp'), String(t.so_dong)],
+          [chu('đã huỷ'), String(t.so_huy)],
+          [chu('lượt chạy'), t.so_luot.toLocaleString('en-US')],
         ]} />
-        <Nhom ten="Thắng / thua" hang={[
-          ['thắng', String(t.thang)],
+        <Nhom ten={chu("Thắng / thua")} hang={[
+          [chu('thắng'), String(t.thang)],
           ['thua', String(t.thua)],
-          ['tỷ lệ thắng', `${t.ty_le_thang.toFixed(1)} %`],
-          ['chuỗi thua dài nhất', String(t.chuoi_thua)],
+          [chu('tỷ lệ thắng'), `${t.ty_le_thang.toFixed(1)} %`],
+          [chu('chuỗi thua dài nhất'), String(t.chuoi_thua)],
         ]} />
-        <Nhom ten="Chất lượng" hang={[
-          ['R mỗi lệnh', `${dau(t.R_moi_lenh)}${t.R_moi_lenh.toFixed(3)}`, lop(t.R_moi_lenh)],
-          ['R khi thắng', `+${t.R_khi_thang.toFixed(2)}`, 'lai'],
+        <Nhom ten={chu("Chất lượng")} hang={[
+          [chu('R mỗi lệnh'), `${dau(t.R_moi_lenh)}${t.R_moi_lenh.toFixed(3)}`, lop(t.R_moi_lenh)],
+          [chu('R khi thắng'), `+${t.R_khi_thang.toFixed(2)}`, 'lai'],
           ['R khi thua', t.R_khi_thua.toFixed(2), 'lo'],
           // `null` = chưa có lệnh lỗ nào, KHÔNG phải 0 — hai chuyện khác hẳn nhau.
-          ['hệ số lãi', t.he_so_lai == null ? '—' : t.he_so_lai.toFixed(2),
+          [chu('hệ số lãi'), t.he_so_lai == null ? '—' : t.he_so_lai.toFixed(2),
            t.he_so_lai != null && t.he_so_lai >= 1 ? 'lai' : 'lo'],
         ]} />
         <Nhom ten={chu("Rủi ro")} hang={[
-          ['sụt giảm lớn nhất', `${t.drawdown_pt.toFixed(2)} %`, 'lo'],
+          [chu('sụt giảm lớn nhất'), `${t.drawdown_pt.toFixed(2)} %`, 'lo'],
           ['', `${tien(t.drawdown_tien)} $`, 'lo'],
-          ['chạm đáy lúc', t.drawdown_luc ? gio(t.drawdown_luc) : '—'],
-          ['nến mơ hồ', String(t.nen_mo_ho)],
+          [chu('chạm đáy lúc'), t.drawdown_luc ? gio(t.drawdown_luc) : '—'],
+          [chu('nến mơ hồ'), String(t.nen_mo_ho)],
         ]} />
       </div>
 
-      <Do ten="Đường vốn — chốt theo lệnh đã đóng" cao={190} kieu="von"
+      <Do ten={chu("Đường vốn — chốt theo lệnh đã đóng")} cao={190} kieu="von"
           ds={d.duong_von.map(x => ({ t: x[0], v: x[1] }))} moc={t.von_dau}
           nhanY={v => Math.round(v).toLocaleString('en-US')}
           nhanO={v => `${tien(v)} $`} />
-      <Do ten="Sụt giảm từ đỉnh vốn" cao={120} kieu="sut"
+      <Do ten={chu("Sụt giảm từ đỉnh vốn")} cao={120} kieu="sut"
           ds={d.duong_von.map(x => ({ t: x[0], v: x[2] }))} moc={0}
           nhanY={v => v.toFixed(2)}
           nhanO={v => `${v.toFixed(2)} %`} />
@@ -187,7 +187,7 @@ function Do({ ten, cao, ds, moc, kieu, nhanY, nhanO }: {
   }, [ds, moc])
 
   if (!g) return <div className="tk-do"><div className="tk-do-ten">{ten}</div>
-    <div className="tk-rong" style={{ height: cao }}>chưa có lệnh nào đóng</div></div>
+    <div className="tk-rong" style={{ height: cao }}>{chu('chưa có lệnh nào đóng')}</div></div>
 
   const pt = (e: React.MouseEvent) => {
     const r = boc.current?.getBoundingClientRect()

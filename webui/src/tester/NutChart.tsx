@@ -1,3 +1,4 @@
+import { chu, useNgon } from '../i18n'
 import IconNet from '../components/Icon'
 import type { KieuChart } from './Chart'
 
@@ -10,9 +11,9 @@ import type { KieuChart } from './Chart'
  * badge tài khoản. Nghĩa nằm ở `title`, rê chuột là ra.
  */
 const KIEU: [KieuChart, string, string][] = [
-  ['nen', 'kieu-nen', 'Nến'],
+  ['nen', 'kieu-nen', chu('Nến')],
   ['bar', 'kieu-bar', 'Thanh (bar)'],
-  ['line', 'kieu-line', 'Đường'],
+  ['line', 'kieu-line', chu('Đường')],
 ]
 
 export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
@@ -33,6 +34,7 @@ export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
   /** `null` = đang bám nến hiện tại, nút tắt. Nút sáng thường trực là một nút chết. */
   veHienTai: (() => void) | null
 }) {
+  useNgon()   // đổi ngôn ngữ → vẽ lại (xem `i18n.ts`)
   const nut = (icon: string, ten: string, on: () => void, bat = false, tat = false) => (
     <button className={'tb-nut' + (bat ? ' bat' : '')} title={ten}
             disabled={tat} onClick={on}><IconNet name={icon} size={15} /></button>
@@ -41,24 +43,24 @@ export default function NutChart({ tf, dsTf, datTf, kieu, datKieu, mauThuong,
   return (
     <>
       <select className="o nho" value={tf} onChange={e => datTf(+e.target.value)}
-              title="Khung hiển thị — chỉ đổi CÁCH VẼ">
+              title={chu("Khung hiển thị — chỉ đổi CÁCH VẼ")}>
         {dsTf.map(([t, p]) => <option key={t} value={p}>{t}</option>)}
       </select>
       <span className="tb-ngan" />
       {KIEU.map(([k, ic, ten]) =>
         <span key={k}>{nut(ic, ten, () => datKieu(k), kieu === k)}</span>)}
       <span className="tb-ngan" />
-      {nut('ve-mau', mauThuong ? 'Nến về màu xám (để dành xanh/đỏ cho lãi lỗ)'
-                               : 'Nến xanh/đỏ như thường',
+      {nut('ve-mau', mauThuong ? chu('Nến về màu xám (để dành xanh/đỏ cho lãi lỗ)')
+                               : chu('Nến xanh/đỏ như thường'),
            () => datMau(!mauThuong), mauThuong)}
-      {nut('an-lenh', hienLenh ? 'Ẩn visual vào lệnh / sửa lệnh' : 'Hiện lại visual lệnh',
+      {nut('an-lenh', hienLenh ? chu('Ẩn visual vào lệnh / sửa lệnh') : chu('Hiện lại visual lệnh'),
            () => datHienLenh(!hienLenh), !hienLenh)}
       {/* Zone là PHÔNG NỀN. Mặc định bật, nhưng lệnh mới là nhân vật chính — thấy
           vướng là tắt được ngay, không phải chịu đựng. */}
-      {nut('zone', hienZone ? 'Ẩn phông zone (vùng nén)' : 'Hiện phông zone (vùng nén)',
+      {nut('zone', hienZone ? chu('Ẩn phông zone (vùng nén)') : chu('Hiện phông zone (vùng nén)'),
            () => datHienZone(!hienZone), !hienZone)}
       {/* Chỉ bấm được khi đã kéo lệch khỏi mép phải — xem chú thích `veHienTai`. */}
-      {nut('ve-nay', 'Về nến hiện tại', () => veHienTai?.(), false, !veHienTai)}
+      {nut('ve-nay', chu('Về nến hiện tại'), () => veHienTai?.(), false, !veHienTai)}
     </>
   )
 }

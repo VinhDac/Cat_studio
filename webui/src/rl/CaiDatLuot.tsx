@@ -49,7 +49,7 @@ export interface DieuKhien {
 /* ---- suy ra từ cài đặt. MỘT chỗ, vì `RL.tsx` cũng đọc mấy thứ này ---- */
 export const kyCham = (cua: Record<string, unknown>) => (cua.ky as string) ?? 'tuan'
 export const tenKyCua = (cua: Record<string, unknown>) =>
-  (kyCham(cua) === 'thang' ? 'tháng' : 'tuần')
+  (kyCham(cua) === 'thang' ? chu('tháng') : chu('tuần'))
 /** Vế DAO ĐỘNG có tham gia không — `0` chỉ nhìn lãi · `1` cân bằng. */
 export const manhDeuCua = (cua: Record<string, unknown>) =>
   (cua.manh_deu as number | null) ?? 1
@@ -59,7 +59,7 @@ export const cuonCua = (dat: Record<string, unknown>) =>
 export const buocCua = (dat: Record<string, unknown>) => String(dat.buoc_cuon ?? 'quy')
 
 export const TEN_BUOC: Record<string, string> = {
-  thang: 'tháng', quy: 'quý', nua_nam: 'nửa năm' }
+  thang: chu('tháng'), quy: chu('quý'), nua_nam: chu('nửa năm') }
 
 /** Bảng bật/tắt THẺ — dùng chung cho trang "Kho đồ" và "Thang số".
  *
@@ -92,14 +92,14 @@ function ChonThe({ nhom, tat, datTat }: {
             <div className="rl-nhom-ten">
               <span>{g.nhan}{g.don_vi && <em> · {g.don_vi}</em>}</span>
               <button onClick={() => caNhom(g, off < g.muc.length)}>
-                {off < g.muc.length ? 'tắt hết' : 'bật hết'}
+                {off < g.muc.length ? chu('tắt hết') : chu('bật hết')}
               </button>
             </div>
             <div className="rl-chip-hang">
               {g.muc.map(m => (
                 <button key={m.the}
                         title={m.z ? 'cần cổng zone đứng trước (§12.6c)'
-                                   : m.manage ? 'chỉ dùng được ở sơ đồ Manage' : ''}
+                                   : m.manage ? chu('chỉ dùng được ở sơ đồ Manage') : ''}
                         className={'rl-chip' + (tat.has(m.the) ? ' tat' : '')}
                         onClick={() => bat(m.the)}>
                   {m.nhan}
@@ -125,7 +125,7 @@ function TrangKhoDo({ d }: { d: DieuKhien }) {
   return (
     <>
           <p className="rl-giai">
-            Tắt bớt là <b>lần này tôi không muốn dùng</b> — không phải "cái này hỏng".
+            Tắt bớt là <b>{chu('lần này tôi không muốn dùng')}</b> — không phải chu("cái này hỏng").
             Luật thì không tắt được.
           </p>
           <ChonThe nhom={nhomKho} tat={tat} datTat={setTat} />
@@ -142,14 +142,14 @@ function TrangThangSo({ d }: { d: DieuKhien }) {
   return (
     <>
           <p className="rl-giai">
-            Máy <b>không dò số tự do</b>, nó chọn nấc. Đo được: dò SL thang mịn bước
+            {chu('Máy')} <b>{chu('không dò số tự do')}</b>, nó chọn nấc. Đo được: dò SL thang mịn bước
             0,1 trên 2025 ra <i>2,7</i> — thắng năm đó, nhưng sang ba năm chưa thấy thì
             THUA cả bản thô <i>3,0</i>. Hai nấc cạnh nhau lệch trung bình 5,11 R: đó là
             nhiễu, không phải tín hiệu.
           </p>
           <ChonThe nhom={nhomThang} tat={tat} datTat={setTat} />
           <div className="rl-nho">
-            Tắt một nấc <b>không đụng tới kho nước đi</b> — kho vẫn nguyên
+            Tắt một nấc <b>{chu('không đụng tới kho nước đi')}</b> — kho vẫn nguyên
             {' '}{boot.so_nuoc_di.toLocaleString('vi-VN')} ô, chỉ là mấy ô mang nấc đó
             bị che. Sửa thang thật thì một mạng đã học phải học lại; che thì không.
           </div>
@@ -162,13 +162,13 @@ function TrangTran({ d }: { d: DieuKhien }) {
   return (
     <>
           <p className="rl-giai">
-            Chỉ áp cho <b>máy</b> — bạn vẽ tay bao nhiêu khối cũng được. Người vẽ 28
+            Chỉ áp cho <b>{chu('máy')}</b> — bạn vẽ tay bao nhiêu khối cũng được. Người vẽ 28
             khối thì biết mình đang làm gì; máy sinh 28 khối là nó bịa.
           </p>
-          {[['dk_moi_cong', 'điều kiện một cổng'],
-            ['nhanh_moi_re', 'nhánh một ngã rẽ'],
-            ['khoi_entry', 'khối sơ đồ Entry'],
-            ['khoi_manage', 'khối sơ đồ Manage']].map(([k, nhan]) => (
+          {[['dk_moi_cong', chu('điều kiện một cổng')],
+            ['nhanh_moi_re', chu('nhánh một ngã rẽ')],
+            ['khoi_entry', chu('khối sơ đồ Entry')],
+            ['khoi_manage', chu('khối sơ đồ Manage')]].map(([k, nhan]) => (
             <label className="rl-hang" key={k}>
               <span>{nhan}</span>
               <input type="number" min={1} max={40} value={tran[k] ?? 0}
@@ -186,56 +186,56 @@ function TrangThuongPhat({ d }: { d: DieuKhien }) {
   const ky = kyCham(cua)
   return (
     <>
-          <div className="rl-nhom-ten rl-to"><span>THƯỞNG — cái máy đi tìm</span></div>
+          <div className="rl-nhom-ten rl-to"><span>{chu('THƯỞNG — cái máy đi tìm')}</span></div>
           <div className="rl-cong-thuc">
-            điểm = <b>{manhDeu <= 0 ? 'trung bình' : 'trung bình ÷ dao động'}</b>
-            <em>{manhDeu <= 0 ? 'chỉ vế trên' : 'cả hai vế'}</em>
+            điểm = <b>{manhDeu <= 0 ? chu('trung bình') : chu('trung bình ÷ dao động')}</b>
+            <em>{manhDeu <= 0 ? chu('chỉ vế trên') : chu('cả hai vế')}</em>
           </div>
           {/* HAI VẾ, tách ra nhìn thấy. Một công thức gộp thì không nâng riêng được
               vế nào — mà đó đúng là câu hỏi: "kiếm nhiều" và "kiếm đều" là hai thứ
               khác nhau, và người dùng phải nói được mình đang ưu tiên cái nào. */}
           <div className="rl-ve">
             <div>
-              <i>vế TRÊN</i><b>trung bình</b>
-              <span>lãi mỗi {tenKy}, tính bằng <b>% vốn ĐẦU</b> — kiếm được
-                <b> bao nhiêu</b></span>
+              <i>{chu('vế TRÊN')}</i><b>{chu('trung bình')}</b>
+              <span>lãi mỗi {tenKy}, tính bằng <b>{chu('% vốn ĐẦU')}</b> — kiếm được
+                <b> {chu('bao nhiêu')}</b></span>
             </div>
             <div className={manhDeu <= 0 ? 'tat' : ''}>
-              <i>vế DƯỚI</i><b>dao động</b>
+              <i>{chu('vế DƯỚI')}</i><b>{chu('dao động')}</b>
               <span>chuỗi lãi {tenKy} lệch nhau bao nhiêu — kiếm có
-                <b> đều</b> không</span>
+                <b> {chu('đều')}</b> {chu('không')}</span>
             </div>
           </div>
 
-          <div className="rl-nhom-ten"><span>nâng vế nào</span></div>
+          <div className="rl-nhom-ten"><span>{chu('nâng vế nào')}</span></div>
           <div className="rl-chip-hang">
-            {([[0, 'CHỈ NHÌN LÃI'], [1, 'CÂN BẰNG']] as const).map(([k, n]) => (
+            {([[0, chu('CHỈ NHÌN LÃI')], [1, chu('CÂN BẰNG')]] as const).map(([k, n]) => (
               <button key={k}
                       className={'rl-chip' + (manhDeu === k ? '' : ' tat')}
                       onClick={() => setCua(c => ({ ...c, manh_deu: k }))}>{n}</button>
             ))}
           </div>
           <p className="rl-nho">
-            <b>Chỉ nhìn lãi</b> bỏ hẳn vế dưới — máy đi tìm cái kiếm nhiều, mặc kệ
-            giật cục. <b>Cân bằng</b> chia cho dao động: cùng một mức lãi thì cái đều
+            <b>{chu('Chỉ nhìn lãi')}</b> bỏ hẳn vế dưới — máy đi tìm cái kiếm nhiều, mặc kệ
+            giật cục. <b>{chu('Cân bằng')}</b> chia cho dao động: cùng một mức lãi thì cái đều
             hơn thắng.
           </p>
           <p className="rl-nho">
-            ⚠ <b>Không có nấc thứ ba</b> ("ưu tiên đều", chia cho dao động bình
+            ⚠ <b>{chu('Không có nấc thứ ba')}</b> (chu("ưu tiên đều"), chia cho dao động bình
             phương) — đã thử rồi bỏ. Đo trên sơ đồ mẫu: trung bình <i>−0,161%</i> ·
             dao động <i>1,115%</i> ⇒ cân bằng cho <i>−0,1446</i> còn nấc ấy cho
-            <i> −0,1296</i>, tức nó chấm <b>CAO HƠN</b>. Vì trung bình ÂM thì càng
+            <i> −0,1296</i>, tức nó chấm <b>{chu('CAO HƠN')}</b>. Vì trung bình ÂM thì càng
             chia càng gần 0. Muốn siết chặt hơn thì dùng cửa <b>{chu('dao động tối đa')}</b> ở
             phần PHẠT — nó phát biểu được, và không đụng vào thước.
           </p>
           <p className="rl-nho">
             Cái THƯỚC vẫn KHÔNG chỉnh được: hai vế đều đo bằng thứ cố định. Bạn chỉnh
-            <i> coi trọng vế nào</i>, không chỉnh <i>đo bằng gì</i>.
+            <i> {chu('coi trọng vế nào')}</i>, không chỉnh <i>{chu('đo bằng gì')}</i>.
           </p>
 
-          <div className="rl-nhom-ten"><span>chấm theo kỳ</span></div>
+          <div className="rl-nhom-ten"><span>{chu('chấm theo kỳ')}</span></div>
           <div className="rl-chip-hang">
-            {[['tuan', 'TUẦN'], ['thang', 'THÁNG']].map(([k, n]) => (
+            {[['tuan', 'TUẦN'], ['thang', chu('THÁNG')]].map(([k, n]) => (
               <button key={k} className={'rl-chip' + (ky === k ? '' : ' tat')}
                       onClick={() => setCua(c => ({ ...c, ky: k }))}>{n}</button>
             ))}
@@ -255,15 +255,15 @@ function TrangThuongPhat({ d }: { d: DieuKhien }) {
           </label>
           <p className="rl-nho">
             Khoá cứng ở {Math.round(boot.tuan_co_lenh_toi_thieu * 100)}% — siết thêm
-            được, nới ra thì không. Một sơ đồ vào <b>đúng một lệnh</b> trong 3,5 năm ăn
+            được, nới ra thì không. Một sơ đồ vào <b>{chu('đúng một lệnh')}</b> trong 3,5 năm ăn
             điểm cao hơn sơ đồ vào 929 lệnh; cái cửa này chặn đúng chỗ đó.
           </p>
 
-          <div className="rl-nhom-ten rl-to"><span>PHẠT — loại thẳng</span></div>
+          <div className="rl-nhom-ten rl-to"><span>{chu('PHẠT — loại thẳng')}</span></div>
           <p className="rl-nho">
-            ⚠ Phạt ở đây là <b>nhị phân</b>: rớt một cửa là loại, không phải trừ điểm.
+            ⚠ Phạt ở đây là <b>{chu('nhị phân')}</b>: rớt một cửa là loại, không phải trừ điểm.
             Có chủ ý — sụt vốn không đổi chác được với lãi, cháy 60% tài khoản thì
-            không mức lãi nào bù lại. Và <i>"tôi không nhận sụt quá 25%"</i> là câu
+            không mức lãi nào bù lại. Và <i>{chu('"tôi không nhận sụt quá 25%"')}</i> là câu
             phát biểu được, còn một hệ số phạt thì phải dò mới biết nặng hay nhẹ — mà
             dò cái nút chấm điểm là dò trên chính thứ dùng để chấm.
           </p>
@@ -271,18 +271,18 @@ function TrangThuongPhat({ d }: { d: DieuKhien }) {
              ['sut_von_toi_da', chu('sụt vốn tối đa'), '%'],
              ['te_nhat_toi_da', `${tenKy} tệ nhất không quá`, '%'],
              ['dao_dong_toi_da', `dao động ${tenKy} tối đa`, '%'],
-             ['lai_toi_thieu', chu('lãi tối thiểu'), '%/năm'],
+             ['lai_toi_thieu', chu('lãi tối thiểu'), chu('%/năm')],
              ['diem_toi_thieu', chu('điểm tối thiểu'), '']] as const).map(([k, nhan, dv]) => (
             <label className="rl-hang" key={k}>
               <span>{nhan}</span>
-              <input type="number" step="any" placeholder="không lọc"
+              <input type="number" step="any" placeholder={chu("không lọc")}
                      value={(cua[k] as number | null) ?? ''}
                      onChange={e => setCua(c => ({
                        ...c, [k]: e.target.value === '' ? null : +e.target.value }))} />
               <em>{dv}</em>
             </label>
           ))}
-          <div className="rl-nho">Để trống là không lọc.</div>
+          <div className="rl-nho">{chu('Để trống là không lọc.')}</div>
     </>
   )
 }
@@ -295,7 +295,7 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
   return (
     <>
           <p className="rl-giai">
-            ⭐ <b>Cài đặt RIÊNG của RL</b>, không dùng chung với Strategy Test. Tester
+            ⭐ <b>{chu('Cài đặt RIÊNG của RL')}</b>, không dùng chung với Strategy Test. Tester
             có đúng MỘT khoảng; RL cần ít nhất HAI — đoạn máy đào thoải mái, và đoạn
             KHOÁ mở đúng một lần.
           </p>
@@ -307,37 +307,37 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
           {khoNen && (
             <div className={'rl-kho-nen' + (khoNen.co ? '' : ' xau')}>
               {khoNen.co
-                ? <>kho có <b>{(khoNen.so_nen ?? 0).toLocaleString('vi-VN')}</b> nến M1
+                ? <>{chu('kho có')} <b>{(khoNen.so_nen ?? 0).toLocaleString('vi-VN')}</b> nến M1
                     {' · '}{khoNen.tu} → {khoNen.den}</>
                 : <>⚠ chưa có nến nào cho «{khoNen.symbol}» — chạy sẽ phải tải từ MT5</>}
             </div>
           )}
 
-          <div className="rl-nhom-ten"><span>TRAIN — máy đào thoải mái</span></div>
+          <div className="rl-nhom-ten"><span>{chu('TRAIN — máy đào thoải mái')}</span></div>
           <label className="rl-hang"><span>{chu('từ')}</span>
             <input value={String(dat.tu ?? '')} placeholder="2021-07-01"
                    onChange={e => datD('tu', e.target.value)} /></label>
-          <label className="rl-hang"><span>đến</span>
+          <label className="rl-hang"><span>{chu('đến')}</span>
             <input value={String(dat.den ?? '')} placeholder="2025-01-01"
                    onChange={e => datD('den', e.target.value)} /></label>
 
-          <div className="rl-nhom-ten"><span>KHOÁ — mở đúng một lần</span></div>
+          <div className="rl-nhom-ten"><span>{chu('KHOÁ — mở đúng một lần')}</span></div>
           <label className="rl-hang"><span>{chu('từ')}</span>
             <input value={String(dat.khoa_tu ?? '')} placeholder="2025-01-01"
                    onChange={e => datD('khoa_tu', e.target.value)} /></label>
-          <label className="rl-hang"><span>đến</span>
+          <label className="rl-hang"><span>{chu('đến')}</span>
             <input value={String(dat.khoa_den ?? '')} placeholder="2026-01-01"
                    onChange={e => datD('khoa_den', e.target.value)} /></label>
           <p className={'rl-nho' + (coKhoa ? '' : ' rl-canh')}>
             {coKhoa
-              ? <>Đã mở <b>{Number(dat.khoa_da_mo ?? 0)}</b> lần. Không cấm bấm — nhưng
-                  nhìn một đoạn đủ nhiều lần thì nó thôi là "chưa thấy", và cái đồng hồ
+              ? <>{chu('Đã mở')} <b>{Number(dat.khoa_da_mo ?? 0)}</b> lần. Không cấm bấm — nhưng
+                  nhìn một đoạn đủ nhiều lần thì nó thôi là chu("chưa thấy"), và cái đồng hồ
                   này là chỗ duy nhất nói ra chuyện đó.</>
-              : <>⚠ Chưa đặt đoạn khoá — <b>mọi con số sẽ chỉ là số TRAIN</b>, đo trên
+              : <>{chu('⚠ Chưa đặt đoạn khoá —')} <b>{chu('mọi con số sẽ chỉ là số TRAIN')}</b>, đo trên
                   chính đoạn máy vừa đào bới. Đặt một khoảng KHÔNG nằm trong train.</>}
           </p>
 
-          <div className="rl-nhom-ten"><span>cách chia thời gian</span></div>
+          <div className="rl-nhom-ten"><span>{chu('cách chia thời gian')}</span></div>
           <div className="rl-chip-hang">
             {([['mot_khoi', 'MỘT KHỐI'], ['cuon_toi', 'CUỐN TỚI']] as const)
               .map(([k, n]) => (
@@ -350,7 +350,7 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
           {cuon && (
             <>
               <div className="rl-nhom-ten" style={{ marginTop: 8 }}>
-                <span>bước mỗi cửa sổ</span></div>
+                <span>{chu('bước mỗi cửa sổ')}</span></div>
               <div className="rl-chip-hang">
                 {(['thang', 'quy', 'nua_nam'] as const).map(k => (
                   <button key={k} className={'rl-chip' + (buoc === k ? '' : ' tat')}
@@ -361,23 +361,23 @@ function TrangDuLieu({ d }: { d: DieuKhien }) {
           )}
           <p className="rl-nho">
             {cuon
-              ? <>Đoạn khoá bị cắt thành nhiều <b>cửa sổ nối nhau</b>, chấm từng cái.
-                  Vì "kiếm đều" chỉ có nghĩa khi đo <b>qua thời gian</b>: đo được trên
+              ? <>{chu('Đoạn khoá bị cắt thành nhiều')} <b>{chu('cửa sổ nối nhau')}</b>, chấm từng cái.
+                  Vì chu("kiếm đều") chỉ có nghĩa khi đo <b>{chu('qua thời gian')}</b>: đo được trên
                   XAUUSD, một sơ đồ điểm gộp <i>+0,0009</i> mà chỉ <b>8/18</b> quý
                   dương. Một con số gộp cả dải giấu mất chuyện đó.</>
-              : <>Cả đoạn khoá chấm thành <b>một con số</b>. Gọn, nhưng nó vẫn đẹp với
+              : <>{chu('Cả đoạn khoá chấm thành')} <b>{chu('một con số')}</b>. Gọn, nhưng nó vẫn đẹp với
                   sơ đồ ăn đậm quý đầu rồi lỗ năm quý sau.</>}
           </p>
           <p className="rl-nho">
-            ⚠ Bước nhỏ nhất là <b>tháng</b>, không có "tuần". Đo được: hai chiến lược
+            ⚠ Bước nhỏ nhất là <b>{chu('tháng')}</b>, không có chu("tuần"). Đo được: hai chiến lược
             chênh nhau 38 điểm % qua 4,5 năm mà xét từng tuần chỉ hơn nhau ở
             <b> 52%</b> số tuần — tung đồng xu. Một tuần lẻ không mang tin.
           </p>
 
-          <div className="rl-nhom-ten"><span>Chi phí</span></div>
-          {([['deposit', 'vốn', '$'], ['commission', 'hoa hồng', '$/lot'],
+          <div className="rl-nhom-ten"><span>{chu('Chi phí')}</span></div>
+          {([['deposit', chu('vốn'), '$'], ['commission', 'hoa hồng', '$/lot'],
              ['spread_diem', 'spread', chu('điểm')],
-             ['truot_diem', 'trượt giá', chu('điểm')]] as const).map(([k, nhan, dv]) => (
+             ['truot_diem', chu('trượt giá'), chu('điểm')]] as const).map(([k, nhan, dv]) => (
             <label className="rl-hang" key={k}>
               <span>{nhan}</span>
               <input type="number" step="any" value={String(dat[k] ?? '')}
@@ -402,12 +402,12 @@ function TrangNganSach({ d }: { d: DieuKhien }) {
   return (
     <>
           <label className="rl-hang">
-            <span>số sơ đồ thử</span>
+            <span>{chu('số sơ đồ thử')}</span>
             <input type="number" min={1} max={500000} value={soLuot}
                    onChange={e => setSoLuot(+e.target.value)} />
           </label>
           <label className="rl-hang">
-            <span>giữ lại đầu bảng</span>
+            <span>{chu('giữ lại đầu bảng')}</span>
             <input type="number" min={1} max={100} value={giu}
                    onChange={e => setGiu(+e.target.value)} />
           </label>
@@ -416,31 +416,31 @@ function TrangNganSach({ d }: { d: DieuKhien }) {
             <input type="number" value={hat} onChange={e => setHat(+e.target.value)} />
           </label>
           <p className="rl-nho">
-            Cùng hạt giống + cùng dữ liệu = <b>cùng kết quả</b>, luôn luôn. Không thế
-            thì "cách này hơn cách kia" là câu không kiểm được.
+            Cùng hạt giống + cùng dữ liệu = <b>{chu('cùng kết quả')}</b>, luôn luôn. Không thế
+            thì chu("cách này hơn cách kia") là câu không kiểm được.
           </p>
 
-          <div className="rl-nhom-ten"><span>Dừng sớm</span></div>
+          <div className="rl-nhom-ten"><span>{chu('Dừng sớm')}</span></div>
           <label className="rl-hang">
-            <span>chạy tối đa</span>
-            <input type="number" min={0} step={0.5} placeholder="không giới hạn"
+            <span>{chu('chạy tối đa')}</span>
+            <input type="number" min={0} step={0.5} placeholder={chu("không giới hạn")}
                    value={gioToiDa ?? ''}
                    onChange={e => setGioToiDa(
                      e.target.value === '' ? null : +e.target.value)} />
-            <em>giờ</em>
+            <em>{chu('giờ')}</em>
           </label>
           <p className="rl-nho">
-            Chạy qua đêm thì đặt <b>giờ</b> hợp lý hơn đặt số lượt: chi phí mỗi sơ đồ
-            dao động 3–24 giây tuỳ nó đẻ ra bao nhiêu lệnh, nên "10.000 sơ đồ" không
+            Chạy qua đêm thì đặt <b>{chu('giờ')}</b> hợp lý hơn đặt số lượt: chi phí mỗi sơ đồ
+            dao động 3–24 giây tuỳ nó đẻ ra bao nhiêu lệnh, nên chu("10.000 sơ đồ") không
             dịch được ra mấy tiếng.
           </p>
           <label className="rl-hang">
-            <span>dừng khi phẳng</span>
-            <input type="number" min={0} placeholder="không dừng"
+            <span>{chu('dừng khi phẳng')}</span>
+            <input type="number" min={0} placeholder={chu("không dừng")}
                    value={phangToiDa ?? ''}
                    onChange={e => setPhangToiDa(
                      e.target.value === '' ? null : +e.target.value)} />
-            <em>lượt</em>
+            <em>{chu('lượt')}</em>
           </label>
           <p className="rl-nho">
             Ngần này lượt liền mà điểm tốt nhất không nhúc nhích thì tự tắt — bản tự
@@ -449,55 +449,55 @@ function TrangNganSach({ d }: { d: DieuKhien }) {
 
           <div className="rl-nhom-ten rl-to"><span>SONG SONG</span></div>
           <label className="rl-hang">
-            <span>số nhân</span>
-            <input type="number" min={0} max={64} placeholder="tự chọn"
+            <span>{chu('số nhân')}</span>
+            <input type="number" min={0} max={64} placeholder={chu("tự chọn")}
                    value={soNhan || ''}
                    onChange={e => setSoNhan(e.target.value === ''
                                             ? 0 : +e.target.value)} />
-            <em>tiến trình</em>
+            <em>{chu('tiến trình')}</em>
           </label>
           <p className="rl-nho">
-            Để trống là <b>tự chọn</b> — số nhân của máy trừ đi 2. Chừa lại 2 là cố ý:
+            Để trống là <b>{chu('tự chọn')}</b> — số nhân của máy trừ đi 2. Chừa lại 2 là cố ý:
             máy tìm chạy hàng giờ ngay trong app đang mở, ăn hết sạch nhân thì cửa sổ
             giật và bạn không kéo nổi một cái panel. Nhanh hơn 8% không đáng đổi lấy
             tám tiếng app đơ.
           </p>
           <p className="rl-nho">
-            ⭐ Phải là <b>tiến trình</b>, không phải luồng: bộ chạy là Python thuần và
+            ⭐ Phải là <b>{chu('tiến trình')}</b>, không phải luồng: bộ chạy là Python thuần và
             GIL chỉ cho một luồng chạy bytecode tại một thời điểm — tám luồng nhanh
-            bằng đúng một luồng. Và <b>8 nhân cho kết quả y hệt 1 nhân</b>: sơ đồ vẫn
+            bằng đúng một luồng. Và <b>{chu('8 nhân cho kết quả y hệt 1 nhân')}</b>: sơ đồ vẫn
             do tiến trình cha bốc theo đúng thứ tự hạt giống, kết quả vẫn gộp theo
             đúng thứ tự ấy chứ không theo thứ tự nhân nào xong trước.
           </p>
           <p className="rl-nho">
-            Đây cũng chính là <b>nửa actor</b> của một hệ RL — cái đàn tiến trình này
+            Đây cũng chính là <b>{chu('nửa actor')}</b> của một hệ RL — cái đàn tiến trình này
             dùng lại được nguyên vẹn khi nào gắn mạng.
           </p>
 
-          <div className="rl-nhom-ten rl-to"><span>CẮT RÁC</span></div>
+          <div className="rl-nhom-ten rl-to"><span>{chu('CẮT RÁC')}</span></div>
           <label className="rl-hang">
-            <span>trần nhịp vào lệnh</span>
-            <input type="number" min={0} placeholder="không cắt"
+            <span>{chu('trần nhịp vào lệnh')}</span>
+            <input type="number" min={0} placeholder={chu("không cắt")}
                    value={Number(dat.lenh_moi_tuan_toi_da ?? 0) || ''}
                    onChange={e => datD('lenh_moi_tuan_toi_da',
                                        e.target.value === '' ? 0 : +e.target.value)} />
-            <em>lệnh/tuần</em>
+            <em>{chu('lệnh/tuần')}</em>
           </label>
           <p className="rl-nho">
-            ⭐ Đây là ô <b>quan trọng nhất</b> của panel này, và nó là van <b>thời
+            ⭐ Đây là ô <b>{chu('quan trọng nhất')}</b> của panel này, và nó là van <b>thời
             gian</b> chứ không phải một cái cửa. Vượt trần thì <b>bỏ dở ngay giữa
-            chừng</b>, không chấm nốt — vì chi phí một lượt chấm đi theo <b>số lệnh</b>
+            chừng</b>, không chấm nốt — vì chi phí một lượt chấm đi theo <b>{chu('số lệnh')}</b>
             sơ đồ đẻ ra, không theo số nến.
           </p>
           <p className="rl-nho">
-            Đo được: máy sinh ra sơ đồ <b>11.425 lệnh trong một quý</b> (≈ 879/tuần),
-            trong khi sơ đồ mẫu người viết là <b>≈ 4/tuần</b>. Chính mấy con ấy nuốt
+            Đo được: máy sinh ra sơ đồ <b>{chu('11.425 lệnh trong một quý')}</b> (≈ 879/tuần),
+            trong khi sơ đồ mẫu người viết là <b>{chu('≈ 4/tuần')}</b>. Chính mấy con ấy nuốt
             hết ngân sách — 15 phút chỉ chấm nổi <b>38</b> sơ đồ.
           </p>
           <p className="rl-nho">
             200/tuần ≈ 40 lệnh một ngày, cao hơn hẳn mọi chiến lược thật — nó cắt rác
-            mà không phán xét phong cách. Còn <i>"vào lệnh thế nào là hợp lý"</i> là
-            việc của mấy cái cửa ở <b>Thưởng·Phạt</b>. Để <b>0</b> là không cắt.
+            mà không phán xét phong cách. Còn <i>{chu('"vào lệnh thế nào là hợp lý"')}</i> là
+            việc của mấy cái cửa ở <b>{chu('Thưởng·Phạt')}</b>. Để <b>0</b> là không cắt.
           </p>
           <p className="rl-nho rl-canh">
             ⚠ Chỉ áp cho máy tìm. Bạn vẽ tay bao nhiêu lệnh cũng được — Strategy Test
@@ -519,14 +519,14 @@ function TrangGhiChu({ d }: { d: DieuKhien }) {
   return (
     <>
       <p className="rl-giai">
-        Ghi lại <b>vì sao</b> lượt này đặt như thế — thứ bảng số không bao giờ nói được.
-        Nó được <b>chụp lại theo mỗi lượt chạy</b>, nên đọc lại lượt cũ là thấy đúng ý
+        Ghi lại <b>{chu('vì sao')}</b> lượt này đặt như thế — thứ bảng số không bao giờ nói được.
+        Nó được <b>{chu('chụp lại theo mỗi lượt chạy')}</b>, nên đọc lại lượt cũ là thấy đúng ý
         định lúc bấm Chạy, không phải ý định hôm nay.
       </p>
       <textarea className="rl-ghi-chu" spellCheck={false}
                 placeholder={'ví dụ:\nthử bỏ vế dao động xem máy có đi tìm cái lãi to\n'
                              + 'hơn không — nghi là cửa "tuần có lệnh" đang giết hết\n'
-                             + 'mấy sơ đồ đánh thưa'}
+                             + chu('mấy sơ đồ đánh thưa')}
                 value={String(d.dat.ghi_chu ?? '')}
                 onChange={e => d.datD('ghi_chu', e.target.value)} />
     </>
@@ -544,21 +544,21 @@ function TrangGhiChu({ d }: { d: DieuKhien }) {
 const MUC: Array<{ khoa: string; nhan: string; nhom: string
                    ve: (p: { d: DieuKhien }) => JSX.Element
                    tom: (d: DieuKhien) => string }> = [
-  { khoa: 'kho', nhan: 'Kho đồ', nhom: 'Luật chơi', ve: TrangKhoDo,
+  { khoa: 'kho', nhan: chu('Kho đồ'), nhom: chu('Luật chơi'), ve: TrangKhoDo,
     tom: d => demThe(d, 'kho') },
-  { khoa: 'thang', nhan: 'Thang số', nhom: 'Luật chơi', ve: TrangThangSo,
+  { khoa: 'thang', nhan: chu('Thang số'), nhom: chu('Luật chơi'), ve: TrangThangSo,
     tom: d => demThe(d, 'thang') },
-  { khoa: 'tran', nhan: 'Trần độ phức tạp', nhom: 'Luật chơi', ve: TrangTran,
+  { khoa: 'tran', nhan: chu('Trần độ phức tạp'), nhom: chu('Luật chơi'), ve: TrangTran,
     tom: d => `${d.tran.dk_moi_cong}·${d.tran.nhanh_moi_re}`
               + `·${d.tran.khoi_entry}·${d.tran.khoi_manage}` },
-  { khoa: 'cua', nhan: 'Thưởng · Phạt', nhom: 'Luật chơi', ve: TrangThuongPhat,
+  { khoa: 'cua', nhan: chu('Thưởng · Phạt'), nhom: chu('Luật chơi'), ve: TrangThuongPhat,
     tom: d => nhanCua(d) },
-  { khoa: 'du_lieu', nhan: chu('Dữ liệu'), nhom: 'Chạy trên gì', ve: TrangDuLieu,
+  { khoa: 'du_lieu', nhan: chu('Dữ liệu'), nhom: chu('Chạy trên gì'), ve: TrangDuLieu,
     tom: d => `${d.dat.symbol || '—'}${coKhoaCua(d.dat) ? ' · có khoá' : ''}` },
-  { khoa: 'ngan', nhan: 'Ngân sách', nhom: 'Chạy trên gì', ve: TrangNganSach,
+  { khoa: 'ngan', nhan: chu('Ngân sách'), nhom: chu('Chạy trên gì'), ve: TrangNganSach,
     tom: d => (d.gioToiDa ? `${d.gioToiDa}h` : d.soLuot.toLocaleString('vi-VN'))
-              + ` · ${d.soNhan || 'tự'} nhân` },
-  { khoa: 'ghi_chu', nhan: chu('Ghi chú'), nhom: 'Chạy trên gì', ve: TrangGhiChu,
+              + ` · ${d.soNhan || chu('tự')} nhân` },
+  { khoa: 'ghi_chu', nhan: chu('Ghi chú'), nhom: chu('Chạy trên gì'), ve: TrangGhiChu,
     tom: d => (String(d.dat.ghi_chu ?? '').trim() ? 'có' : '—') },
 ]
 
@@ -588,7 +588,7 @@ export default function CuaSoCaiDat({ d, onClose, mucDau }: {
   const nhom = [...new Set(MUC.map(x => x.nhom))]
 
   return (
-    <Modal title="Cài đặt lượt tìm" width={980} onClose={onClose}>
+    <Modal title={chu("Cài đặt lượt tìm")} width={980} onClose={onClose}>
       <div className="ct-vo">
         <nav className="ct-muc">
           {nhom.map(g => (

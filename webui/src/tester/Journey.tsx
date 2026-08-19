@@ -1,3 +1,4 @@
+import { chu } from '../i18n'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import ContextMenu from '../components/ContextMenu'
 
@@ -116,16 +117,16 @@ function Journey({ dong, jBayGio, nhay, soi, chiViec }: {
                      muc={[
                        // KHÔNG dùng icon `dau`: trên thanh công cụ nó đang mang nghĩa
                        // "về sự kiện trước". Một hình hai nghĩa là hỏng cả hai.
-                       ...(nhay ? [{ ten: 'Nhảy tới đây', icon: 'dat-co',
+                       ...(nhay ? [{ ten: chu('Nhảy tới đây'), icon: 'dat-co',
                                      onClick: () => nhay(menu.i) }] : []),
                        // Câu hỏi ngay sau "chuyện gì đã xảy ra" luôn là "chỗ nào trên
                        // sơ đồ". Dò tay 20 hộp mất cả phút; cái này nối thẳng hai đầu.
-                       { ten: 'Xem trên sơ đồ', icon: 'branch',
+                       { ten: chu('Xem trên sơ đồ'), icon: 'branch',
                          onClick: () => soi(menu.i) },
                        { ngan: true },
                        // Nhật ký là thứ hay phải mang đi hỏi/đối chiếu. Không chép được
                        // thì chỉ còn cách gõ tay lại một dòng mono dài.
-                       { ten: 'Chép dòng', icon: 'copy',
+                       { ten: chu('Chép dòng'), icon: 'copy',
                          onClick: () => void navigator.clipboard?.writeText(menu.chu) },
                      ]} />
       )}

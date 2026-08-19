@@ -281,7 +281,7 @@ function Ung() {
       try {
         await cho_cau_noi()
         const b = await py.bootstrap()
-        if (!b.ok) { setTrangThai('lỗi bootstrap: ' + b.error); return }
+        if (!b.ok) { setTrangThai((chu('lỗi bootstrap:') + ' ') + b.error); return }
         setBoot(b.value!)
         const s = (b.value!.settings ?? {}) as Record<string, any>
         if (s.accent) doiMauNgay(String(s.accent))
@@ -305,7 +305,7 @@ function Ung() {
         setSanSang(true)
         setTrangThai(chu('sẵn sàng'))
       } catch (e) {
-        setTrangThai('không kết nối được Python: ' + String(e))
+        setTrangThai((chu('không kết nối được Python:') + ' ') + String(e))
       }
     })()
     // chỉ chạy 1 lần lúc mở app
@@ -465,7 +465,7 @@ function Ung() {
                                       taiDay?: { x: number; y: number },
                                       moSua = true) => {
     const r = await py.new_step(kind, loaiHD)
-    if (!r.ok || !r.value) { ghi('không tạo được khối: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('không tạo được khối:') + ' ') + r.error, 'err'); return }
     chup()
     const { step, card } = r.value
     // `taiDay` = chỗ vừa bấm chuột phải. Nút trên ribbon thì không có "chỗ nào" nên vẫn
@@ -564,12 +564,12 @@ function Ung() {
       pos: [Math.round(n.position.x), Math.round(n.position.y)] as [number, number],
     }))
     const r = await py.clone_steps(goc)          // id do core cấp, JS không tự nặn
-    if (!r.ok || !r.value) { ghi('không nhân bản được: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('không nhân bản được:') + ' ') + r.error, 'err'); return }
     const { steps: moi, map, cards } = r.value
     chup()
     const mot = moi.length === 1
     setNodes(ds => [...ds.map(k => ({ ...k, selected: false })), ...moi.map((st, i) => {
-      const card = mot ? { ...cards[i], title: cards[i].title + ' (bản sao)' } : cards[i]
+      const card = mot ? { ...cards[i], title: cards[i].title + (' ' + chu('(bản sao)')) } : cards[i]
       if (mot) st.name = card.title
       const p: [number, number] = [(st.pos?.[0] ?? 80) + 40, (st.pos?.[1] ?? 120) + 60]
       return {
@@ -633,7 +633,7 @@ function Ung() {
     // NHẬP thì phải là bảng ĐÃ GỘP — tham số mới thêm chưa nằm trong `thamSo` của lần
     // render này.
     const r = await py.clone_steps(buoc, ts ?? thamSo)
-    if (!r.ok || !r.value) { ghi('không dán được: ' + r.error, 'err'); return 0 }
+    if (!r.ok || !r.value) { ghi((chu('không dán được:') + ' ') + r.error, 'err'); return 0 }
     const { steps: moi, map, cards } = r.value
     chup()
     // Dời cả CỤM cho góc trên-trái của nó rơi vào con trỏ, giữ nguyên khoảng cách tương
@@ -682,7 +682,7 @@ function Ung() {
    *  lẽ đổi hành vi của cả chiến lược đang làm dở chỉ vì vừa nhập một khối. */
   const themKhoiTu = useCallback(async (ten: string) => {
     const r = await py.import_steps(ten, tab)
-    if (!r.ok || !r.value) { ghi('không nhập được: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('không nhập được:') + ' ') + r.error, 'err'); return }
     const { steps: buoc, edges: canh, tham_so: ts, bo_start } = r.value
     if (!buoc.length) {
       ghi(`"${ten}" không có khối nào ở sơ đồ ${tab === 'entry' ? 'Entry' : 'Manage'}`, 'err')
@@ -705,7 +705,7 @@ function Ung() {
                + them.map(t => `${t.ten} = ${t.gia_tri}`).join(' · ') + ')')
     }
     if (giu.length) {
-      cau.push('giữ nguyên ' + giu.map(t =>
+      cau.push((chu('giữ nguyên') + ' ') + giu.map(t =>
         `${t.ten} = ${co.get(t.ten)!.gia_tri} (nguồn ghi ${t.gia_tri})`).join(' · '))
     }
     ghi(cau.join(' · '))
@@ -714,14 +714,14 @@ function Ung() {
   /* ------------------------------ tài liệu -------------------------------- */
   const soDoMoi = useCallback(async () => {
     const r = await py.new_process()
-    if (!r.ok || !r.value) { ghi('không tạo được sơ đồ mới: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('không tạo được sơ đồ mới:') + ' ') + r.error, 'err'); return }
     chup()
     nap(r.value, chu('sơ đồ mới — chỉ có khối Bắt đầu'), null)
   }, [chup, nap, ghi])
 
   const moMau = useCallback(async () => {
     const r = await py.demo_process()
-    if (!r.ok || !r.value) { ghi('không mở được sơ đồ mẫu: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('không mở được sơ đồ mẫu:') + ' ') + r.error, 'err'); return }
     chup()
     nap(r.value, chu('mở sơ đồ mẫu Compress'), null)
   }, [chup, nap, ghi, fitView])
@@ -729,7 +729,7 @@ function Ung() {
   /** Ghi thật xuống kho template. Trả `true` nếu xong. */
   const ghiTemplate = useCallback(async (t: string) => {
     const r = await py.save_process({ ...layDoc(), name: t })
-    if (!r.ok) { ghi('lưu hỏng: ' + r.error, 'err'); return false }
+    if (!r.ok) { ghi((chu('lưu hỏng:') + ' ') + r.error, 'err'); return false }
     setTen(t); setTenTrenDia(t)
     ghi(`đã lưu "${t}"`, 'ok'); setTrangThai(chu('đã lưu'))
     return true
@@ -765,14 +765,14 @@ function Ung() {
 
   const moChienLuoc = useCallback(async (t: string) => {
     const r = await py.load_process(t)
-    if (!r.ok || !r.value) { ghi('mở hỏng: ' + r.error, 'err'); return }
+    if (!r.ok || !r.value) { ghi((chu('mở hỏng:') + ' ') + r.error, 'err'); return }
     chup()
     nap(r.value, `mở "${t}"`, t)
   }, [chup, nap, ghi, fitView])
 
   const moFile = useCallback(async () => {
     const r = await py.open_process_file()
-    if (!r.ok) { if (r.error) ghi('mở hỏng: ' + r.error, 'err'); return }
+    if (!r.ok) { if (r.error) ghi((chu('mở hỏng:') + ' ') + r.error, 'err'); return }
     chup()
     nap(r.value!, chu('mở từ file ngoài'), null)
   }, [chup, nap, ghi, fitView])
@@ -780,7 +780,7 @@ function Ung() {
   const luuRaFile = useCallback(async () => {
     const r = await py.save_process_file(layDoc())
     if (r.ok) ghi(`đã lưu ra ${r.value?.path}`, 'ok')
-    else if (r.error) ghi('lưu hỏng: ' + r.error, 'err')
+    else if (r.error) ghi((chu('lưu hỏng:') + ' ') + r.error, 'err')
   }, [layDoc, ghi])
 
   /** Đặt khối đang chọn làm khối CHẠY ĐẦU TIÊN.
@@ -1361,8 +1361,8 @@ function Ung() {
             <div className="to">{chu('Bắt đầu từ khối ①')}</div>
             <div>
               Bấm <b>{chu('Kiểm tra ĐK')}</b> ở thanh trên để thêm một nhánh điều kiện, rồi kéo
-              từ cổng bên cạnh hộp <b>Bắt đầu</b> để nối.
-              <br />Nhiều cổng cùng nối từ một khối = <b>{chu('rẽ nhánh')}</b>, thử lần lượt từ
+              từ cổng bên cạnh hộp <b>{chu('Bắt đầu')}</b> để nối.
+              <br />{chu('Nhiều cổng cùng nối từ một khối =')} <b>{chu('rẽ nhánh')}</b>, thử lần lượt từ
               trên xuống. Chuột phải vào khối → <b>{chu('Ghim số ⟲')}</b> để cho phép nối ngược
               về nó mà số vẫn giữ nguyên.
             </div>
@@ -1380,7 +1380,7 @@ function Ung() {
           </button>
           <button className={'tab' + (tabDuoi === 'nhat-ky' ? ' dang' : '')}
                   onClick={() => { setTabDuoi('nhat-ky'); setPanelGap(false) }}>
-            Nhật ký
+            {chu('Nhật ký')}
           </button>
           <span className="day" />
           {tabDuoi === 'nhat-ky' && !panelGap &&
@@ -1456,8 +1456,8 @@ function Ung() {
             </g>
           </svg>
         </button>
-        <span><span className="so">{nodes.length}</span> khối</span>
-        <span><span className="so">{edges.length}</span> đường nối</span>
+        <span><span className="so">{nodes.length}</span> {chu('khối')}</span>
+        <span><span className="so">{edges.length}</span> {chu('đường nối')}</span>
         {soLoi > 0 && <span style={{ color: 'var(--err)' }}>{soLoi} lỗi</span>}
         {soCanhBao > 0 && <span style={{ color: 'var(--warn)' }}>{soCanhBao} cảnh báo</span>}
         {quayLai.size > 0 && (

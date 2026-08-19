@@ -37,10 +37,10 @@ const mucCua = (b: { muc?: MucBuoc; dat: boolean }): MucBuoc =>
  * cho cùng một câu: *"số này mang từ demo sang tài khoản thật được không?"* Không
  * đánh dấu ra thì người dùng chép cả bảng — kể cả dòng duy nhất không được chép. */
 const LOAI: Record<LoaiSo, { nhan: string; giai: string }> = {
-  san:  { nhan: 'luật sàn',  giai: 'demo và thật giống nhau — dùng thẳng được' },
-  khop: { nhan: 'chất lượng khớp',
-          giai: 'demo KHÔNG có thanh khoản thật — số đo chỉ là chặn dưới' },
-  ta:   { nhan: 'luật của ta', giai: 'không phụ thuộc tài khoản nào' },
+  san:  { nhan: chu('luật sàn'),  giai: chu('demo và thật giống nhau — dùng thẳng được') },
+  khop: { nhan: chu('chất lượng khớp'),
+          giai: chu('demo KHÔNG có thanh khoản thật — số đo chỉ là chặn dưới') },
+  ta:   { nhan: chu('luật của ta'), giai: chu('không phụ thuộc tài khoản nào') },
 }
 
 /** CỬA SỔ LIVE — DÙNG CHUNG `Chart` · `BangSoLieu` · `Journey` với Strategy Tester.
@@ -276,7 +276,7 @@ export default function Live() {
                        (r.value.van_de ?? []).length].join('|')
           if (van !== truoc.current) {
             truoc.current = van
-            ghi(r.value.tin.nen_song ? 'Kết nối OK' : `⚠ ${r.value.tin.chu}`)
+            ghi(r.value.tin.nen_song ? chu('Kết nối OK') : `⚠ ${r.value.tin.chu}`)
             for (const v of r.value.van_de ?? []) ghi(`[${v.severity}] ${v.message}`)
           }
         }
@@ -305,9 +305,9 @@ export default function Live() {
      thuộc về cửa sổ này; xem chart thì đã có cụm icon ở thanh công cụ rồi. */
   const menuTieuDe: NhomMenu[] = useMemo(() => [
     { ten: 'Live', muc: [
-      { ten: 'Về cửa sổ vẽ', icon: 'copy',
+      { ten: chu('Về cửa sổ vẽ'), icon: 'copy',
         onClick: () => void pyLive.live_ve_so_do() },
-      { ten: 'Dọn rác bài kiểm', tat: dangTest,
+      { ten: chu('Dọn rác bài kiểm'), tat: dangTest,
         viSao: dangTest ? 'đang hiệu chuẩn — nó tự dọn khi xong' : undefined,
         onClick: async () => {
           const r = await pyLive.live_don_rac()
@@ -315,10 +315,10 @@ export default function Live() {
           const v = r.value
           ghi(v && (v.da_dong || v.da_huy)
             ? `Đã dọn: đóng ${v.da_dong} vị thế · huỷ ${v.da_huy} lệnh chờ`
-            : 'Không còn rác nào của bài kiểm.')
+            : chu('Không còn rác nào của bài kiểm.'))
         } },
       { ngan: true },
-      { ten: 'Đóng cửa sổ', phim: 'Ctrl+W',
+      { ten: chu('Đóng cửa sổ'), phim: 'Ctrl+W',
         onClick: () => void pyLive.cua_so_dong() },
     ] },
   ], [dangTest, ghi])
@@ -367,7 +367,7 @@ export default function Live() {
                 them={<span className="lv-trang-thai">
                   <span className={'lv-den' + (tamDung ? ' nghi'
                                                 : song ? ' song' : ' chet')} />
-                  <b>{tamDung ? 'TẠM DỪNG ĐO' : song ? 'ĐANG NỐI' : 'MẤT KẾT NỐI'}</b>
+                  <b>{tamDung ? 'TẠM DỪNG ĐO' : song ? chu('ĐANG NỐI') : 'MẤT KẾT NỐI'}</b>
                   <span className={'lv-badge' + (that ? ' that' : ' demo')}>
                     {tin?.la_that == null ? '—' : that ? '⚠ THẬT' : 'DEMO'}
                   </span>
@@ -402,7 +402,7 @@ export default function Live() {
         {/* Cụp bảng thông số bên phải — giống nút cùng việc ở Strategy Tester. Chart cần
             bề ngang lúc soi giá, mà bảng kia thì không phải lúc nào cũng cần nhìn. */}
         <button className={'tb-nut' + (hienBang ? ' bat' : '')}
-                title={hienBang ? 'Cụp bảng thông số' : 'Mở bảng thông số'}
+                title={hienBang ? chu('Cụp bảng thông số') : chu('Mở bảng thông số')}
                 onClick={() => setHienBang(v => !v)}>
           <IconNet name="copy" size={15} />
         </button>
@@ -421,7 +421,7 @@ export default function Live() {
       {/* VỎ BẢNG DƯỚI DÙNG CHUNG với Strategy Tester — thanh kéo, nút gập, số đếm,
           cách bấm tab đang mở để cụp: y hệt. Hai cửa sổ chỉ khác NỘI DUNG tab. */}
       <BangDuoi tabs={[
-        { khoa: 'van-de', nhan: 'Vấn đề', dem: vanDeDu.length,
+        { khoa: 'van-de', nhan: chu('Vấn đề'), dem: vanDeDu.length,
           ve: () => (
             <div className="nk-cuon">
               {vanDeDu.length === 0
@@ -429,33 +429,33 @@ export default function Live() {
                 : vanDeDu.map((v, k) => (
                   <div key={k} className={'lv-vd ' + v.severity}>
                     <span className="lv-vd-muc">
-                      {v.severity === 'error' ? 'LỖI' : 'CẢNH BÁO'}
+                      {v.severity === 'error' ? 'LỖI' : chu('CẢNH BÁO')}
                     </span>
                     <span>{v.message}</span>
                   </div>
                 ))}
             </div>
           ) },
-        { khoa: 'ket-noi', nhan: 'Kết nối',
+        { khoa: 'ket-noi', nhan: chu('Kết nối'),
           ve: () => (
             <div className="nk-cuon lv-bang">
               {/* Nút kiểm tra nằm Ở ĐÂY, cạnh chính mấy con số nó sinh ra — chứ không
                 ở thanh công cụ. Bấm xong kết quả hiện ngay bên dưới, không phải đi tìm. */}
             <div className="lv-nhom">
             <div className="lv-dau lv-dau-nut">
-              <span>Tài khoản</span>
+              <span>{chu('Tài khoản')}</span>
               {/* ⚠ Chặn ngay ở nút, không đợi Python từ chối. Bài này MỞ VÀ ĐÓNG LỆNH
                   THẬT — đó là lý do nó chỉ chạy trên demo. Tài khoản thật thì dùng bộ
                   số đã đo ở demo, không đo lại. */}
               <button className="nut-nho"
                       disabled={dangTest || !boot?.san_sang || that}
-                      title={that ? 'Bài kiểm đặt lệnh THẬT nên chỉ chạy trên demo — '
-                                    + 'tài khoản thật dùng lại hồ sơ đã đo ở demo'
-                                  : 'Mở/đóng lệnh thật trên demo để đo, rồi tự chỉnh '
-                                    + 'tới khi hết hỏng'}
+                      title={that ? (chu('Bài kiểm đặt lệnh THẬT nên chỉ chạy trên demo —') + ' ')
+                                    + chu('tài khoản thật dùng lại hồ sơ đã đo ở demo')
+                                  : (chu('Mở/đóng lệnh thật trên demo để đo, rồi tự chỉnh') + ' ')
+                                    + chu('tới khi hết hỏng')}
                       onClick={async () => {
                         setDangTest(true); setKetQuaTest(null); kiemDaGhi.current = 0
-                        ghi('Bắt đầu hiệu chuẩn — chạy, chỉnh, chạy lại tới khi hết hỏng…')
+                        ghi(chu('Bắt đầu hiệu chuẩn — chạy, chỉnh, chạy lại tới khi hết hỏng…'))
                         // ⚠ `false` từng rơi vào đúng tham số `so_vong` → `int(False) = 0` → bài kiểm
                         // bỏ sạch phần mở/đóng market, chỉ còn ba bước lệnh chờ.
                         const r = await pyLive.live_test_ket_noi(3, 15, 4)
@@ -468,51 +468,51 @@ export default function Live() {
                           const d = await pyLive.live_de_phong()
                           if (d.ok && d.value) setDePhong(d.value)
                         }
-                      }}>{!dangTest ? 'Hiệu chuẩn kết nối'
+                      }}>{!dangTest ? chu('Hiệu chuẩn kết nối')
                           /* ⚠ Hiện cả LƯỢT. Chỉ hiện vòng thì nó reset về 1/3 sau mỗi
                              lượt, và bốn lượt trông y hệt một vòng lặp vô tận. */
                           : kiemVong[1] ? `đang hiệu chuẩn… lượt ${kiemVong[2]}/${kiemVong[3]}`
                                           + ` · vòng ${kiemVong[0]}/${kiemVong[1]}`
-                                        : 'đang hiệu chuẩn…'}</button>
+                                        : chu('đang hiệu chuẩn…')}</button>
             </div>
-              {hang('Số tài khoản', tin?.tai_khoan ? String(tin.tai_khoan) : '—')}
-              {hang('Sàn · server', tin ? `${tin['sàn'] || '—'} · ${tin.server || '—'}` : '—')}
+              {hang(chu('Số tài khoản'), tin?.tai_khoan ? String(tin.tai_khoan) : '—')}
+              {hang(chu('Sàn · server'), tin ? `${tin['sàn'] || '—'} · ${tin.server || '—'}` : '—')}
               {hang(chu('Loại'), tin?.la_that == null ? '—' : that ? 'THẬT' : 'Demo',
                     tin?.la_that == null ? null : !that)}
             </div>
 
             <div className="lv-nhom">
-              <div className="lv-dau">Mạch đập</div>
+              <div className="lv-dau">{chu('Mạch đập')}</div>
               {tamDung && (
                 <div className="lv-de-nghi canh">
-                  Số liệu bên dưới <b>đang đông cứng</b> — máy tạm ngừng đo
-                  {dangTest ? ' vì bài hiệu chuẩn đang giữ cầu nối' : ''}. Đừng đọc
+                  Số liệu bên dưới <b>{chu('đang đông cứng')}</b> — máy tạm ngừng đo
+                  {dangTest ? (' ' + chu('vì bài hiệu chuẩn đang giữ cầu nối')) : ''}. Đừng đọc
                   chúng như đang sống.
                 </div>
               )}
-              {hang('Tuổi tick cuối', o(tin?.tuoi_tick, ' s', 1), song,
-                    'terminal báo đã nối vẫn có thể là feed đứng')}
-              {hang('Rớt trong phiên',
+              {hang(chu('Tuổi tick cuối'), o(tin?.tuoi_tick, ' s', 1), song,
+                    chu('terminal báo đã nối vẫn có thể là feed đứng'))}
+              {hang(chu('Rớt trong phiên'),
                     `${tin?.so_lan_rot ?? 0} lần · ${o(tin?.giay_rot, ' s', 0)}`,
                     (tin?.so_lan_rot ?? 0) === 0)}
-              {hang('Lệch giờ server', o(tin?.lech_gio, ' phút', 0), null,
-                    'nến đóng theo giờ SERVER')}
+              {hang(chu('Lệch giờ server'), o(tin?.lech_gio, (' ' + chu('phút')), 0), null,
+                    chu('nến đóng theo giờ SERVER'))}
             </div>
 
             <div className="lv-nhom">
-              <div className="lv-dau">Có giao dịch được không</div>
+              <div className="lv-dau">{chu('Có giao dịch được không')}</div>
               {hang('AlgoTrading + EA', tin?.cho_giao_dich ? 'BẬT' : 'TẮT',
-                    !!tin?.cho_giao_dich, 'tắt là mọi lệnh bị từ chối')}
-              {hang('Symbol', tin?.symbol_giao_dich_duoc ? 'giao dịch được' : 'KHÔNG',
+                    !!tin?.cho_giao_dich, chu('tắt là mọi lệnh bị từ chối'))}
+              {hang('Symbol', tin?.symbol_giao_dich_duoc ? chu('giao dịch được') : chu('KHÔNG'),
                     !!tin?.symbol_giao_dich_duoc)}
-              {hang('Spread hiện tại', o(tin?.spread_diem, ' điểm', 1))}
+              {hang(chu('Spread hiện tại'), o(tin?.spread_diem, (' ' + chu('điểm')), 1))}
             </div>
 
             {/* ĐỀ PHÒNG — trình bày Y HỆT khối Tài khoản: nhãn · giá trị · ghi chú.
                 Nó BÁO CÁO hệ thống đang tự bảo vệ bằng gì, không phải form để chỉnh.
                 Ghi chú nói NGUỒN — "đo được" hay "đang đoán" — mới là chỗ có giá trị. */}
             <div className="lv-nhom">
-              <div className="lv-dau">Đề phòng</div>
+              <div className="lv-dau">{chu('Đề phòng')}</div>
 
               {/* Chú giải ba loại — đặt TRƯỚC bảng, vì không có nó thì mấy cái nhãn nhỏ
                   bên dưới chỉ là chữ trang trí. Câu chúng trả lời: số này mang từ demo
@@ -535,7 +535,7 @@ export default function Live() {
                     </span>
                     <span className="lv-gt">{d.gia}</span>
                     <span className="lv-phu">
-                      {d.chu}{ngo && ' · ĐO Ở DEMO — tài khoản thật gần như chắc chắn xấu hơn'}
+                      {d.chu}{ngo && (' ' + chu('· ĐO Ở DEMO — tài khoản thật gần như chắc chắn xấu hơn'))}
                     </span>
                   </div>
                 )
@@ -544,8 +544,8 @@ export default function Live() {
               {dePhong?.chep_tu && (
                 <div className="lv-de-nghi canh">
                   Bộ số này <b>chép từ «{dePhong.chep_tu}»</b>, không đo tại sàn này.
-                  Mấy dòng <span className="lv-loai san">luật sàn</span> vẫn đúng;
-                  dòng <span className="lv-loai khop">chất lượng khớp</span> chỉ là chặn dưới.
+                  Mấy dòng <span className="lv-loai san">{chu('luật sàn')}</span> vẫn đúng;
+                  dòng <span className="lv-loai khop">{chu('chất lượng khớp')}</span> chỉ là chặn dưới.
                 </div>
               )}
 
@@ -579,13 +579,13 @@ export default function Live() {
 
               {dePhong && !dePhong.da_hieu_chuan && !dePhong.ho_so_khac?.length && (
                 <div className="lv-de-nghi canh">
-                  Chưa hiệu chuẩn — mọi con số trên là <b>phỏng đoán</b>. Chạy bài kiểm
+                  Chưa hiệu chuẩn — mọi con số trên là <b>{chu('phỏng đoán')}</b>. Chạy bài kiểm
                   trên demo để đo thật; kết quả tự ghi vào hồ sơ, không cần bấm gì thêm.
                 </div>
               )}
               {dePhong?.trang_thai === 'chua_hoi_tu' && (
                 <div className="lv-de-nghi canh">
-                  Lần hiệu chuẩn gần nhất <b>chưa chốt được</b> — vẫn còn chỗ hỏng sau khi
+                  Lần hiệu chuẩn gần nhất <b>{chu('chưa chốt được')}</b> — vẫn còn chỗ hỏng sau khi
                   đã chỉnh hết mức. Số ở trên là cái tốt nhất học được, chưa phải cái đúng.
                 </div>
               )}
@@ -593,19 +593,19 @@ export default function Live() {
 
               {ketQuaTest && (
                 <div className="lv-nhom lv-nhom-rong">
-                  <div className="lv-dau">Bài kiểm — vòng lặp tự chỉnh</div>
+                  <div className="lv-dau">{chu('Bài kiểm — vòng lặp tự chỉnh')}</div>
 
                   {/* BA TRẠNG THÁI KẾT THÚC, không phải "N/M bước đạt". Con số đó trộn
                       bốn thứ khác hẳn nhau vào một rổ rồi bắt người đọc tự tách. */}
                   <div className={'lv-tt lv-tt-' + ketQuaTest.trang_thai}>
                     {ketQuaTest.trang_thai === 'xong' ? (
-                      <><b>✓ Đã chốt xong.</b> Bảng <b>Đề phòng</b> bên trên giờ là số đã
+                      <><b>{chu('✓ Đã chốt xong.')}</b> {chu('Bảng')} <b>{chu('Đề phòng')}</b> bên trên giờ là số đã
                         qua kiểm — không còn dòng nào là phỏng đoán. {ketQuaTest.chu}</>
                     ) : ketQuaTest.trang_thai === 'nguoi' ? (
-                      <><b>⚑ Cần bạn ra tay.</b> Máy dừng vì gặp thứ chỉnh con số bao
+                      <><b>{chu('⚑ Cần bạn ra tay.')}</b> Máy dừng vì gặp thứ chỉnh con số bao
                         nhiêu cũng vô ích.</>
                     ) : (
-                      <><b>⚠ Chưa chốt được.</b> {ketQuaTest.chu}</>
+                      <><b>{chu('⚠ Chưa chốt được.')}</b> {ketQuaTest.chu}</>
                     )}
                   </div>
 
@@ -617,7 +617,7 @@ export default function Live() {
                   {!!ketQuaTest.da_chinh?.length && (
                     <div className="lv-chinh">
                       <div className="lv-chinh-dau">Đã chỉnh giả thuyết
-                        <span> — lỗi tự khai giá trị đúng, hồ sơ tự cập nhật</span></div>
+                        <span> {chu('— lỗi tự khai giá trị đúng, hồ sơ tự cập nhật')}</span></div>
                       {ketQuaTest.da_chinh.map((c, k) =>
                         <div key={k} className="lv-chinh-dong">⚙ {c}</div>)}
                     </div>
@@ -671,7 +671,7 @@ export default function Live() {
            bước bài hiệu chuẩn đặt lệnh THẬT, mỗi lần mất/nối lại kết nối, mỗi lô nến
            về — đều đổ vào một state không ai vẽ. Tức bấm Hiệu chuẩn xong nhìn màn hình
            không thấy gì, đúng thứ nhật ký sinh ra để chống. */
-        { khoa: 'may', nhan: 'Máy', dem: dong.length,
+        { khoa: 'may', nhan: chu('Máy'), dem: dong.length,
           ve: () => (
             <div className="nk-cuon">
               {dong.length === 0
@@ -679,14 +679,14 @@ export default function Live() {
                 : dong.map((d, k) => <div key={k} className="lv-may">{d}</div>)}
             </div>
           ) },
-        { khoa: 'nhat-ky', nhan: 'Nhật ký', dem: nhatKy.length,
+        { khoa: 'nhat-ky', nhan: chu('Nhật ký'), dem: nhatKy.length,
           ve: () => (
             <div className="nk-boc">
               {/* KHUNG HÌNH SỐ 0 của cuộn phim, ghim trên đầu. Không trộn vào danh sách
                   lượt: đây là sự kiện của PHIÊN, không phải một lượt của sơ đồ. */}
               <div className="nk-moc">
                 ▶ Khởi tạo chiến thuật thành công — <b>{boot?.ten}</b> · {boot?.symbol}
-                {batDauChu && <> · bắt đầu theo dõi từ <b>{batDauChu}</b></>}
+                {batDauChu && <> {chu('· bắt đầu theo dõi từ')} <b>{batDauChu}</b></>}
               </div>
               <Journey dong={nhatKy} jBayGio={j} chiViec={chiViec} soi={soi} />
             </div>

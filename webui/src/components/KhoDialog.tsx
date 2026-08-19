@@ -61,7 +61,7 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
       {d && (
         <div className="kho">
           <div className="chu-dan">
-            Danh sách này do Python <b>{chu('tự gom')}</b> từ thư mục <code>kho/</code>. Thêm một
+            Danh sách này do Python <b>{chu('tự gom')}</b> {chu('từ thư mục')} <code>kho/</code>. Thêm một
             chiến lược mới = thêm một file vào đó, và mục dưới đây có ngay — không có
             danh sách nào chép tay, nên nó không thể nói khác thực tế.
           </div>
@@ -71,11 +71,11 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
                  ten={m.ten}
                  phu={m.nguon ? chu('có nguồn') : chu('dùng chung')}>
               <div className="kho-mota">{m.mo_ta}</div>
-              {m.nguon && <div className="kho-nguon">nguồn: <code>{m.nguon}</code></div>}
+              {m.nguon && <div className="kho-nguon">{chu('nguồn:')} <code>{m.nguon}</code></div>}
 
               {chi_bao.length > 0 && (
                 <table className="kho-bang">
-                  <thead><tr><th>Chỉ báo</th><th>{chu('Tham số')}</th><th>{chu('Công thức')}</th></tr></thead>
+                  <thead><tr><th>{chu('Chỉ báo')}</th><th>{chu('Tham số')}</th><th>{chu('Công thức')}</th></tr></thead>
                   <tbody>
                     {chi_bao.map(c => (
                       <tr key={c.key}>
@@ -158,9 +158,9 @@ export default function KhoDialog({ onDong }: { onDong: () => void }) {
             </div>
           </Muc>
 
-          <Muc ten="Sổ lệnh" phu={chu("id của ta, không mượn ticket MT5")}>
+          <Muc ten={chu("Sổ lệnh")} phu={chu("id của ta, không mượn ticket MT5")}>
             <div className="chu-dan">
-              Mỗi lệnh mang một id <code>L-0001</code> và nhớ <code>zone_id</code> đẻ ra
+              Mỗi lệnh mang một id <code>L-0001</code> {chu('và nhớ')} <code>zone_id</code> đẻ ra
               nó. Nhờ vậy <b>{chu('“vùng này đã sinh lệnh”')}</b> chỉ là một phép tra bảng, và
               không phải đoán như <code>HasOpenPosition()</code> của D_02.
               <code>ticket</code> của MT5 chỉ là một cột phụ, để trống khi backtest.
